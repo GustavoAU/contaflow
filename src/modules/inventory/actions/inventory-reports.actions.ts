@@ -33,8 +33,8 @@ export async function getStockSummaryAction(
 
 export async function getMovementReportAction(
   companyId: string,
-  from: string,    // ISO date "YYYY-MM-DD"
-  to: string,      // ISO date "YYYY-MM-DD"
+  from: string, // ISO date "YYYY-MM-DD"
+  to: string, // ISO date "YYYY-MM-DD"
   type?: string,
   itemId?: string,
   status?: string
@@ -69,8 +69,8 @@ export async function getMovementReportAction(
 
 export async function getRotationReportAction(
   companyId: string,
-  from: string,   // ISO date "YYYY-MM-DD"
-  to: string      // ISO date "YYYY-MM-DD"
+  from: string, // ISO date "YYYY-MM-DD"
+  to: string // ISO date "YYYY-MM-DD"
 ): Promise<ActionResult<RotationReportItem[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
   if (!ctx.ok) return ctx.error;

@@ -10,7 +10,9 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const makeLot = (overrides: Partial<{ id: string; quantityOnHand: Decimal; expiresAt: Date | null }> = {}) => ({
+const makeLot = (
+  overrides: Partial<{ id: string; quantityOnHand: Decimal; expiresAt: Date | null }> = {}
+) => ({
   id: overrides.id ?? "lot-001",
   quantityOnHand: overrides.quantityOnHand ?? new Decimal("10"),
   expiresAt: overrides.expiresAt !== undefined ? overrides.expiresAt : null,
@@ -49,7 +51,13 @@ describe("resolveLotAllocations", () => {
   it("usa asignaciones manuales si se proveen (fefoOverridden = true)", async () => {
     const tx = makeTx();
     const manual = [{ lotId: "lot-a", quantity: "5" }];
-    const result = await resolveLotAllocations(tx as never, COMPANY, ITEM, new Decimal("5"), manual);
+    const result = await resolveLotAllocations(
+      tx as never,
+      COMPANY,
+      ITEM,
+      new Decimal("5"),
+      manual
+    );
     expect(result.fefoOverridden).toBe(true);
     expect(result.allocations).toEqual(manual);
     expect(tx.inventoryLot.findMany).not.toHaveBeenCalled();
@@ -58,7 +66,11 @@ describe("resolveLotAllocations", () => {
   it("calcula FEFO automático cuando no hay asignaciones manuales (fefoOverridden = false)", async () => {
     const tx = makeTx();
     tx.inventoryLot.findMany.mockResolvedValue([
-      makeLot({ id: "lot-exp", quantityOnHand: new Decimal("3"), expiresAt: new Date("2026-06-01") }),
+      makeLot({
+        id: "lot-exp",
+        quantityOnHand: new Decimal("3"),
+        expiresAt: new Date("2026-06-01"),
+      }),
       makeLot({ id: "lot-no-exp", quantityOnHand: new Decimal("10"), expiresAt: null }),
     ]);
 
@@ -196,8 +208,12 @@ describe("applyLotMovement — ENTRADA", () => {
 
     await applyLotMovement(
       tx as never,
-      COMPANY, ITEM, MOVEMENT, "ENTRADA",
-      new Decimal("10"), [],
+      COMPANY,
+      ITEM,
+      MOVEMENT,
+      "ENTRADA",
+      new Decimal("10"),
+      [],
       USER,
       { lotNumber: "LOTE-001" }
     );
@@ -212,13 +228,20 @@ describe("applyLotMovement — ENTRADA", () => {
 
   it("actualiza lote existente cuando lotNumber ya existe", async () => {
     const tx = makeTx();
-    tx.inventoryLot.findFirst.mockResolvedValue({ id: "existing-lot", quantityOnHand: new Decimal("5") });
+    tx.inventoryLot.findFirst.mockResolvedValue({
+      id: "existing-lot",
+      quantityOnHand: new Decimal("5"),
+    });
     tx.inventoryLot.update.mockResolvedValue({ id: "existing-lot" });
 
     await applyLotMovement(
       tx as never,
-      COMPANY, ITEM, MOVEMENT, "ENTRADA",
-      new Decimal("3"), [],
+      COMPANY,
+      ITEM,
+      MOVEMENT,
+      "ENTRADA",
+      new Decimal("3"),
+      [],
       USER,
       { lotNumber: "LOTE-001" }
     );
@@ -238,8 +261,12 @@ describe("applyLotMovement — ENTRADA", () => {
     const expiresAt = new Date("2027-01-01");
     await applyLotMovement(
       tx as never,
-      COMPANY, ITEM, MOVEMENT, "ENTRADA",
-      new Decimal("5"), [],
+      COMPANY,
+      ITEM,
+      MOVEMENT,
+      "ENTRADA",
+      new Decimal("5"),
+      [],
       USER,
       { lotNumber: "LOTE-EXP", expiresAt }
     );
@@ -271,7 +298,14 @@ describe("applyLotMovement — SALIDA", () => {
     ];
 
     await applyLotMovement(
-      tx as never, COMPANY, ITEM, MOVEMENT, "SALIDA", new Decimal("5"), allocations, USER
+      tx as never,
+      COMPANY,
+      ITEM,
+      MOVEMENT,
+      "SALIDA",
+      new Decimal("5"),
+      allocations,
+      USER
     );
 
     expect(tx.inventoryLot.update).toHaveBeenCalledTimes(2);
@@ -287,12 +321,17 @@ describe("applyLotMovement — SALIDA", () => {
     tx.inventoryLot.update.mockResolvedValue({});
     tx.inventoryMovementLot.create.mockResolvedValue({});
 
-    const allocations = [
-      { lotId: "lot-a", quantity: "5" },
-    ];
+    const allocations = [{ lotId: "lot-a", quantity: "5" }];
 
     await applyLotMovement(
-      tx as never, COMPANY, ITEM, MOVEMENT, "SALIDA", new Decimal("5"), allocations, USER
+      tx as never,
+      COMPANY,
+      ITEM,
+      MOVEMENT,
+      "SALIDA",
+      new Decimal("5"),
+      allocations,
+      USER
     );
 
     const lineData = tx.inventoryMovementLot.create.mock.calls[0]![0].data;
@@ -340,9 +379,9 @@ describe("voidLotMovement", () => {
     ]);
     tx.inventoryLot.findFirst.mockResolvedValue(null); // no encontrado en esta empresa
 
-    await expect(
-      voidLotMovement(tx as never, COMPANY, MOVEMENT, "SALIDA")
-    ).rejects.toThrow("no pertenece a esta empresa");
+    await expect(voidLotMovement(tx as never, COMPANY, MOVEMENT, "SALIDA")).rejects.toThrow(
+      "no pertenece a esta empresa"
+    );
   });
 
   it("no hace nada cuando no hay líneas de lote (caso borde)", async () => {

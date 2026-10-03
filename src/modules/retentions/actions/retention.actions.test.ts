@@ -68,9 +68,11 @@ vi.mock("@/lib/ratelimit", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -196,25 +198,31 @@ describe("createRetentionAction", () => {
     // VALID_INPUT.invoiceDate (2026-03-10) — assertDateInOpenPeriod ya no tiene el
     // bypass "sin período = permitir" que tenía el findFirst anterior.
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
-      id: "period-mar-2026", year: 2026, month: 3, status: "OPEN", fiscalYear: { status: "OPEN" },
+      id: "period-mar-2026",
+      year: 2026,
+      month: 3,
+      status: "OPEN",
+      fiscalYear: { status: "OPEN" },
     } as never);
     // Por defecto: sin factura vinculada y sin cuentas GL → no genera asiento GL
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
-    vi.mocked(prisma.$transaction).mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) => {
-      const tx = {
-        retencion: {
-          create: vi.mocked(prisma.retencion.create),
-          update: vi.mocked(prisma.retencion.update),
-        },
-        auditLog: { create: vi.mocked(prisma.auditLog.create) },
-        companySettings: { findUnique: vi.mocked(prisma.companySettings.findUnique) },
-        transaction: { create: vi.mocked(prisma.transaction.create) },
-        ivaRetentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
-        islrRetentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
-      };
-      return fn(tx as never);
-    });
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (fn: (tx: typeof prisma) => Promise<unknown>) => {
+        const tx = {
+          retencion: {
+            create: vi.mocked(prisma.retencion.create),
+            update: vi.mocked(prisma.retencion.update),
+          },
+          auditLog: { create: vi.mocked(prisma.auditLog.create) },
+          companySettings: { findUnique: vi.mocked(prisma.companySettings.findUnique) },
+          transaction: { create: vi.mocked(prisma.transaction.create) },
+          ivaRetentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
+          islrRetentionSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
+        };
+        return fn(tx as never);
+      }
+    );
   });
 
   it("crea retención IVA correctamente en el happy path", async () => {
@@ -247,7 +255,10 @@ describe("createRetentionAction", () => {
   });
 
   it("ADR-052: type ISLR solo genera islrVoucherNumber, voucherNumber queda null", async () => {
-    vi.mocked(prisma.retencion.create).mockResolvedValue({ ...mockRetention, type: "ISLR" } as never);
+    vi.mocked(prisma.retencion.create).mockResolvedValue({
+      ...mockRetention,
+      type: "ISLR",
+    } as never);
 
     await createRetentionAction({ ...VALID_INPUT, type: "ISLR", islrCode: "HONORARIOS_PN" });
 
@@ -262,7 +273,10 @@ describe("createRetentionAction", () => {
   });
 
   it("ADR-052: type AMBAS genera AMBOS correlativos, independientes entre sí", async () => {
-    vi.mocked(prisma.retencion.create).mockResolvedValue({ ...mockRetention, type: "AMBAS" } as never);
+    vi.mocked(prisma.retencion.create).mockResolvedValue({
+      ...mockRetention,
+      type: "AMBAS",
+    } as never);
 
     await createRetentionAction({ ...VALID_INPUT, type: "AMBAS", islrCode: "SERVICIOS_PJ" });
 
@@ -365,9 +379,7 @@ describe("createRetentionAction", () => {
   it("recupera la retención existente en race condition P2002 — con companyId", async () => {
     // clearAllMocks() del beforeEach resetea findFirst — re-setear para el catch block.
     // $transaction lanza P2002, el catch busca la existente via findFirst.
-    vi.mocked(prisma.$transaction).mockRejectedValue(
-      new Error("Unique constraint failed — P2002")
-    );
+    vi.mocked(prisma.$transaction).mockRejectedValue(new Error("Unique constraint failed — P2002"));
     // El recovery path en el catch llama findFirst — debe retornar la existente
     vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetention as never);
 
@@ -390,9 +402,7 @@ describe("createRetentionAction", () => {
   });
 
   it("retorna error cuando P2002 pero no hay idempotencyKey", async () => {
-    vi.mocked(prisma.$transaction).mockRejectedValue(
-      new Error("Unique constraint failed — P2002")
-    );
+    vi.mocked(prisma.$transaction).mockRejectedValue(new Error("Unique constraint failed — P2002"));
 
     const result = await createRetentionAction(VALID_INPUT); // sin idempotencyKey
 
@@ -424,7 +434,7 @@ describe("createRetentionAction", () => {
           type: "DIARIO",
           entries: expect.objectContaining({
             create: expect.arrayContaining([
-              expect.objectContaining({ accountId: "acc-cxp" }),     // Dr CxP
+              expect.objectContaining({ accountId: "acc-cxp" }), // Dr CxP
               expect.objectContaining({ accountId: "acc-ret-iva" }), // Cr Ret.IVA
             ]),
           }),
@@ -452,7 +462,7 @@ describe("createRetentionAction", () => {
       ivaAmount: "0.00",
       ivaRetention: "0.00",
       ivaRetentionPct: 0,
-      islrAmount: "30.00",  // 3% de 1000
+      islrAmount: "30.00", // 3% de 1000
       islrRetentionPct: 3,
       incesAmount: null,
       incesRetentionPct: null,
@@ -489,7 +499,7 @@ describe("createRetentionAction", () => {
         data: expect.objectContaining({
           entries: expect.objectContaining({
             create: expect.arrayContaining([
-              expect.objectContaining({ accountId: "acc-cxp" }),      // Dr CxP
+              expect.objectContaining({ accountId: "acc-cxp" }), // Dr CxP
               expect.objectContaining({ accountId: "acc-ret-islr" }), // Cr Ret.ISLR
             ]),
           }),
@@ -498,7 +508,8 @@ describe("createRetentionAction", () => {
     );
     // Cuenta de IVA NO debe aparecer en el asiento ISLR
     const callArgs = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
-    const entries = (callArgs?.data as { entries?: { create?: { accountId: string }[] } })?.entries?.create ?? [];
+    const entries =
+      (callArgs?.data as { entries?: { create?: { accountId: string }[] } })?.entries?.create ?? [];
     expect(entries.some((e) => e.accountId === "acc-ret-iva")).toBe(false);
   });
 });
@@ -619,9 +630,10 @@ describe("exportRetentionVoucherPDFAction", () => {
   it("usa retention.id como fallback si voucherNumber es null", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
-    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(
-      { ...mockRetentionFull, voucherNumber: null } as never
-    );
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue({
+      ...mockRetentionFull,
+      voucherNumber: null,
+    } as never);
     vi.mocked(generateRetentionVoucherPDF).mockResolvedValue(Buffer.from("fake-pdf"));
 
     await exportRetentionVoucherPDFAction("ret-1", "company-1");
@@ -635,9 +647,12 @@ describe("exportRetentionVoucherPDFAction", () => {
   it("ADR-052: type ISLR imprime islrVoucherNumber en el slot principal del PDF", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
-    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(
-      { ...mockRetentionFull, type: "ISLR", voucherNumber: null, islrVoucherNumber: "20260900000005" } as never
-    );
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue({
+      ...mockRetentionFull,
+      type: "ISLR",
+      voucherNumber: null,
+      islrVoucherNumber: "20260900000005",
+    } as never);
     vi.mocked(generateRetentionVoucherPDF).mockResolvedValue(Buffer.from("fake-pdf"));
 
     await exportRetentionVoucherPDFAction("ret-1", "company-1");
@@ -650,14 +665,12 @@ describe("exportRetentionVoucherPDFAction", () => {
   it("ADR-052: type AMBAS imprime AMBOS correlativos, uno en cada campo", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
-    vi.mocked(prisma.retencion.findFirst).mockResolvedValue(
-      {
-        ...mockRetentionFull,
-        type: "AMBAS",
-        voucherNumber: "20260900000010",
-        islrVoucherNumber: "20260900000003",
-      } as never
-    );
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue({
+      ...mockRetentionFull,
+      type: "AMBAS",
+      voucherNumber: "20260900000010",
+      islrVoucherNumber: "20260900000003",
+    } as never);
     vi.mocked(generateRetentionVoucherPDF).mockResolvedValue(Buffer.from("fake-pdf"));
 
     await exportRetentionVoucherPDFAction("ret-1", "company-1");
@@ -711,7 +724,10 @@ describe("linkRetentionToInvoiceAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(linkRetentionToInvoice).mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" })
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "7.0.0",
+      })
     );
 
     const result = await linkRetentionToInvoiceAction("ret-1", "inv-1", "company-1");
@@ -724,7 +740,10 @@ describe("linkRetentionToInvoiceAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(linkRetentionToInvoice).mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", { code: "P2003", clientVersion: "7.0.0" })
+      new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", {
+        code: "P2003",
+        clientVersion: "7.0.0",
+      })
     );
 
     const result = await linkRetentionToInvoiceAction("ret-1", "inv-inexistente", "company-1");
@@ -806,7 +825,14 @@ describe("findInvoiceByNumberAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([
-      { id: "inv-1", invoiceNumber: "B00000001", date: new Date(), counterpartName: "CE Corp", counterpartRif: "J-99887766-5", type: "PURCHASE" },
+      {
+        id: "inv-1",
+        invoiceNumber: "B00000001",
+        date: new Date(),
+        counterpartName: "CE Corp",
+        counterpartRif: "J-99887766-5",
+        type: "PURCHASE",
+      },
     ] as never);
     vi.mocked(prisma.vendor.findMany).mockResolvedValue([
       { rif: "J-99887766-5", isSpecialContributor: true },
@@ -824,7 +850,14 @@ describe("findInvoiceByNumberAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([
-      { id: "inv-2", invoiceNumber: "B00000002", date: new Date(), counterpartName: "Normal Corp", counterpartRif: "J-11223344-5", type: "PURCHASE" },
+      {
+        id: "inv-2",
+        invoiceNumber: "B00000002",
+        date: new Date(),
+        counterpartName: "Normal Corp",
+        counterpartRif: "J-11223344-5",
+        type: "PURCHASE",
+      },
     ] as never);
     vi.mocked(prisma.vendor.findMany).mockResolvedValue([
       { rif: "J-11223344-5", isSpecialContributor: false },
@@ -843,12 +876,17 @@ describe("findInvoiceByNumberAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([
-      { id: "inv-3", invoiceNumber: "B00000003", date: new Date(), counterpartName: "Corp X", counterpartRif: "J-12345678-9", type: "PURCHASE" },
+      {
+        id: "inv-3",
+        invoiceNumber: "B00000003",
+        date: new Date(),
+        counterpartName: "Corp X",
+        counterpartRif: "J-12345678-9",
+        type: "PURCHASE",
+      },
     ] as never);
     vi.mocked(prisma.vendor.findMany).mockResolvedValue([] as never);
-    vi.mocked(prisma.retencion.findMany).mockResolvedValue([
-      { invoiceId: "inv-3" },
-    ] as never);
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([{ invoiceId: "inv-3" }] as never);
 
     const result = await findInvoiceByNumberAction("B0003", "company-1");
 
@@ -861,7 +899,14 @@ describe("findInvoiceByNumberAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([
-      { id: "inv-4", invoiceNumber: "B00000004", date: new Date(), counterpartName: "Corp Y", counterpartRif: "J-12345678-9", type: "PURCHASE" },
+      {
+        id: "inv-4",
+        invoiceNumber: "B00000004",
+        date: new Date(),
+        counterpartName: "Corp Y",
+        counterpartRif: "J-12345678-9",
+        type: "PURCHASE",
+      },
     ] as never);
     vi.mocked(prisma.vendor.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.retencion.findMany).mockResolvedValue([] as never);
@@ -882,15 +927,13 @@ describe("createRetentionAction — ALERTA 20: período contable activo", () => 
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMembership as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          retencion: prisma.retencion,
-          auditLog: prisma.auditLog,
-          companySettings: { findUnique: vi.fn().mockResolvedValue(null) },
-          transaction: { create: vi.fn() },
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        retencion: prisma.retencion,
+        auditLog: prisma.auditLog,
+        companySettings: { findUnique: vi.fn().mockResolvedValue(null) },
+        transaction: { create: vi.fn() },
+      })) as never);
     vi.mocked(prisma.retencion.create).mockResolvedValue({
       ...mockRetention,
       enteradoAt: null,
@@ -1034,17 +1077,19 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     // estos tests no ejercitan esa validación, así que se mockea un período OPEN
     // que coincide con VALID_INPUT.invoiceDate (2026-03-10) para que no interfiera.
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
-      id: "period-mar-2026", year: 2026, month: 3, status: "OPEN", fiscalYear: { status: "OPEN" },
+      id: "period-mar-2026",
+      year: 2026,
+      month: 3,
+      status: "OPEN",
+      fiscalYear: { status: "OPEN" },
     } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          retencion: prisma.retencion,
-          auditLog: prisma.auditLog,
-          companySettings: { findUnique: vi.fn().mockResolvedValue(null) },
-          transaction: { create: vi.fn() },
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        retencion: prisma.retencion,
+        auditLog: prisma.auditLog,
+        companySettings: { findUnique: vi.fn().mockResolvedValue(null) },
+        transaction: { create: vi.fn() },
+      })) as never);
     vi.mocked(prisma.retencion.create).mockResolvedValue({
       ...mockRetention,
       enteradoAt: null,
@@ -1061,8 +1106,16 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
       invoiceNumber: "B00000001",
       taxLines: [
-        { taxType: "IVA_GENERAL", base: { toString: () => "800.00" }, amount: { toString: () => "128.00" } },
-        { taxType: "IVA_GENERAL", base: { toString: () => "200.00" }, amount: { toString: () => "32.00" } },
+        {
+          taxType: "IVA_GENERAL",
+          base: { toString: () => "800.00" },
+          amount: { toString: () => "128.00" },
+        },
+        {
+          taxType: "IVA_GENERAL",
+          base: { toString: () => "200.00" },
+          amount: { toString: () => "32.00" },
+        },
       ],
     } as never);
 
@@ -1083,7 +1136,11 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
       invoiceNumber: "B00000001",
       taxLines: [
-        { taxType: "IVA_GENERAL", base: { toString: () => "1000.00" }, amount: { toString: () => "160.00" } },
+        {
+          taxType: "IVA_GENERAL",
+          base: { toString: () => "1000.00" },
+          amount: { toString: () => "160.00" },
+        },
       ],
     } as never);
 
@@ -1254,5 +1311,4 @@ describe("createRetentionAction — ALERTA 18: validación base imponible", () =
     const accepted = await createRetentionAction({ ...VALID_INPUT, taxBase: "787700.00" });
     expect(accepted.success).toBe(true);
   });
-
 });

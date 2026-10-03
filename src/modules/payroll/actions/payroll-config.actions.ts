@@ -41,7 +41,13 @@ export async function savePayrollConfigAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const cfg = await PayrollConfigService.saveConfig(companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const cfg = await PayrollConfigService.saveConfig(
+      companyId,
+      ctx.userId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidatePath(`/company/${companyId}/payroll`);
     return { success: true, data: cfg };
   } catch (err) {
@@ -84,7 +90,7 @@ export async function getPayrollConfigStatusAction(
 // y cuándo tiene que quedar registrado.
 export async function setAutoDraftAction(
   companyId: string,
-  enabled: boolean,
+  enabled: boolean
 ): Promise<ActionResult<{ enabled: boolean }>> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ADMIN_ONLY,

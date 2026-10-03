@@ -91,14 +91,22 @@ export function GLAccountsForm({
   const [arAccountId, setArAccountId] = useState(initialConfig.arAccountId ?? NONE);
   const [apAccountId, setApAccountId] = useState(initialConfig.apAccountId ?? NONE);
   const [salesAccountId, setSalesAccountId] = useState(initialConfig.salesAccountId ?? NONE);
-  const [inventoryAccountId, setInventoryAccountId] = useState(initialConfig.inventoryAccountId ?? NONE);
+  const [inventoryAccountId, setInventoryAccountId] = useState(
+    initialConfig.inventoryAccountId ?? NONE
+  );
   const [ivaDFAccountId, setIvaDFAccountId] = useState(initialConfig.ivaDFAccountId ?? NONE);
   const [ivaCFAccountId, setIvaCFAccountId] = useState(initialConfig.ivaCFAccountId ?? NONE);
-  const [ivaRetentionPayableAccountId, setIvaRetentionPayableAccountId] = useState(initialConfig.ivaRetentionPayableAccountId ?? NONE); // GAP-03
+  const [ivaRetentionPayableAccountId, setIvaRetentionPayableAccountId] = useState(
+    initialConfig.ivaRetentionPayableAccountId ?? NONE
+  ); // GAP-03
   const [fxGainAccountId, setFxGainAccountId] = useState(initialConfig.fxGainAccountId ?? NONE);
   const [fxLossAccountId, setFxLossAccountId] = useState(initialConfig.fxLossAccountId ?? NONE);
-  const [igtfPayableAccountId, setIgtfPayableAccountId] = useState(initialConfig.igtfPayableAccountId ?? NONE); // ADR-030
-  const [ivaRetentionReceivableAccountId, setIvaRetentionReceivableAccountId] = useState(initialConfig.ivaRetentionReceivableAccountId ?? NONE); // Riesgo-6
+  const [igtfPayableAccountId, setIgtfPayableAccountId] = useState(
+    initialConfig.igtfPayableAccountId ?? NONE
+  ); // ADR-030
+  const [ivaRetentionReceivableAccountId, setIvaRetentionReceivableAccountId] = useState(
+    initialConfig.ivaRetentionReceivableAccountId ?? NONE
+  ); // Riesgo-6
   const [unbookedCount, setUnbookedCount] = useState(initialUnbookedCount);
 
   const [isSaving, startSave] = useTransition();
@@ -170,11 +178,11 @@ export function GLAccountsForm({
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">Facturas de Venta</h3>
           {saleConfigComplete ? (
-            <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+            <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
               Activo
             </span>
           ) : (
-            <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+            <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
               Incompleto
             </span>
           )}
@@ -212,11 +220,11 @@ export function GLAccountsForm({
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">Facturas de Compra</h3>
           {purchaseConfigComplete ? (
-            <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+            <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
               Activo
             </span>
           ) : (
-            <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+            <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
               Incompleto
             </span>
           )}
@@ -267,20 +275,23 @@ export function GLAccountsForm({
             <h3 className="text-sm font-semibold">IVA Retenido en Cobros</h3>
             <span className="text-xs text-zinc-400">(Prov. 0049 — Agente de Retención CE)</span>
             {ivaRetentionReceivableAccountId !== NONE ? (
-              <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+              <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
                 Activo
               </span>
             ) : (
-              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 font-medium">
+              <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-600">
                 ⚠️ Recomendado — Contribuyente Especial
               </span>
             )}
           </div>
           <p className="text-muted-foreground text-xs">
-            Cuando un cliente CE retiene el IVA (75%/100%), el cobro recibido es menor al total facturado.
-            Configure esta cuenta para que el asiento sea{" "}
-            <span className="font-medium">Dr. Banco (neto) + Dr. IVA Ret. x Cobrar = Cr. CxC (total)</span>.
-            La cuenta debe ser de tipo <span className="font-medium">ACTIVO</span> (cuenta 1135 o equivalente).
+            Cuando un cliente CE retiene el IVA (75%/100%), el cobro recibido es menor al total
+            facturado. Configure esta cuenta para que el asiento sea{" "}
+            <span className="font-medium">
+              Dr. Banco (neto) + Dr. IVA Ret. x Cobrar = Cr. CxC (total)
+            </span>
+            . La cuenta debe ser de tipo <span className="font-medium">ACTIVO</span> (cuenta 1135 o
+            equivalente).
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <AccountSelect
@@ -301,15 +312,15 @@ export function GLAccountsForm({
           <h3 className="text-sm font-semibold">Pagos en Divisas (IGTF)</h3>
           <span className="text-xs text-zinc-400">(ADR-030 · GL auto-posting)</span>
           {igtfPayableAccountId !== NONE ? (
-            <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+            <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
               Activo
             </span>
           ) : isSpecialContributor ? (
-            <span className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-0.5 font-medium">
+            <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
               ⚠️ Requerido — Contribuyente Especial
             </span>
           ) : (
-            <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-200 rounded px-2 py-0.5">
+            <span className="rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-400">
               Opcional
             </span>
           )}
@@ -317,15 +328,15 @@ export function GLAccountsForm({
         {isSpecialContributor && igtfPayableAccountId === NONE && (
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             <strong>Atención:</strong> Esta empresa es Contribuyente Especial. Bajo la Ley IGTF
-            (Art. 4 núm. 3) y la Providencia SNAT/2022/000013, debe actuar como agente de
-            percepción del 3% IGTF en todos los cobros en divisas. Configure esta cuenta para que
-            los asientos GL reflejen correctamente el pasivo IGTF por enterar al SENIAT.
+            (Art. 4 núm. 3) y la Providencia SNAT/2022/000013, debe actuar como agente de percepción
+            del 3% IGTF en todos los cobros en divisas. Configure esta cuenta para que los asientos
+            GL reflejen correctamente el pasivo IGTF por enterar al SENIAT.
           </div>
         )}
         <p className="text-muted-foreground text-xs">
           Si se configura, cada cobro en divisas generará automáticamente el asiento{" "}
-          <span className="font-medium">Dr. Banco / Cr. CxC / Cr. IGTF por Pagar</span>.
-          La cuenta debe ser de tipo <span className="font-medium">PASIVO</span> (cuenta 2115 o equivalente).
+          <span className="font-medium">Dr. Banco / Cr. CxC / Cr. IGTF por Pagar</span>. La cuenta
+          debe ser de tipo <span className="font-medium">PASIVO</span> (cuenta 2115 o equivalente).
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <AccountSelect
@@ -345,11 +356,11 @@ export function GLAccountsForm({
           <h3 className="text-sm font-semibold">Diferencial Cambiario</h3>
           <span className="text-xs text-zinc-400">(NIC 21 / VEN-NIF BA-5)</span>
           {fxGainAccountId !== NONE && fxLossAccountId !== NONE ? (
-            <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+            <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
               Activo
             </span>
           ) : (
-            <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-200 rounded px-2 py-0.5">
+            <span className="rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs text-zinc-400">
               Opcional
             </span>
           )}
@@ -375,7 +386,7 @@ export function GLAccountsForm({
       </div>
 
       {/* ── Acciones ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t pt-4">
+      <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <Button type="submit" disabled={isSaving || isPosting} aria-busy={isSaving}>
           {isSaving && <Loader2Icon className="animate-spin" />}
           <BookOpenIcon />
@@ -398,11 +409,7 @@ export function GLAccountsForm({
               disabled={isPosting || isSaving}
               aria-busy={isPosting}
             >
-              {isPosting ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <RefreshCwIcon />
-              )}
+              {isPosting ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
               {isPosting ? "Causando..." : "Causar ahora"}
             </Button>
           </div>

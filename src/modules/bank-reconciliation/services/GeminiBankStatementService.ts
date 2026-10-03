@@ -140,16 +140,12 @@ Reglas:
     try {
       parsed = JSON.parse(cleaned);
     } catch {
-      throw new Error(
-        `Gemini retornó JSON inválido. Respuesta cruda: ${cleaned.slice(0, 200)}`
-      );
+      throw new Error(`Gemini retornó JSON inválido. Respuesta cruda: ${cleaned.slice(0, 200)}`);
     }
 
     const result = ExtractedBankStatementSchema.safeParse(parsed);
     if (!result.success) {
-      throw new Error(
-        `Los datos extraídos no pasan la validación: ${result.error.message}`
-      );
+      throw new Error(`Los datos extraídos no pasan la validación: ${result.error.message}`);
     }
 
     return result.data;

@@ -21,7 +21,7 @@ const ALLOWLIST_NO_DB: string[] = [
   "src/modules/ocr/services/GeminiOCRService.ts",
   "src/modules/igtf/services/IGTFService.ts",
   "src/modules/invoices/services/InvoiceSequenceService.ts", // upsert with companyId — no findMany
-  "src/modules/retentions/services/RetentionService.ts",     // all queries include companyId or are PK
+  "src/modules/retentions/services/RetentionService.ts", // all queries include companyId or are PK
 ];
 
 // ─── Allowlist: files where the scoping is implicit (FK chain / PK / companyId
@@ -110,7 +110,7 @@ function readFile(relPath: string): string {
  */
 function detectFindManyWithoutCompanyId(
   content: string,
-  _relPath: string,
+  _relPath: string
 ): Array<{ lineNumber: number; operation: string; context: string }> {
   const WINDOW_LINES = 15;
   const lines = content.split("\n");
@@ -119,8 +119,7 @@ function detectFindManyWithoutCompanyId(
   // Pattern: prisma.[model].findMany( OR prisma.[model].findFirst( OR
   //          prisma.[model].aggregate( OR prisma.[model].count(
   // Exclude: findUnique (PK lookups acceptable by design per classification rules)
-  const DETECT_RE =
-    /prisma\.\w+\.(findMany|findFirst|aggregate|count)\s*\(\s*\{/;
+  const DETECT_RE = /prisma\.\w+\.(findMany|findFirst|aggregate|count)\s*\(\s*\{/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -208,14 +207,14 @@ describe("Architecture: multi-tenant companyId isolation", () => {
         if (criticalKnownFiles.has(relPath)) continue;
 
         violations.push(
-          `[${relPath}:${finding.lineNumber}]: prisma.[model].${finding.operation} sin companyId — CRITICO\n  Context: ${finding.context}`,
+          `[${relPath}:${finding.lineNumber}]: prisma.[model].${finding.operation} sin companyId — CRITICO\n  Context: ${finding.context}`
         );
       }
     }
 
     expect(
       violations,
-      `NUEVAS violaciones de aislamiento multi-tenant detectadas:\n${violations.join("\n\n")}`,
+      `NUEVAS violaciones de aislamiento multi-tenant detectadas:\n${violations.join("\n\n")}`
     ).toHaveLength(0);
   });
 
@@ -236,14 +235,14 @@ describe("Architecture: multi-tenant companyId isolation", () => {
         if (criticalKnownFiles.has(relPath)) continue;
 
         violations.push(
-          `[${relPath}:${finding.lineNumber}]: prisma.[model].${finding.operation} sin companyId — CRITICO\n  Context: ${finding.context}`,
+          `[${relPath}:${finding.lineNumber}]: prisma.[model].${finding.operation} sin companyId — CRITICO\n  Context: ${finding.context}`
         );
       }
     }
 
     expect(
       violations,
-      `NUEVAS violaciones de aislamiento multi-tenant en actions:\n${violations.join("\n\n")}`,
+      `NUEVAS violaciones de aislamiento multi-tenant en actions:\n${violations.join("\n\n")}`
     ).toHaveLength(0);
   });
 

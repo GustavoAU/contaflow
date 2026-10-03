@@ -25,9 +25,9 @@ export default async function InvoicesPage({ params }: Props) {
   ]);
 
   const fiscalTabs = [
-    { label: "Libros IVA",    href: `/company/${companyId}/invoices` },
-    { label: "Retenciones",   href: `/company/${companyId}/retentions` },
-    { label: "Decl. IVA",     href: `/company/${companyId}/iva-declaration` },
+    { label: "Libros IVA", href: `/company/${companyId}/invoices` },
+    { label: "Retenciones", href: `/company/${companyId}/retentions` },
+    { label: "Decl. IVA", href: `/company/${companyId}/iva-declaration` },
   ];
 
   return (

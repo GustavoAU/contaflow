@@ -2,8 +2,7 @@ import { SignIn } from "@clerk/nextjs";
 
 export default function SignInPage() {
   return (
-    <div className="relative min-h-screen bg-[oklch(0.145_0.05_258)] flex flex-col items-center justify-center px-4 py-12 overflow-hidden">
-
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[oklch(0.145_0.05_258)] px-4 py-12">
       {/* Aurora de color — igual que el hero */}
       <div
         className="pointer-events-none absolute inset-[-25%]"
@@ -21,27 +20,22 @@ export default function SignInPage() {
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage:
-            "radial-gradient(circle, oklch(1 0 0 / 0.07) 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(circle, oklch(1 0 0 / 0.07) 1px, transparent 1px)",
           backgroundSize: "32px 32px",
-          maskImage:
-            "radial-gradient(ellipse 85% 85% at 50% 50%, black 0%, transparent 80%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 85% 85% at 50% 50%, black 0%, transparent 80%)",
+          maskImage: "radial-gradient(ellipse 85% 85% at 50% 50%, black 0%, transparent 80%)",
+          WebkitMaskImage: "radial-gradient(ellipse 85% 85% at 50% 50%, black 0%, transparent 80%)",
         }}
       />
 
       {/* Logo */}
-      <div className="relative flex flex-col items-center mb-8 z-10">
-        <div className="w-16 h-16 bg-blue-500 rounded-2xl grid place-items-center text-3xl shadow-2xl shadow-blue-500/40 mb-5 ring-1 ring-blue-400/30">
+      <div className="relative z-10 mb-8 flex flex-col items-center">
+        <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl bg-blue-500 text-3xl shadow-2xl ring-1 shadow-blue-500/40 ring-blue-400/30">
           ⚡
         </div>
-        <span className="font-extrabold text-2xl text-white tracking-tight">
+        <span className="text-2xl font-extrabold tracking-tight text-white">
           Conta<span className="text-blue-400">Flow</span>
         </span>
-        <p className="mt-2 text-sm text-zinc-400">
-          Sistema contable profesional venezolano
-        </p>
+        <p className="mt-2 text-sm text-zinc-400">Sistema contable profesional venezolano</p>
       </div>
 
       {/* Formulario Clerk */}
@@ -50,10 +44,10 @@ export default function SignInPage() {
       </div>
 
       {/* Footer */}
-      <p className="relative mt-8 z-10 flex items-center gap-2 text-xs text-zinc-600">
+      <p className="relative z-10 mt-8 flex items-center gap-2 text-xs text-zinc-600">
         <svg
           viewBox="0 0 24 24"
-          className="w-3.5 h-3.5 shrink-0"
+          className="h-3.5 w-3.5 shrink-0"
           fill="none"
           stroke="currentColor"
           strokeWidth="2"

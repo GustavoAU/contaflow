@@ -67,7 +67,12 @@ const MOCK_FORMA30 = {
     totalRetenciones: ZERO,
   },
   seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-  seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false, excedenteCreditoFiscal: ZERO },
+  seccionE: {
+    creditoFiscalPeriodoAnterior: ZERO,
+    cuotaPeriodo: ZERO,
+    esSaldoAFavor: false,
+    excedenteCreditoFiscal: ZERO,
+  },
   calculatedAt: new Date(),
 };
 
@@ -77,9 +82,7 @@ describe("generarForma30Action — security", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue({ userId: USER_ID });
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      { role: "ACCOUNTANT" } as never
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(false);
     vi.mocked(DeclaracionIVAService.calculate).mockResolvedValue(MOCK_FORMA30);
   });
@@ -116,9 +119,7 @@ describe("generarForma30Action — security", () => {
   });
 
   it("VIEWER puede generar la Forma 30 (lectura)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      { role: "VIEWER" } as never
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
 
     const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH);
 
@@ -167,12 +168,10 @@ describe("generarForma30Action — security", () => {
       callOrder.push("auth");
       return { userId: USER_ID };
     });
-    vi.mocked(prisma.companyMember.findFirst).mockImplementation(
-      (async () => {
-        callOrder.push("companyMember");
-        return { role: "ACCOUNTANT" } as never;
-      }) as never
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockImplementation((async () => {
+      callOrder.push("companyMember");
+      return { role: "ACCOUNTANT" } as never;
+    }) as never);
 
     await generarForma30Action(COMPANY_ID, YEAR, MONTH);
 
@@ -271,7 +270,7 @@ describe("getRetencionesSufridas", () => {
           companyId: COMPANY_ID,
           type: "SALE",
         }),
-      }),
+      })
     );
   });
 

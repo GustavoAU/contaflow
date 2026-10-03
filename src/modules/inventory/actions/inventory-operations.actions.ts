@@ -27,9 +27,7 @@ import { toActionError } from "../utils/action-errors";
 
 // ─── Crear ítem ───────────────────────────────────────────────────────────────
 
-export async function createInventoryItemAction(
-  input: unknown
-): Promise<ActionResult<string>> {
+export async function createInventoryItemAction(input: unknown): Promise<ActionResult<string>> {
   const parsed = CreateInventoryItemSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -51,9 +49,7 @@ export async function createInventoryItemAction(
 
 // ─── Actualizar ítem ──────────────────────────────────────────────────────────
 
-export async function updateInventoryItemAction(
-  input: unknown
-): Promise<ActionResult<string>> {
+export async function updateInventoryItemAction(input: unknown): Promise<ActionResult<string>> {
   const parsed = UpdateInventoryItemSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -98,9 +94,7 @@ export async function softDeleteInventoryItemAction(
 
 // ─── Registrar movimiento (→ DRAFT) ──────────────────────────────────────────
 
-export async function createMovementAction(
-  input: unknown
-): Promise<ActionResult<string>> {
+export async function createMovementAction(input: unknown): Promise<ActionResult<string>> {
   const parsed = CreateMovementSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -112,7 +106,12 @@ export async function createMovementAction(
   if (!ctx.ok) return ctx.error;
 
   try {
-    const movement = await createDraftMovement(parsed.data, ctx.userId, ctx.ipAddress, ctx.userAgent);
+    const movement = await createDraftMovement(
+      parsed.data,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidatePath(`/company/${parsed.data.companyId}/inventory`);
     return { success: true, data: movement.id };
   } catch (error) {
@@ -122,9 +121,7 @@ export async function createMovementAction(
 
 // ─── Anular movimiento DRAFT ──────────────────────────────────────────────────
 
-export async function voidDraftMovementAction(
-  input: unknown
-): Promise<ActionResult<boolean>> {
+export async function voidDraftMovementAction(input: unknown): Promise<ActionResult<boolean>> {
   const parsed = VoidMovementSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -193,7 +190,11 @@ export async function getDraftMovementsAction(
 export async function searchInventoryItemsAction(
   companyId: string,
   query: string
-): Promise<ActionResult<{ id: string; name: string; sku: string; stockQuantity: string; baseUnitAbbr: string }[]>> {
+): Promise<
+  ActionResult<
+    { id: string; name: string; sku: string; stockQuantity: string; baseUnitAbbr: string }[]
+  >
+> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.OPERATIONS });
   if (!ctx.ok) return ctx.error;
 

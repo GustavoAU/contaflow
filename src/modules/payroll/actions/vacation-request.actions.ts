@@ -32,7 +32,11 @@ const CreateSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD requerido"),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD requerido"),
   daysRequested: z.string().refine((v) => {
-    try { return new Decimal(v).gt(0); } catch { return false; }
+    try {
+      return new Decimal(v).gt(0);
+    } catch {
+      return false;
+    }
   }, "Los días deben ser un número positivo"),
   notes: z.string().max(500).optional(),
 });
@@ -44,7 +48,11 @@ const RejectSchema = z.object({
 const InitialBalanceSchema = z.object({
   employeeId: z.string().min(1),
   initialVacationDays: z.string().refine((v) => {
-    try { return new Decimal(v).gte(0); } catch { return false; }
+    try {
+      return new Decimal(v).gte(0);
+    } catch {
+      return false;
+    }
   }, "El saldo debe ser un número no negativo"),
 });
 
@@ -94,12 +102,14 @@ export async function createVacationRequestAction(
     if (!ctx.ok) return ctx.error;
 
     const parsed = CreateSchema.safeParse(rawInput);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const { employeeId, startDate, endDate, daysRequested, notes } = parsed.data;
     const start = new Date(startDate);
     const end = new Date(endDate);
-    if (end < start) return { success: false, error: "La fecha de fin no puede ser anterior al inicio" };
+    if (end < start)
+      return { success: false, error: "La fecha de fin no puede ser anterior al inicio" };
 
     const data = await VacationRequestService.create(companyId, {
       employeeId,
@@ -135,7 +145,11 @@ export async function approveVacationRequestAction(
     if (!ctx.ok) return ctx.error;
 
     const data = await VacationRequestService.approve(
-      companyId, requestId, ctx.userId, ctx.ipAddress, ctx.userAgent
+      companyId,
+      requestId,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${companyId}/payroll/vacation-requests`);
@@ -161,10 +175,16 @@ export async function rejectVacationRequestAction(
     if (!ctx.ok) return ctx.error;
 
     const parsed = RejectSchema.safeParse(rawInput);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const data = await VacationRequestService.reject(
-      companyId, requestId, ctx.userId, parsed.data.rejectionReason, ctx.ipAddress, ctx.userAgent
+      companyId,
+      requestId,
+      ctx.userId,
+      parsed.data.rejectionReason,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${companyId}/payroll/vacation-requests`);
@@ -188,7 +208,11 @@ export async function cancelVacationRequestAction(
     if (!ctx.ok) return ctx.error;
 
     const data = await VacationRequestService.cancel(
-      companyId, requestId, ctx.userId, ctx.ipAddress, ctx.userAgent
+      companyId,
+      requestId,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${companyId}/payroll/vacation-requests`);
@@ -213,7 +237,8 @@ export async function setInitialVacationBalanceAction(
     if (!ctx.ok) return ctx.error;
 
     const parsed = InitialBalanceSchema.safeParse(rawInput);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     await VacationRequestService.setInitialVacationBalance(
       companyId,

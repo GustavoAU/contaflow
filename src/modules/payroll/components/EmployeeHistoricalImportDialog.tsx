@@ -88,23 +88,27 @@ export function EmployeeHistoricalImportDialog({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl space-y-4">
+          <div className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-zinc-800">Saldos del sistema anterior</h3>
-                <p className="text-xs text-zinc-500 mt-0.5">{employeeName}</p>
+                <p className="mt-0.5 text-xs text-zinc-500">{employeeName}</p>
               </div>
               <button
-                onClick={() => { setOpen(false); setSuccess(false); setError(null); }}
+                onClick={() => {
+                  setOpen(false);
+                  setSuccess(false);
+                  setError(null);
+                }}
                 aria-label="Cerrar"
               >
                 <XIcon className="h-4 w-4 text-zinc-400" />
               </button>
             </div>
 
-            <p className="text-xs text-zinc-500 rounded border border-blue-100 bg-blue-50 px-3 py-2">
-              Ingrese los saldos acumulados que el empleado traía del sistema anterior.
-              Estos se suman a los días causados y prestaciones calculados por ContaFlow.
+            <p className="rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-zinc-500">
+              Ingrese los saldos acumulados que el empleado traía del sistema anterior. Estos se
+              suman a los días causados y prestaciones calculados por ContaFlow.
             </p>
 
             {success ? (
@@ -114,7 +118,7 @@ export function EmployeeHistoricalImportDialog({
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-600 mb-1">
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">
                     Días de vacaciones pendientes (del sistema anterior)
                   </label>
                   <input
@@ -129,7 +133,7 @@ export function EmployeeHistoricalImportDialog({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-zinc-600 mb-1">
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">
                     Prestaciones sociales acumuladas en Bs. (del sistema anterior)
                   </label>
                   <input
@@ -149,7 +153,7 @@ export function EmployeeHistoricalImportDialog({
                   </p>
                 )}
 
-                <div className="flex gap-2 justify-end">
+                <div className="flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setOpen(false)}

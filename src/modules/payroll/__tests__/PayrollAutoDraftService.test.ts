@@ -33,15 +33,24 @@ describe("periodoCerradoEn — el periodo que TERMINA, no el que empieza", () =>
   // realizado y, por definicion, con cero horas extra.
 
   it("quincenal, dia 16 → la primera quincena que acaba de cerrar", () => {
-    expect(periodoCerradoEn("2026-08-16", "BIWEEKLY")).toEqual({ start: "2026-08-01", end: "2026-08-15" });
+    expect(periodoCerradoEn("2026-08-16", "BIWEEKLY")).toEqual({
+      start: "2026-08-01",
+      end: "2026-08-15",
+    });
   });
 
   it("quincenal, dia 1 → la segunda quincena del mes ANTERIOR", () => {
-    expect(periodoCerradoEn("2026-09-01", "BIWEEKLY")).toEqual({ start: "2026-08-16", end: "2026-08-31" });
+    expect(periodoCerradoEn("2026-09-01", "BIWEEKLY")).toEqual({
+      start: "2026-08-16",
+      end: "2026-08-31",
+    });
   });
 
   it("mensual, dia 1 → el mes anterior completo", () => {
-    expect(periodoCerradoEn("2026-09-01", "MONTHLY")).toEqual({ start: "2026-08-01", end: "2026-08-31" });
+    expect(periodoCerradoEn("2026-09-01", "MONTHLY")).toEqual({
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
   });
 
   it("mensual: el dia 16 NO cierra periodo", () => {
@@ -49,8 +58,14 @@ describe("periodoCerradoEn — el periodo que TERMINA, no el que empieza", () =>
   });
 
   it("el 1 de enero retrocede el AÑO, no solo el mes", () => {
-    expect(periodoCerradoEn("2027-01-01", "MONTHLY")).toEqual({ start: "2026-12-01", end: "2026-12-31" });
-    expect(periodoCerradoEn("2027-01-01", "BIWEEKLY")).toEqual({ start: "2026-12-16", end: "2026-12-31" });
+    expect(periodoCerradoEn("2027-01-01", "MONTHLY")).toEqual({
+      start: "2026-12-01",
+      end: "2026-12-31",
+    });
+    expect(periodoCerradoEn("2027-01-01", "BIWEEKLY")).toEqual({
+      start: "2026-12-16",
+      end: "2026-12-31",
+    });
   });
 
   it("respeta los meses de 30 dias y febrero bisiesto", () => {
@@ -84,8 +99,10 @@ describe("autoDraftKey", () => {
 describe("runAutoDrafts", () => {
   function config(over: Record<string, unknown> = {}) {
     return {
-      companyId: "co-1", frequency: "BIWEEKLY",
-      company: { name: "Empresa Uno", country: "VEN", scopeProfile: "EMPRESA" }, ...over,
+      companyId: "co-1",
+      frequency: "BIWEEKLY",
+      company: { name: "Empresa Uno", country: "VEN", scopeProfile: "EMPRESA" },
+      ...over,
     };
   }
 
@@ -119,7 +136,10 @@ describe("runAutoDrafts", () => {
   it("una empresa que falla NO tumba el lote", async () => {
     vi.mocked(prisma.payrollConfig.findMany).mockResolvedValue([
       config({ companyId: "co-1" }),
-      config({ companyId: "co-2", company: { name: "Empresa Dos", country: "VEN", scopeProfile: "EMPRESA" } }),
+      config({
+        companyId: "co-2",
+        company: { name: "Empresa Dos", country: "VEN", scopeProfile: "EMPRESA" },
+      }),
     ] as never);
     vi.mocked(PayrollRunService.create)
       .mockRejectedValueOnce(new Error("Nómina con monedas mixtas (USD y VES)."))
@@ -136,7 +156,9 @@ describe("runAutoDrafts", () => {
   it("un reintento del cron cuenta como OMITIDA, no como error", async () => {
     vi.mocked(prisma.payrollConfig.findMany).mockResolvedValue([config()] as never);
     vi.mocked(PayrollRunService.create).mockRejectedValue(
-      new Error("Esta solicitud ya se envió. Revisa si el proceso de nómina se creó antes de reintentar."),
+      new Error(
+        "Esta solicitud ya se envió. Revisa si el proceso de nómina se creó antes de reintentar."
+      )
     );
 
     const { results: res } = await PayrollAutoDraftService.runAutoDrafts("2026-08-16");
@@ -146,7 +168,9 @@ describe("runAutoDrafts", () => {
   it("respeta el proceso que ya creo un humano", async () => {
     vi.mocked(prisma.payrollConfig.findMany).mockResolvedValue([config()] as never);
     vi.mocked(PayrollRunService.create).mockRejectedValue(
-      new Error("Ya existe un proceso de nómina en borrador en VES que cubre del 2026-08-01 al 2026-08-15."),
+      new Error(
+        "Ya existe un proceso de nómina en borrador en VES que cubre del 2026-08-01 al 2026-08-15."
+      )
     );
 
     const { results: res } = await PayrollAutoDraftService.runAutoDrafts("2026-08-16");
@@ -160,7 +184,7 @@ describe("runAutoDrafts", () => {
     // logs de invocacion de Vercel: audiencia mucho mas amplia que la BD.
     vi.mocked(prisma.payrollConfig.findMany).mockResolvedValue([config()] as never);
     vi.mocked(PayrollRunService.create).mockRejectedValue(
-      new Error("El neto a pagar de Pérez, Juan es negativo"),
+      new Error("El neto a pagar de Pérez, Juan es negativo")
     );
 
     const { results: res } = await PayrollAutoDraftService.runAutoDrafts("2026-08-16");
@@ -175,7 +199,9 @@ describe("runAutoDrafts", () => {
     // el primero mandaba el segundo a FALLIDA con el nombre dentro.
     vi.mocked(prisma.payrollConfig.findMany).mockResolvedValue([config()] as never);
     vi.mocked(PayrollRunService.create).mockRejectedValue(
-      new Error("Flores, Ramón ya está en un proceso de nómina en borrador del 2026-08-01 al 2026-08-15."),
+      new Error(
+        "Flores, Ramón ya está en un proceso de nómina en borrador del 2026-08-01 al 2026-08-15."
+      )
     );
 
     const { results: res } = await PayrollAutoDraftService.runAutoDrafts("2026-08-16");

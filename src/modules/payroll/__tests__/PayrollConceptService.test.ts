@@ -53,9 +53,8 @@ const BASE_CONCEPT = {
 
 // Helper: simula $transaction pasando las mismas instancias mockeadas
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 beforeEach(() => {
@@ -102,8 +101,9 @@ describe("PayrollConceptService.seedDefaults", () => {
     // periodo ya cerrado — solo hay un proceso vigente por periodo y moneda).
     // +1 el 2026-09: PENSIONES_PAT (Ley Proteccion de las Pensiones, G.O. 6.806).
     expect(vi.mocked(prisma.payrollConcept.create)).toHaveBeenCalledTimes(21);
-    const codes = vi.mocked(prisma.payrollConcept.create).mock.calls
-      .map((c) => (c[0].data as { code: string }).code);
+    const codes = vi
+      .mocked(prisma.payrollConcept.create)
+      .mock.calls.map((c) => (c[0].data as { code: string }).code);
     // Sin SAL_BASE la nomina no tiene ingresos.
     expect(codes).toContain("SAL_BASE");
   });
@@ -126,29 +126,31 @@ describe("PayrollConceptService.seedDefaults", () => {
   // nomina de esa empresa no podia calcularse (2026-08-23).
   it("REPARA isSystem en filas ya existentes y lo deja en el AuditLog", async () => {
     const rotas = SYSTEM_CONCEPTS_ROWS.map((r) =>
-      r.code === "SAL_BASE" ? { ...r, isSystem: false } : r,
+      r.code === "SAL_BASE" ? { ...r, isSystem: false } : r
     );
     existentes(rotas);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
 
     expect(vi.mocked(prisma.payrollConcept.update)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(prisma.payrollConcept.update).mock.calls[0][0].data)
-      .toMatchObject({ isSystem: true });
+    expect(vi.mocked(prisma.payrollConcept.update).mock.calls[0][0].data).toMatchObject({
+      isSystem: true,
+    });
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "REPAIR_SYSTEM_CONCEPTS" }),
-      }),
+      })
     );
   });
 
   it("REPARA una salaryNature alterada — decide una cotizacion", async () => {
     const rotas = SYSTEM_CONCEPTS_ROWS.map((r) =>
-      r.code === "SAL_BASE" ? { ...r, salaryNature: "NO_SALARIAL" } : r,
+      r.code === "SAL_BASE" ? { ...r, salaryNature: "NO_SALARIAL" } : r
     );
     existentes(rotas);
     await PayrollConceptService.seedDefaults(COMPANY_ID);
-    expect(vi.mocked(prisma.payrollConcept.update).mock.calls[0][0].data)
-      .toMatchObject({ salaryNature: "SALARIO_NORMAL" });
+    expect(vi.mocked(prisma.payrollConcept.update).mock.calls[0][0].data).toMatchObject({
+      salaryNature: "SALARIO_NORMAL",
+    });
   });
 });
 
@@ -185,7 +187,9 @@ describe("PayrollConceptService.update", () => {
     mockTx();
     // Concepto propio de la empresa: los del sistema no se pueden desactivar.
     vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue({
-      ...BASE_CONCEPT, isSystem: false, code: "BONO_PROD",
+      ...BASE_CONCEPT,
+      isSystem: false,
+      code: "BONO_PROD",
     } as never);
     vi.mocked(prisma.payrollConcept.update).mockResolvedValue({
       ...BASE_CONCEPT,
@@ -213,7 +217,10 @@ describe("PayrollConceptService.update", () => {
     mockTx();
     vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue(null as never);
     await expect(
-      PayrollConceptService.update(COMPANY_ID, USER_ID, "nonexistent", { name: "X", isActive: true })
+      PayrollConceptService.update(COMPANY_ID, USER_ID, "nonexistent", {
+        name: "X",
+        isActive: true,
+      })
     ).rejects.toThrow("Concepto no encontrado");
   });
 });
@@ -242,17 +249,17 @@ describe("PayrollConceptService.delete", () => {
   it("throws when trying to delete system concept", async () => {
     mockTx();
     vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue(BASE_CONCEPT as never);
-    await expect(
-      PayrollConceptService.delete(COMPANY_ID, USER_ID, "concept-1")
-    ).rejects.toThrow("Los conceptos del sistema no se pueden eliminar");
+    await expect(PayrollConceptService.delete(COMPANY_ID, USER_ID, "concept-1")).rejects.toThrow(
+      "Los conceptos del sistema no se pueden eliminar"
+    );
   });
 
   it("throws when concept not found", async () => {
     mockTx();
     vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue(null as never);
-    await expect(
-      PayrollConceptService.delete(COMPANY_ID, USER_ID, "nonexistent")
-    ).rejects.toThrow("Concepto no encontrado");
+    await expect(PayrollConceptService.delete(COMPANY_ID, USER_ID, "nonexistent")).rejects.toThrow(
+      "Concepto no encontrado"
+    );
   });
 });
 
@@ -279,7 +286,8 @@ describe("PayrollConceptService.update — conceptos del sistema", () => {
 
     await expect(
       PayrollConceptService.update(COMPANY_ID, USER_ID, "concept-1", {
-        name: "Salario Básico", isActive: false,
+        name: "Salario Básico",
+        isActive: false,
       })
     ).rejects.toThrow("no se pueden desactivar");
 
@@ -290,12 +298,14 @@ describe("PayrollConceptService.update — conceptos del sistema", () => {
     mockTx();
     vi.mocked(prisma.payrollConcept.findFirst).mockResolvedValue(BASE_CONCEPT as never);
     vi.mocked(prisma.payrollConcept.update).mockResolvedValue({
-      ...BASE_CONCEPT, name: "Sueldo Base",
+      ...BASE_CONCEPT,
+      name: "Sueldo Base",
     } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     const r = await PayrollConceptService.update(COMPANY_ID, USER_ID, "concept-1", {
-      name: "Sueldo Base", isActive: true,
+      name: "Sueldo Base",
+      isActive: true,
     });
     expect(r.name).toBe("Sueldo Base");
   });

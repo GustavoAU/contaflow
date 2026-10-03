@@ -39,13 +39,48 @@ export interface IslrBracket {
 }
 
 export const ISLR_BRACKETS: IslrBracket[] = [
-  { fromUT: new Decimal(0), toUT: new Decimal(1000), rate: new Decimal("0"), sustraendoUT: new Decimal("0") },
-  { fromUT: new Decimal(1000), toUT: new Decimal(1500), rate: new Decimal("0.06"), sustraendoUT: new Decimal("60") },
-  { fromUT: new Decimal(1500), toUT: new Decimal(2000), rate: new Decimal("0.09"), sustraendoUT: new Decimal("105") },
-  { fromUT: new Decimal(2000), toUT: new Decimal(2500), rate: new Decimal("0.12"), sustraendoUT: new Decimal("165") },
-  { fromUT: new Decimal(2500), toUT: new Decimal(3000), rate: new Decimal("0.16"), sustraendoUT: new Decimal("265") },
-  { fromUT: new Decimal(3000), toUT: new Decimal(4000), rate: new Decimal("0.22"), sustraendoUT: new Decimal("445") },
-  { fromUT: new Decimal(4000), toUT: null, rate: new Decimal("0.34"), sustraendoUT: new Decimal("925") },
+  {
+    fromUT: new Decimal(0),
+    toUT: new Decimal(1000),
+    rate: new Decimal("0"),
+    sustraendoUT: new Decimal("0"),
+  },
+  {
+    fromUT: new Decimal(1000),
+    toUT: new Decimal(1500),
+    rate: new Decimal("0.06"),
+    sustraendoUT: new Decimal("60"),
+  },
+  {
+    fromUT: new Decimal(1500),
+    toUT: new Decimal(2000),
+    rate: new Decimal("0.09"),
+    sustraendoUT: new Decimal("105"),
+  },
+  {
+    fromUT: new Decimal(2000),
+    toUT: new Decimal(2500),
+    rate: new Decimal("0.12"),
+    sustraendoUT: new Decimal("165"),
+  },
+  {
+    fromUT: new Decimal(2500),
+    toUT: new Decimal(3000),
+    rate: new Decimal("0.16"),
+    sustraendoUT: new Decimal("265"),
+  },
+  {
+    fromUT: new Decimal(3000),
+    toUT: new Decimal(4000),
+    rate: new Decimal("0.22"),
+    sustraendoUT: new Decimal("445"),
+  },
+  {
+    fromUT: new Decimal(4000),
+    toUT: null,
+    rate: new Decimal("0.34"),
+    sustraendoUT: new Decimal("925"),
+  },
 ];
 
 // ─── DTOs de reporte ──────────────────────────────────────────────────────────
@@ -59,9 +94,9 @@ export interface ReportEmployeeSnap {
 }
 
 export interface IvssEmployeeRow extends ReportEmployeeSnap {
-  weeksWorked: number;         // semanas cotizadas en el mes (días / 7, techo al entero)
-  salaryBase: Decimal;         // suma SAL_BASE del mes
-  ivssWorkerAmount: Decimal;   // suma IVSS_OBR de PayrollRunLine
+  weeksWorked: number; // semanas cotizadas en el mes (días / 7, techo al entero)
+  salaryBase: Decimal; // suma SAL_BASE del mes
+  ivssWorkerAmount: Decimal; // suma IVSS_OBR de PayrollRunLine
   ivssEmployerAmount: Decimal; // suma IVSS_PAT de PayrollRunLine
   ivssTotalAmount: Decimal;
 }
@@ -70,8 +105,8 @@ export interface IvssReportData {
   companyId: string;
   companyName: string;
   year: number;
-  month: number;             // 1-12
-  utValue: Decimal | null;   // null = no configurado
+  month: number; // 1-12
+  utValue: Decimal | null; // null = no configurado
   // true si el techo de 5 salarios mínimos se pudo aplicar (Reglamento Art. 98).
   // Depende del salario mínimo configurado, no de la UT.
   salaryCapApplied: boolean;
@@ -83,7 +118,7 @@ export interface IvssReportData {
 
 export interface BanavihEmployeeRow extends ReportEmployeeSnap {
   salaryBase: Decimal;
-  faovWorkerAmount: Decimal;   // suma FAOV_OBR de PayrollRunLine
+  faovWorkerAmount: Decimal; // suma FAOV_OBR de PayrollRunLine
   faovEmployerAmount: Decimal; // suma FAOV_PAT de PayrollRunLine
   faovTotalAmount: Decimal;
 }
@@ -100,21 +135,21 @@ export interface BanavihReportData {
 }
 
 export interface IncesEmployeeRow extends ReportEmployeeSnap {
-  salaryBase: Decimal;          // suma SAL_BASE del trimestre
+  salaryBase: Decimal; // suma SAL_BASE del trimestre
   // Ley INCES Art. 50 - 0,5% de las UTILIDADES, retenido al trabajador.
   incesWorkerAmount: Decimal;
   // Ley INCES Art. 49 - 2% del salario normal, a cargo del patrono (INCES_PAT).
   incesEmployerAmount: Decimal;
-  profitAmount: Decimal;        // utilidades del año (ProfitSharingRecord)
+  profitAmount: Decimal; // utilidades del año (ProfitSharingRecord)
 }
 
 export interface IncesReportData {
   companyId: string;
   companyName: string;
   year: number;
-  quarter: number;              // 1-4
+  quarter: number; // 1-4
   rows: IncesEmployeeRow[];
-  totalWorkerAmount: Decimal;   // Art. 50 - retenido a los trabajadores
+  totalWorkerAmount: Decimal; // Art. 50 - retenido a los trabajadores
   totalEmployerAmount: Decimal; // Art. 49 - a cargo del patrono
   totalAmount: Decimal;
 }
@@ -124,15 +159,15 @@ export interface ArcReportData {
   companyName: string;
   year: number;
   employee: ReportEmployeeSnap;
-  totalEarnings: Decimal;       // SAL_BASE + HE_DIURNA + HE_NOCTURNA del año
-  profitAmount: Decimal;        // utilidades del año (ProfitSharingRecord)
-  vacationBonus: Decimal;       // bono vacacional del año (VacationRecord.bonusAmount)
-  totalGrossIncome: Decimal;    // earnings + profit + vacationBonus
-  desgravamen: Decimal;         // 774 UT × utValue (0 si utValue null)
-  taxableIncome: Decimal;       // max(0, totalGrossIncome - desgravamen)
-  taxableIncomeUT: Decimal;     // taxableIncome / utValue (0 si utValue null)
-  islrAmount: Decimal;          // ISLR calculado con tabla Decreto 1808
-  withheldAmount: Decimal;      // retenido efectivamente (ISLR_EMP en PayrollRunLine)
+  totalEarnings: Decimal; // SAL_BASE + HE_DIURNA + HE_NOCTURNA del año
+  profitAmount: Decimal; // utilidades del año (ProfitSharingRecord)
+  vacationBonus: Decimal; // bono vacacional del año (VacationRecord.bonusAmount)
+  totalGrossIncome: Decimal; // earnings + profit + vacationBonus
+  desgravamen: Decimal; // 774 UT × utValue (0 si utValue null)
+  taxableIncome: Decimal; // max(0, totalGrossIncome - desgravamen)
+  taxableIncomeUT: Decimal; // taxableIncome / utValue (0 si utValue null)
+  islrAmount: Decimal; // ISLR calculado con tabla Decreto 1808
+  withheldAmount: Decimal; // retenido efectivamente (ISLR_EMP en PayrollRunLine)
   utValue: Decimal | null;
 }
 
@@ -152,9 +187,9 @@ function quarterMonths(quarter: number): number[] {
 export function calcularIslr(rentaGravableUT: Decimal, utValue: Decimal | null): Decimal {
   if (utValue === null || rentaGravableUT.lte(0)) return new Decimal(0);
 
-  const bracket = ISLR_BRACKETS.slice().reverse().find(
-    (b) => rentaGravableUT.gt(b.fromUT)
-  );
+  const bracket = ISLR_BRACKETS.slice()
+    .reverse()
+    .find((b) => rentaGravableUT.gt(b.fromUT));
   if (!bracket || bracket.rate.isZero()) return new Decimal(0);
 
   // ISLR en UT = rentaGravable × tasa - sustraendo
@@ -193,8 +228,11 @@ export const PayrollReportService = {
     const employees = await prisma.employee.findMany({
       where: { companyId, status: "ACTIVE" },
       select: {
-        id: true, firstName: true, lastName: true,
-        cedulaType: true, cedulaNumber: true,
+        id: true,
+        firstName: true,
+        lastName: true,
+        cedulaType: true,
+        cedulaNumber: true,
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
@@ -216,22 +254,25 @@ export const PayrollReportService = {
     const runIds = runs.map((r) => r.id);
 
     // Líneas IVSS y SAL_BASE de esos runs
-    const lines = runIds.length > 0
-      ? await prisma.payrollRunLine.findMany({
-          where: {
-            // companyId explicito: PayrollRunLine tiene columna propia, asi que
-            // acotar solo por payrollRunId no satisface la asercion de tenant
-            // (ADR-044 D-3) y ademas pierde el indice compuesto.
-            companyId,
-            payrollRunId: { in: runIds },
-            conceptCode: { in: ["IVSS_OBR", "IVSS_PAT", "SAL_BASE"] },
-          },
-          select: {
-            employeeId: true, payrollRunId: true,
-            conceptCode: true, amount: true,
-          },
-        })
-      : [];
+    const lines =
+      runIds.length > 0
+        ? await prisma.payrollRunLine.findMany({
+            where: {
+              // companyId explicito: PayrollRunLine tiene columna propia, asi que
+              // acotar solo por payrollRunId no satisface la asercion de tenant
+              // (ADR-044 D-3) y ademas pierde el indice compuesto.
+              companyId,
+              payrollRunId: { in: runIds },
+              conceptCode: { in: ["IVSS_OBR", "IVSS_PAT", "SAL_BASE"] },
+            },
+            select: {
+              employeeId: true,
+              payrollRunId: true,
+              conceptCode: true,
+              amount: true,
+            },
+          })
+        : [];
 
     // Agrupar líneas y días por empleado
     type EmpAgg = {
@@ -263,8 +304,8 @@ export const PayrollReportService = {
 
     // Sumar días trabajados por run (para semanas cotizadas)
     for (const run of runs) {
-      const runLines = lines.filter((l) =>
-        l.payrollRunId === run.id && l.conceptCode === "SAL_BASE"
+      const runLines = lines.filter(
+        (l) => l.payrollRunId === run.id && l.conceptCode === "SAL_BASE"
       );
       const runEmployeeIds = new Set(runLines.map((l) => l.employeeId));
       const days = daysBetween(new Date(run.periodStart), new Date(run.periodEnd));
@@ -299,9 +340,7 @@ export const PayrollReportService = {
       const ivssEmployerAmount = (agg?.ivssPAT ?? new Decimal(0)).toDecimalPlaces(2);
 
       // Semanas cotizadas: días / 7, redondeado al entero (IVSS cuenta semanas completas)
-      const weeksWorked = agg?.daysWorked
-        ? Math.ceil(agg.daysWorked / 7)
-        : 0;
+      const weeksWorked = agg?.daysWorked ? Math.ceil(agg.daysWorked / 7) : 0;
 
       totalWorkerAmount = totalWorkerAmount.plus(ivssWorkerAmount);
       totalEmployerAmount = totalEmployerAmount.plus(ivssEmployerAmount);
@@ -339,7 +378,11 @@ export const PayrollReportService = {
    * Planilla Banavih/FAOV — mensual.
    * Incluye todos los empleados ACTIVE — NOM-E-01.
    */
-  async getBanavihReport(companyId: string, year: number, month: number): Promise<BanavihReportData> {
+  async getBanavihReport(
+    companyId: string,
+    year: number,
+    month: number
+  ): Promise<BanavihReportData> {
     const company = await prisma.company.findUniqueOrThrow({
       where: { id: companyId },
       select: { name: true },
@@ -348,8 +391,11 @@ export const PayrollReportService = {
     const employees = await prisma.employee.findMany({
       where: { companyId, status: "ACTIVE" },
       select: {
-        id: true, firstName: true, lastName: true,
-        cedulaType: true, cedulaNumber: true,
+        id: true,
+        firstName: true,
+        lastName: true,
+        cedulaType: true,
+        cedulaNumber: true,
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
@@ -357,30 +403,42 @@ export const PayrollReportService = {
     const periodStart = new Date(Date.UTC(year, month - 1, 1));
     const periodEnd = new Date(Date.UTC(year, month, 0));
 
-    const runIds = (await prisma.payrollRun.findMany({
-      where: { companyId, status: "APPROVED", periodStart: { gte: periodStart }, periodEnd: { lte: periodEnd } },
-      select: { id: true },
-    })).map((r) => r.id);
+    const runIds = (
+      await prisma.payrollRun.findMany({
+        where: {
+          companyId,
+          status: "APPROVED",
+          periodStart: { gte: periodStart },
+          periodEnd: { lte: periodEnd },
+        },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
 
-    const lines = runIds.length > 0
-      ? await prisma.payrollRunLine.findMany({
-          where: {
-            // companyId explicito: PayrollRunLine tiene columna propia, asi que
-            // acotar solo por payrollRunId no satisface la asercion de tenant
-            // (ADR-044 D-3) y ademas pierde el indice compuesto.
-            companyId,
-            payrollRunId: { in: runIds },
-            conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] },
-          },
-          select: { employeeId: true, conceptCode: true, amount: true },
-        })
-      : [];
+    const lines =
+      runIds.length > 0
+        ? await prisma.payrollRunLine.findMany({
+            where: {
+              // companyId explicito: PayrollRunLine tiene columna propia, asi que
+              // acotar solo por payrollRunId no satisface la asercion de tenant
+              // (ADR-044 D-3) y ademas pierde el indice compuesto.
+              companyId,
+              payrollRunId: { in: runIds },
+              conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] },
+            },
+            select: { employeeId: true, conceptCode: true, amount: true },
+          })
+        : [];
 
     type EmpAgg = { faovOBR: Decimal; faovPAT: Decimal; salBase: Decimal };
     const agg = new Map<string, EmpAgg>();
     for (const line of lines) {
       if (!agg.has(line.employeeId)) {
-        agg.set(line.employeeId, { faovOBR: new Decimal(0), faovPAT: new Decimal(0), salBase: new Decimal(0) });
+        agg.set(line.employeeId, {
+          faovOBR: new Decimal(0),
+          faovPAT: new Decimal(0),
+          salBase: new Decimal(0),
+        });
       }
       const e = agg.get(line.employeeId)!;
       if (line.conceptCode === "FAOV_OBR") e.faovOBR = e.faovOBR.plus(line.amount.toString());
@@ -403,15 +461,24 @@ export const PayrollReportService = {
       totalWorker = totalWorker.plus(faovWorkerAmount);
       totalEmployer = totalEmployer.plus(faovEmployerAmount);
       return {
-        employeeId: emp.id, firstName: emp.firstName, lastName: emp.lastName,
-        cedulaType: emp.cedulaType, cedulaNumber: emp.cedulaNumber,
-        salaryBase, faovWorkerAmount, faovEmployerAmount,
+        employeeId: emp.id,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        cedulaType: emp.cedulaType,
+        cedulaNumber: emp.cedulaNumber,
+        salaryBase,
+        faovWorkerAmount,
+        faovEmployerAmount,
         faovTotalAmount: faovWorkerAmount.plus(faovEmployerAmount),
       };
     });
 
     return {
-      companyId, companyName: company.name, year, month, rows,
+      companyId,
+      companyName: company.name,
+      year,
+      month,
+      rows,
       totalWorkerAmount: totalWorker.toDecimalPlaces(2),
       totalEmployerAmount: totalEmployer.toDecimalPlaces(2),
       totalAmount: totalWorker.plus(totalEmployer).toDecimalPlaces(2),
@@ -433,8 +500,11 @@ export const PayrollReportService = {
     const employees = await prisma.employee.findMany({
       where: { companyId, status: "ACTIVE" },
       select: {
-        id: true, firstName: true, lastName: true,
-        cedulaType: true, cedulaNumber: true,
+        id: true,
+        firstName: true,
+        lastName: true,
+        cedulaType: true,
+        cedulaNumber: true,
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
@@ -443,24 +513,32 @@ export const PayrollReportService = {
     const periodStart = new Date(Date.UTC(year, months[0] - 1, 1));
     const periodEnd = new Date(Date.UTC(year, months[2], 0)); // último día del último mes del trimestre
 
-    const runIds = (await prisma.payrollRun.findMany({
-      where: { companyId, status: "APPROVED", periodStart: { gte: periodStart }, periodEnd: { lte: periodEnd } },
-      select: { id: true },
-    })).map((r) => r.id);
+    const runIds = (
+      await prisma.payrollRun.findMany({
+        where: {
+          companyId,
+          status: "APPROVED",
+          periodStart: { gte: periodStart },
+          periodEnd: { lte: periodEnd },
+        },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
 
-    const lines = runIds.length > 0
-      ? await prisma.payrollRunLine.findMany({
-          where: {
-            // companyId explicito: PayrollRunLine tiene columna propia, asi que
-            // acotar solo por payrollRunId no satisface la asercion de tenant
-            // (ADR-044 D-3) y ademas pierde el indice compuesto.
-            companyId,
-            payrollRunId: { in: runIds },
-            conceptCode: { in: ["INCES_OBR", "INCES_PAT", "SAL_BASE"] },
-          },
-          select: { employeeId: true, conceptCode: true, amount: true },
-        })
-      : [];
+    const lines =
+      runIds.length > 0
+        ? await prisma.payrollRunLine.findMany({
+            where: {
+              // companyId explicito: PayrollRunLine tiene columna propia, asi que
+              // acotar solo por payrollRunId no satisface la asercion de tenant
+              // (ADR-044 D-3) y ademas pierde el indice compuesto.
+              companyId,
+              payrollRunId: { in: runIds },
+              conceptCode: { in: ["INCES_OBR", "INCES_PAT", "SAL_BASE"] },
+            },
+            select: { employeeId: true, conceptCode: true, amount: true },
+          })
+        : [];
 
     // Ley INCES Art. 50: el aporte del TRABAJADOR es el 0,5% de las utilidades
     // y se entera en el trimestre en que las utilidades se pagaron — no es una
@@ -490,11 +568,16 @@ export const PayrollReportService = {
     const agg = new Map<string, EmpAgg>();
     for (const line of lines) {
       if (!agg.has(line.employeeId)) {
-        agg.set(line.employeeId, { incesOBR: new Decimal(0), incesPAT: new Decimal(0), salBase: new Decimal(0) });
+        agg.set(line.employeeId, {
+          incesOBR: new Decimal(0),
+          incesPAT: new Decimal(0),
+          salBase: new Decimal(0),
+        });
       }
       const e = agg.get(line.employeeId)!;
       if (line.conceptCode === "INCES_OBR") e.incesOBR = e.incesOBR.plus(line.amount.toString());
-      else if (line.conceptCode === "INCES_PAT") e.incesPAT = e.incesPAT.plus(line.amount.toString());
+      else if (line.conceptCode === "INCES_PAT")
+        e.incesPAT = e.incesPAT.plus(line.amount.toString());
       else if (line.conceptCode === "SAL_BASE") e.salBase = e.salBase.plus(line.amount.toString());
     }
 
@@ -521,15 +604,24 @@ export const PayrollReportService = {
       totalWorker = totalWorker.plus(incesWorkerAmount);
       totalEmployer = totalEmployer.plus(incesEmployerAmount);
       return {
-        employeeId: emp.id, firstName: emp.firstName, lastName: emp.lastName,
-        cedulaType: emp.cedulaType, cedulaNumber: emp.cedulaNumber,
+        employeeId: emp.id,
+        firstName: emp.firstName,
+        lastName: emp.lastName,
+        cedulaType: emp.cedulaType,
+        cedulaNumber: emp.cedulaNumber,
         salaryBase: (e?.salBase ?? new Decimal(0)).toDecimalPlaces(2),
-        incesWorkerAmount, incesEmployerAmount, profitAmount,
+        incesWorkerAmount,
+        incesEmployerAmount,
+        profitAmount,
       };
     });
 
     return {
-      companyId, companyName: company.name, year, quarter, rows,
+      companyId,
+      companyName: company.name,
+      year,
+      quarter,
+      rows,
       totalWorkerAmount: totalWorker.toDecimalPlaces(2),
       totalEmployerAmount: totalEmployer.toDecimalPlaces(2),
       totalAmount: totalWorker.plus(totalEmployer).toDecimalPlaces(2),
@@ -561,27 +653,35 @@ export const PayrollReportService = {
     const yearStart = new Date(Date.UTC(year, 0, 1));
     const yearEnd = new Date(Date.UTC(year, 11, 31));
 
-    const runIds = (await prisma.payrollRun.findMany({
-      where: { companyId, status: "APPROVED", periodStart: { gte: yearStart }, periodEnd: { lte: yearEnd } },
-      select: { id: true },
-    })).map((r) => r.id);
+    const runIds = (
+      await prisma.payrollRun.findMany({
+        where: {
+          companyId,
+          status: "APPROVED",
+          periodStart: { gte: yearStart },
+          periodEnd: { lte: yearEnd },
+        },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
 
     // Líneas de ingresos del empleado en el año
     const earningCodes = ["SAL_BASE", "HE_DIURNA", "HE_NOCTURNA"];
-    const lines = runIds.length > 0
-      ? await prisma.payrollRunLine.findMany({
-          where: {
-            // companyId explicito: PayrollRunLine tiene columna propia, asi que
-            // acotar solo por payrollRunId no satisface la asercion de tenant
-            // (ADR-044 D-3) y ademas pierde el indice compuesto.
-            companyId,
-            payrollRunId: { in: runIds },
-            employeeId,
-            conceptCode: { in: [...earningCodes, "ISLR_EMP"] },
-          },
-          select: { conceptCode: true, amount: true },
-        })
-      : [];
+    const lines =
+      runIds.length > 0
+        ? await prisma.payrollRunLine.findMany({
+            where: {
+              // companyId explicito: PayrollRunLine tiene columna propia, asi que
+              // acotar solo por payrollRunId no satisface la asercion de tenant
+              // (ADR-044 D-3) y ademas pierde el indice compuesto.
+              companyId,
+              payrollRunId: { in: runIds },
+              employeeId,
+              conceptCode: { in: [...earningCodes, "ISLR_EMP"] },
+            },
+            select: { conceptCode: true, amount: true },
+          })
+        : [];
 
     let totalEarnings = new Decimal(0);
     let withheldAmount = new Decimal(0);
@@ -610,32 +710,47 @@ export const PayrollReportService = {
       ? new Decimal(vacationRecord.bonusAmount.toString()).toDecimalPlaces(2)
       : new Decimal(0);
 
-    const totalGrossIncome = totalEarnings.plus(profitAmount).plus(vacationBonus).toDecimalPlaces(2);
+    const totalGrossIncome = totalEarnings
+      .plus(profitAmount)
+      .plus(vacationBonus)
+      .toDecimalPlaces(2);
 
     // Desgravamen: 774 UT × utValue (si utValue es null → 0)
     const desgravamen = utValue
       ? ISLR_DESGRAVAMEN_UT.times(utValue).toDecimalPlaces(2)
       : new Decimal(0);
 
-    const taxableIncome = Decimal.max(new Decimal(0), totalGrossIncome.minus(desgravamen)).toDecimalPlaces(2);
+    const taxableIncome = Decimal.max(
+      new Decimal(0),
+      totalGrossIncome.minus(desgravamen)
+    ).toDecimalPlaces(2);
 
     // Renta gravable en UT (para aplicar tabla Tarifa 1)
-    const taxableIncomeUT = utValue && utValue.gt(0)
-      ? taxableIncome.dividedBy(utValue).toDecimalPlaces(4)
-      : new Decimal(0);
+    const taxableIncomeUT =
+      utValue && utValue.gt(0)
+        ? taxableIncome.dividedBy(utValue).toDecimalPlaces(4)
+        : new Decimal(0);
 
     const islrAmount = calcularIslr(taxableIncomeUT, utValue);
 
     return {
-      companyId, companyName: company.name, year,
+      companyId,
+      companyName: company.name,
+      year,
       employee: {
-        employeeId: employee.id, firstName: employee.firstName,
-        lastName: employee.lastName, cedulaType: employee.cedulaType,
+        employeeId: employee.id,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        cedulaType: employee.cedulaType,
         cedulaNumber: employee.cedulaNumber,
       },
       totalEarnings: totalEarnings.toDecimalPlaces(2),
-      profitAmount, vacationBonus, totalGrossIncome,
-      desgravamen, taxableIncome, taxableIncomeUT,
+      profitAmount,
+      vacationBonus,
+      totalGrossIncome,
+      desgravamen,
+      taxableIncome,
+      taxableIncomeUT,
       islrAmount: islrAmount.toDecimalPlaces(2),
       withheldAmount: withheldAmount.toDecimalPlaces(2),
       utValue,

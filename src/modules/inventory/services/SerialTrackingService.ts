@@ -77,7 +77,9 @@ export async function validateSerialAvailability(
   quantityInBase: Decimal
 ): Promise<void> {
   if (serialIds.length === 0) {
-    throw new Error("ERR_SERIAL_REQUIRED: se requiere al menos un número de serie para este movimiento");
+    throw new Error(
+      "ERR_SERIAL_REQUIRED: se requiere al menos un número de serie para este movimiento"
+    );
   }
 
   if (!new Decimal(serialIds.length).equals(quantityInBase)) {
@@ -93,7 +95,9 @@ export async function validateSerialAvailability(
   });
 
   if (serials.length !== serialIds.length) {
-    throw new Error("ERR_SERIAL_NOT_FOUND: uno o más números de serie no encontrados o acceso denegado");
+    throw new Error(
+      "ERR_SERIAL_NOT_FOUND: uno o más números de serie no encontrados o acceso denegado"
+    );
   }
 
   const notAvailable = serials.filter((s) => s.status !== "AVAILABLE");

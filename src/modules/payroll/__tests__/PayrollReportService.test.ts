@@ -20,10 +20,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import prisma from "@/lib/prisma";
-import {
-  PayrollReportService,
-  calcularIslr,
-} from "../services/PayrollReportService";
+import { PayrollReportService, calcularIslr } from "../services/PayrollReportService";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -46,8 +43,16 @@ const CONFIG_FULL = {
 };
 const CONFIG_EMPTY = { utValue: null, salaryMinimumVes: null, ivssRiskClass: "MEDIO" };
 
-const RUN_APR = { id: "run-apr", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-30") };
-const RUN_Q1_JAN = { id: "run-jan", periodStart: new Date("2026-01-01"), periodEnd: new Date("2026-01-31") };
+const RUN_APR = {
+  id: "run-apr",
+  periodStart: new Date("2026-04-01"),
+  periodEnd: new Date("2026-04-30"),
+};
+const RUN_Q1_JAN = {
+  id: "run-jan",
+  periodStart: new Date("2026-01-01"),
+  periodEnd: new Date("2026-01-31"),
+};
 
 // ─── calcularIslr (Decreto 1808 Tarifa 1) ────────────────────────────────────
 
@@ -103,11 +108,36 @@ describe("PayrollReportService.getIvssReport", () => {
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(CONFIG_FULL as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("3000") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("120") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("300") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("2000") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("80") },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("3000"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("120"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_PAT",
+        amount: new Decimal("300"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("2000"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("80"),
+      },
     ] as never);
 
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
@@ -127,11 +157,36 @@ describe("PayrollReportService.getIvssReport", () => {
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(CONFIG_FULL as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("5000") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("200") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("400") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("5000") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("200") },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("5000"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("200"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_PAT",
+        amount: new Decimal("400"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("5000"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("200"),
+      },
     ] as never);
 
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
@@ -143,13 +198,24 @@ describe("PayrollReportService.getIvssReport", () => {
   });
 
   it("no vuelve a aplicar la tasa de riesgo sobre lo ya devengado", async () => {
-    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(
-      { ...CONFIG_FULL, ivssRiskClass: "MAXIMO" } as never,
-    );
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ...CONFIG_FULL,
+      ivssRiskClass: "MAXIMO",
+    } as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("2000") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("220") },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("2000"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_PAT",
+        amount: new Decimal("220"),
+      },
     ] as never);
 
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
@@ -163,11 +229,36 @@ describe("PayrollReportService.getIvssReport", () => {
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(CONFIG_EMPTY as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("6000") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("240") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_PAT", amount: new Decimal("600") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("6000") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("240") },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("6000"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("240"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_PAT",
+        amount: new Decimal("600"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("6000"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("240"),
+      },
     ] as never);
 
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
@@ -193,20 +284,58 @@ describe("PayrollReportService.getIvssReport", () => {
   });
 
   it("múltiples runs en el mismo mes → suma todos (quincenal)", async () => {
-    const run1 = { id: "run-q1", periodStart: new Date("2026-04-01"), periodEnd: new Date("2026-04-15") };
-    const run2 = { id: "run-q2", periodStart: new Date("2026-04-16"), periodEnd: new Date("2026-04-30") };
+    const run1 = {
+      id: "run-q1",
+      periodStart: new Date("2026-04-01"),
+      periodEnd: new Date("2026-04-15"),
+    };
+    const run2 = {
+      id: "run-q2",
+      periodStart: new Date("2026-04-16"),
+      periodEnd: new Date("2026-04-30"),
+    };
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(CONFIG_FULL as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([run1, run2] as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       // run1
-      { employeeId: EMP_ID, payrollRunId: "run-q1", conceptCode: "SAL_BASE", amount: new Decimal("1500") },
-      { employeeId: EMP_ID, payrollRunId: "run-q1", conceptCode: "IVSS_OBR", amount: new Decimal("60") },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-q1",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("1500"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-q1",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("60"),
+      },
       // run2
-      { employeeId: EMP_ID, payrollRunId: "run-q2", conceptCode: "SAL_BASE", amount: new Decimal("1500") },
-      { employeeId: EMP_ID, payrollRunId: "run-q2", conceptCode: "IVSS_OBR", amount: new Decimal("60") },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-q2",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("1500"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-q2",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("60"),
+      },
       // emp2 solo en run1
-      { employeeId: EMP_ID_2, payrollRunId: "run-q1", conceptCode: "SAL_BASE", amount: new Decimal("1500") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-q1", conceptCode: "IVSS_OBR", amount: new Decimal("60") },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-q1",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("1500"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-q1",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("60"),
+      },
     ] as never);
 
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
@@ -221,10 +350,30 @@ describe("PayrollReportService.getIvssReport", () => {
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(CONFIG_FULL as never);
     vi.mocked(prisma.payrollRun.findMany).mockResolvedValue([RUN_APR] as never); // 30 días
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("3000") },
-      { employeeId: EMP_ID, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("120") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "SAL_BASE", amount: new Decimal("3000") },
-      { employeeId: EMP_ID_2, payrollRunId: "run-apr", conceptCode: "IVSS_OBR", amount: new Decimal("120") },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("3000"),
+      },
+      {
+        employeeId: EMP_ID,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("120"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "SAL_BASE",
+        amount: new Decimal("3000"),
+      },
+      {
+        employeeId: EMP_ID_2,
+        payrollRunId: "run-apr",
+        conceptCode: "IVSS_OBR",
+        amount: new Decimal("120"),
+      },
     ] as never);
 
     const report = await PayrollReportService.getIvssReport(COMPANY_ID, 2026, 4);
@@ -331,7 +480,7 @@ describe("PayrollReportService.getIncesReport", () => {
 
     const report = await PayrollReportService.getIncesReport(COMPANY_ID, 2026, 1);
     const row = report.rows.find((r) => r.employeeId === EMP_ID)!;
-    expect(row.incesWorkerAmount.toNumber()).toBe(50);   // 10000 × 0,5%
+    expect(row.incesWorkerAmount.toNumber()).toBe(50); // 10000 × 0,5%
     expect(row.profitAmount.toNumber()).toBe(10000);
     expect(report.totalWorkerAmount.toNumber()).toBe(50);
     // El 0,5% de las utilidades NO se duplica como aporte patronal.
@@ -383,7 +532,13 @@ describe("PayrollReportService.getIncesReport", () => {
 // ─── getArcReport ─────────────────────────────────────────────────────────────
 
 describe("PayrollReportService.getArcReport", () => {
-  const EMPLOYEE_FULL = { id: EMP_ID, firstName: "Ana", lastName: "García", cedulaType: "V", cedulaNumber: "12345678" };
+  const EMPLOYEE_FULL = {
+    id: EMP_ID,
+    firstName: "Ana",
+    lastName: "García",
+    cedulaType: "V",
+    cedulaNumber: "12345678",
+  };
 
   beforeEach(() => {
     vi.mocked(prisma.company.findUniqueOrThrow).mockResolvedValue(COMPANY as never);
@@ -466,12 +621,12 @@ describe("PayrollReportService.getArcReport", () => {
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
       { conceptCode: "SAL_BASE", amount: new Decimal("36000") },
     ] as never);
-    vi.mocked(prisma.profitSharingRecord.findFirst).mockResolvedValue(
-      { profitAmount: new Decimal("5400") } as never
-    );
-    vi.mocked(prisma.vacationRecord.findFirst).mockResolvedValue(
-      { bonusAmount: new Decimal("2100") } as never
-    );
+    vi.mocked(prisma.profitSharingRecord.findFirst).mockResolvedValue({
+      profitAmount: new Decimal("5400"),
+    } as never);
+    vi.mocked(prisma.vacationRecord.findFirst).mockResolvedValue({
+      bonusAmount: new Decimal("2100"),
+    } as never);
 
     const report = await PayrollReportService.getArcReport(COMPANY_ID, EMP_ID, 2026);
     expect(report.profitAmount.toNumber()).toBe(5400);

@@ -30,9 +30,7 @@ import { toActionError } from "../utils/action-errors";
 import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionService";
 
 // ─── Crear gasto ──────────────────────────────────────────────────────────────
-export async function createExpenseAction(
-  input: unknown
-): Promise<ActionResult<ExpenseSummary>> {
+export async function createExpenseAction(input: unknown): Promise<ActionResult<ExpenseSummary>> {
   try {
     const parsed = CreateExpenseSchema.safeParse(input);
     if (!parsed.success) {
@@ -58,7 +56,7 @@ export async function createExpenseAction(
       { ...parsed.data, ivaAmount: computedIva },
       ctx.userId,
       ctx.ipAddress,
-      ctx.userAgent,
+      ctx.userAgent
     );
     revalidatePath(`/dashboard/${parsed.data.companyId}/expenses`);
     return { success: true, data };
@@ -68,9 +66,7 @@ export async function createExpenseAction(
 }
 
 // ─── Confirmar gasto ──────────────────────────────────────────────────────────
-export async function confirmExpenseAction(
-  input: unknown
-): Promise<ActionResult<ExpenseSummary>> {
+export async function confirmExpenseAction(input: unknown): Promise<ActionResult<ExpenseSummary>> {
   try {
     const parsed = ConfirmExpenseSchema.safeParse(input);
     if (!parsed.success) {
@@ -94,9 +90,7 @@ export async function confirmExpenseAction(
 }
 
 // ─── Anular gasto ─────────────────────────────────────────────────────────────
-export async function voidExpenseAction(
-  input: unknown
-): Promise<ActionResult<ExpenseSummary>> {
+export async function voidExpenseAction(input: unknown): Promise<ActionResult<ExpenseSummary>> {
   try {
     const parsed = VoidExpenseSchema.safeParse(input);
     if (!parsed.success) {
@@ -121,9 +115,7 @@ export async function voidExpenseAction(
 }
 
 // ─── Listar gastos ────────────────────────────────────────────────────────────
-export async function listExpensesAction(
-  input: unknown
-): Promise<ActionResult<ExpensePage>> {
+export async function listExpensesAction(input: unknown): Promise<ActionResult<ExpensePage>> {
   try {
     const parsed = ListExpensesSchema.safeParse(input);
     if (!parsed.success) {
@@ -177,7 +169,10 @@ export async function listExpenseCategoriesAction(
 ): Promise<ActionResult<ExpenseCategorySummary[]>> {
   try {
     // MEDIUM-07: rate limit en lectura
-    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.read });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.read,
+    });
     if (!ctx.ok) return ctx.error;
 
     const data = await listExpenseCategories(companyId);

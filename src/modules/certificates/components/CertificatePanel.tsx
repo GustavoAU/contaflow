@@ -79,13 +79,13 @@ export function CertificatePanel({ companyId, initialStatus }: Props) {
 
   if (!status.exists) {
     return (
-      <div className="rounded-lg border border-dashed p-6 space-y-4">
+      <div className="space-y-4 rounded-lg border border-dashed p-6">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
             Sin certificado
           </span>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           Tu empresa no tiene un certificado digital configurado. Genera uno gratuito para comenzar
           a firmar documentos fiscales conforme a la PA 121.
         </p>
@@ -93,7 +93,7 @@ export function CertificatePanel({ companyId, initialStatus }: Props) {
           onClick={handleGenerateDemo}
           disabled={isPending}
           aria-busy={isPending}
-          className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {isPending ? "Generando…" : "Generar certificado demo (gratuito)"}
         </button>
@@ -104,10 +104,10 @@ export function CertificatePanel({ companyId, initialStatus }: Props) {
   const isExpiringSoon = status.warningExpiringSoon;
 
   return (
-    <div className="rounded-lg border p-6 space-y-4">
+    <div className="space-y-4 rounded-lg border p-6">
       {/* Banner de vencimiento próximo */}
       {isExpiringSoon && (
-        <div className="rounded-md bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800">
+        <div className="rounded-md border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
           <strong>Certificado por vencer:</strong> quedan {status.daysUntilExpiry} días. Renueva
           antes del {fmtDate(status.expiresAt)} para no interrumpir la firma de documentos.
         </div>
@@ -132,10 +132,10 @@ export function CertificatePanel({ companyId, initialStatus }: Props) {
       </div>
 
       {/* Detalles */}
-      <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-sm">
+      <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Huella digital (SHA-256)</dt>
-          <dd className="font-mono text-xs mt-0.5">{thumbShort(status.thumbprint)}</dd>
+          <dd className="mt-0.5 font-mono text-xs">{thumbShort(status.thumbprint)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Vence</dt>
@@ -148,9 +148,9 @@ export function CertificatePanel({ companyId, initialStatus }: Props) {
       </dl>
 
       {/* Acciones */}
-      <div className="border-t pt-4 flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 border-t pt-4">
         <label
-          className={`inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium cursor-pointer hover:bg-accent ${isPending ? "opacity-50 pointer-events-none" : ""}`}
+          className={`hover:bg-accent inline-flex cursor-pointer items-center rounded-md border px-4 py-2 text-sm font-medium ${isPending ? "pointer-events-none opacity-50" : ""}`}
         >
           <input
             ref={fileInputRef}
@@ -165,7 +165,7 @@ export function CertificatePanel({ companyId, initialStatus }: Props) {
       </div>
 
       {status.isSelfSigned && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           El certificado demo identifica a tu empresa como firmante (CommonName = nombre de la
           empresa). Para homologación avanzada, carga un certificado emitido por PSC World o
           SUSCERTE.

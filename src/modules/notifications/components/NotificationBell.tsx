@@ -71,13 +71,13 @@ export function NotificationBell({ companyId }: Props) {
     <div className="relative" ref={ref}>
       <button
         onClick={handleToggle}
-        className="relative rounded-md p-1.5 text-zinc-600 hover:bg-zinc-100 transition-colors"
+        className="relative rounded-md p-1.5 text-zinc-600 transition-colors hover:bg-zinc-100"
         aria-label="Notificaciones"
       >
         <Bell className="h-5 w-5" />
         {totalCount > 0 && (
           <span
-            className={`absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-10 font-bold text-white ${badgeColor}`}
+            className={`text-10 absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-white ${badgeColor}`}
           >
             {totalCount > 9 ? "9+" : totalCount}
           </span>
@@ -124,14 +124,14 @@ export function NotificationBell({ companyId }: Props) {
                   key={alert.id}
                   href={alert.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-start gap-3 border-b px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900 last:border-b-0 ${SEVERITY_BG[alert.severity]}`}
+                  className={`flex items-start gap-3 border-b px-4 py-3 transition-colors last:border-b-0 hover:bg-zinc-50 dark:hover:bg-zinc-900 ${SEVERITY_BG[alert.severity]}`}
                 >
                   <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${SEVERITY_COLOR[alert.severity]}`} />
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 leading-snug">
+                    <p className="text-xs leading-snug font-medium text-zinc-900 dark:text-zinc-100">
                       {alert.title}
                     </p>
-                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400 leading-snug">
+                    <p className="mt-0.5 text-xs leading-snug text-zinc-500 dark:text-zinc-400">
                       {alert.description}
                     </p>
                   </div>
@@ -153,7 +153,8 @@ export function NotificationBell({ companyId }: Props) {
                 disabled={isPending}
                 className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50"
               >
-                {isPending && <Loader2Icon className="size-3 animate-spin" />}{isPending ? "Actualizando..." : "Actualizar"}
+                {isPending && <Loader2Icon className="size-3 animate-spin" />}
+                {isPending ? "Actualizando..." : "Actualizar"}
               </button>
             </div>
           )}

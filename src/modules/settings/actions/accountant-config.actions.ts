@@ -22,7 +22,7 @@ export type AccountantConfig = {
 };
 
 export async function getAccountantConfigAction(
-  companyId: string,
+  companyId: string
 ): Promise<{ success: true; data: AccountantConfig } | { success: false; error: string }> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
   if (!ctx.ok) return ctx.error;
@@ -44,7 +44,7 @@ export async function getAccountantConfigAction(
 
 export async function saveAccountantConfigAction(
   companyId: string,
-  formData: FormData,
+  formData: FormData
 ): Promise<{ success: true } | { success: false; error: string }> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ADMIN_ONLY,

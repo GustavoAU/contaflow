@@ -49,9 +49,7 @@ function daysBetween(from: Date, to: Date = new Date()): number {
 }
 
 /** Saldo normal esperado por tipo de cuenta (convención: positivo = DEBE) */
-function expectedSign(
-  accountType: string,
-): "positive" | "negative" | "unknown" {
+function expectedSign(accountType: string): "positive" | "negative" | "unknown" {
   switch (accountType) {
     case "ASSET":
     case "EXPENSE":
@@ -78,93 +76,89 @@ export const FiscalAnomalyDetectorService = {
       select: { id: true, year: true, month: true },
     });
 
-    const [
-      postedTransactions,
-      retencionesSinFactura,
-      overdueReceivables90,
-      accountsWithEntries,
-    ] = await Promise.all([
-      // ── 1. Transacciones POSTED del período activo (descuadre) ──────────────
-      activePeriod
-        ? prisma.transaction.findMany({
-            where: {
-              companyId,
-              status: "POSTED",
-              periodId: activePeriod.id,
-            },
-            select: {
-              id: true,
-              number: true,
-              description: true,
-              entries: { select: { amount: true } },
-            },
-          })
-        : Promise.resolve([]),
-
-      // ── 2. Retenciones sin factura vinculada ────────────────────────────────
-      prisma.retencion.findMany({
-        where: {
-          companyId,
-          invoiceId: null,
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-          providerName: true,
-          providerRif: true,
-          invoiceNumber: true,
-          totalRetention: true,
-          status: true,
-        },
-        take: 10,
-      }),
-
-      // ── 3. CxC vencida +90 días ─────────────────────────────────────────────
-      prisma.invoice.findMany({
-        where: {
-          companyId,
-          deletedAt: null,
-          type: "SALE",
-          paymentStatus: { in: ["UNPAID", "PARTIAL"] },
-          dueDate: {
-            lt: new Date(now.getTime() - OVERDUE_CRITICAL_DAYS * 24 * 60 * 60 * 1000),
-          },
-        },
-        select: {
-          controlNumber: true,
-          counterpartName: true,
-          pendingAmount: true,
-          dueDate: true,
-        },
-        orderBy: { pendingAmount: "desc" },
-        take: 10,
-      }),
-
-      // ── 4. Cuentas con saldo anormal (signo invertido vs tipo) ──────────────
-      prisma.account.findMany({
-        where: {
-          companyId,
-          deletedAt: null,
-          journalEntries: {
-            some: {
-              transaction: {
+    const [postedTransactions, retencionesSinFactura, overdueReceivables90, accountsWithEntries] =
+      await Promise.all([
+        // ── 1. Transacciones POSTED del período activo (descuadre) ──────────────
+        activePeriod
+          ? prisma.transaction.findMany({
+              where: {
                 companyId,
-                status: { not: "VOIDED" },
+                status: "POSTED",
+                periodId: activePeriod.id,
+              },
+              select: {
+                id: true,
+                number: true,
+                description: true,
+                entries: { select: { amount: true } },
+              },
+            })
+          : Promise.resolve([]),
+
+        // ── 2. Retenciones sin factura vinculada ────────────────────────────────
+        prisma.retencion.findMany({
+          where: {
+            companyId,
+            invoiceId: null,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            providerName: true,
+            providerRif: true,
+            invoiceNumber: true,
+            totalRetention: true,
+            status: true,
+          },
+          take: 10,
+        }),
+
+        // ── 3. CxC vencida +90 días ─────────────────────────────────────────────
+        prisma.invoice.findMany({
+          where: {
+            companyId,
+            deletedAt: null,
+            type: "SALE",
+            paymentStatus: { in: ["UNPAID", "PARTIAL"] },
+            dueDate: {
+              lt: new Date(now.getTime() - OVERDUE_CRITICAL_DAYS * 24 * 60 * 60 * 1000),
+            },
+          },
+          select: {
+            controlNumber: true,
+            counterpartName: true,
+            pendingAmount: true,
+            dueDate: true,
+          },
+          orderBy: { pendingAmount: "desc" },
+          take: 10,
+        }),
+
+        // ── 4. Cuentas con saldo anormal (signo invertido vs tipo) ──────────────
+        prisma.account.findMany({
+          where: {
+            companyId,
+            deletedAt: null,
+            journalEntries: {
+              some: {
+                transaction: {
+                  companyId,
+                  status: { not: "VOIDED" },
+                },
               },
             },
           },
-        },
-        select: {
-          code: true,
-          name: true,
-          type: true,
-          journalEntries: {
-            where: { transaction: { status: { not: "VOIDED" } } },
-            select: { amount: true },
+          select: {
+            code: true,
+            name: true,
+            type: true,
+            journalEntries: {
+              where: { transaction: { status: { not: "VOIDED" } } },
+              select: { amount: true },
+            },
           },
-        },
-      }),
-    ]);
+        }),
+      ]);
 
     const anomalies: FiscalAnomaly[] = [];
 
@@ -172,7 +166,7 @@ export const FiscalAnomalyDetectorService = {
     const descuadradas = postedTransactions.filter((tx) => {
       const sum = (tx.entries as { amount: Decimal }[]).reduce(
         (acc, e) => acc.plus(e.amount),
-        new Decimal(0),
+        new Decimal(0)
       );
       return sum.abs().gt(IMBALANCE_THRESHOLD);
     });
@@ -183,9 +177,9 @@ export const FiscalAnomalyDetectorService = {
         level: "CRITICAL",
         description: "Transacciones cuya suma DEBE ≠ HABER (partida doble violada)",
         count: descuadradas.length,
-        details: descuadradas.slice(0, 5).map(
-          (tx) => `Comprobante ${tx.number}: ${tx.description.slice(0, 60)}`,
-        ),
+        details: descuadradas
+          .slice(0, 5)
+          .map((tx) => `Comprobante ${tx.number}: ${tx.description.slice(0, 60)}`),
       });
     }
 
@@ -196,9 +190,9 @@ export const FiscalAnomalyDetectorService = {
         level: "HIGH",
         description: "Retenciones registradas sin factura de origen vinculada",
         count: retencionesSinFactura.length,
-        details: retencionesSinFactura.slice(0, 5).map(
-          (r) => `${r.providerName} (${r.providerRif}) — Fact. ${r.invoiceNumber}`,
-        ),
+        details: retencionesSinFactura
+          .slice(0, 5)
+          .map((r) => `${r.providerName} (${r.providerRif}) — Fact. ${r.invoiceNumber}`),
       });
     }
 
@@ -222,7 +216,7 @@ export const FiscalAnomalyDetectorService = {
       if (sign === "unknown") return false;
       const balance = (acc.journalEntries as { amount: Decimal }[]).reduce(
         (s, e) => s.plus(e.amount),
-        new Decimal(0),
+        new Decimal(0)
       );
       if (sign === "positive" && balance.lt(IMBALANCE_THRESHOLD.negated())) return true;
       if (sign === "negative" && balance.gt(IMBALANCE_THRESHOLD)) return true;
@@ -235,9 +229,7 @@ export const FiscalAnomalyDetectorService = {
         level: "MEDIUM",
         description: "Cuentas cuyo saldo tiene signo contrario al esperado por su tipo",
         count: cuentasAnormales.length,
-        details: cuentasAnormales.slice(0, 5).map(
-          (a) => `${a.code} ${a.name} [${a.type}]`,
-        ),
+        details: cuentasAnormales.slice(0, 5).map((a) => `${a.code} ${a.name} [${a.type}]`),
       });
     }
 
@@ -269,7 +261,9 @@ export const FiscalAnomalyDetectorService = {
     ];
 
     for (const anomaly of report.anomalies) {
-      lines.push(`[${anomaly.level}] ${anomaly.type} (${anomaly.count} caso${anomaly.count > 1 ? "s" : ""})`);
+      lines.push(
+        `[${anomaly.level}] ${anomaly.type} (${anomaly.count} caso${anomaly.count > 1 ? "s" : ""})`
+      );
       lines.push(`  ${anomaly.description}`);
       for (const detail of anomaly.details) {
         lines.push(`  • ${detail}`);

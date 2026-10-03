@@ -18,7 +18,18 @@ import {
 } from "../zod-helpers";
 
 /** Formas que `Decimal` interpreta como número y que un humano nunca teclea. */
-const NO_LLANOS = ["0x64", "0X64", "0b11", "0o17", "1e3", "1E3", "1e+3", "1_000", "Infinity", "NaN"];
+const NO_LLANOS = [
+  "0x64",
+  "0X64",
+  "0b11",
+  "0o17",
+  "1e3",
+  "1E3",
+  "1e+3",
+  "1_000",
+  "Infinity",
+  "NaN",
+];
 
 describe("isPlainDecimal", () => {
   it("acepta dígitos con punto decimal opcional", () => {

@@ -6,14 +6,24 @@ import { useState, useTransition } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PeriodSelector } from "./PeriodSelector";
-import { getIncesReportAction, exportIncesPdfAction, exportIncesExcelAction } from "../actions/payroll-reports.actions";
+import {
+  getIncesReportAction,
+  exportIncesPdfAction,
+  exportIncesExcelAction,
+} from "../actions/payroll-reports.actions";
 import type { IncesReportData } from "../services/PayrollReportService";
 
 const QUARTER_LABELS = ["", "I Trimestre", "II Trimestre", "III Trimestre", "IV Trimestre"];
 
 function fmt(val: unknown): string {
-  try { return parseFloat(String(val)).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  catch { return "0,00"; }
+  try {
+    return parseFloat(String(val)).toLocaleString("es-VE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  } catch {
+    return "0,00";
+  }
 }
 
 type Props = { companyId: string };
@@ -39,7 +49,9 @@ export function IncesReportView({ companyId }: Props) {
     startPdfTransition(async () => {
       const res = await exportIncesPdfAction(companyId, year, quarter);
       if (res.success) {
-        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/pdf" });
+        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], {
+          type: "application/pdf",
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -55,29 +67,60 @@ export function IncesReportView({ companyId }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-4">
-        <PeriodSelector mode="quarter" year={year} quarter={quarter}
-          onChange={(y, q) => { setYear(y); setQuarter(q); setData(null); }} />
-        <button onClick={handleLoad} disabled={isPending}
-          className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
-          {isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        <PeriodSelector
+          mode="quarter"
+          year={year}
+          quarter={quarter}
+          onChange={(y, q) => {
+            setYear(y);
+            setQuarter(q);
+            setData(null);
+          }}
+        />
+        <button
+          onClick={handleLoad}
+          disabled={isPending}
+          className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        >
+          {isPending ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Generar reporte
         </button>
         {data && (
           <>
-            <button onClick={handlePdf} disabled={isPdf}
-              className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+            <button
+              onClick={handlePdf}
+              disabled={isPdf}
+              className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+            >
               <Download className="h-4 w-4" />
               {isPdf ? "Generando..." : "PDF"}
             </button>
-            <button onClick={() => startXlsTransition(async () => {
-              const res = await exportIncesExcelAction(companyId, year, quarter);
-              if (res.success) {
-                const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-                const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `INCES_${year}_Q${quarter}.xlsx` });
-                a.click();
-              } else { toast.error(res.error); }
-            })} disabled={isXls}
-              className="flex items-center gap-2 rounded-md border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60">
+            <button
+              onClick={() =>
+                startXlsTransition(async () => {
+                  const res = await exportIncesExcelAction(companyId, year, quarter);
+                  if (res.success) {
+                    const blob = new Blob(
+                      [Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))],
+                      { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+                    );
+                    const a = Object.assign(document.createElement("a"), {
+                      href: URL.createObjectURL(blob),
+                      download: `INCES_${year}_Q${quarter}.xlsx`,
+                    });
+                    a.click();
+                  } else {
+                    toast.error(res.error);
+                  }
+                })
+              }
+              disabled={isXls}
+              className="flex items-center gap-2 rounded-md border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60"
+            >
               <Download className="h-4 w-4" />
               {isXls ? "Generando..." : "Excel"}
             </button>
@@ -89,8 +132,12 @@ export function IncesReportView({ companyId }: Props) {
         <div className="space-y-4">
           <div className="rounded-lg border bg-white">
             <div className="border-b px-4 py-3">
-              <h3 className="font-semibold text-zinc-800">INCES — {QUARTER_LABELS[data.quarter]} {data.year}</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">Ley INCES Art. 30: 2% trabajadores + 0.5% patrono sobre utilidades</p>
+              <h3 className="font-semibold text-zinc-800">
+                INCES — {QUARTER_LABELS[data.quarter]} {data.year}
+              </h3>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Ley INCES Art. 30: 2% trabajadores + 0.5% patrono sobre utilidades
+              </p>
             </div>
             {data.rows.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-zinc-400">Sin empleados activos.</p>
@@ -99,31 +146,59 @@ export function IncesReportView({ companyId }: Props) {
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
-                      <th scope="col" className="px-4 py-2 text-left">Empleado</th>
-                      <th scope="col" className="px-4 py-2 text-left">Cédula</th>
-                      <th scope="col" className="px-4 py-2 text-right">Salario Trim.</th>
-                      <th scope="col" className="px-4 py-2 text-right">Utilidades del trim.</th>
-                      <th scope="col" className="px-4 py-2 text-right">Retención 0,5% (Art. 50)</th>
-                      <th scope="col" className="px-4 py-2 text-right">Patronal 2% (Art. 49)</th>
+                      <th scope="col" className="px-4 py-2 text-left">
+                        Empleado
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-left">
+                        Cédula
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        Salario Trim.
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        Utilidades del trim.
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        Retención 0,5% (Art. 50)
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        Patronal 2% (Art. 49)
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
                     {data.rows.map((row) => (
                       <tr key={row.employeeId} className="hover:bg-zinc-50">
-                        <td className="px-4 py-2 font-medium">{row.lastName}, {row.firstName}</td>
-                        <td className="px-4 py-2 text-zinc-600">{row.cedulaType}-{row.cedulaNumber}</td>
+                        <td className="px-4 py-2 font-medium">
+                          {row.lastName}, {row.firstName}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-600">
+                          {row.cedulaType}-{row.cedulaNumber}
+                        </td>
                         <td className="px-4 py-2 text-right tabular-nums">{fmt(row.salaryBase)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.profitAmount)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.incesWorkerAmount)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.incesEmployerAmount)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {fmt(row.profitAmount)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {fmt(row.incesWorkerAmount)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {fmt(row.incesEmployerAmount)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-zinc-100 font-semibold">
                     <tr>
-                      <td className="px-4 py-2" colSpan={4}>TOTALES</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{fmt(data.totalWorkerAmount)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{fmt(data.totalEmployerAmount)}</td>
+                      <td className="px-4 py-2" colSpan={4}>
+                        TOTALES
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {fmt(data.totalWorkerAmount)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {fmt(data.totalEmployerAmount)}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
@@ -133,16 +208,16 @@ export function IncesReportView({ companyId }: Props) {
 
           {/* Resumen patronal */}
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm">
-            <p className="font-medium text-blue-800 mb-1">Desglose del trimestre</p>
+            <p className="mb-1 font-medium text-blue-800">Desglose del trimestre</p>
             <div className="flex justify-between text-blue-700">
               <span>Aporte patronal &mdash; 2% del salario normal (Ley INCES Art. 49)</span>
               <span className="font-mono font-semibold">Bs. {fmt(data.totalEmployerAmount)}</span>
             </div>
-            <div className="flex justify-between text-blue-700 mt-1">
+            <div className="mt-1 flex justify-between text-blue-700">
               <span>Retenido a los trabajadores &mdash; 0,5% de las utilidades (Art. 50)</span>
               <span className="font-mono font-semibold">Bs. {fmt(data.totalWorkerAmount)}</span>
             </div>
-            <div className="flex justify-between font-bold text-blue-900 border-t border-blue-200 mt-2 pt-2">
+            <div className="mt-2 flex justify-between border-t border-blue-200 pt-2 font-bold text-blue-900">
               <span>Total del período (obreros + patrono)</span>
               <span className="font-mono">Bs. {fmt(data.totalAmount)}</span>
             </div>

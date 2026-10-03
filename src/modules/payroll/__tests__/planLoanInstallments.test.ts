@@ -62,10 +62,7 @@ describe("préstamo en USD — el bug que no cobraba nada", () => {
   });
 
   it("la última cuota no puede cobrar más que el saldo", () => {
-    const [plan] = planLoanInstallments(
-      [usdLoan({ remainingBalanceUsd: "100.00" })],
-      "USD",
-    );
+    const [plan] = planLoanInstallments([usdLoan({ remainingBalanceUsd: "100.00" })], "USD");
     expect(plan.lineAmount.toFixed(2)).toBe("100.00");
     expect(plan.newBalanceUsd?.isZero()).toBe(true);
     expect(plan.isPaid).toBe(true);
@@ -101,10 +98,12 @@ describe("saldo agotado", () => {
   });
 
   it("los campos USD nulos no rompen el cálculo", () => {
-    expect(planLoanInstallments(
-      [usdLoan({ installmentAmountUsd: null, remainingBalanceUsd: null })],
-      "USD",
-    )).toHaveLength(0);
+    expect(
+      planLoanInstallments(
+        [usdLoan({ installmentAmountUsd: null, remainingBalanceUsd: null })],
+        "USD"
+      )
+    ).toHaveLength(0);
   });
 });
 
@@ -141,7 +140,7 @@ describe("préstamo MIXTO — legado", () => {
   it("sólo se da por pagado cuando los DOS lados llegan a cero", () => {
     const [plan] = planLoanInstallments(
       [{ ...mixed, remainingBalance: "500.00", remainingBalanceUsd: "500.00" }],
-      "VES",
+      "VES"
     );
     expect(plan.newBalanceVes.isZero()).toBe(true);
     expect(plan.newBalanceUsd?.isZero()).toBe(false); // queda deuda en USD
@@ -153,7 +152,7 @@ describe("varios préstamos del mismo empleado", () => {
   it("cada uno aporta su cuota — el total es la suma", () => {
     const plans = planLoanInstallments(
       [vesLoan({ id: "a" }), vesLoan({ id: "b", installmentAmount: "250.00" })],
-      "VES",
+      "VES"
     );
     const total = plans.reduce((s, p) => s.plus(p.lineAmount), new Decimal(0));
     expect(total.toFixed(2)).toBe("1000.00");

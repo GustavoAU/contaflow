@@ -12,9 +12,9 @@ import { getNextDocumentNumber } from "../utils/sequence";
 export interface QuotationItemInput {
   description: string;
   unit: string;
-  quantity: string;   // Decimal string
-  unitPrice: string;  // Decimal string
-  taxRate: string;    // "0" | "8" | "16"
+  quantity: string; // Decimal string
+  unitPrice: string; // Decimal string
+  taxRate: string; // "0" | "8" | "16"
   inventoryItemId?: string | null; // OM-08: FK opcional al catálogo de inventario
 }
 
@@ -35,7 +35,7 @@ export interface QuotationRow {
   number: string;
   counterpartName: string;
   counterpartRif: string | null;
-  validUntil: string;   // ISO date string
+  validUntil: string; // ISO date string
   notes: string | null;
   subtotal: string;
   taxAmount: string;
@@ -43,7 +43,7 @@ export interface QuotationRow {
   currency: string;
   createdBy: string;
   approvedBy: string | null;
-  approvedAt: string | null;  // ISO datetime
+  approvedAt: string | null; // ISO datetime
   createdAt: string;
   items: {
     id: string;
@@ -152,7 +152,10 @@ function serializeQuotation(q: {
 // ─── Secuencia — Serializable + retry P2034 (compartida con OrderService) ─────
 
 function getNextQuotationNumber(companyId: string, type: QuotationType): Promise<string> {
-  return getNextDocumentNumber(companyId, type === "PURCHASE" ? "PURCHASE_QUOTATION" : "SALE_QUOTATION");
+  return getNextDocumentNumber(
+    companyId,
+    type === "PURCHASE" ? "PURCHASE_QUOTATION" : "SALE_QUOTATION"
+  );
 }
 
 // ─── QuotationService ─────────────────────────────────────────────────────────
@@ -322,7 +325,7 @@ export const QuotationService = {
 
         return updated;
       },
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
 
     return serializeQuotation(quotation);
@@ -456,10 +459,7 @@ export const QuotationService = {
   },
 
   // ── single ────────────────────────────────────────────────────────────────
-  async getQuotation(
-    companyId: string,
-    quotationId: string
-  ): Promise<QuotationRow | null> {
+  async getQuotation(companyId: string, quotationId: string): Promise<QuotationRow | null> {
     const q = await prisma.quotation.findFirst({
       where: { id: quotationId, companyId, deletedAt: null },
       include: { items: true },

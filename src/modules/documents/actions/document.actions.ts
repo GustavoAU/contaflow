@@ -13,7 +13,11 @@ import { requireCompanyAction } from "@/lib/action-guard";
 import { signDocShareToken } from "@/lib/document-share-jwt";
 import { isMissingPortalSecret, PORTAL_SECRET_USER_MESSAGE } from "@/lib/portal-secret";
 import type { DocShareType } from "@/lib/document-share-jwt";
-import { DocumentService, type DocumentRow, type DocumentFilters } from "../services/DocumentService";
+import {
+  DocumentService,
+  type DocumentRow,
+  type DocumentFilters,
+} from "../services/DocumentService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -28,7 +32,7 @@ const FiltersSchema = z.object({
 // ─── Listar documentos ────────────────────────────────────────────────────────
 export async function listDocumentsAction(
   companyId: string,
-  rawFilters: unknown,
+  rawFilters: unknown
 ): Promise<ActionResult<{ items: DocumentRow[]; total: number; page: number }>> {
   try {
     // VIEWER y superiores pueden ver documentos
@@ -53,7 +57,7 @@ export async function listDocumentsAction(
 export async function generateDocShareTokenAction(
   companyId: string,
   docType: DocShareType,
-  docId: string,
+  docId: string
 ): Promise<ActionResult<{ url: string; expiresAt: string }>> {
   try {
     // Solo OWNER/ADMIN/ACCOUNTANT pueden compartir documentos
@@ -124,10 +128,13 @@ export async function generateDocShareTokenAction(
 // ─── Revocar link temporal (M6) ───────────────────────────────────────────────
 export async function revokeDocShareTokenAction(
   companyId: string,
-  jti: string,
+  jti: string
 ): Promise<ActionResult<{ revoked: true }>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, captureNet: true });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      captureNet: true,
+    });
     if (!ctx.ok) return ctx.error;
     const userId = ctx.userId;
 

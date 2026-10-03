@@ -19,7 +19,7 @@ const SERIOUS_IMPACTS = new Set(["serious", "critical"]);
  * abierto pasa `document.body` como contenedor.
  */
 export async function getSeriousA11yViolations(
-  container: Element,
+  container: Element
 ): Promise<SeriousA11yViolation[]> {
   const results = await axe.run(container, {
     rules: { "color-contrast": { enabled: false } },
@@ -47,7 +47,7 @@ export function formatA11yViolations(violations: SeriousA11yViolation[]): string
  */
 export async function expectKnownA11yDebt(
   container: Element,
-  knownRuleIds: string[],
+  knownRuleIds: string[]
 ): Promise<void> {
   const violations = await getSeriousA11yViolations(container);
   const actual = [...new Set(violations.map((v) => v.id))].sort();
@@ -57,7 +57,7 @@ export async function expectKnownA11yDebt(
       `Deuda de a11y distinta a la registrada. Esperada: [${known.join(", ")}]; actual: [${actual.join(", ")}]. ` +
         (actual.length === 0
           ? "Se corrigió todo: reemplaza expectKnownA11yDebt por expectNoSeriousA11yViolations."
-          : `Detalle:\n${formatA11yViolations(violations)}`),
+          : `Detalle:\n${formatA11yViolations(violations)}`)
     );
   }
 }
@@ -69,7 +69,7 @@ export async function expectNoSeriousA11yViolations(container: Element): Promise
     // Error propio (no expect().toEqual): evita el diff gigante de objetos axe.
     throw new Error(
       `Violaciones de accesibilidad serious/critical (${violations.length}):
-${formatA11yViolations(violations)}`,
+${formatA11yViolations(violations)}`
     );
   }
 }

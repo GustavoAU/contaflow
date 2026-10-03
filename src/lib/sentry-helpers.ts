@@ -84,10 +84,7 @@ export function captureActionError(
  * Útil para trazar la secuencia de pasos antes de un fallo:
  * "validó schema → chequeó membership → falló en FiscalYearCloseService"
  */
-export function addBusinessBreadcrumb(
-  message: string,
-  data?: Record<string, unknown>
-): void {
+export function addBusinessBreadcrumb(message: string, data?: Record<string, unknown>): void {
   Sentry.addBreadcrumb({
     category: "business-logic",
     message,

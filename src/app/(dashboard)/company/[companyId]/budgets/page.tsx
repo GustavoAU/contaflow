@@ -24,7 +24,7 @@ export default async function BudgetsPage({ params }: Props) {
   });
   if (!member || !canAccess(member.role, ROLES.ALL)) redirect("/");
 
-  const canWrite  = canAccess(member.role, ROLES.WRITERS);
+  const canWrite = canAccess(member.role, ROLES.WRITERS);
   const canDelete = canAccess(member.role, ROLES.ADMIN_ONLY);
 
   const [budgets, cashFlow, accounts] = await Promise.all([

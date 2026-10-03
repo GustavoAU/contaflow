@@ -56,12 +56,12 @@ export function parseLocalNumber(value: string): number {
   const s = value.trim().replace(/\s/g, "");
   if (!s) return NaN;
 
-  const hasDot   = s.includes(".");
+  const hasDot = s.includes(".");
   const hasComma = s.includes(",");
 
   if (hasDot && hasComma) {
     // Ambos presentes: el último determina el decimal
-    const lastDot   = s.lastIndexOf(".");
+    const lastDot = s.lastIndexOf(".");
     const lastComma = s.lastIndexOf(",");
     if (lastComma > lastDot) {
       // Europeo: 1.234,56

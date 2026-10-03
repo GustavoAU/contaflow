@@ -39,12 +39,18 @@ export const CreateEmployeeSchema = z.object({
   ivssNumber: z.string().max(20).optional(),
   banavihNumber: z.string().max(20).optional(),
   dependents: z.coerce.number().int().min(0).max(20).optional(),
-  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  birthDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   workSchedule: z.enum(["DIURNA", "NOCTURNA", "MIXTA"]).optional(),
   // F-02: clasificación LOTTT + estado civil (auditoria 2026-06-02)
   maritalStatus: z.enum(["SOLTERO", "CASADO", "DIVORCIADO", "VIUDO", "UNION_ESTABLE"]).optional(),
   payrollWorkerType: z.enum(["OBRERO", "EMPLEADO"]).optional(),
-  contractEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  contractEndDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   useFideicomiso: z.boolean().optional(),
 });
 
@@ -70,29 +76,31 @@ export const UpdateEmployeeSchema = z.object({
   ivssNumber: z.string().max(20).optional(),
   banavihNumber: z.string().max(20).optional(),
   dependents: z.coerce.number().int().min(0).max(20).optional(),
-  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  birthDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   workSchedule: z.enum(["DIURNA", "NOCTURNA", "MIXTA"]).optional(),
   // F-02: clasificación LOTTT + estado civil
   maritalStatus: z.enum(["SOLTERO", "CASADO", "DIVORCIADO", "VIUDO", "UNION_ESTABLE"]).optional(),
   payrollWorkerType: z.enum(["OBRERO", "EMPLEADO"]).optional(),
-  contractEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  contractEndDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   useFideicomiso: z.boolean().optional(),
 });
 
 export type UpdateEmployeeInput = z.infer<typeof UpdateEmployeeSchema>;
 
 export const TerminateEmployeeSchema = z.object({
-  terminationDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de egreso inválida" }),
+  terminationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de egreso inválida" }),
 });
 
 export type TerminateEmployeeInput = z.infer<typeof TerminateEmployeeSchema>;
 
 export const AddSalarySchema = z.object({
-  effectiveFrom: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de vigencia inválida" }),
+  effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de vigencia inválida" }),
   amount: zMoneyPositive,
   currency: z.enum(["VES", "USD", "MIXED"], {
     error: "Selecciona la moneda",

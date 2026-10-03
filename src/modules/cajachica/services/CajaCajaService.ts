@@ -52,7 +52,7 @@ type PrismaClientOrTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 async function sumPostedGlBalance(
   db: PrismaClientOrTx,
   accountId: string,
-  companyId: string,
+  companyId: string
 ): Promise<Decimal> {
   const agg = await db.journalEntry.aggregate({
     _sum: { amount: true },
@@ -108,7 +108,8 @@ function serializeCaja(
   }
 ): CajaCajaSummary {
   if (!caja) throw new Error("unreachable");
-  const { totalDeposited, totalPending, totalApproved, available, percentUsed } = computeBalance(caja);
+  const { totalDeposited, totalPending, totalApproved, available, percentUsed } =
+    computeBalance(caja);
   return {
     id: caja.id,
     name: caja.name,
@@ -116,9 +117,7 @@ function serializeCaja(
     accountCode: caja.account.code,
     accountName: caja.account.name,
     custodianId: caja.custodian?.id ?? null,
-    custodianName: caja.custodian
-      ? `${caja.custodian.firstName} ${caja.custodian.lastName}`
-      : null,
+    custodianName: caja.custodian ? `${caja.custodian.firstName} ${caja.custodian.lastName}` : null,
     currency: caja.currency,
     maxBalance: caja.maxBalance.toFixed(2),
     status: caja.status,
@@ -206,7 +205,8 @@ export async function assignCustodian(
       select: { id: true, status: true, custodianId: true },
     });
     if (!caja) throw new Error("Caja Chica no encontrada");
-    if (caja.status === "CLOSED") throw new Error("No se puede cambiar el custodio de una caja cerrada");
+    if (caja.status === "CLOSED")
+      throw new Error("No se puede cambiar el custodio de una caja cerrada");
 
     // Mismo guard cross-tenant (ADR-004) + ACTIVE que createCajaCaja (HC-03).
     const custodian = await tx.employee.findFirst({
@@ -418,8 +418,7 @@ export async function reopenCajaCaja(
         where: { id: input.cajaCajaId, companyId: input.companyId },
       });
       if (!caja) throw new Error("Caja Chica no encontrada");
-      if (caja.status !== "CLOSED")
-        throw new Error("Solo se puede reabrir una Caja Chica cerrada");
+      if (caja.status !== "CLOSED") throw new Error("Solo se puede reabrir una Caja Chica cerrada");
 
       let reversalTransactionId: string | null = null;
       let closeTransactionAlreadyVoided = false;
@@ -549,7 +548,7 @@ export async function reopenCajaCaja(
 export async function getCajaGlBalance(
   cajaCajaId: string,
   companyId: string,
-  db: PrismaClientOrTx = prisma,
+  db: PrismaClientOrTx = prisma
 ): Promise<Decimal> {
   const caja = await db.cajaCaja.findFirst({
     where: { id: cajaCajaId, companyId },
@@ -566,7 +565,7 @@ export async function getCajaGlBalance(
  */
 export async function getCajaStepUpThreshold(
   companyId: string,
-  db: PrismaClientOrTx = prisma,
+  db: PrismaClientOrTx = prisma
 ): Promise<Decimal> {
   const settings = await db.companySettings.findFirst({
     where: { companyId },
@@ -586,7 +585,7 @@ export async function getCajaStepUpThreshold(
 export async function getCajaReopenMagnitude(
   cajaCajaId: string,
   companyId: string,
-  db: PrismaClientOrTx = prisma,
+  db: PrismaClientOrTx = prisma
 ): Promise<Decimal> {
   const caja = await db.cajaCaja.findFirst({
     where: { id: cajaCajaId, companyId },

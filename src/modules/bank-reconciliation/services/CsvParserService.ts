@@ -104,7 +104,8 @@ export function parseBankCsv(csvContent: string, columnMap?: ColumnMap): CsvRow[
     const rawDescription = parts[cm.description].trim();
     const rawDebit = parts[cm.debit].trim();
     const rawCredit = parts[cm.credit].trim();
-    const rawBalance = cm.balance !== undefined && parts.length > cm.balance ? parts[cm.balance].trim() : "";
+    const rawBalance =
+      cm.balance !== undefined && parts.length > cm.balance ? parts[cm.balance].trim() : "";
 
     if (!rawDescription) {
       throw new Error(`Fila ${index + 2} malformada: descripción vacía`);

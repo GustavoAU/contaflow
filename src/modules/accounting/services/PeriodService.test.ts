@@ -55,7 +55,7 @@ describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
 
     const result = await PeriodService.assertDateInOpenPeriod(
       "company-1",
-      new Date("2026-03-15"), // marzo 2026 = período abierto
+      new Date("2026-03-15") // marzo 2026 = período abierto
     );
 
     expect(result.id).toBe("period-1");
@@ -68,7 +68,7 @@ describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
 
     // new Date("2026-03-01") = medianoche UTC; en husos negativos getMonth() local daría feb.
     await expect(
-      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-01")),
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-01"))
     ).resolves.toMatchObject({ month: 3 });
   });
 
@@ -79,7 +79,7 @@ describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
     } as never);
 
     await expect(
-      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15")),
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15"))
     ).rejects.toThrow(/está cerrado/i);
   });
 
@@ -94,7 +94,7 @@ describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
     } as never);
 
     await expect(
-      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15")),
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15"))
     ).rejects.toThrow(/está cerrado/i);
   });
 
@@ -102,7 +102,7 @@ describe("PeriodService.assertDateInOpenPeriod (HC-02 Caja Chica)", () => {
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null);
 
     await expect(
-      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15")),
+      PeriodService.assertDateInOpenPeriod("company-1", new Date("2026-03-15"))
     ).rejects.toThrow(/No existe un período contable abierto/i);
   });
 });

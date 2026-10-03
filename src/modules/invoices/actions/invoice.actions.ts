@@ -31,7 +31,10 @@ import { StockConfirmRequiredError } from "../services/InvoiceLineService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 import { withSerializableRetry } from "@/lib/tx-helpers";
-import { assertWriteAllowed, READ_ONLY_MESSAGE } from "@/modules/billing/services/SubscriptionService";
+import {
+  assertWriteAllowed,
+  READ_ONLY_MESSAGE,
+} from "@/modules/billing/services/SubscriptionService";
 import { putPrivateBlob } from "@/lib/private-blob";
 import { createHash } from "crypto";
 
@@ -74,13 +77,16 @@ export async function createInvoiceAction(input: unknown) {
     data = parsed.data;
 
     // ADR-025: verifica acceso base + grants granulares al módulo de Facturación
-    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "invoicing")) {
+    if (!(await hasModuleAccess(parsed.data.companyId, ctx.role, "invoicing"))) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
     // Crear facturas requiere rol de escritura — un grant de módulo (ADR-025) solo da
     // visibilidad, nunca debe bastar por sí solo para mutar (invariante de seguridad).
     if (!canAccess(ctx.role, ROLES.WRITERS)) {
-      return { success: false as const, error: "Crear facturas requiere rol Administrativo, Contador, Administrador o Propietario" };
+      return {
+        success: false as const,
+        error: "Crear facturas requiere rol Administrativo, Contador, Administrador o Propietario",
+      };
     }
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(parsed.data.companyId);
@@ -119,14 +125,14 @@ export async function createInvoiceAction(input: unknown) {
         Date.UTC(
           parsed.data.date.getUTCFullYear(),
           parsed.data.date.getUTCMonth(),
-          parsed.data.date.getUTCDate(),
-        ),
+          parsed.data.date.getUTCDate()
+        )
       );
       try {
         const rateRecord = await ExchangeRateService.getRateForDate(
           parsed.data.companyId,
           parsed.data.currency as Currency,
-          dateOnly,
+          dateOnly
         );
         resolvedExchangeRateId = rateRecord.id;
       } catch (e) {
@@ -145,8 +151,13 @@ export async function createInvoiceAction(input: unknown) {
         }
 
         const inv = await InvoiceService.create(
-          { ...parsed.data, controlNumber, idempotencyKey: key, exchangeRateId: resolvedExchangeRateId },
-          tx,
+          {
+            ...parsed.data,
+            controlNumber,
+            idempotencyKey: key,
+            exchangeRateId: resolvedExchangeRateId,
+          },
+          tx
         );
         await tx.auditLog.create({
           data: {
@@ -168,9 +179,10 @@ export async function createInvoiceAction(input: unknown) {
         return inv;
       });
 
-    const invoice = parsed.data.type === "SALE"
-      ? await withSerializableRetry(txBody)
-      : await prisma.$transaction(txBody);
+    const invoice =
+      parsed.data.type === "SALE"
+        ? await withSerializableRetry(txBody)
+        : await prisma.$transaction(txBody);
 
     // ADR-019 D-1.1a: publish a QStash POST-COMMIT (nunca dentro del $transaction).
     // publishForInvoice nunca lanza — si falla, la SeniatSubmission queda PENDING
@@ -205,7 +217,10 @@ export async function createInvoiceAction(input: unknown) {
         // reintentable— se le reportaba al usuario como "ya existe una factura con
         // ese número", mandándolo a cambiar el número en vez de reintentar.
         if (data?.type === "SALE" && p2002TargetIncludes(error, "invoiceType")) {
-          return { success: false as const, error: "Error transitorio al generar Nº Control — intenta de nuevo." };
+          return {
+            success: false as const,
+            error: "Error transitorio al generar Nº Control — intenta de nuevo.",
+          };
         }
         // Race condition: otro request con la misma clave ganó — buscar y retornar el existente
         if (data?.idempotencyKey) {
@@ -213,7 +228,8 @@ export async function createInvoiceAction(input: unknown) {
             where: { idempotencyKey: data.idempotencyKey, companyId: data.companyId },
             select: { id: true },
           });
-          if (existing) return { success: true as const, data: existing.id, stockWarnings: undefined };
+          if (existing)
+            return { success: true as const, data: existing.id, stockWarnings: undefined };
         }
         return {
           success: false as const,
@@ -245,7 +261,7 @@ export async function getInvoicesPaginatedAction(
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
     if (!ctx.ok) return ctx.error;
     // N14 (ADR-025): verifica acceso base + grants granulares al módulo facturación
-    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
+    if (!(await hasModuleAccess(companyId, ctx.role, "invoicing"))) {
       return { success: false, error: moduleAccessError("invoicing") };
     }
 
@@ -260,18 +276,24 @@ export async function getInvoicesPaginatedAction(
 // M9: R-2 — PDF Libro de Ventas/Compras va a Vercel Blob PRIVADO; al cliente solo viajan la ruta de
 // descarga autenticada y el contentHash (ADR-047).
 const ExportBookParamsSchema = z.object({
-  companyId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  companyId: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
   type: z.enum(["SALE", "PURCHASE"]),
   year: z.number().int().min(2000).max(2100),
   month: z.number().int().min(1).max(12),
 });
 
 export async function exportInvoiceBookPDFAction(params: {
-  companyId: string
-  type: "SALE" | "PURCHASE"
-  year: number
-  month: number
-}): Promise<{ success: true; url: string; contentHash: string } | { success: false; error: string }> {
+  companyId: string;
+  type: "SALE" | "PURCHASE";
+  year: number;
+  month: number;
+}): Promise<
+  { success: true; url: string; contentHash: string } | { success: false; error: string }
+> {
   try {
     // year y month entran en la ruta del blob y en el nombre del PDF: sin tipos estrictos, un valor como
     // "2026/../x" o el mes 13 generaba una ruta y un libro incoherentes.
@@ -320,7 +342,9 @@ export async function exportInvoiceBookPDFAction(params: {
     // por ruta repetida al re-exportar el mismo mes (allowOverwrite=false por defecto).
     let blob: Awaited<ReturnType<typeof putPrivateBlob>>;
     try {
-      blob = await putPrivateBlob(filename, pdfBuffer, "application/pdf", { addRandomSuffix: true });
+      blob = await putPrivateBlob(filename, pdfBuffer, "application/pdf", {
+        addRandomSuffix: true,
+      });
     } catch (blobError) {
       // El mensaje del SDK puede nombrar variables de entorno (BLOB_STORE_ID...): mapPrismaError lo devolvería crudo al navegador.
       Sentry.captureException(blobError);
@@ -355,7 +379,7 @@ export async function exportInvoiceBookPDFAction(params: {
 // ─── Exportar comprobante PDF de factura individual ────────────────────────────
 export async function exportInvoiceVoucherPDFAction(
   invoiceId: string,
-  companyId: string,
+  companyId: string
 ): Promise<{ success: true; buffer: number[] } | { success: false; error: string }> {
   try {
     const ctx = await requireCompanyAction(companyId, {
@@ -423,7 +447,7 @@ export async function exportInvoiceVoucherPDFAction(
  */
 export async function exportInvoiceXMLAction(
   invoiceId: string,
-  companyId: string,
+  companyId: string
 ): Promise<{ success: true; xml: string; filename: string } | { success: false; error: string }> {
   try {
     const ctx = await requireCompanyAction(companyId, {
@@ -497,16 +521,26 @@ export async function createCreditNoteAction(input: unknown) {
     }
     const { userId, ipAddress, userAgent } = ctx;
     // ADR-025: verifica acceso base + grants granulares
-    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
+    if (!(await hasModuleAccess(companyId, ctx.role, "invoicing"))) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
     // Corregir montos vía nota de crédito requiere rol de escritura — un grant de módulo
     // (ADR-025) solo da visibilidad, nunca debe bastar por sí solo para mutar.
     if (!canAccess(ctx.role, ROLES.WRITERS)) {
-      return { success: false as const, error: "Crear notas de crédito requiere rol Administrativo, Contador, Administrador o Propietario" };
+      return {
+        success: false as const,
+        error:
+          "Crear notas de crédito requiere rol Administrativo, Contador, Administrador o Propietario",
+      };
     }
 
-    const nc = await InvoiceService.createCreditNote(companyId, parsed.data, userId, ipAddress, userAgent);
+    const nc = await InvoiceService.createCreditNote(
+      companyId,
+      parsed.data,
+      userId,
+      ipAddress,
+      userAgent
+    );
 
     // ADR-019 D-1.1a/D-1.1d: publish post-commit para NC de venta (nunca lanza)
     if (nc.type === "SALE") {
@@ -517,7 +551,10 @@ export async function createCreditNoteAction(input: unknown) {
     return { success: true as const, data: nc };
   } catch (error) {
     if (isPrismaError(error, "P2002")) {
-      return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
+      return {
+        success: false as const,
+        error: "Ya existe una nota con ese número para esta empresa",
+      };
     }
     if (isPrismaError(error, "P2003")) {
       return { success: false as const, error: "Datos de referencia inválidos" };
@@ -555,16 +592,26 @@ export async function createDebitNoteAction(input: unknown) {
     }
     const { userId, ipAddress, userAgent } = ctx;
     // ADR-025: verifica acceso base + grants granulares
-    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
+    if (!(await hasModuleAccess(companyId, ctx.role, "invoicing"))) {
       return { success: false as const, error: moduleAccessError("invoicing") };
     }
     // Corregir montos vía nota de débito requiere rol de escritura — un grant de módulo
     // (ADR-025) solo da visibilidad, nunca debe bastar por sí solo para mutar.
     if (!canAccess(ctx.role, ROLES.WRITERS)) {
-      return { success: false as const, error: "Crear notas de débito requiere rol Administrativo, Contador, Administrador o Propietario" };
+      return {
+        success: false as const,
+        error:
+          "Crear notas de débito requiere rol Administrativo, Contador, Administrador o Propietario",
+      };
     }
 
-    const nd = await InvoiceService.createDebitNote(companyId, parsed.data, userId, ipAddress, userAgent);
+    const nd = await InvoiceService.createDebitNote(
+      companyId,
+      parsed.data,
+      userId,
+      ipAddress,
+      userAgent
+    );
 
     // ADR-019 D-1.1a/D-1.1d: publish post-commit para ND de venta (nunca lanza)
     if (nd.type === "SALE") {
@@ -575,7 +622,10 @@ export async function createDebitNoteAction(input: unknown) {
     return { success: true as const, data: nd };
   } catch (error) {
     if (isPrismaError(error, "P2002")) {
-      return { success: false as const, error: "Ya existe una nota con ese número para esta empresa" };
+      return {
+        success: false as const,
+        error: "Ya existe una nota con ese número para esta empresa",
+      };
     }
     if (isPrismaError(error, "P2003")) {
       return { success: false as const, error: "Datos de referencia inválidos" };
@@ -605,7 +655,7 @@ export type InvoicePickerItem = {
 export async function searchInvoicesForPickerAction(
   companyId: string,
   type: "SALE" | "PURCHASE",
-  query: string,
+  query: string
 ): Promise<ActionResult<InvoicePickerItem[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
   if (!ctx.ok) return ctx.error;
@@ -627,7 +677,14 @@ export async function searchInvoicesForPickerAction(
             }
           : {}),
       },
-      select: { id: true, invoiceNumber: true, counterpartName: true, counterpartRif: true, totalAmountVes: true, date: true },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        counterpartName: true,
+        counterpartRif: true,
+        totalAmountVes: true,
+        date: true,
+      },
       orderBy: { date: "desc" },
       take: 10,
     });
@@ -663,7 +720,7 @@ export type CreditDebitNoteItem = {
 
 export async function getCreditDebitNotesAction(
   companyId: string,
-  invoiceId: string,
+  invoiceId: string
 ): Promise<ActionResult<CreditDebitNoteItem[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS });
   if (!ctx.ok) return ctx.error;

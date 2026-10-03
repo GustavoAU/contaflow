@@ -11,7 +11,9 @@ const onVercel = () => Boolean(process.env.VERCEL);
 const credentials = () => (onVercel() ? {} : { token: process.env.BLOB_READ_WRITE_TOKEN });
 
 export function isPrivateBlobConfigured(): boolean {
-  return onVercel() ? Boolean(process.env.BLOB_STORE_ID) : Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return onVercel()
+    ? Boolean(process.env.BLOB_STORE_ID)
+    : Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
 type PutOptions = {
@@ -19,7 +21,12 @@ type PutOptions = {
   addRandomSuffix?: boolean;
 };
 
-export function putPrivateBlob(pathname: string, body: Buffer, contentType: string, options: PutOptions = {}) {
+export function putPrivateBlob(
+  pathname: string,
+  body: Buffer,
+  contentType: string,
+  options: PutOptions = {}
+) {
   return put(pathname, body, {
     access: "private",
     contentType,

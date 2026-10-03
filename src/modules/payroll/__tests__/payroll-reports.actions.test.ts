@@ -274,7 +274,9 @@ describe("exportIvssExcelAction", () => {
   });
 
   it("service falla → error con mapPrismaError", async () => {
-    vi.mocked(PayrollReportService.getIvssReport).mockRejectedValue(new Error("ivss failed") as never);
+    vi.mocked(PayrollReportService.getIvssReport).mockRejectedValue(
+      new Error("ivss failed") as never
+    );
     const res = await exportIvssExcelAction(COMPANY_ID, 2026, 4);
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toBe("ivss failed");
@@ -294,7 +296,9 @@ describe("exportBanavihExcelAction", () => {
   });
 
   it("service falla → error con mapPrismaError", async () => {
-    vi.mocked(PayrollReportService.getBanavihReport).mockRejectedValue(new Error("banavih failed") as never);
+    vi.mocked(PayrollReportService.getBanavihReport).mockRejectedValue(
+      new Error("banavih failed") as never
+    );
     const res = await exportBanavihExcelAction(COMPANY_ID, 2026, 4);
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toBe("banavih failed");
@@ -314,7 +318,9 @@ describe("exportIncesExcelAction", () => {
   });
 
   it("service falla → error con mapPrismaError", async () => {
-    vi.mocked(PayrollReportService.getIncesReport).mockRejectedValue(new Error("inces failed") as never);
+    vi.mocked(PayrollReportService.getIncesReport).mockRejectedValue(
+      new Error("inces failed") as never
+    );
     const res = await exportIncesExcelAction(COMPANY_ID, 2026, 1);
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toBe("inces failed");
@@ -325,16 +331,26 @@ describe("exportIncesExcelAction", () => {
 
 describe("exportConstanciaTrabajoAction", () => {
   const MOCK_EMP = {
-    firstName: "Juan", lastName: "Pérez", cedulaType: "V", cedulaNumber: "12345678",
-    ivssNumber: "IV-001", position: "Analista", payrollWorkerType: "PERMANENT",
-    contractType: "INDEFINITE", hireDate: new Date("2020-01-01"), terminationDate: null,
+    firstName: "Juan",
+    lastName: "Pérez",
+    cedulaType: "V",
+    cedulaNumber: "12345678",
+    ivssNumber: "IV-001",
+    position: "Analista",
+    payrollWorkerType: "PERMANENT",
+    contractType: "INDEFINITE",
+    hireDate: new Date("2020-01-01"),
+    terminationDate: null,
     salaryHistory: [{ amount: new Decimal("500.00") }],
   };
 
   beforeEach(() => {
     mockAuth.mockResolvedValue({ userId: "user-1" });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ACCOUNTING_MEMBER as never);
-    vi.mocked(prisma.company.findUniqueOrThrow).mockResolvedValue({ name: "Mi Empresa", rif: "J-12345678-9" } as never);
+    vi.mocked(prisma.company.findUniqueOrThrow).mockResolvedValue({
+      name: "Mi Empresa",
+      rif: "J-12345678-9",
+    } as never);
     vi.mocked(prisma.employee.findFirstOrThrow).mockResolvedValue(MOCK_EMP as never);
   });
 
@@ -382,7 +398,9 @@ describe("exportBanavihTxtAction", () => {
   });
 
   it("service falla → error con mapPrismaError", async () => {
-    vi.mocked(PayrollBankTxtService.generateBanavihTxt).mockRejectedValue(new Error("gen failed") as never);
+    vi.mocked(PayrollBankTxtService.generateBanavihTxt).mockRejectedValue(
+      new Error("gen failed") as never
+    );
     const res = await exportBanavihTxtAction(COMPANY_ID, 2026, 4);
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toBe("gen failed");

@@ -1,7 +1,10 @@
 // src/app/(dashboard)/company/[companyId]/fiscal-close/page.tsx
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { getFiscalYearCloseHistoryAction, getFiscalConfigAction } from "@/modules/fiscal-close/actions/fiscal-close.actions";
+import {
+  getFiscalYearCloseHistoryAction,
+  getFiscalConfigAction,
+} from "@/modules/fiscal-close/actions/fiscal-close.actions";
 import { getFiscalYearsAction } from "@/modules/accounting/actions/fiscal-year.actions";
 import { FiscalYearCloseManager } from "@/modules/fiscal-close/components/FiscalYearCloseManager";
 
@@ -34,9 +37,7 @@ export default async function FiscalClosePage({ params }: Props) {
   const fiscalYears = fiscalYearsResult.success ? fiscalYearsResult.data : [];
   const openFiscalYears = fiscalYears.filter((fy) => fy.status === "OPEN");
   const yearToClose =
-    openFiscalYears.length > 0
-      ? Math.min(...openFiscalYears.map((fy) => fy.year))
-      : null;
+    openFiscalYears.length > 0 ? Math.min(...openFiscalYears.map((fy) => fy.year)) : null;
 
   // Serializar Decimals para el client component
   const serializedHistory = history.map((r) => ({
@@ -51,7 +52,8 @@ export default async function FiscalClosePage({ params }: Props) {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Cierre de Ejercicio Económico</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Genera los asientos de cierre de cuentas de resultado y apropiación del ejercicio (VEN-NIF)
+          Genera los asientos de cierre de cuentas de resultado y apropiación del ejercicio
+          (VEN-NIF)
         </p>
       </div>
 
@@ -61,7 +63,6 @@ export default async function FiscalClosePage({ params }: Props) {
         isConfigured={isConfigured}
         history={serializedHistory}
       />
-
     </div>
   );
 }

@@ -37,8 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ignored: true });
   }
 
-  const ipnSourceIp =
-    request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip");
+  const ipnSourceIp = request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip");
 
   try {
     await BillingService.handleIPN(ipn, ipnSourceIp);

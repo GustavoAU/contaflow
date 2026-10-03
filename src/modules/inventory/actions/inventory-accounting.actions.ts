@@ -51,9 +51,7 @@ export async function postMovementAction(
 
 // ─── Anular movimiento POSTED (POSTED → VOIDED) ───────────────────────────────
 
-export async function voidPostedMovementAction(
-  input: unknown
-): Promise<ActionResult<boolean>> {
+export async function voidPostedMovementAction(input: unknown): Promise<ActionResult<boolean>> {
   const parsed = VoidMovementSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -111,7 +109,11 @@ export async function getPendingMovementsAction(
 export async function getAvailableLotsAction(
   companyId: string,
   itemId: string
-): Promise<ActionResult<Array<{ id: string; lotNumber: string; quantityOnHand: string; expiresAt: string | null }>>> {
+): Promise<
+  ActionResult<
+    Array<{ id: string; lotNumber: string; quantityOnHand: string; expiresAt: string | null }>
+  >
+> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
   if (!ctx.ok) return ctx.error;
 

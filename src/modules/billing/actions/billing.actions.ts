@@ -11,7 +11,7 @@ import { toActionError } from "../utils/action-errors";
 // ─── createCheckoutAction ────────────────────────────────────────────────────
 
 export async function createCheckoutAction(
-  input: CreateCheckoutInput,
+  input: CreateCheckoutInput
 ): Promise<ActionResult<{ invoiceUrl: string; subscriptionPaymentId: string }>> {
   try {
     // ADR-025: intencionalmente solo OWNER puede gestionar la suscripción
@@ -29,7 +29,7 @@ export async function createCheckoutAction(
       validated.plan,
       ctx.userId,
       ctx.ipAddress,
-      ctx.userAgent,
+      ctx.userAgent
     );
 
     return { success: true, data: result };

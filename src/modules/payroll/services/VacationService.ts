@@ -40,10 +40,10 @@ export interface VacationRecordRow {
 
 export interface CreateVacationInput {
   periodYear: number;
-  vacationDays: number;  // max 90 — validado en Zod schema
-  bonusDays: number;     // max 90 — validado en Zod schema
-  startDate: string;     // YYYY-MM-DD
-  endDate: string;       // YYYY-MM-DD
+  vacationDays: number; // max 90 — validado en Zod schema
+  bonusDays: number; // max 90 — validado en Zod schema
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
   isFractional?: boolean;
 }
 
@@ -111,15 +111,15 @@ export const VacationService = {
     // dailyNormalWage — NUNCA del cliente (ADR-014 Dec. 3)
     const salaryRow = employee.salaryHistory[0];
     if (!salaryRow) {
-      throw new Error("El empleado no tiene salario registrado vigente a la fecha de inicio de vacaciones");
+      throw new Error(
+        "El empleado no tiene salario registrado vigente a la fecha de inicio de vacaciones"
+      );
     }
     // El asiento de vacaciones se registra en bolívares, así que el sueldo se
     // convierte antes de prorratearlo. Leer `amount` sin mirar `currency` metía
     // "2.500" en el Libro Diario por un sueldo de USD 2.500 — el pasivo quedaba
     // dividido por la tasa. Misma clase de error que H-4 en el calculador.
-    const monthlyWage = await monthlyWageToVes(
-      companyId, salaryRow, new Date(input.startDate),
-    );
+    const monthlyWage = await monthlyWageToVes(companyId, salaryRow, new Date(input.startDate));
     const dailyNormalWage = monthlyWage.div(30);
 
     const vacationDays = new Decimal(input.vacationDays);
@@ -146,92 +146,94 @@ export const VacationService = {
     // Config para cuentas contables
     const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
     if (!config?.vacationPayableAccountId || !config?.benefitsExpenseAccountId) {
-      throw new Error("Configure las cuentas contables de vacaciones en la configuración de nómina");
+      throw new Error(
+        "Configure las cuentas contables de vacaciones en la configuración de nómina"
+      );
     }
 
     const totalAmount = vacationAmount.add(bonusAmount);
     const isFractional = input.isFractional ?? false;
 
     try {
-      return await prisma.$transaction(async (tx) => {
-        // Asiento contable de causación (VEN-NIF / NIC 19)
-        // Convención: positivo = Débito, negativo = Crédito
-        const vacationEntries = [
-          {
-            accountId: config.benefitsExpenseAccountId!,
-            amount: totalAmount.toDecimalPlaces(4), // Débito
-            description: `Accrual vacaciones LOTTT Art.190 — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-          },
-          {
-            accountId: config.vacationPayableAccountId!,
-            amount: totalAmount.negated().toDecimalPlaces(4), // Crédito
-            description: `Pasivo vacaciones — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-          },
-        ];
-        assertBalancedGLEntries(vacationEntries); // N4: invariante partida doble
-        const transaction = await tx.transaction.create({
-          data: {
-            companyId,
-            periodId: period.id,
-            number: `NOM-D-VAC-${input.periodYear}-${employeeId.slice(-6)}${isFractional ? "-F" : ""}`,
-            date: startDateObj,
-            description: `Vacaciones ${input.periodYear}${isFractional ? " (fraccionadas)" : ""} — ${employee.firstName} ${employee.lastName}`,
-            userId,
-            type: "DIARIO",
-            entries: {
-              create: vacationEntries,
+      return await prisma.$transaction(
+        async (tx) => {
+          // Asiento contable de causación (VEN-NIF / NIC 19)
+          // Convención: positivo = Débito, negativo = Crédito
+          const vacationEntries = [
+            {
+              accountId: config.benefitsExpenseAccountId!,
+              amount: totalAmount.toDecimalPlaces(4), // Débito
+              description: `Accrual vacaciones LOTTT Art.190 — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
             },
-          },
-        });
+            {
+              accountId: config.vacationPayableAccountId!,
+              amount: totalAmount.negated().toDecimalPlaces(4), // Crédito
+              description: `Pasivo vacaciones — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
+            },
+          ];
+          assertBalancedGLEntries(vacationEntries); // N4: invariante partida doble
+          const transaction = await tx.transaction.create({
+            data: {
+              companyId,
+              periodId: period.id,
+              number: `NOM-D-VAC-${input.periodYear}-${employeeId.slice(-6)}${isFractional ? "-F" : ""}`,
+              date: startDateObj,
+              description: `Vacaciones ${input.periodYear}${isFractional ? " (fraccionadas)" : ""} — ${employee.firstName} ${employee.lastName}`,
+              userId,
+              type: "DIARIO",
+              entries: {
+                create: vacationEntries,
+              },
+            },
+          });
 
-        // VacationRecord — guard doble-pago vía @@unique
-        const record = await tx.vacationRecord.create({
-          data: {
-            companyId,
-            employeeId,
-            periodYear: input.periodYear,
-            vacationDays: vacationDays.toFixed(2),
-            bonusDays: bonusDays.toFixed(2),
-            dailyNormalWage: dailyNormalWage.toFixed(4),
-            vacationAmount: vacationAmount.toFixed(4),
-            bonusAmount: bonusAmount.toFixed(4),
-            startDate: new Date(input.startDate),
-            endDate: new Date(input.endDate),
-            isFractional,
-            transactionId: transaction.id,
-            createdByUserId: userId,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            companyId,
-            entityName: "VacationRecord",
-            entityId: record.id,
-            action: "CREATE_VACATION_RECORD",
-            userId,
-            ipAddress,
-            userAgent,
-            oldValue: Prisma.JsonNull,
-            newValue: {
+          // VacationRecord — guard doble-pago vía @@unique
+          const record = await tx.vacationRecord.create({
+            data: {
+              companyId,
               employeeId,
               periodYear: input.periodYear,
-              vacationDays: input.vacationDays,
-              bonusDays: input.bonusDays,
+              vacationDays: vacationDays.toFixed(2),
+              bonusDays: bonusDays.toFixed(2),
+              dailyNormalWage: dailyNormalWage.toFixed(4),
               vacationAmount: vacationAmount.toFixed(4),
               bonusAmount: bonusAmount.toFixed(4),
+              startDate: new Date(input.startDate),
+              endDate: new Date(input.endDate),
               isFractional,
+              transactionId: transaction.id,
+              createdByUserId: userId,
             },
-          },
-        });
+          });
 
-        return serializeVacation(record);
-      }, { timeout: 15000, maxWait: 15000 });
+          await tx.auditLog.create({
+            data: {
+              companyId,
+              entityName: "VacationRecord",
+              entityId: record.id,
+              action: "CREATE_VACATION_RECORD",
+              userId,
+              ipAddress,
+              userAgent,
+              oldValue: Prisma.JsonNull,
+              newValue: {
+                employeeId,
+                periodYear: input.periodYear,
+                vacationDays: input.vacationDays,
+                bonusDays: input.bonusDays,
+                vacationAmount: vacationAmount.toFixed(4),
+                bonusAmount: bonusAmount.toFixed(4),
+                isFractional,
+              },
+            },
+          });
+
+          return serializeVacation(record);
+        },
+        { timeout: 15000, maxWait: 15000 }
+      );
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         throw new Error(
           `Ya existe un registro de vacaciones ${isFractional ? "fraccionadas" : ""} para el período ${input.periodYear} de este empleado`
         );
@@ -241,10 +243,7 @@ export const VacationService = {
   },
 
   // ── listByEmployee — historial de vacaciones del empleado ─────────────────
-  async listByEmployee(
-    companyId: string,
-    employeeId: string
-  ): Promise<VacationRecordRow[]> {
+  async listByEmployee(companyId: string, employeeId: string): Promise<VacationRecordRow[]> {
     // IDOR: companyId en findMany
     const records = await prisma.vacationRecord.findMany({
       where: { companyId, employeeId },
@@ -278,7 +277,12 @@ export const VacationService = {
       usedByEmployee.set(r.employeeId, prev + Number(r.vacationDays));
     }
 
-    const alerts: { employeeId: string; fullName: string; remaining: number; entitlement: number }[] = [];
+    const alerts: {
+      employeeId: string;
+      fullName: string;
+      remaining: number;
+      entitlement: number;
+    }[] = [];
     for (const emp of employees) {
       const msPerYear = 1000 * 60 * 60 * 24 * 365.25;
       const yearsOfService = Math.floor((today.getTime() - emp.hireDate.getTime()) / msPerYear);
@@ -302,9 +306,15 @@ export const VacationService = {
   // para el año anterior completo (entitlement caducado sin disfrutar).
   // LOTTT Art. 190: las vacaciones deben gozarse dentro del año siguiente
   // al que las genera. Si el año anterior ya cerró sin VacationRecord → alerta.
-  async getOverdueVacationEmployees(
-    companyId: string
-  ): Promise<{ employeeId: string; fullName: string; lastVacationYear: number | null; overdueYear: number; entitlementDays: number }[]> {
+  async getOverdueVacationEmployees(companyId: string): Promise<
+    {
+      employeeId: string;
+      fullName: string;
+      lastVacationYear: number | null;
+      overdueYear: number;
+      entitlementDays: number;
+    }[]
+  > {
     const today = new Date();
     const currentYear = today.getFullYear();
     const overdueYear = currentYear - 1; // año que debió haberse disfrutado
@@ -334,13 +344,20 @@ export const VacationService = {
       }
     }
 
-    const alerts: { employeeId: string; fullName: string; lastVacationYear: number | null; overdueYear: number; entitlementDays: number }[] = [];
+    const alerts: {
+      employeeId: string;
+      fullName: string;
+      lastVacationYear: number | null;
+      overdueYear: number;
+      entitlementDays: number;
+    }[] = [];
     const msPerYear = 1000 * 60 * 60 * 24 * 365.25;
 
     for (const emp of employees) {
       const yearsOfService = (today.getTime() - emp.hireDate.getTime()) / msPerYear;
       // Solo aplica a empleados con ≥1 año completo de servicio al final del año vencido
-      const serviceAtEndOfOverdueYear = (new Date(overdueYear, 11, 31).getTime() - emp.hireDate.getTime()) / msPerYear;
+      const serviceAtEndOfOverdueYear =
+        (new Date(overdueYear, 11, 31).getTime() - emp.hireDate.getTime()) / msPerYear;
       if (serviceAtEndOfOverdueYear < 1) continue;
 
       // Si ya tiene registro para el año vencido, no está en mora
@@ -361,9 +378,15 @@ export const VacationService = {
 
   // ── getEmployeesOnVacation — F-06: empleados actualmente en período disfrute
   // Devuelve empleados cuyo VacationRecord tiene startDate ≤ hoy ≤ endDate.
-  async getEmployeesOnVacation(
-    companyId: string
-  ): Promise<{ employeeId: string; fullName: string; startDate: string; endDate: string; periodYear: number }[]> {
+  async getEmployeesOnVacation(companyId: string): Promise<
+    {
+      employeeId: string;
+      fullName: string;
+      startDate: string;
+      endDate: string;
+      periodYear: number;
+    }[]
+  > {
     const today = new Date();
 
     const records = await prisma.vacationRecord.findMany({
@@ -426,8 +449,7 @@ export const VacationService = {
 // Usa UTC para evitar discrepancias de timezone al construir Date desde string YYYY-MM-DD.
 export function countCompleteMonths(from: Date, to: Date): number {
   let months =
-    (to.getUTCFullYear() - from.getUTCFullYear()) * 12 +
-    (to.getUTCMonth() - from.getUTCMonth());
+    (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth());
 
   const remainderDays = to.getUTCDate() - from.getUTCDate();
   if (remainderDays >= 15) {

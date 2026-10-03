@@ -19,9 +19,9 @@ export default async function RetentionsPage({ params }: Props) {
   const result = await getRetentionsAction(companyId);
 
   const fiscalTabs = [
-    { label: "Libros IVA",    href: `/company/${companyId}/invoices` },
-    { label: "Retenciones",   href: `/company/${companyId}/retentions` },
-    { label: "Decl. IVA",     href: `/company/${companyId}/iva-declaration` },
+    { label: "Libros IVA", href: `/company/${companyId}/invoices` },
+    { label: "Retenciones", href: `/company/${companyId}/retentions` },
+    { label: "Decl. IVA", href: `/company/${companyId}/iva-declaration` },
   ];
 
   return (
@@ -56,8 +56,9 @@ export default async function RetentionsPage({ params }: Props) {
       <div className="space-y-3">
         <div>
           <h2 className="font-semibold">Conciliación Retenciones ↔ Libro de Compras</h2>
-          <p className="text-sm text-zinc-500 mt-0.5">
-            Verifica coherencia entre comprobantes RIVA emitidos y facturas del Libro de Compras para el período seleccionado.
+          <p className="mt-0.5 text-sm text-zinc-500">
+            Verifica coherencia entre comprobantes RIVA emitidos y facturas del Libro de Compras
+            para el período seleccionado.
           </p>
         </div>
         <RetentionReconciliation companyId={companyId} />

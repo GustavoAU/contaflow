@@ -266,7 +266,11 @@ describe("assignCustodianAction", () => {
 
   it("asigna custodio correctamente (requiere ADMIN)", async () => {
     setupAdmin();
-    mockAssignCustodian.mockResolvedValue({ ...mockCaja, custodianId: "emp-2", custodianName: "Luis Gómez" });
+    mockAssignCustodian.mockResolvedValue({
+      ...mockCaja,
+      custodianId: "emp-2",
+      custodianName: "Luis Gómez",
+    });
 
     const result = await assignCustodianAction(validAssign);
 
@@ -812,9 +816,7 @@ describe("reopenCajaCajaAction", () => {
 
   it("propaga error de negocio del servicio (caja no cerrada)", async () => {
     setupAdmin();
-    mockReopenCajaCaja.mockRejectedValue(
-      new Error("Solo se puede reabrir una Caja Chica cerrada")
-    );
+    mockReopenCajaCaja.mockRejectedValue(new Error("Solo se puede reabrir una Caja Chica cerrada"));
     const result = await reopenCajaCajaAction(validReopen);
     if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);

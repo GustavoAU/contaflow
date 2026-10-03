@@ -3,11 +3,7 @@
 // Períodos de nómina derivados de los días que la empresa USA como inicio.
 
 import { describe, it, expect } from "vitest";
-import {
-  periodosDelMes,
-  ultimoPeriodoCerrado,
-  diasDesdeCierre,
-} from "../utils/payroll-periods";
+import { periodosDelMes, ultimoPeriodoCerrado, diasDesdeCierre } from "../utils/payroll-periods";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 

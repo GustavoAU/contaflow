@@ -22,17 +22,14 @@ export type RifValidationResult =
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CACHE_TTL_SECONDS = 86_400; // 24 h — RIF de una empresa no cambia
-const SENIAT_TIMEOUT_MS = 3_000;  // 3 s con AbortController (UX)
+const SENIAT_TIMEOUT_MS = 3_000; // 3 s con AbortController (UX)
 const CACHE_PREFIX = "rif:seniat:";
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
 
 const Schema = z.object({
   companyId: z.string().min(1, { error: "companyId requerido" }),
-  rif: z
-    .string()
-    .min(1, { error: "RIF requerido" })
-    .max(20, { error: "RIF demasiado largo" }),
+  rif: z.string().min(1, { error: "RIF requerido" }).max(20, { error: "RIF demasiado largo" }),
 });
 
 // ─── SENIAT scraper ───────────────────────────────────────────────────────────
@@ -139,7 +136,7 @@ async function setCachedResult(rif: string, data: RifValidationData): Promise<vo
  */
 export async function validateRifAction(
   companyId: string,
-  rif: string,
+  rif: string
 ): Promise<RifValidationResult> {
   // 1. Auth + rate limit (rif: 5/min — SENIAT bloquea IPs con demasiados requests)
   //    + membresía (cualquier rol puede consultar RIFs) — ADR-041

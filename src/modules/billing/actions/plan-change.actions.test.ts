@@ -94,7 +94,9 @@ describe("requestPlanChangeAction", () => {
       effectiveDate: new Date("2026-08-01T00:00:00Z"),
       newPriceUsdCents: 78000,
     });
-    vi.mocked(PlanChangeService.createPlanChangeCheckout).mockRejectedValue(new Error("NOWPayments down"));
+    vi.mocked(PlanChangeService.createPlanChangeCheckout).mockRejectedValue(
+      new Error("NOWPayments down")
+    );
     const res = await requestPlanChangeAction({ companyId: COMPANY_ID, toPlan: "ANNUAL" });
     expect(res.success).toBe(true);
     if (res.success) {

@@ -9,11 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 // Inferred from user.getSessions() return type
-type SessionItem = Awaited<ReturnType<NonNullable<ReturnType<typeof useUser>["user"]>["getSessions"]>>[number];
+type SessionItem = Awaited<
+  ReturnType<NonNullable<ReturnType<typeof useUser>["user"]>["getSessions"]>
+>[number];
 
 function DeviceIcon({ isMobile }: { isMobile?: boolean }) {
-  if (isMobile) return <SmartphoneIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
-  return <MonitorIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
+  if (isMobile)
+    return <SmartphoneIcon className="text-muted-foreground h-4 w-4" aria-hidden="true" />;
+  return <MonitorIcon className="text-muted-foreground h-4 w-4" aria-hidden="true" />;
 }
 
 export function ActiveSessionsPanel() {
@@ -51,10 +54,10 @@ export function ActiveSessionsPanel() {
   }
 
   return (
-    <div className="rounded-lg border p-6 space-y-4">
+    <div className="space-y-4 rounded-lg border p-6">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <ShieldCheckIcon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+        <ShieldCheckIcon className="text-muted-foreground h-5 w-5" aria-hidden="true" />
         <div>
           <h2 className="text-lg font-semibold">Sesiones Activas</h2>
           <p className="text-muted-foreground text-sm">
@@ -65,14 +68,12 @@ export function ActiveSessionsPanel() {
 
       {/* Lista */}
       {!isLoaded ? (
-        <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex items-center gap-2 py-4 text-sm">
           <Loader2Icon className="h-4 w-4 animate-spin" />
           Cargando sesiones…
         </div>
       ) : sessions.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted-foreground">
-          No hay sesiones activas.
-        </p>
+        <p className="text-muted-foreground py-4 text-center text-sm">No hay sesiones activas.</p>
       ) : (
         <div className="divide-y rounded-md border">
           {sessions.map((session) => {
@@ -90,25 +91,22 @@ export function ActiveSessionsPanel() {
             const isRevoking = revokingId === session.id;
 
             return (
-              <div
-                key={session.id}
-                className="flex items-center justify-between gap-4 px-4 py-3"
-              >
+              <div key={session.id} className="flex items-center justify-between gap-4 px-4 py-3">
                 {/* Icono + info */}
-                <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                   <DeviceIcon isMobile={isMobile} />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium truncate">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-medium">
                         {browserName ?? "Navegador desconocido"}
                       </span>
                       {isCurrent && (
-                        <Badge variant="secondary" className="text-xs shrink-0">
+                        <Badge variant="secondary" className="shrink-0 text-xs">
                           Esta sesión
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className="text-muted-foreground truncate text-xs">
                       {[
                         ipAddress,
                         location,
@@ -147,7 +145,7 @@ export function ActiveSessionsPanel() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         Al cerrar una sesión, ese dispositivo deberá iniciar sesión de nuevo. Tu sesión actual no
         puede ser revocada desde aquí.
       </p>

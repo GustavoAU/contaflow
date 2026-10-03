@@ -31,12 +31,14 @@ function makeTaxLine(taxType: string, base: string, amount: string) {
   return { taxType, base: dec(base), amount: dec(amount) };
 }
 
-function makeSaleInvoice(overrides: Partial<{
-  docType: string;
-  taxCategory: string;
-  ivaRetentionAmount: ReturnType<typeof dec>;
-  taxLines: ReturnType<typeof makeTaxLine>[];
-}> = {}) {
+function makeSaleInvoice(
+  overrides: Partial<{
+    docType: string;
+    taxCategory: string;
+    ivaRetentionAmount: ReturnType<typeof dec>;
+    taxLines: ReturnType<typeof makeTaxLine>[];
+  }> = {}
+) {
   return {
     docType: "FACTURA",
     taxCategory: "GRAVADA",
@@ -46,11 +48,13 @@ function makeSaleInvoice(overrides: Partial<{
   };
 }
 
-function makePurchaseInvoice(overrides: Partial<{
-  docType: string;
-  taxCategory: string;
-  taxLines: ReturnType<typeof makeTaxLine>[];
-}> = {}) {
+function makePurchaseInvoice(
+  overrides: Partial<{
+    docType: string;
+    taxCategory: string;
+    taxLines: ReturnType<typeof makeTaxLine>[];
+  }> = {}
+) {
   return {
     docType: "FACTURA",
     taxCategory: "GRAVADA",
@@ -74,9 +78,9 @@ describe("DeclaracionIVAService.calculate", () => {
   it("guard de volumen: mes con más de 50.000 facturas → error de negocio, sin truncar", async () => {
     mockPrisma.invoice.count.mockResolvedValue(50_001);
 
-    await expect(
-      DeclaracionIVAService.calculate(COMPANY_ID, YEAR, MONTH),
-    ).rejects.toThrow(/excede el máximo procesable/);
+    await expect(DeclaracionIVAService.calculate(COMPANY_ID, YEAR, MONTH)).rejects.toThrow(
+      /excede el máximo procesable/
+    );
     // NUNCA se cargan facturas parciales — la Forma 30 no se calcula truncada
     expect(mockPrisma.invoice.findMany).not.toHaveBeenCalled();
   });
@@ -329,7 +333,11 @@ describe("DeclaracionIVAService.calculate", () => {
     // débitos 160, créditos 80, retenciones 0 → sin crédito anterior: 80
     // con crédito anterior 30 → 80 - 30 = 50
     const result = await DeclaracionIVAService.calculate(
-      COMPANY_ID, YEAR, MONTH, undefined, new Decimal("30")
+      COMPANY_ID,
+      YEAR,
+      MONTH,
+      undefined,
+      new Decimal("30")
     );
 
     expect(result.seccionE.creditoFiscalPeriodoAnterior.toString()).toBe("30");
@@ -350,7 +358,11 @@ describe("DeclaracionIVAService.calculate", () => {
 
     // cuota bruta = 80; crédito anterior 200 → saldo a favor −120
     const result = await DeclaracionIVAService.calculate(
-      COMPANY_ID, YEAR, MONTH, undefined, new Decimal("200")
+      COMPANY_ID,
+      YEAR,
+      MONTH,
+      undefined,
+      new Decimal("200")
     );
 
     expect(result.seccionE.creditoFiscalPeriodoAnterior.toString()).toBe("200");
@@ -360,7 +372,11 @@ describe("DeclaracionIVAService.calculate", () => {
 
   it("Sección E: crédito negativo se trata como cero (guard)", async () => {
     const result = await DeclaracionIVAService.calculate(
-      COMPANY_ID, YEAR, MONTH, undefined, new Decimal("-100")
+      COMPANY_ID,
+      YEAR,
+      MONTH,
+      undefined,
+      new Decimal("-100")
     );
 
     expect(result.seccionE.creditoFiscalPeriodoAnterior.toString()).toBe("0");

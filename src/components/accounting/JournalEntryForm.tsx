@@ -389,7 +389,13 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
 
                   {/* Eliminar */}
                   <div className="col-span-1 flex justify-center pt-1">
-                    <span title={fields.length <= 2 ? "Se requieren mínimo 2 líneas en el asiento" : undefined}>
+                    <span
+                      title={
+                        fields.length <= 2
+                          ? "Se requieren mínimo 2 líneas en el asiento"
+                          : undefined
+                      }
+                    >
                       <Button
                         type="button"
                         variant="ghost"

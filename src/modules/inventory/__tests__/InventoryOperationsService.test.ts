@@ -7,7 +7,7 @@ import Decimal from "decimal.js";
 vi.mock("@/lib/prisma", () => ({
   default: {
     account: { findFirstOrThrow: vi.fn() },
-    accountingPeriod: { findFirst: vi.fn() },  // R-09: bloqueo períodos cerrados
+    accountingPeriod: { findFirst: vi.fn() }, // R-09: bloqueo períodos cerrados
     inventoryItem: {
       create: vi.fn(),
       update: vi.fn(),
@@ -100,10 +100,9 @@ beforeEach(() => {
     companyId: COMPANY_ID,
   } as never);
   vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([] as never);
-  vi.mocked(prisma.inventoryMovement.count).mockResolvedValue(0 as never);  // R-05: sin movimientos POSTED
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof currentTx) => unknown) => fn(currentTx)) as never
-  );
+  vi.mocked(prisma.inventoryMovement.count).mockResolvedValue(0 as never); // R-05: sin movimientos POSTED
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof currentTx) => unknown) =>
+    fn(currentTx)) as never);
 });
 
 // ─── createInventoryItem ──────────────────────────────────────────────────────
@@ -111,7 +110,13 @@ beforeEach(() => {
 describe("createInventoryItem", () => {
   it("crea un ítem con los datos correctos", async () => {
     const result = await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "PROD-001", name: "Test", itemType: "GOODS", defaultTaxRate: "GENERAL" },
+      {
+        companyId: COMPANY_ID,
+        sku: "PROD-001",
+        name: "Test",
+        itemType: "GOODS",
+        defaultTaxRate: "GENERAL",
+      },
       USER_ID
     );
     expect(result).toBeDefined();
@@ -161,7 +166,13 @@ describe("createInventoryItem", () => {
 
   it("no verifica accounts si no se proporcionan (SERVICE)", async () => {
     await createInventoryItem(
-      { companyId: COMPANY_ID, sku: "NO-ACCS", name: "Sin cuentas", itemType: "SERVICE", defaultTaxRate: "EXEMPT" },
+      {
+        companyId: COMPANY_ID,
+        sku: "NO-ACCS",
+        name: "Sin cuentas",
+        itemType: "SERVICE",
+        defaultTaxRate: "EXEMPT",
+      },
       USER_ID
     );
     expect(vi.mocked(prisma.account.findFirstOrThrow)).not.toHaveBeenCalled();
@@ -172,7 +183,10 @@ describe("createInventoryItem", () => {
 
 describe("updateInventoryItem", () => {
   it("CRITICAL-1: usa findFirstOrThrow con companyId para verificar ownership", async () => {
-    await updateInventoryItem({ itemId: "item-001", companyId: COMPANY_ID, name: "Nuevo" }, USER_ID);
+    await updateInventoryItem(
+      { itemId: "item-001", companyId: COMPANY_ID, name: "Nuevo" },
+      USER_ID
+    );
     expect(vi.mocked(prisma.inventoryItem.findFirstOrThrow)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: "item-001", companyId: COMPANY_ID }),
@@ -190,7 +204,10 @@ describe("updateInventoryItem", () => {
   });
 
   it("actualiza solo los campos proporcionados", async () => {
-    await updateInventoryItem({ itemId: "item-001", companyId: COMPANY_ID, name: "Nuevo" }, USER_ID);
+    await updateInventoryItem(
+      { itemId: "item-001", companyId: COMPANY_ID, name: "Nuevo" },
+      USER_ID
+    );
     const updateCall = currentTx.inventoryItem.update.mock.calls[0]![0];
     expect(updateCall.data).toMatchObject({ name: "Nuevo" });
     expect(updateCall.data.sku).toBeUndefined();
@@ -206,7 +223,7 @@ describe("createDraftMovement", () => {
     type: "ENTRADA" as const,
     quantity: 5,
     unitCost: "120",
-    reference: "REF-TEST-001",  // R-03: referencia obligatoria (min 3 chars)
+    reference: "REF-TEST-001", // R-03: referencia obligatoria (min 3 chars)
     date: new Date().toISOString(),
     idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
   };
@@ -246,9 +263,7 @@ describe("createDraftMovement", () => {
   it("es idempotente — retorna movimiento existente si ya existe idempotencyKey", async () => {
     const existingMovement = { id: "mov-existing", status: "DRAFT", companyId: COMPANY_ID };
     // findFirst se llama en prisma directo (no en tx)
-    vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValueOnce(
-      existingMovement as never
-    );
+    vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValueOnce(existingMovement as never);
     const result = await createDraftMovement(BASE, USER_ID);
     expect(result).toEqual(existingMovement);
     expect(currentTx.inventoryMovement.create).not.toHaveBeenCalled();
@@ -314,9 +329,7 @@ describe("createDraftMovement — idempotencia acotada a companyId (regresión I
   function fakeFindFirst(rows: Array<Record<string, unknown>>) {
     return vi.fn(async (args?: { where?: Record<string, unknown> }) => {
       const where = args?.where ?? {};
-      const scalar = Object.entries(where).filter(
-        ([, v]) => v === null || typeof v !== "object"
-      );
+      const scalar = Object.entries(where).filter(([, v]) => v === null || typeof v !== "object");
       return rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null;
     });
   }
@@ -332,9 +345,7 @@ describe("createDraftMovement — idempotencia acotada a companyId (regresión I
     expect(result.id).not.toBe("mov-de-otra-empresa");
     // ...y el movimiento propio SÍ se crea (antes se perdía en silencio)
     expect(currentTx.inventoryMovement.create).toHaveBeenCalledOnce();
-    expect(currentTx.inventoryMovement.create.mock.calls[0]![0].data.companyId).toBe(
-      COMPANY_ID
-    );
+    expect(currentTx.inventoryMovement.create.mock.calls[0]![0].data.companyId).toBe(COMPANY_ID);
   });
 
   it("el where del lookup lleva companyId además de la clave", async () => {

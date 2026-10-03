@@ -58,15 +58,13 @@ export default async function FxRevaluationPage({ params }: Props) {
         </Link>
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Diferencial Cambiario
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h1 className="text-2xl font-bold tracking-tight">Diferencial Cambiario</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
               Revaluación de saldos en moneda extranjera · NIC 21 / VEN-NIF BA-5
               {openPeriod && (
                 <span className="ml-2 font-medium text-zinc-700">
-                  · Período abierto:{" "}
-                  {openPeriod.month.toString().padStart(2, "0")}/{openPeriod.year}
+                  · Período abierto: {openPeriod.month.toString().padStart(2, "0")}/
+                  {openPeriod.year}
                 </span>
               )}
             </p>

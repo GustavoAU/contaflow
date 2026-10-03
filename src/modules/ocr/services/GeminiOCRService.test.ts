@@ -171,9 +171,9 @@ describe("GeminiOCRService.extractFromImage", () => {
         JSON.stringify({
           razonSocial: "Empresa Test",
           rif: "J-11111111-1",
-          baseImponibleGeneral: "1.000,00",  // VE: coma decimal
-          ivaGeneral: "160,00",              // VE: coma decimal
-          montoTotal: "1.160,00",            // VE: miles + coma
+          baseImponibleGeneral: "1.000,00", // VE: coma decimal
+          ivaGeneral: "160,00", // VE: coma decimal
+          montoTotal: "1.160,00", // VE: miles + coma
           currency: "VES",
           items: [
             {
@@ -231,7 +231,7 @@ describe("GeminiOCRService.extractFromImage", () => {
       mockGeminiResponse(
         JSON.stringify({
           ...JSON.parse(VALID_INVOICE_JSON),
-          rif: "J-30987654",       // dígito verificador faltante
+          rif: "J-30987654", // dígito verificador faltante
           numeroControl: "00-00001234",
         })
       )
@@ -251,7 +251,7 @@ describe("GeminiOCRService.extractFromImage", () => {
       mockGeminiResponse(
         JSON.stringify({
           ...JSON.parse(VALID_INVOICE_JSON),
-          numeroControl: "00-010000001",   // 9 dígitos — inválido (correcto: XX-XXXXXXXX)
+          numeroControl: "00-010000001", // 9 dígitos — inválido (correcto: XX-XXXXXXXX)
         })
       )
     );
@@ -259,7 +259,7 @@ describe("GeminiOCRService.extractFromImage", () => {
     const result = await GeminiOCRService.extractFromImage("base64fake==");
 
     expect(result._fieldRisks).toBeDefined();
-    const nCtrlRisk = result._fieldRisks!.find(r => r.field === "numeroControl");
+    const nCtrlRisk = result._fieldRisks!.find((r) => r.field === "numeroControl");
     expect(nCtrlRisk).toBeDefined();
     expect(nCtrlRisk!.severity).toBe("critical");
     expect(nCtrlRisk!.issue).toContain("00-010000001");
@@ -270,8 +270,8 @@ describe("GeminiOCRService.extractFromImage", () => {
       mockGeminiResponse(
         JSON.stringify({
           ...JSON.parse(VALID_INVOICE_JSON),
-          rif: "J30987654",               // sin guiones
-          numeroControl: "0001234",        // sin separador XX-
+          rif: "J30987654", // sin guiones
+          numeroControl: "0001234", // sin separador XX-
         })
       )
     );
@@ -279,7 +279,7 @@ describe("GeminiOCRService.extractFromImage", () => {
     const result = await GeminiOCRService.extractFromImage("base64fake==");
 
     expect(result._fieldRisks).toHaveLength(2);
-    const fields = result._fieldRisks!.map(r => r.field);
+    const fields = result._fieldRisks!.map((r) => r.field);
     expect(fields).toContain("rif");
     expect(fields).toContain("numeroControl");
   });

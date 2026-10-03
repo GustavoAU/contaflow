@@ -83,7 +83,9 @@ describe("getP2034CountersAction", () => {
   });
 
   it("error de DB en guard retorna error vía toActionError", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockRejectedValueOnce(new Error("unexpected DB failure"));
+    vi.mocked(prisma.companyMember.findFirst).mockRejectedValueOnce(
+      new Error("unexpected DB failure")
+    );
 
     const r = await getP2034CountersAction(COMPANY_ID);
     expect(r.success).toBe(false);

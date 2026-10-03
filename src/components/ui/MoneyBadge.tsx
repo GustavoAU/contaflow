@@ -6,16 +6,16 @@ import { currencySymbol } from "@/lib/format";
 
 export type ExchangeRateInfo = {
   foreignCurrency: string; // e.g. "USD" — the non-VES side
-  rate: string;            // VES per 1 foreignCurrency unit, e.g. "515.180000"
+  rate: string; // VES per 1 foreignCurrency unit, e.g. "515.180000"
   date: string | Date;
-  source?: string;         // e.g. "BCV"
+  source?: string; // e.g. "BCV"
 };
 
 type Props = {
   amount: string | number;
-  currency: string;               // "VES", "USD", "EUR", etc.
+  currency: string; // "VES", "USD", "EUR", etc.
   exchangeRate?: ExchangeRateInfo; // omit when no rate available
-  align?: "left" | "right";       // controls which edge the tooltip anchors to
+  align?: "left" | "right"; // controls which edge the tooltip anchors to
   className?: string;
 };
 
@@ -97,9 +97,9 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
 
     tooltipContent = (
       <>
-        <p className="text-zinc-400 text-10 leading-none mb-0.5">Tasa aplicada</p>
+        <p className="text-10 mb-0.5 leading-none text-zinc-400">Tasa aplicada</p>
         <p className="font-medium">{rateLabel}</p>
-        <p className="text-zinc-400 text-10 leading-none mt-1.5 mb-0.5">Equivalente</p>
+        <p className="text-10 mt-1.5 mb-0.5 leading-none text-zinc-400">Equivalente</p>
         <p className="font-medium">{equiv}</p>
       </>
     );
@@ -109,7 +109,10 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
     <span className={cn("inline-flex items-start gap-1.5 tabular-nums", className)}>
       {/* 3 px currency colour bar — mt-[3px] centers it with the first text line */}
       <span
-        className={cn("mt-0.75 inline-block h-3.5 w-0.75 shrink-0 rounded-full", barColor(currency))}
+        className={cn(
+          "mt-0.75 inline-block h-3.5 w-0.75 shrink-0 rounded-full",
+          barColor(currency)
+        )}
         aria-hidden
       />
 
@@ -117,7 +120,7 @@ export function MoneyBadge({ amount, currency, exchangeRate, align = "right", cl
       <span className="inline-flex flex-col">
         <span className="font-mono whitespace-nowrap">{amountText}</span>
         {equivLine && (
-          <span className="text-11 leading-none text-zinc-400 mt-0.5">{equivLine}</span>
+          <span className="text-11 mt-0.5 leading-none text-zinc-400">{equivLine}</span>
         )}
       </span>
     </span>

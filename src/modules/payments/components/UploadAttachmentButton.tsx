@@ -5,7 +5,14 @@
 // Se abre por otra ruta autenticada (attachmentDownloadPath): la URL del blob no sirve al navegador.
 
 import { useRef, useState, useTransition } from "react";
-import { Loader2Icon, PaperclipIcon, TrashIcon, FileIcon, ImageIcon, ExternalLinkIcon } from "lucide-react";
+import {
+  Loader2Icon,
+  PaperclipIcon,
+  TrashIcon,
+  FileIcon,
+  ImageIcon,
+  ExternalLinkIcon,
+} from "lucide-react";
 import { deleteAttachmentAction } from "../actions/payment.actions";
 import type { AttachmentSummary } from "../services/PaymentAttachmentService";
 import {
@@ -155,7 +162,9 @@ export function UploadAttachmentButton({
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(
           data?.error ??
-            (res.status === 413 ? `El archivo supera el límite de ${MAX_SIZE_MB} MB.` : "Error al subir el archivo"),
+            (res.status === 413
+              ? `El archivo supera el límite de ${MAX_SIZE_MB} MB.`
+              : "Error al subir el archivo")
         );
       }
 
@@ -209,16 +218,12 @@ export function UploadAttachmentButton({
             )}
             {uploading ? "Subiendo..." : "Adjuntar comprobante"}
           </button>
-          <p className="text-xs text-zinc-400">
-            PDF, JPEG, PNG o WebP · máx. {MAX_SIZE_MB} MB
-          </p>
+          <p className="text-xs text-zinc-400">PDF, JPEG, PNG o WebP · máx. {MAX_SIZE_MB} MB</p>
         </>
       )}
 
       {/* Error de upload */}
-      {error && (
-        <p className="text-xs text-red-600">{error}</p>
-      )}
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }

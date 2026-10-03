@@ -57,7 +57,11 @@ export async function getNextIslrVoucherNumber(
 // Identificador humano de mejor esfuerzo para texto libre (descripciones de
 // asiento, logs) — NUNCA usar para el N° de comprobante impreso en el PDF fiscal,
 // que debe elegir explícitamente voucherNumber (IVA) o islrVoucherNumber (ISLR).
-function retentionDisplayNumber(retention: { voucherNumber: string | null; islrVoucherNumber: string | null; id: string }): string {
+function retentionDisplayNumber(retention: {
+  voucherNumber: string | null;
+  islrVoucherNumber: string | null;
+  id: string;
+}): string {
   return retention.voucherNumber ?? retention.islrVoucherNumber ?? retention.id;
 }
 
@@ -111,7 +115,10 @@ export class RetentionService {
   }
 
   // ─── Calcular retención INCES (2%) ────────────────────────────────────────
-  static calculateIncesRetention(taxBase: string): { incesAmount: string; incesRetentionPct: number } {
+  static calculateIncesRetention(taxBase: string): {
+    incesAmount: string;
+    incesRetentionPct: number;
+  } {
     const base = new Decimal(taxBase);
     const retention = base.mul(INCES_RATE.pct).div(100);
     return {
@@ -216,7 +223,8 @@ export async function enterRetention(
       tx.account.findFirst({ where: { id: input.liabilityAccountId, companyId: input.companyId } }),
       tx.account.findFirst({ where: { id: input.bankAccountId, companyId: input.companyId } }),
     ]);
-    if (!liabilityAccount) throw new Error("Cuenta de pasivo (Retenciones por Pagar) no encontrada");
+    if (!liabilityAccount)
+      throw new Error("Cuenta de pasivo (Retenciones por Pagar) no encontrada");
     if (!bankAccount) throw new Error("Cuenta banco/caja no encontrada");
 
     // Total amount to enter = totalRetention + INCES + FAT
@@ -336,7 +344,9 @@ export async function linkRetentionToInvoice(
         ivaRetentionVoucher: retention.voucherNumber ?? undefined,
         ivaRetentionDate: retention.createdAt,
         ...(retention.islrAmount ? { islrRetentionAmount: retention.islrAmount } : {}),
-        ...(retention.islrVoucherNumber ? { islrRetentionVoucher: retention.islrVoucherNumber } : {}),
+        ...(retention.islrVoucherNumber
+          ? { islrRetentionVoucher: retention.islrVoucherNumber }
+          : {}),
       },
     }),
     prisma.auditLog.create({

@@ -70,7 +70,9 @@ describe("con secreto configurado", () => {
 
 describe("isMissingPortalSecret", () => {
   it("no confunde otros errores", () => {
-    expect(isMissingPortalSecret(new Error("EMPLOYEE_PORTAL_SECRET is required in production"))).toBe(false);
+    expect(
+      isMissingPortalSecret(new Error("EMPLOYEE_PORTAL_SECRET is required in production"))
+    ).toBe(false);
     expect(isMissingPortalSecret(null)).toBe(false);
     expect(isMissingPortalSecret("texto")).toBe(false);
   });

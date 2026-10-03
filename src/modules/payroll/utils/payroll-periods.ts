@@ -26,7 +26,7 @@ function diasDelMes(anio: number, mes0: number): number {
 export function periodosDelMes(anio: number, mes0: number, diasInicio: number[]): PeriodoNomina[] {
   const total = diasDelMes(anio, mes0);
   const inicios = [...new Set(diasInicio.map((d) => Math.min(Math.max(d, 1), total)))].sort(
-    (a, b) => a - b,
+    (a, b) => a - b
   );
   return inicios.map((dia, i) => ({
     inicio: new Date(Date.UTC(anio, mes0, dia)),

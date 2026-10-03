@@ -3,7 +3,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mocks hoisted (vi.mock se eleva al tope) ────────────────────────────────
 
-const { mockAuth, mockCheckRateLimit, mockFindFirst, mockExtractFromImage, mockAuditLogCreate, mockFindUnique, mockGeneratePDF } = vi.hoisted(() => ({
+const {
+  mockAuth,
+  mockCheckRateLimit,
+  mockFindFirst,
+  mockExtractFromImage,
+  mockAuditLogCreate,
+  mockFindUnique,
+  mockGeneratePDF,
+} = vi.hoisted(() => ({
   mockAuth: vi.fn().mockResolvedValue({ userId: "user_test" }),
   mockCheckRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
   mockFindFirst: vi.fn(),
@@ -18,7 +26,10 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue({
     get: (name: string) => {
-      const h: Record<string, string> = { "user-agent": "vitest/1.0", "x-forwarded-for": "127.0.0.1" };
+      const h: Record<string, string> = {
+        "user-agent": "vitest/1.0",
+        "x-forwarded-for": "127.0.0.1",
+      };
       return h[name] ?? null;
     },
   }),
@@ -213,7 +224,11 @@ describe("exportOcrDraftPDFAction", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue({ userId: "user_test" });
     mockFindFirst.mockResolvedValue({ role: "ACCOUNTANT" });
-    mockFindUnique.mockResolvedValue({ name: "Empresa Demo C.A.", rif: "J-99999999-9", address: "Caracas" });
+    mockFindUnique.mockResolvedValue({
+      name: "Empresa Demo C.A.",
+      rif: "J-99999999-9",
+      address: "Caracas",
+    });
     mockGeneratePDF.mockResolvedValue(Buffer.from("fake-pdf-content"));
   });
 
@@ -248,7 +263,10 @@ describe("exportOcrDraftPDFAction", () => {
 
   it("filename sin número de factura omite el sufijo", async () => {
     const { numeroFactura: _, ...withoutFactura } = EXTRACTED_INVOICE;
-    const result = await exportOcrDraftPDFAction("company-1", withoutFactura as typeof EXTRACTED_INVOICE);
+    const result = await exportOcrDraftPDFAction(
+      "company-1",
+      withoutFactura as typeof EXTRACTED_INVOICE
+    );
 
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.filename).toBe("OCR-Borrador.pdf");

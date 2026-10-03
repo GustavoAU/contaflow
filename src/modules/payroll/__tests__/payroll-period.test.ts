@@ -8,8 +8,14 @@ import { periodoPorDefecto, finDesdeInicio } from "../utils/payroll-period";
 
 describe("periodoPorDefecto", () => {
   it("MENSUAL: del 1 al ultimo dia, sin importar el dia de hoy", () => {
-    expect(periodoPorDefecto("2026-08-20", "MONTHLY")).toEqual({ start: "2026-08-01", end: "2026-08-31" });
-    expect(periodoPorDefecto("2026-08-03", "MONTHLY")).toEqual({ start: "2026-08-01", end: "2026-08-31" });
+    expect(periodoPorDefecto("2026-08-20", "MONTHLY")).toEqual({
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
+    expect(periodoPorDefecto("2026-08-03", "MONTHLY")).toEqual({
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
   });
 
   it("MENSUAL: respeta los meses de 30 dias y febrero", () => {
@@ -20,8 +26,14 @@ describe("periodoPorDefecto", () => {
   });
 
   it("QUINCENAL: primera o segunda quincena segun el dia", () => {
-    expect(periodoPorDefecto("2026-08-10", "BIWEEKLY")).toEqual({ start: "2026-08-01", end: "2026-08-15" });
-    expect(periodoPorDefecto("2026-08-20", "BIWEEKLY")).toEqual({ start: "2026-08-16", end: "2026-08-31" });
+    expect(periodoPorDefecto("2026-08-10", "BIWEEKLY")).toEqual({
+      start: "2026-08-01",
+      end: "2026-08-15",
+    });
+    expect(periodoPorDefecto("2026-08-20", "BIWEEKLY")).toEqual({
+      start: "2026-08-16",
+      end: "2026-08-31",
+    });
   });
 
   it("QUINCENAL: el dia 15 es primera quincena y el 16 segunda", () => {
@@ -31,17 +43,26 @@ describe("periodoPorDefecto", () => {
 
   it("SEMANAL: lunes a domingo de la semana que contiene la fecha", () => {
     // 2026-08-27 es jueves.
-    expect(periodoPorDefecto("2026-08-27", "SEMANAL")).toEqual({ start: "2026-08-24", end: "2026-08-30" });
+    expect(periodoPorDefecto("2026-08-27", "SEMANAL")).toEqual({
+      start: "2026-08-24",
+      end: "2026-08-30",
+    });
   });
 
   it("SEMANAL: el domingo cierra su semana, no abre la siguiente", () => {
     // 2026-08-30 es domingo: pertenece a la semana que empezo el lunes 24.
-    expect(periodoPorDefecto("2026-08-30", "SEMANAL")).toEqual({ start: "2026-08-24", end: "2026-08-30" });
+    expect(periodoPorDefecto("2026-08-30", "SEMANAL")).toEqual({
+      start: "2026-08-24",
+      end: "2026-08-30",
+    });
   });
 
   it("SEMANAL: la semana puede cruzar el cambio de mes", () => {
     // 2026-09-02 es miercoles; su lunes es el 31 de agosto.
-    expect(periodoPorDefecto("2026-09-02", "SEMANAL")).toEqual({ start: "2026-08-31", end: "2026-09-06" });
+    expect(periodoPorDefecto("2026-09-02", "SEMANAL")).toEqual({
+      start: "2026-08-31",
+      end: "2026-09-06",
+    });
   });
 
   it("no depende de la hora ni del huso: sale de la fecha que le pasan", () => {

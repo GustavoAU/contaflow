@@ -15,21 +15,21 @@ import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 // ─── Role label / badge ───────────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  OWNER:          "Propietario",
-  ADMIN:          "Administrador",
-  ACCOUNTANT:     "Contador",
+  OWNER: "Propietario",
+  ADMIN: "Administrador",
+  ACCOUNTANT: "Contador",
   ADMINISTRATIVE: "Administrativo",
-  VIEWER:         "Lector",
-  SENIAT:         "Auditor SENIAT",
+  VIEWER: "Lector",
+  SENIAT: "Auditor SENIAT",
 };
 
 const ROLE_STYLES: Record<UserRole, string> = {
-  OWNER:          "bg-violet-500/20 text-violet-300 border-violet-500/30",
-  ADMIN:          "bg-blue-500/20   text-blue-300   border-blue-500/30",
-  ACCOUNTANT:     "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  OWNER: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  ADMIN: "bg-blue-500/20   text-blue-300   border-blue-500/30",
+  ACCOUNTANT: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   ADMINISTRATIVE: "bg-amber-500/20  text-amber-300  border-amber-500/30",
-  VIEWER:         "bg-white/10      text-slate-300  border-white/20",
-  SENIAT:         "bg-red-500/20    text-red-300    border-red-500/30",
+  VIEWER: "bg-white/10      text-slate-300  border-white/20",
+  SENIAT: "bg-red-500/20    text-red-300    border-red-500/30",
 };
 
 // ─── TopbarInner ──────────────────────────────────────────────────────────────
@@ -65,10 +65,14 @@ export function TopbarInner({
   const { navigate } = usePageTransition();
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Keep ref in sync to avoid stale closure in keyboard handler
-  useEffect(() => { paletteOpenRef.current = paletteOpen; }, [paletteOpen]);
+  useEffect(() => {
+    paletteOpenRef.current = paletteOpen;
+  }, [paletteOpen]);
 
   useEffect(() => {
     // Q3-6: helpers para validar si el foco está en un campo de escritura
@@ -86,7 +90,7 @@ export function TopbarInner({
       // Ctrl+/ → toggle command palette
       if (ctrl && e.key === "/") {
         e.preventDefault();
-        setPaletteOpen(o => !o);
+        setPaletteOpen((o) => !o);
         return;
       }
 
@@ -100,7 +104,9 @@ export function TopbarInner({
       if (ctrl && e.key === "Enter" && !paletteOpenRef.current) {
         const active = document.activeElement;
         const form = active?.closest("form") ?? document.querySelector("form");
-        const submit = form?.querySelector<HTMLButtonElement>('button[type="submit"]:not([disabled])');
+        const submit = form?.querySelector<HTMLButtonElement>(
+          'button[type="submit"]:not([disabled])'
+        );
         if (submit) {
           e.preventDefault();
           submit.click();
@@ -113,7 +119,9 @@ export function TopbarInner({
       if (ctrl && e.key === "s" && !paletteOpenRef.current) {
         const active = document.activeElement;
         const form = active?.closest("form") ?? document.querySelector("form");
-        const submit = form?.querySelector<HTMLButtonElement>('button[type="submit"]:not([disabled])');
+        const submit = form?.querySelector<HTMLButtonElement>(
+          'button[type="submit"]:not([disabled])'
+        );
         if (submit) {
           e.preventDefault();
           submit.click();
@@ -139,18 +147,20 @@ export function TopbarInner({
 
   return (
     <>
-      <header className="sticky top-0 z-40 h-14 bg-slate-800 flex items-center gap-3 px-4 shrink-0">
-
+      <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-3 bg-slate-800 px-4">
         {/* Empresa — avatar + nombre + rol */}
         {companyName && companyId && (
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
             <CompanyAvatar id={companyId} name={companyName} size="xs" />
-            <span className="truncate text-sm font-semibold text-white leading-tight max-w-40 lg:max-w-52" title={companyName}>
+            <span
+              className="max-w-40 truncate text-sm leading-tight font-semibold text-white lg:max-w-52"
+              title={companyName}
+            >
               {companyName}
             </span>
             <span
               className={cn(
-                "hidden lg:inline-flex text-10 font-bold px-2 py-0.5 rounded-full border shrink-0",
+                "text-10 hidden shrink-0 rounded-full border px-2 py-0.5 font-bold lg:inline-flex",
                 ROLE_STYLES[userRole]
               )}
             >
@@ -158,7 +168,7 @@ export function TopbarInner({
             </span>
             {activeFiscalYear && (
               <span
-                className="hidden lg:inline-flex text-10 font-bold px-2 py-0.5 rounded-full border shrink-0 bg-sky-500/20 text-sky-300 border-sky-500/30"
+                className="text-10 hidden shrink-0 rounded-full border border-sky-500/30 bg-sky-500/20 px-2 py-0.5 font-bold text-sky-300 lg:inline-flex"
                 title="Ejercicio fiscal activo"
               >
                 Ejercicio {activeFiscalYear.year}
@@ -177,14 +187,14 @@ export function TopbarInner({
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          className="hidden md:flex items-center gap-2 rounded-md border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-xs text-slate-300 hover:text-slate-200 hover:border-slate-500 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-800"
+          className="hidden items-center gap-2 rounded-md border border-slate-600 bg-slate-700/50 px-2.5 py-1 text-xs text-slate-300 transition-colors outline-none hover:border-slate-500 hover:text-slate-200 focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-800 md:flex"
           title="Abrir paleta de comandos"
           aria-label="Abrir paleta de comandos"
           aria-keyshortcuts="Control+/"
         >
           <Search className="h-3.5 w-3.5" aria-hidden />
           <span>Buscar</span>
-          <kbd className="rounded bg-slate-600 px-1 py-0.5 text-10 font-mono not-italic">
+          <kbd className="text-10 rounded bg-slate-600 px-1 py-0.5 font-mono not-italic">
             Ctrl+/
           </kbd>
         </button>
@@ -213,15 +223,16 @@ export function TopbarInner({
       </header>
 
       {/* Command palette — portaled to body so it overlays everything */}
-      {mounted && createPortal(
-        <CommandPalette
-          open={paletteOpen}
-          onClose={() => setPaletteOpen(false)}
-          sections={navSections}
-          primary={navPrimary}
-        />,
-        document.body
-      )}
+      {mounted &&
+        createPortal(
+          <CommandPalette
+            open={paletteOpen}
+            onClose={() => setPaletteOpen(false)}
+            sections={navSections}
+            primary={navPrimary}
+          />,
+          document.body
+        )}
     </>
   );
 }

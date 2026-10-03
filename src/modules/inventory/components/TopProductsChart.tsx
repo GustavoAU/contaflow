@@ -23,7 +23,18 @@ type Props = {
 };
 
 // Degradado de verde — el #1 es más oscuro, los siguientes más claros
-const COLORS = ["#065f46", "#047857", "#059669", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5", "#ecfdf5", "#f0fdf4"];
+const COLORS = [
+  "#065f46",
+  "#047857",
+  "#059669",
+  "#10b981",
+  "#34d399",
+  "#6ee7b7",
+  "#a7f3d0",
+  "#d1fae5",
+  "#ecfdf5",
+  "#f0fdf4",
+];
 
 function truncate(s: string, max = 22) {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
@@ -60,7 +71,11 @@ export function TopProductsChart({ data, metric }: Props) {
         data={chartData}
         margin={{ top: 4, right: 48, left: 4, bottom: 4 }}
       >
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-zinc-100 dark:stroke-zinc-800" />
+        <CartesianGrid
+          strokeDasharray="3 3"
+          horizontal={false}
+          className="stroke-zinc-100 dark:stroke-zinc-800"
+        />
         <XAxis
           type="number"
           tick={{ fontSize: 11, fill: "#71717a" }}

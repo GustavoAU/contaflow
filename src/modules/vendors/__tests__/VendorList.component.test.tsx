@@ -257,7 +257,13 @@ describe("VendorList — smoke del refactor RHF (P2)", () => {
   it("guardar edición → llama updateVendorAction con el payload del schema y actualiza la fila", async () => {
     vi.mocked(updateVendorAction).mockResolvedValue({
       success: true,
-      data: makeVendor({ id: "vendor-1", name: "Alfa Suministros C.A.", rif: "J-11111111-1", code: "P-001", email: "alfa@ejemplo.com" }),
+      data: makeVendor({
+        id: "vendor-1",
+        name: "Alfa Suministros C.A.",
+        rif: "J-11111111-1",
+        code: "P-001",
+        email: "alfa@ejemplo.com",
+      }),
     } as never);
 
     render(<VendorList {...BASE_PROPS} />);

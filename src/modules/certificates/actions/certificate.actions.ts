@@ -44,7 +44,7 @@ async function guardAdminCert(companyId: string): Promise<CertGuardResult> {
 // ─── generateDemoCertificateAction ────────────────────────────────────────────
 
 export async function generateDemoCertificateAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<{ thumbprint: string; expiresAt: Date; isSelfSigned: true }>> {
   const parsed = GenerateDemoCertSchema.safeParse(input);
   if (!parsed.success) {
@@ -69,7 +69,7 @@ export async function generateDemoCertificateAction(
         company.rif ?? "",
         g.ctx.userId,
         g.ctx.ipAddress,
-        g.ctx.userAgent,
+        g.ctx.userAgent
       );
     });
 
@@ -83,8 +83,10 @@ export async function generateDemoCertificateAction(
 // ─── uploadOfficialCertificateAction ──────────────────────────────────────────
 
 export async function uploadOfficialCertificateAction(
-  input: unknown,
-): Promise<ActionResult<{ thumbprint: string; expiresAt: Date; issuedBy: string; isSelfSigned: false }>> {
+  input: unknown
+): Promise<
+  ActionResult<{ thumbprint: string; expiresAt: Date; issuedBy: string; isSelfSigned: false }>
+> {
   const parsed = UploadCertificateSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
@@ -106,7 +108,7 @@ export async function uploadOfficialCertificateAction(
         p12Buffer,
         g.ctx.userId,
         g.ctx.ipAddress,
-        g.ctx.userAgent,
+        g.ctx.userAgent
       );
     });
 
@@ -120,7 +122,7 @@ export async function uploadOfficialCertificateAction(
 // ─── getCertificateStatusAction ────────────────────────────────────────────────
 
 export async function getCertificateStatusAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<CertificateStatusDTO>> {
   const parsed = GetCertStatusSchema.safeParse(input);
   if (!parsed.success) {

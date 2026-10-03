@@ -69,7 +69,8 @@ describe("getActiveFiscalYearAction", () => {
 
   it("happy path — delega en FiscalYearService.getActiveFiscalYear", async () => {
     vi.mocked(FiscalYearService.getActiveFiscalYear).mockResolvedValue({
-      id: "fy-1", year: 2026,
+      id: "fy-1",
+      year: 2026,
     } as never);
     const r = await getActiveFiscalYearAction(COMPANY_ID);
     expect(r.success).toBe(true);
@@ -117,9 +118,21 @@ describe("openFiscalYearAction", () => {
 
   it("OWNER puede abrir un ejercicio", async () => {
     vi.mocked(FiscalYearService.openFiscalYear).mockResolvedValue({
-      id: "fy-1", companyId: COMPANY_ID, year: 2026, startMonth: 1, status: "OPEN",
-      openedBy: USER_ID, openedAt: new Date(), closedAt: null, closedBy: null,
-      periods: Array.from({ length: 12 }, (_, i) => ({ id: `p-${i}`, year: 2026, month: i + 1, status: "OPEN" as const })),
+      id: "fy-1",
+      companyId: COMPANY_ID,
+      year: 2026,
+      startMonth: 1,
+      status: "OPEN",
+      openedBy: USER_ID,
+      openedAt: new Date(),
+      closedAt: null,
+      closedBy: null,
+      periods: Array.from({ length: 12 }, (_, i) => ({
+        id: `p-${i}`,
+        year: 2026,
+        month: i + 1,
+        status: "OPEN" as const,
+      })),
     });
 
     const r = await openFiscalYearAction(BASE_INPUT);
@@ -138,8 +151,15 @@ describe("openFiscalYearAction", () => {
 
   it("year es opcional (apertura secuencial, no-bootstrap)", async () => {
     vi.mocked(FiscalYearService.openFiscalYear).mockResolvedValue({
-      id: "fy-2", companyId: COMPANY_ID, year: 2027, startMonth: 1, status: "OPEN",
-      openedBy: USER_ID, openedAt: new Date(), closedAt: null, closedBy: null,
+      id: "fy-2",
+      companyId: COMPANY_ID,
+      year: 2027,
+      startMonth: 1,
+      status: "OPEN",
+      openedBy: USER_ID,
+      openedAt: new Date(),
+      closedAt: null,
+      closedBy: null,
       periods: [],
     });
 
@@ -158,14 +178,26 @@ describe("openFiscalYearAction", () => {
 
   it("captura ipAddress/userAgent (R-6) y los pasa al service", async () => {
     vi.mocked(FiscalYearService.openFiscalYear).mockResolvedValue({
-      id: "fy-1", companyId: COMPANY_ID, year: 2026, startMonth: 1, status: "OPEN",
-      openedBy: USER_ID, openedAt: new Date(), closedAt: null, closedBy: null, periods: [],
+      id: "fy-1",
+      companyId: COMPANY_ID,
+      year: 2026,
+      startMonth: 1,
+      status: "OPEN",
+      openedBy: USER_ID,
+      openedAt: new Date(),
+      closedAt: null,
+      closedBy: null,
+      periods: [],
     });
 
     await openFiscalYearAction(BASE_INPUT);
 
     expect(FiscalYearService.openFiscalYear).toHaveBeenCalledWith(
-      COMPANY_ID, USER_ID, 2026, "203.0.113.9", "vitest-agent/1.0"
+      COMPANY_ID,
+      USER_ID,
+      2026,
+      "203.0.113.9",
+      "vitest-agent/1.0"
     );
   });
 });

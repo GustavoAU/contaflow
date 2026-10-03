@@ -18,9 +18,9 @@ vi.mock("@/lib/ratelimit", () => ({
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_id: string, _tx: unknown, fn: (tx: unknown) => unknown) => fn({}),
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_id: string, _tx: unknown, fn: (tx: unknown) => unknown) => fn({})),
 }));
 vi.mock("@/modules/fiscal-close/services/FiscalYearCloseService", () => ({
   FiscalYearCloseService: {
@@ -78,7 +78,8 @@ const validINPCRate = { id: "rate_base", year: 2022, month: 1, indexValue: "100.
 const validCurrentRate = { id: "rate_current", year: 2026, month: 3, indexValue: "185.50" };
 
 beforeEach(() => {
-  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn({})) as never);
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({})) as never);
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMember as never);
   vi.mocked(prisma.company.findUnique).mockResolvedValue(validCompany as never);
   vi.mocked(prisma.iNPCRate.findUnique)
@@ -150,7 +151,9 @@ describe("setInflationBaseAction", () => {
   });
 
   it("falla si role no es ADMIN", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValueOnce({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValueOnce({
+      role: "ACCOUNTANT",
+    } as never);
     const r = await setInflationBaseAction(validInput);
     expect(r.success).toBe(false);
   });
@@ -202,7 +205,9 @@ describe("runInflationAdjustmentAction", () => {
   });
 
   it("falla si role no es ADMIN", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValueOnce({ role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValueOnce({
+      role: "ACCOUNTANT",
+    } as never);
     const r = await runInflationAdjustmentAction(validInput);
     expect(r.success).toBe(false);
   });
@@ -221,8 +226,9 @@ describe("runInflationAdjustmentAction", () => {
 
   it("guard INPC: falla si no existe tasa base cargada para la empresa", async () => {
     // Limpiar cola de beforeEach y re-queuar con escenario de error
-    vi.mocked(prisma.iNPCRate.findUnique).mockReset()
-      .mockResolvedValueOnce(null)                    // base rate no existe
+    vi.mocked(prisma.iNPCRate.findUnique)
+      .mockReset()
+      .mockResolvedValueOnce(null) // base rate no existe
       .mockResolvedValueOnce(validCurrentRate as never);
     const r = await runInflationAdjustmentAction(validInput);
     expect(r.success).toBe(false);
@@ -230,9 +236,10 @@ describe("runInflationAdjustmentAction", () => {
   });
 
   it("guard INPC: falla si no existe tasa del período actual", async () => {
-    vi.mocked(prisma.iNPCRate.findUnique).mockReset()
-      .mockResolvedValueOnce(validINPCRate as never)  // base rate existe
-      .mockResolvedValueOnce(null);                   // tasa actual no existe
+    vi.mocked(prisma.iNPCRate.findUnique)
+      .mockReset()
+      .mockResolvedValueOnce(validINPCRate as never) // base rate existe
+      .mockResolvedValueOnce(null); // tasa actual no existe
     const r = await runInflationAdjustmentAction(validInput);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toMatch(/INPC para el período/);

@@ -18,10 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  postReimbursementAction,
-  voidReimbursementAction,
-} from "../actions/cajachica.actions";
+import { postReimbursementAction, voidReimbursementAction } from "../actions/cajachica.actions";
 import type { ReimbursementSummary } from "../services/CajaCajaReimbursementService";
 
 type Props = {
@@ -171,7 +168,12 @@ function VoidConfirm({
 
 // ─── List ───────────────────────────────────────────────────────────────────────
 
-export function CajaCajaReimbursementList({ companyId, reimbursements, isAdmin, onRefresh }: Props) {
+export function CajaCajaReimbursementList({
+  companyId,
+  reimbursements,
+  isAdmin,
+  onRefresh,
+}: Props) {
   const [voidingId, setVoidingId] = useState<string | null>(null);
 
   if (reimbursements.length === 0) {
@@ -203,7 +205,7 @@ export function CajaCajaReimbursementList({ companyId, reimbursements, isAdmin, 
                   {r.status === "POSTED" && r.transactionId && (
                     <Link
                       href={`/company/${companyId}/transactions/${r.transactionId}`}
-                      className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 hover:bg-green-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
+                      className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 hover:bg-green-100 hover:underline focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:outline-none"
                       aria-label="Ver el asiento contable de este reembolso"
                     >
                       <FileText className="h-3 w-3" aria-hidden />
@@ -211,14 +213,14 @@ export function CajaCajaReimbursementList({ companyId, reimbursements, isAdmin, 
                     </Link>
                   )}
                 </div>
-                <p className="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                <p className="mt-0.5 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {r.reimbursementNumber}
                 </p>
                 <p className="text-xs text-zinc-500">
                   {r.monthYear} · {r.movementCount} {r.movementCount === 1 ? "gasto" : "gastos"}
                 </p>
               </div>
-              <div className="text-right shrink-0">
+              <div className="shrink-0 text-right">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   <MoneyBadge amount={r.totalExpensesVes} currency="VES" />
                 </p>
@@ -227,11 +229,7 @@ export function CajaCajaReimbursementList({ companyId, reimbursements, isAdmin, 
 
             {isAdmin && r.status === "DRAFT" && voidingId !== r.id && (
               <div className="mt-2 flex gap-2">
-                <PostConfirm
-                  companyId={companyId}
-                  reimbursementId={r.id}
-                  onDone={onRefresh}
-                />
+                <PostConfirm companyId={companyId} reimbursementId={r.id} onDone={onRefresh} />
                 <Button
                   size="sm"
                   variant="outline"

@@ -1,45 +1,45 @@
 // src/modules/retentions/services/RetentionVoucherPDFService.ts
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
-import React from "react"
-import type { Decimal } from "decimal.js"
-import { fmtDate } from "@/lib/format"
+import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import React from "react";
+import type { Decimal } from "decimal.js";
+import { fmtDate } from "@/lib/format";
 
 // ─── Tipos de entrada ──────────────────────────────────────────────────────────
 export type RetentionVoucherParams = {
   // Agente de retención (empresa)
-  companyName: string
-  companyRif: string
-  companyAddress?: string
+  companyName: string;
+  companyRif: string;
+  companyAddress?: string;
   // Datos de la retención
   // ADR-052: correlativo de IVA (o de ISLR cuando retentionType es "ISLR" — ver
   // exportRetentionVoucherPDFAction, que elige el campo correcto para este slot).
-  voucherNumber: string              // formato "00-XXXXXXXX"
+  voucherNumber: string; // formato "00-XXXXXXXX"
   // ADR-052: correlativo de ISLR — solo se pasa (y se imprime, como línea aparte)
   // cuando retentionType es "AMBAS", porque IVA e ISLR llevan correlativo
   // independiente y ambos deben quedar impresos.
-  islrVoucherNumber?: string
-  issueDate: Date
-  providerName: string
-  providerRif: string
-  periodLabel: string               // "Enero 2026"
-  retentionType: "IVA" | "ISLR" | "AMBAS"
-  invoiceNumber: string
-  invoiceDate: Date
-  invoiceAmount: Decimal | string   // monto total factura
-  taxableBase: Decimal | string     // base imponible
-  retainedAmount: Decimal | string  // total retenido
+  islrVoucherNumber?: string;
+  issueDate: Date;
+  providerName: string;
+  providerRif: string;
+  periodLabel: string; // "Enero 2026"
+  retentionType: "IVA" | "ISLR" | "AMBAS";
+  invoiceNumber: string;
+  invoiceDate: Date;
+  invoiceAmount: Decimal | string; // monto total factura
+  taxableBase: Decimal | string; // base imponible
+  retainedAmount: Decimal | string; // total retenido
   // Desglose por tipo (obligatorio para AMBAS; opcional en tipos simples)
-  ivaRetention?: Decimal | string
-  ivaRetentionPct?: number
-  islrAmount?: Decimal | string
-  islrRetentionPct?: number
-  incesAmount?: Decimal | string
-  incesRetentionPct?: number
-  fatAmount?: Decimal | string
-  fatRetentionPct?: number
+  ivaRetention?: Decimal | string;
+  ivaRetentionPct?: number;
+  islrAmount?: Decimal | string;
+  islrRetentionPct?: number;
+  incesAmount?: Decimal | string;
+  incesRetentionPct?: number;
+  fatAmount?: Decimal | string;
+  fatRetentionPct?: number;
   // Usado en IVA-only / ISLR-only (tasa única)
-  retentionRate?: number
-}
+  retentionRate?: number;
+};
 
 // ─── Estilos ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -86,7 +86,13 @@ const styles = StyleSheet.create({
   },
   totalsLabel: { padding: "3pt 4pt", flex: 2.4, fontSize: 9, fontWeight: "bold" },
   totalsCell: { padding: "3pt 4pt", flex: 1, fontSize: 9, textAlign: "right", fontWeight: "bold" },
-  totalsCellDouble: { padding: "3pt 4pt", flex: 0.7, fontSize: 9, textAlign: "right", fontWeight: "bold" },
+  totalsCellDouble: {
+    padding: "3pt 4pt",
+    flex: 0.7,
+    fontSize: 9,
+    textAlign: "right",
+    fontWeight: "bold",
+  },
   // Tipo de retención
   retentionTypeRow: {
     flexDirection: "row",
@@ -120,47 +126,51 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontStyle: "italic",
   },
-})
+});
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function fmtAmount(val: Decimal | string | null | undefined): string {
-  if (val == null) return "0.00"
-  return Number(val).toFixed(2)
+  if (val == null) return "0.00";
+  return Number(val).toFixed(2);
 }
 
 type RetentionLine = {
-  label: string
-  base: string
-  rate: string
-  amount: string
-}
+  label: string;
+  base: string;
+  rate: string;
+  amount: string;
+};
 
 function buildRetentionLines(params: RetentionVoucherParams): RetentionLine[] {
   if (params.retentionType === "IVA") {
-    return [{
-      label: "Retención IVA",
-      base: fmtAmount(params.taxableBase),
-      rate: `${params.ivaRetentionPct ?? params.retentionRate ?? 0}%`,
-      amount: fmtAmount(params.ivaRetention ?? params.retainedAmount),
-    }]
+    return [
+      {
+        label: "Retención IVA",
+        base: fmtAmount(params.taxableBase),
+        rate: `${params.ivaRetentionPct ?? params.retentionRate ?? 0}%`,
+        amount: fmtAmount(params.ivaRetention ?? params.retainedAmount),
+      },
+    ];
   }
   if (params.retentionType === "ISLR") {
-    return [{
-      label: "Ret. ISLR Dec. 1808",
-      base: fmtAmount(params.taxableBase),
-      rate: `${params.islrRetentionPct ?? params.retentionRate ?? 0}%`,
-      amount: fmtAmount(params.islrAmount ?? params.retainedAmount),
-    }]
+    return [
+      {
+        label: "Ret. ISLR Dec. 1808",
+        base: fmtAmount(params.taxableBase),
+        rate: `${params.islrRetentionPct ?? params.retentionRate ?? 0}%`,
+        amount: fmtAmount(params.islrAmount ?? params.retainedAmount),
+      },
+    ];
   }
   // AMBAS — una fila por tipo con monto > 0
-  const lines: RetentionLine[] = []
+  const lines: RetentionLine[] = [];
   if (params.ivaRetention && Number(params.ivaRetention) > 0) {
     lines.push({
       label: "IVA",
       base: fmtAmount(params.taxableBase),
       rate: `${params.ivaRetentionPct ?? 0}%`,
       amount: fmtAmount(params.ivaRetention),
-    })
+    });
   }
   if (params.islrAmount && Number(params.islrAmount) > 0) {
     lines.push({
@@ -168,7 +178,7 @@ function buildRetentionLines(params: RetentionVoucherParams): RetentionLine[] {
       base: fmtAmount(params.taxableBase),
       rate: `${params.islrRetentionPct ?? 0}%`,
       amount: fmtAmount(params.islrAmount),
-    })
+    });
   }
   if (params.incesAmount && Number(params.incesAmount) > 0) {
     lines.push({
@@ -176,7 +186,7 @@ function buildRetentionLines(params: RetentionVoucherParams): RetentionLine[] {
       base: fmtAmount(params.taxableBase),
       rate: `${params.incesRetentionPct ?? 2}%`,
       amount: fmtAmount(params.incesAmount),
-    })
+    });
   }
   if (params.fatAmount && Number(params.fatAmount) > 0) {
     lines.push({
@@ -184,22 +194,22 @@ function buildRetentionLines(params: RetentionVoucherParams): RetentionLine[] {
       base: fmtAmount(params.taxableBase),
       rate: `${params.fatRetentionPct ?? 0.75}%`,
       amount: fmtAmount(params.fatAmount),
-    })
+    });
   }
-  return lines
+  return lines;
 }
 
 function retentionTypeSummary(params: RetentionVoucherParams): string {
   if (params.retentionType === "IVA") {
-    return `Retención IVA ${params.ivaRetentionPct ?? params.retentionRate ?? 0}%`
+    return `Retención IVA ${params.ivaRetentionPct ?? params.retentionRate ?? 0}%`;
   }
   if (params.retentionType === "ISLR") {
-    return `Retención ISLR - Decreto 1808 - ${params.islrRetentionPct ?? params.retentionRate ?? 0}%`
+    return `Retención ISLR - Decreto 1808 - ${params.islrRetentionPct ?? params.retentionRate ?? 0}%`;
   }
-  const parts = ["IVA", "ISLR"]
-  if (params.incesAmount && Number(params.incesAmount) > 0) parts.push("INCES")
-  if (params.fatAmount && Number(params.fatAmount) > 0) parts.push("FAT")
-  return `Retención AMBAS: ${parts.join(" + ")}`
+  const parts = ["IVA", "ISLR"];
+  if (params.incesAmount && Number(params.incesAmount) > 0) parts.push("INCES");
+  if (params.fatAmount && Number(params.fatAmount) > 0) parts.push("FAT");
+  return `Retención AMBAS: ${parts.join(" + ")}`;
 }
 
 // ─── Componente encabezado ────────────────────────────────────────────────────
@@ -212,20 +222,20 @@ function VoucherHeader({ params }: { params: RetentionVoucherParams }) {
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "Agente de Retención:"),
-      React.createElement(Text, { style: styles.infoValue }, params.companyName),
+      React.createElement(Text, { style: styles.infoValue }, params.companyName)
     ),
     React.createElement(
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "RIF:"),
-      React.createElement(Text, { style: styles.infoValue }, params.companyRif),
+      React.createElement(Text, { style: styles.infoValue }, params.companyRif)
     ),
     params.companyAddress
       ? React.createElement(
           View,
           { style: styles.infoRow },
           React.createElement(Text, { style: styles.infoLabel }, "Dirección:"),
-          React.createElement(Text, { style: styles.infoValue }, params.companyAddress),
+          React.createElement(Text, { style: styles.infoValue }, params.companyAddress)
         )
       : null,
     React.createElement(
@@ -234,24 +244,28 @@ function VoucherHeader({ params }: { params: RetentionVoucherParams }) {
       // ADR-052: AMBAS lleva dos correlativos independientes — se rotula cada uno
       // para no sugerir que es un solo número. Un tipo simple mantiene la etiqueta
       // genérica (menos ruido cuando solo hay un comprobante).
-      React.createElement(Text, { style: styles.infoLabel }, params.islrVoucherNumber ? "N° Comprobante IVA:" : "N° Comprobante:"),
-      React.createElement(Text, { style: styles.infoValue }, params.voucherNumber),
+      React.createElement(
+        Text,
+        { style: styles.infoLabel },
+        params.islrVoucherNumber ? "N° Comprobante IVA:" : "N° Comprobante:"
+      ),
+      React.createElement(Text, { style: styles.infoValue }, params.voucherNumber)
     ),
     params.islrVoucherNumber
       ? React.createElement(
           View,
           { style: styles.infoRow },
           React.createElement(Text, { style: styles.infoLabel }, "N° Comprobante ISLR:"),
-          React.createElement(Text, { style: styles.infoValue }, params.islrVoucherNumber),
+          React.createElement(Text, { style: styles.infoValue }, params.islrVoucherNumber)
         )
       : null,
     React.createElement(
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "Fecha de Emisión:"),
-      React.createElement(Text, { style: styles.infoValue }, fmtDate(params.issueDate)),
-    ),
-  )
+      React.createElement(Text, { style: styles.infoValue }, fmtDate(params.issueDate))
+    )
+  );
 }
 
 // ─── Componente datos del proveedor ──────────────────────────────────────────
@@ -264,21 +278,21 @@ function ProviderSection({ params }: { params: RetentionVoucherParams }) {
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "Proveedor:"),
-      React.createElement(Text, { style: styles.infoValue }, params.providerName),
+      React.createElement(Text, { style: styles.infoValue }, params.providerName)
     ),
     React.createElement(
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "RIF Proveedor:"),
-      React.createElement(Text, { style: styles.infoValue }, params.providerRif),
+      React.createElement(Text, { style: styles.infoValue }, params.providerRif)
     ),
     React.createElement(
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "Período Fiscal:"),
-      React.createElement(Text, { style: styles.infoValue }, params.periodLabel),
-    ),
-  )
+      React.createElement(Text, { style: styles.infoValue }, params.periodLabel)
+    )
+  );
 }
 
 // ─── Tabla de encabezado de factura ──────────────────────────────────────────
@@ -291,21 +305,21 @@ function InvoiceInfoTable({ params }: { params: RetentionVoucherParams }) {
       { style: styles.tableHeader },
       React.createElement(Text, { style: styles.cellMed }, "N° Factura"),
       React.createElement(Text, { style: styles.cellMed }, "Fecha"),
-      React.createElement(Text, { style: styles.cellRight }, "Monto Factura"),
+      React.createElement(Text, { style: styles.cellRight }, "Monto Factura")
     ),
     React.createElement(
       View,
       { style: styles.tableRow },
       React.createElement(Text, { style: styles.cellMed }, params.invoiceNumber),
       React.createElement(Text, { style: styles.cellMed }, fmtDate(params.invoiceDate)),
-      React.createElement(Text, { style: styles.cellRight }, fmtAmount(params.invoiceAmount)),
-    ),
-  )
+      React.createElement(Text, { style: styles.cellRight }, fmtAmount(params.invoiceAmount))
+    )
+  );
 }
 
 // ─── Tabla de desglose de retenciones ─────────────────────────────────────────
 function RetentionBreakdownTable({ params }: { params: RetentionVoucherParams }) {
-  const lines = buildRetentionLines(params)
+  const lines = buildRetentionLines(params);
   return React.createElement(
     View,
     { style: styles.table },
@@ -316,7 +330,7 @@ function RetentionBreakdownTable({ params }: { params: RetentionVoucherParams })
       React.createElement(Text, { style: styles.cellType }, "Tipo de Retención"),
       React.createElement(Text, { style: styles.cellRight }, "Base Imponible"),
       React.createElement(Text, { style: styles.cellNarrow }, "Alícuota"),
-      React.createElement(Text, { style: styles.cellRight }, "Monto Retenido"),
+      React.createElement(Text, { style: styles.cellRight }, "Monto Retenido")
     ),
     // Una fila por tipo
     ...lines.map((line, i) =>
@@ -326,10 +340,10 @@ function RetentionBreakdownTable({ params }: { params: RetentionVoucherParams })
         React.createElement(Text, { style: styles.cellType }, line.label),
         React.createElement(Text, { style: styles.cellRight }, line.base),
         React.createElement(Text, { style: styles.cellNarrow }, line.rate),
-        React.createElement(Text, { style: styles.cellRight }, line.amount),
+        React.createElement(Text, { style: styles.cellRight }, line.amount)
       )
-    ),
-  )
+    )
+  );
 }
 
 // ─── Componente totales ───────────────────────────────────────────────────────
@@ -343,7 +357,7 @@ function TotalsSection({ params }: { params: RetentionVoucherParams }) {
       React.createElement(Text, { style: styles.totalsLabel }, "TOTAL BASE IMPONIBLE"),
       React.createElement(Text, { style: styles.cellRight }, ""),
       React.createElement(Text, { style: styles.totalsCellDouble }, ""),
-      React.createElement(Text, { style: styles.totalsCell }, fmtAmount(params.taxableBase)),
+      React.createElement(Text, { style: styles.totalsCell }, fmtAmount(params.taxableBase))
     ),
     React.createElement(
       View,
@@ -351,15 +365,15 @@ function TotalsSection({ params }: { params: RetentionVoucherParams }) {
       React.createElement(Text, { style: styles.totalsLabel }, "TOTAL MONTO RETENIDO"),
       React.createElement(Text, { style: styles.cellRight }, ""),
       React.createElement(Text, { style: styles.totalsCellDouble }, ""),
-      React.createElement(Text, { style: styles.totalsCell }, fmtAmount(params.retainedAmount)),
+      React.createElement(Text, { style: styles.totalsCell }, fmtAmount(params.retainedAmount))
     ),
     React.createElement(
       View,
       { style: styles.retentionTypeRow },
       React.createElement(Text, { style: styles.retentionTypeLabel }, "Tipo de Retención:"),
-      React.createElement(Text, { style: styles.retentionTypeValue }, retentionTypeSummary(params)),
-    ),
-  )
+      React.createElement(Text, { style: styles.retentionTypeValue }, retentionTypeSummary(params))
+    )
+  );
 }
 
 // ─── Documento completo ───────────────────────────────────────────────────────
@@ -381,7 +395,7 @@ function RetentionVoucherDocument({ params }: { params: RetentionVoucherParams }
       React.createElement(
         Text,
         { style: styles.footerNote, fixed: true },
-        "Este comprobante es válido sin firma ni sello",
+        "Este comprobante es válido sin firma ni sello"
       ),
       React.createElement(
         View,
@@ -391,7 +405,7 @@ function RetentionVoucherDocument({ params }: { params: RetentionVoucherParams }
           null,
           params.islrVoucherNumber
             ? `${params.companyName} — Comprobante IVA N° ${params.voucherNumber} / ISLR N° ${params.islrVoucherNumber} — ${params.periodLabel}`
-            : `${params.companyName} — Comprobante N° ${params.voucherNumber} — ${params.periodLabel}`,
+            : `${params.companyName} — Comprobante N° ${params.voucherNumber} — ${params.periodLabel}`
         ),
         React.createElement(
           Text,
@@ -399,17 +413,15 @@ function RetentionVoucherDocument({ params }: { params: RetentionVoucherParams }
             render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
               `Página ${pageNumber} de ${totalPages}`,
           },
-          null,
-        ),
-      ),
-    ),
-  )
+          null
+        )
+      )
+    )
+  );
 }
 
 // ─── Función exportada ─────────────────────────────────────────────────────────
-export async function generateRetentionVoucherPDF(
-  params: RetentionVoucherParams,
-): Promise<Buffer> {
-  const element = React.createElement(RetentionVoucherDocument, { params })
-  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0])
+export async function generateRetentionVoucherPDF(params: RetentionVoucherParams): Promise<Buffer> {
+  const element = React.createElement(RetentionVoucherDocument, { params });
+  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0]);
 }

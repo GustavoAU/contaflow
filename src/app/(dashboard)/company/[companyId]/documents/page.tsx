@@ -33,22 +33,18 @@ export default async function DocumentsPage({ params }: Props) {
     <div className="space-y-6">
       {/* ── Encabezado ──────────────────────────────────────────────────── */}
       <div className="flex items-start gap-3">
-        <FolderOpenIcon className="mt-0.5 size-6 text-muted-foreground shrink-0" />
+        <FolderOpenIcon className="text-muted-foreground mt-0.5 size-6 shrink-0" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Documentos</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Vista unificada de facturas y comprobantes de retención.
-            Descarga PDFs o genera links temporales para auditorías SENIAT.
+            Vista unificada de facturas y comprobantes de retención. Descarga PDFs o genera links
+            temporales para auditorías SENIAT.
           </p>
         </div>
       </div>
 
       {/* ── Lista con filtros (client component) ────────────────────────── */}
-      <DocumentList
-        companyId={companyId}
-        initialItems={items}
-        initialTotal={total}
-      />
+      <DocumentList companyId={companyId} initialItems={items} initialTotal={total} />
     </div>
   );
 }

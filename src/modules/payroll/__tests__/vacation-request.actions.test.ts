@@ -112,8 +112,13 @@ describe("getVacationBalanceAction", () => {
   it("retorna balance del empleado", async () => {
     setupOk("VIEWER");
     const balance = {
-      employeeId: EMP_ID, yearsOfService: 3, daysAccrued: 48,
-      initialBalance: 0, daysUsed: 15, daysPending: 0, daysAvailable: 33,
+      employeeId: EMP_ID,
+      yearsOfService: 3,
+      daysAccrued: 48,
+      initialBalance: 0,
+      daysUsed: 15,
+      daysPending: 0,
+      daysAvailable: 33,
     };
     vi.mocked(VacationRequestService.getBalance).mockResolvedValue(balance);
 
@@ -194,7 +199,10 @@ describe("approveVacationRequestAction", () => {
 
   it("aprueba cuando ACCOUNTANT", async () => {
     setupOk("ACCOUNTANT");
-    vi.mocked(VacationRequestService.approve).mockResolvedValue({ ...SAMPLE_REQUEST, status: "APPROVED" });
+    vi.mocked(VacationRequestService.approve).mockResolvedValue({
+      ...SAMPLE_REQUEST,
+      status: "APPROVED",
+    });
 
     const res = await approveVacationRequestAction(COMPANY_ID, REQ_ID);
 
@@ -216,9 +224,14 @@ describe("rejectVacationRequestAction", () => {
 
   it("rechaza con motivo cuando ADMIN", async () => {
     setupOk("ADMIN");
-    vi.mocked(VacationRequestService.reject).mockResolvedValue({ ...SAMPLE_REQUEST, status: "REJECTED" });
+    vi.mocked(VacationRequestService.reject).mockResolvedValue({
+      ...SAMPLE_REQUEST,
+      status: "REJECTED",
+    });
 
-    const res = await rejectVacationRequestAction(COMPANY_ID, REQ_ID, { rejectionReason: "Período ocupado" });
+    const res = await rejectVacationRequestAction(COMPANY_ID, REQ_ID, {
+      rejectionReason: "Período ocupado",
+    });
 
     expect(res.success).toBe(true);
   });
@@ -238,7 +251,10 @@ describe("cancelVacationRequestAction", () => {
 
   it("cancela cuando ADMINISTRATIVE", async () => {
     setupOk("ADMINISTRATIVE");
-    vi.mocked(VacationRequestService.cancel).mockResolvedValue({ ...SAMPLE_REQUEST, status: "CANCELLED" });
+    vi.mocked(VacationRequestService.cancel).mockResolvedValue({
+      ...SAMPLE_REQUEST,
+      status: "CANCELLED",
+    });
 
     const res = await cancelVacationRequestAction(COMPANY_ID, REQ_ID);
 

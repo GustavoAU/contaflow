@@ -31,7 +31,15 @@ describe("isExemptModel", () => {
 
 describe("isWriteOperation", () => {
   it("operaciones de escritura", () => {
-    for (const op of ["create", "createMany", "update", "updateMany", "upsert", "delete", "deleteMany"]) {
+    for (const op of [
+      "create",
+      "createMany",
+      "update",
+      "updateMany",
+      "upsert",
+      "delete",
+      "deleteMany",
+    ]) {
       expect(isWriteOperation(op)).toBe(true);
     }
   });
@@ -68,16 +76,24 @@ describe("computeWriteAllowed", () => {
     expect(computeWriteAllowed(null, now)).toBe(true);
   });
   it("ACTIVE dentro del período → permite", () => {
-    expect(computeWriteAllowed({ status: "ACTIVE", currentPeriodEnd: new Date(now + 5 * DAY) }, now)).toBe(true);
+    expect(
+      computeWriteAllowed({ status: "ACTIVE", currentPeriodEnd: new Date(now + 5 * DAY) }, now)
+    ).toBe(true);
   });
   it("ACTIVE pero vencida → bloquea", () => {
-    expect(computeWriteAllowed({ status: "ACTIVE", currentPeriodEnd: new Date(now - DAY) }, now)).toBe(false);
+    expect(
+      computeWriteAllowed({ status: "ACTIVE", currentPeriodEnd: new Date(now - DAY) }, now)
+    ).toBe(false);
   });
   it("EXPIRED → bloquea", () => {
-    expect(computeWriteAllowed({ status: "EXPIRED", currentPeriodEnd: new Date(now + 5 * DAY) }, now)).toBe(false);
+    expect(
+      computeWriteAllowed({ status: "EXPIRED", currentPeriodEnd: new Date(now + 5 * DAY) }, now)
+    ).toBe(false);
   });
   it("PAST_DUE con período futuro (checkout) → permite", () => {
-    expect(computeWriteAllowed({ status: "PAST_DUE", currentPeriodEnd: new Date(now + 5 * DAY) }, now)).toBe(true);
+    expect(
+      computeWriteAllowed({ status: "PAST_DUE", currentPeriodEnd: new Date(now + 5 * DAY) }, now)
+    ).toBe(true);
   });
 });
 

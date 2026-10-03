@@ -2,10 +2,7 @@
 // Q3-5: Actualizado para importar desde tax-config.ts (fuente de verdad).
 // Mantiene los mismos exports para compatibilidad con código existente.
 
-export {
-  VEN_RIF_REGEX,
-  VEN_CONTROL_NUMBER_REGEX as CONTROL_NUMBER_REGEX,
-} from "./tax-config";
+export { VEN_RIF_REGEX, VEN_CONTROL_NUMBER_REGEX as CONTROL_NUMBER_REGEX } from "./tax-config";
 
 // Re-export VEN_RIF_REGEX también bajo el nombre corto que usan algunos módulos
 import { VEN_RIF_REGEX } from "./tax-config";

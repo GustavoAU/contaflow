@@ -142,7 +142,10 @@ describe("PeriodSnapshotService.upsertSnapshot", () => {
 });
 
 describe("PeriodSnapshotService.upsertAllSnapshotsForPeriod", () => {
-  let mockTx: { journalEntry: typeof prisma.journalEntry; periodSnapshot: typeof prisma.periodSnapshot };
+  let mockTx: {
+    journalEntry: typeof prisma.journalEntry;
+    periodSnapshot: typeof prisma.periodSnapshot;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -235,7 +238,10 @@ describe("PeriodSnapshotService.invalidateSnapshots", () => {
 });
 
 describe("PeriodSnapshotService — exclusión de transacciones VOID", () => {
-  let mockTx: { journalEntry: typeof prisma.journalEntry; periodSnapshot: typeof prisma.periodSnapshot };
+  let mockTx: {
+    journalEntry: typeof prisma.journalEntry;
+    periodSnapshot: typeof prisma.periodSnapshot;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();

@@ -28,10 +28,7 @@ interface FullHealthStatus {
 }
 
 export async function GET(req: Request): Promise<NextResponse> {
-  const checks = await Promise.allSettled([
-    checkDb(),
-    checkRedis(),
-  ]);
+  const checks = await Promise.allSettled([checkDb(), checkRedis()]);
 
   const dbOk = checks[0].status === "fulfilled" && checks[0].value;
   const redisResult = checks[1].status === "fulfilled" ? checks[1].value : "error";

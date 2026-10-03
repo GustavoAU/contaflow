@@ -80,14 +80,19 @@ export const OvertimeService = {
   // ── list — registro del período, o de un empleado ─────────────────────────
   async list(
     companyId: string,
-    filters: { employeeId?: string; from?: Date; to?: Date } = {},
+    filters: { employeeId?: string; from?: Date; to?: Date } = {}
   ): Promise<OvertimeEntryRow[]> {
     const entries = await prisma.overtimeEntry.findMany({
       where: {
         companyId,
         ...(filters.employeeId ? { employeeId: filters.employeeId } : {}),
         ...(filters.from || filters.to
-          ? { workedOn: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } }
+          ? {
+              workedOn: {
+                ...(filters.from ? { gte: filters.from } : {}),
+                ...(filters.to ? { lte: filters.to } : {}),
+              },
+            }
           : {}),
       },
       include: WITH_EMPLOYEE,
@@ -104,7 +109,7 @@ export const OvertimeService = {
     userId: string,
     input: CreateOvertimeEntryInput,
     ipAddress: string | null = null,
-    userAgent: string | null = null,
+    userAgent: string | null = null
   ): Promise<OvertimeEntryRow> {
     // IDOR guard: el empleado tiene que ser de esta empresa (ADR-004).
     const employee = await prisma.employee.findFirst({
@@ -141,8 +146,8 @@ export const OvertimeService = {
     if (period && period.status !== "OPEN") {
       throw new Error(
         `El período contable ${workedOn.getUTCFullYear()}-` +
-        `${String(workedOn.getUTCMonth() + 1).padStart(2, "0")} está cerrado: ` +
-        "no se pueden registrar horas extra con esa fecha."
+          `${String(workedOn.getUTCMonth() + 1).padStart(2, "0")} está cerrado: ` +
+          "no se pueden registrar horas extra con esa fecha."
       );
     }
 
@@ -195,7 +200,7 @@ export const OvertimeService = {
     userId: string,
     entryId: string,
     ipAddress: string | null = null,
-    userAgent: string | null = null,
+    userAgent: string | null = null
   ): Promise<void> {
     await prisma.$transaction(async (tx) => {
       // La lectura va DENTRO de la transacción: fuera, entre comprobar que no
@@ -213,9 +218,9 @@ export const OvertimeService = {
         // supuesto exacto en que el artículo invierte la carga de la prueba.
         throw new Error(
           "Estas horas ya están incluidas en un proceso de nómina. Si el proceso " +
-          "sigue en borrador, cancélalo primero; si ya se aprobó, el registro debe " +
-          "conservar la remuneración especial pagada (LOTTT Art. 183) y la " +
-          "corrección va por un concepto manual en la nómina siguiente."
+            "sigue en borrador, cancélalo primero; si ya se aprobó, el registro debe " +
+            "conservar la remuneración especial pagada (LOTTT Art. 183) y la " +
+            "corrección va por un concepto manual en la nómina siguiente."
         );
       }
 

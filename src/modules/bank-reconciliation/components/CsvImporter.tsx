@@ -62,7 +62,8 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
     rows[0].forEach((col, idx) => {
       const lower = col.toLowerCase();
       if (!autoMap.date && /fecha|date/.test(lower)) autoMap.date = idx;
-      else if (!autoMap.description && /desc|concepto|detalle|narr/.test(lower)) autoMap.description = idx;
+      else if (!autoMap.description && /desc|concepto|detalle|narr/.test(lower))
+        autoMap.description = idx;
       else if (!autoMap.debit && /d[eé]bit|egreso|cargo/.test(lower)) autoMap.debit = idx;
       else if (!autoMap.credit && /cr[eé]dit|ingreso|abono/.test(lower)) autoMap.credit = idx;
       else if (!autoMap.balance && /saldo|balance/.test(lower)) autoMap.balance = idx;
@@ -144,7 +145,11 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
       <div className="mb-5 flex items-center gap-2 text-xs text-zinc-400">
         {(["upload", "map", "balances"] as const).map((s, i) => (
           <span key={s} className="flex items-center gap-1">
-            {i > 0 && <span className="mx-1" aria-hidden>→</span>}
+            {i > 0 && (
+              <span className="mx-1" aria-hidden>
+                →
+              </span>
+            )}
             <span
               className={
                 step === s
@@ -154,8 +159,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
                     : ""
               }
             >
-              {i + 1}.{" "}
-              {s === "upload" ? "Cargar CSV" : s === "map" ? "Mapear columnas" : "Saldos"}
+              {i + 1}. {s === "upload" ? "Cargar CSV" : s === "map" ? "Mapear columnas" : "Saldos"}
             </span>
           </span>
         ))}
@@ -165,9 +169,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
       {step === "upload" && (
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Archivo CSV
-            </label>
+            <label className="mb-1 block text-sm font-medium text-zinc-700">Archivo CSV</label>
             <input
               type="file"
               accept=".csv,text/csv,text/plain"
@@ -179,15 +181,17 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
           <textarea
             value={csvText}
             onChange={(e) => setCsvText(e.target.value)}
-            placeholder={"fecha,descripcion,debito,credito,saldo\n01/01/2026,Depósito,,1000.00,1000.00"}
+            placeholder={
+              "fecha,descripcion,debito,credito,saldo\n01/01/2026,Depósito,,1000.00,1000.00"
+            }
             rows={6}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
           <button
             type="button"
             onClick={() => csvText && handleCsvLoad(csvText)}
             disabled={!csvText.trim()}
-            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
           >
             Continuar
           </button>
@@ -207,7 +211,10 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
                 <thead className="bg-zinc-50">
                   <tr>
                     {headerRow.map((h, i) => (
-                      <th key={i} className="border-b px-3 py-1.5 text-left font-medium text-zinc-600">
+                      <th
+                        key={i}
+                        className="border-b px-3 py-1.5 text-left font-medium text-zinc-600"
+                      >
                         {h || `Col ${i}`}
                       </th>
                     ))}
@@ -238,7 +245,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
                 <div key={field}>
                   <label className="mb-1 block text-sm font-medium text-zinc-700">
                     {FIELD_LABELS[field]}
-                    {REQUIRED_FIELDS.includes(field as typeof REQUIRED_FIELDS[number]) && (
+                    {REQUIRED_FIELDS.includes(field as (typeof REQUIRED_FIELDS)[number]) && (
                       <span className="ml-1 text-red-500">*</span>
                     )}
                   </label>
@@ -251,7 +258,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
                         [field]: val === "" ? undefined : Number(val),
                       }));
                     }}
-                    className="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="">— seleccionar —</option>
                     {headerRow.map((h, i) => (
@@ -277,7 +284,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
               type="button"
               onClick={handleMapConfirm}
               disabled={!isMapComplete()}
-              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
             >
               Confirmar mapeo
             </button>
@@ -301,7 +308,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
                 placeholder="Ej. 1500.00"
                 required
                 inputMode="decimal"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-15 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-15 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               />
             </div>
@@ -317,7 +324,7 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
                 placeholder="Ej. 3200.00"
                 required
                 inputMode="decimal"
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-15 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="text-15 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               />
             </div>
@@ -334,10 +341,11 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
             <button
               type="submit"
               disabled={isPending}
-              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-60"
             >
               <UploadIcon className="h-4 w-4" aria-hidden="true" />
-              {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}{isPending ? "Importando..." : "Importar extracto"}
+              {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
+              {isPending ? "Importando..." : "Importar extracto"}
             </button>
           </div>
         </form>

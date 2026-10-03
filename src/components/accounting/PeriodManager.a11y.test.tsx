@@ -5,7 +5,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { expectKnownA11yDebt, expectNoSeriousA11yViolations } from "@/__tests__/a11y";
 import { PeriodManager } from "./PeriodManager";
 
-vi.mock("@/modules/accounting/actions/fiscal-year.actions", () => ({ openFiscalYearAction: vi.fn() }));
+vi.mock("@/modules/accounting/actions/fiscal-year.actions", () => ({
+  openFiscalYearAction: vi.fn(),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const fy = (year: number, status: "OPEN" | "CLOSED") => ({
@@ -18,7 +20,12 @@ const fy = (year: number, status: "OPEN" | "CLOSED") => ({
   openedBy: "u",
   closedAt: status === "CLOSED" ? new Date("2026-01-01") : null,
   closedBy: status === "CLOSED" ? "u" : null,
-  periods: Array.from({ length: 12 }, (_, i) => ({ id: `${year}-${i}`, year, month: i + 1, status })),
+  periods: Array.from({ length: 12 }, (_, i) => ({
+    id: `${year}-${i}`,
+    year,
+    month: i + 1,
+    status,
+  })),
 });
 
 describe("PeriodManager — a11y", () => {
@@ -27,7 +34,7 @@ describe("PeriodManager — a11y", () => {
       <PeriodManager
         companyId="company-1"
         fiscalYears={[fy(2026, "OPEN"), fy(2025, "OPEN"), fy(2024, "CLOSED")] as never}
-      />,
+      />
     );
     expect(container.querySelectorAll("table tbody tr").length).toBe(3);
     await expectNoSeriousA11yViolations(container);

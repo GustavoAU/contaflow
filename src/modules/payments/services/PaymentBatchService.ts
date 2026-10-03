@@ -13,7 +13,7 @@ import { PeriodService } from "@/modules/accounting/services/PeriodService";
 export type BatchLineSummary = {
   id: string;
   invoiceId: string;
-  invoiceNumber: string | null;  // #6 — mostrar número legible en lugar de ID
+  invoiceNumber: string | null; // #6 — mostrar número legible en lugar de ID
   counterpartName: string | null;
   amountVes: string;
   amountOriginal: string | null;
@@ -109,48 +109,42 @@ export type DiscardBatchInput = {
 const P2034_DELAYS = [0, 50, 100] as const;
 
 function isP2034(err: unknown): err is Error {
-  return (
-    err instanceof Error &&
-    "code" in err &&
-    (err as { code: string }).code === "P2034"
-  );
+  return err instanceof Error && "code" in err && (err as { code: string }).code === "P2034";
 }
 
-function serializeBatch(
-  batch: {
+function serializeBatch(batch: {
+  id: string;
+  companyId: string;
+  status: PaymentBatchStatus;
+  method: PaymentMethod;
+  totalAmountVes: Decimal;
+  currency: string;
+  totalAmountOriginal: Decimal | null;
+  exchangeRateId: string | null;
+  referenceNumber: string | null;
+  originBank: string | null;
+  destBank: string | null;
+  commissionPct: Decimal | null;
+  commissionAmount: Decimal | null;
+  totalIgtfAmount: Decimal | null;
+  date: Date;
+  notes: string | null;
+  voidReason: string | null;
+  voidedAt: Date | null;
+  voidedBy: string | null;
+  createdAt: Date;
+  createdBy: string;
+  idempotencyKey: string;
+  lines: {
     id: string;
-    companyId: string;
-    status: PaymentBatchStatus;
-    method: PaymentMethod;
-    totalAmountVes: Decimal;
-    currency: string;
-    totalAmountOriginal: Decimal | null;
-    exchangeRateId: string | null;
-    referenceNumber: string | null;
-    originBank: string | null;
-    destBank: string | null;
-    commissionPct: Decimal | null;
-    commissionAmount: Decimal | null;
-    totalIgtfAmount: Decimal | null;
-    date: Date;
+    invoiceId: string;
+    amountVes: Decimal;
+    amountOriginal: Decimal | null;
+    igtfAmount: Decimal | null;
     notes: string | null;
-    voidReason: string | null;
-    voidedAt: Date | null;
-    voidedBy: string | null;
-    createdAt: Date;
-    createdBy: string;
-    idempotencyKey: string;
-    lines: {
-      id: string;
-      invoiceId: string;
-      amountVes: Decimal;
-      amountOriginal: Decimal | null;
-      igtfAmount: Decimal | null;
-      notes: string | null;
-      invoice?: { invoiceNumber: string | null; counterpartName: string | null } | null;
-    }[];
-  }
-): PaymentBatchSummary {
+    invoice?: { invoiceNumber: string | null; counterpartName: string | null } | null;
+  }[];
+}): PaymentBatchSummary {
   return {
     id: batch.id,
     companyId: batch.companyId,
@@ -225,7 +219,9 @@ export class PaymentBatchService {
           throw new Error(`Factura ${invoice.invoiceNumber ?? "seleccionada"} está anulada`);
         }
         if (invoice.paymentStatus === "PAID") {
-          throw new Error(`Factura ${invoice.invoiceNumber ?? "seleccionada"} ya está completamente pagada`);
+          throw new Error(
+            `Factura ${invoice.invoiceNumber ?? "seleccionada"} ya está completamente pagada`
+          );
         }
       }
 
@@ -242,7 +238,10 @@ export class PaymentBatchService {
         : null;
 
       // Distribuir IGTF proporcionalmente a las líneas (con ajuste en la última para cuadrar)
-      const linesWithIgtf = input.lines.map((l) => ({ ...l, computedIgtf: null as Decimal | null }));
+      const linesWithIgtf = input.lines.map((l) => ({
+        ...l,
+        computedIgtf: null as Decimal | null,
+      }));
       if (computedTotalIgtf) {
         let accumulated = new Decimal(0);
         for (let i = 0; i < linesWithIgtf.length; i++) {
@@ -291,13 +290,19 @@ export class PaymentBatchService {
               })),
             },
           },
-          include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+          include: {
+            lines: {
+              include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } },
+            },
+          },
         });
       } catch (err) {
         // FINDING-3: P2002 en idempotencyKey → mensaje de negocio (ADR-022 D-10)
         if (
-          typeof err === "object" && err !== null &&
-          "code" in err && (err as { code: string }).code === "P2002"
+          typeof err === "object" &&
+          err !== null &&
+          "code" in err &&
+          (err as { code: string }).code === "P2002"
         ) {
           if (p2002TargetIncludes(err, "idempotencyKey")) {
             throw new Error("El lote ya fue creado — refresque la página.");
@@ -346,7 +351,11 @@ export class PaymentBatchService {
             // Guard multi-tenant (ADR-004)
             const batch = await tx.paymentBatch.findFirst({
               where: { id: input.batchId, companyId: input.companyId, deletedAt: null },
-              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+              include: {
+                lines: {
+                  include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } },
+                },
+              },
             });
             if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
             if (batch.status !== "DRAFT") {
@@ -369,7 +378,13 @@ export class PaymentBatchService {
                   type: "PURCHASE",
                   deletedAt: null,
                 },
-                select: { id: true, invoiceNumber: true, paymentStatus: true, pendingAmount: true, totalAmountVes: true },
+                select: {
+                  id: true,
+                  invoiceNumber: true,
+                  paymentStatus: true,
+                  pendingAmount: true,
+                  totalAmountVes: true,
+                },
               });
               if (!invoice) {
                 throw new Error("Una de las facturas del lote no es válida para esta empresa");
@@ -428,7 +443,11 @@ export class PaymentBatchService {
             const applied = await tx.paymentBatch.update({
               where: { id: batch.id },
               data: { status: "APPLIED" },
-              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+              include: {
+                lines: {
+                  include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } },
+                },
+              },
             });
 
             // ADR-030: GL auto-posting — solo si bankAccountId + apAccountId configurados
@@ -457,7 +476,10 @@ export class PaymentBatchService {
                       userAgent: input.userAgent ?? null,
                     },
                   },
-                  { apAccountId: settings.apAccountId, igtfPayableAccountId: settings.igtfPayableAccountId },
+                  {
+                    apAccountId: settings.apAccountId,
+                    igtfPayableAccountId: settings.igtfPayableAccountId,
+                  }
                 );
               }
             }
@@ -486,7 +508,8 @@ export class PaymentBatchService {
       } catch (err) {
         if (isP2034(err)) {
           lastErr = err;
-          if (attempt === MAX_ATTEMPTS) throw new Error("Conflicto de concurrencia — reintente la operación");
+          if (attempt === MAX_ATTEMPTS)
+            throw new Error("Conflicto de concurrencia — reintente la operación");
           continue;
         }
         throw err;
@@ -517,11 +540,17 @@ export class PaymentBatchService {
             // Guard multi-tenant (ADR-004)
             const batch = await tx.paymentBatch.findFirst({
               where: { id: input.batchId, companyId: input.companyId, deletedAt: null },
-              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+              include: {
+                lines: {
+                  include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } },
+                },
+              },
             });
             if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
             if (batch.status !== "APPLIED") {
-              throw new Error(`Solo se pueden anular lotes APPLIED. Estado actual: ${batch.status}`);
+              throw new Error(
+                `Solo se pueden anular lotes APPLIED. Estado actual: ${batch.status}`
+              );
             }
 
             const now = new Date();
@@ -549,7 +578,12 @@ export class PaymentBatchService {
                 // Revertir pendingAmount y paymentStatus en Invoice
                 const invoice = await tx.invoice.findFirst({
                   where: { id: line.invoiceId, companyId: input.companyId },
-                  select: { id: true, pendingAmount: true, totalAmountVes: true, paymentStatus: true },
+                  select: {
+                    id: true,
+                    pendingAmount: true,
+                    totalAmountVes: true,
+                    paymentStatus: true,
+                  },
                 });
 
                 if (invoice) {
@@ -562,7 +596,9 @@ export class PaymentBatchService {
                     : new Decimal(0);
 
                   const newPending = currentPending.plus(amountVes);
-                  const newStatus = newPending.greaterThanOrEqualTo(totalVes) ? "UNPAID" : "PARTIAL";
+                  const newStatus = newPending.greaterThanOrEqualTo(totalVes)
+                    ? "UNPAID"
+                    : "PARTIAL";
 
                   await tx.invoice.update({
                     where: { id: invoice.id },
@@ -573,14 +609,20 @@ export class PaymentBatchService {
             }
 
             // ADR-030: revertir asiento GL si existe
-            await PaymentGLService.reversePaymentBatchGL(tx, batch.id, input.companyId, input.userId, {
-              companyId: input.companyId,
-              date: now,
-              createdBy: input.userId,
-              description: `Anulación lote — ${input.voidReason}`,
-              ipAddress: input.ipAddress ?? null,
-              userAgent: input.userAgent ?? null,
-            });
+            await PaymentGLService.reversePaymentBatchGL(
+              tx,
+              batch.id,
+              input.companyId,
+              input.userId,
+              {
+                companyId: input.companyId,
+                date: now,
+                createdBy: input.userId,
+                description: `Anulación lote — ${input.voidReason}`,
+                ipAddress: input.ipAddress ?? null,
+                userAgent: input.userAgent ?? null,
+              }
+            );
 
             // Marcar batch VOID
             const voided = await tx.paymentBatch.update({
@@ -592,7 +634,11 @@ export class PaymentBatchService {
                 voidedBy: input.userId,
                 deletedAt: now,
               },
-              include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+              include: {
+                lines: {
+                  include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } },
+                },
+              },
             });
 
             await tx.auditLog.create({
@@ -619,7 +665,8 @@ export class PaymentBatchService {
       } catch (err) {
         if (isP2034(err)) {
           lastErr = err;
-          if (attempt === MAX_ATTEMPTS) throw new Error("Conflicto de concurrencia — reintente la operación");
+          if (attempt === MAX_ATTEMPTS)
+            throw new Error("Conflicto de concurrencia — reintente la operación");
           continue;
         }
         throw err;
@@ -641,7 +688,11 @@ export class PaymentBatchService {
       // Guard multi-tenant (ADR-004)
       const batch = await tx.paymentBatch.findFirst({
         where: { id: input.batchId, companyId: input.companyId, deletedAt: null },
-        include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+        include: {
+          lines: {
+            include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } },
+          },
+        },
       });
       if (!batch) throw new Error("Lote no encontrado o no pertenece a esta empresa");
       if (batch.status !== "DRAFT") {
@@ -656,7 +707,11 @@ export class PaymentBatchService {
       const updated = await tx.paymentBatch.update({
         where: { id: batch.id },
         data: { deletedAt: new Date() },
-        include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+        include: {
+          lines: {
+            include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } },
+          },
+        },
       });
 
       // AuditLog en el mismo $transaction (R-6 trazabilidad)
@@ -721,7 +776,9 @@ export class PaymentBatchService {
   static async getById(batchId: string, companyId: string): Promise<PaymentBatchSummary | null> {
     const batch = await prisma.paymentBatch.findFirst({
       where: { id: batchId, companyId },
-      include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+      include: {
+        lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } },
+      },
     });
     return batch ? serializeBatch(batch) : null;
   }
@@ -740,7 +797,9 @@ export class PaymentBatchService {
     // no caen en ninguna de las dos ramas del OR.
     const batches = await prisma.paymentBatch.findMany({
       where: { companyId, OR: [{ deletedAt: null }, { status: "VOID" }] },
-      include: { lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } } },
+      include: {
+        lines: { include: { invoice: { select: { invoiceNumber: true, counterpartName: true } } } },
+      },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

@@ -29,7 +29,12 @@ const HISTORY = [
 describe("FiscalYearCloseManager — a11y", () => {
   it("estado inicial (con historial) sin violaciones", async () => {
     const { container } = render(
-      <FiscalYearCloseManager companyId="company-1" yearToClose={2025} isConfigured history={HISTORY as never} />,
+      <FiscalYearCloseManager
+        companyId="company-1"
+        yearToClose={2025}
+        isConfigured
+        history={HISTORY as never}
+      />
     );
     expect(screen.getByRole("button", { name: "Cerrar Ejercicio 2025" })).toBeTruthy();
     expect(container.querySelectorAll("table tbody tr").length).toBe(1);
@@ -37,7 +42,9 @@ describe("FiscalYearCloseManager — a11y", () => {
   });
 
   it("diálogo de confirmación de cierre de ejercicio abierto sin violaciones", async () => {
-    render(<FiscalYearCloseManager companyId="company-1" yearToClose={2025} isConfigured history={[]} />);
+    render(
+      <FiscalYearCloseManager companyId="company-1" yearToClose={2025} isConfigured history={[]} />
+    );
     fireEvent.click(screen.getByRole("button", { name: "Cerrar Ejercicio 2025" }));
     await waitFor(() => expect(screen.getByRole("alertdialog")).toBeTruthy());
     expect(screen.getByRole("button", { name: /Sí, cerrar ejercicio 2025/ })).toBeTruthy();
@@ -46,7 +53,12 @@ describe("FiscalYearCloseManager — a11y", () => {
 
   it("diálogo de apropiación abierto sin violaciones", async () => {
     render(
-      <FiscalYearCloseManager companyId="company-1" yearToClose={2025} isConfigured history={HISTORY as never} />,
+      <FiscalYearCloseManager
+        companyId="company-1"
+        yearToClose={2025}
+        isConfigured
+        history={HISTORY as never}
+      />
     );
     fireEvent.click(screen.getByRole("button", { name: "Registrar" }));
     await waitFor(() => expect(screen.getByRole("alertdialog")).toBeTruthy());

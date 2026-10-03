@@ -1,7 +1,11 @@
 // src/modules/vendors/services/CustomerService.ts
 import prisma from "@/lib/prisma";
 import { normalizeRifOrNull } from "@/lib/tax-config";
-import type { CreateCustomerInput, UpdateCustomerInput, ContactCategory } from "../schemas/vendor.schemas";
+import type {
+  CreateCustomerInput,
+  UpdateCustomerInput,
+  ContactCategory,
+} from "../schemas/vendor.schemas";
 
 export type CustomerRow = {
   id: string;
@@ -44,9 +48,7 @@ export const CustomerService = {
       where: { customerId: { in: customerIds }, companyId, deletedAt: null },
       _max: { date: true },
     });
-    const lastInvoiceMap = new Map(
-      latestInvoices.map((r) => [r.customerId, r._max.date]),
-    );
+    const lastInvoiceMap = new Map(latestInvoices.map((r) => [r.customerId, r._max.date]));
 
     return customers.map((c) => ({
       ...c,
@@ -123,7 +125,11 @@ export const CustomerService = {
     }) as Promise<CustomerRow>;
   },
 
-  async update(companyId: string, customerId: string, data: UpdateCustomerInput): Promise<CustomerRow | null> {
+  async update(
+    companyId: string,
+    customerId: string,
+    data: UpdateCustomerInput
+  ): Promise<CustomerRow | null> {
     const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer || customer.companyId !== companyId || customer.deletedAt !== null) return null;
     return prisma.customer.update({
@@ -139,7 +145,10 @@ export const CustomerService = {
     }) as Promise<CustomerRow>;
   },
 
-  async softDelete(companyId: string, customerId: string): Promise<{ deleted: boolean; linkedCount: number }> {
+  async softDelete(
+    companyId: string,
+    customerId: string
+  ): Promise<{ deleted: boolean; linkedCount: number }> {
     const customer = await prisma.customer.findUnique({ where: { id: customerId } });
     if (!customer || customer.companyId !== companyId || customer.deletedAt !== null) {
       return { deleted: false, linkedCount: 0 };

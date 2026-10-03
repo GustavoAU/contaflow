@@ -14,10 +14,7 @@ function _fmt(n: number, decimals: number): string {
 }
 
 /** Número solo: sin prefijo de moneda.  Ej.: "1.234.567,89" o "(1.234.567,89)" */
-export function fmtVen(
-  value: string | number | null | undefined,
-  decimals = 2
-): string {
+export function fmtVen(value: string | number | null | undefined, decimals = 2): string {
   if (value === null || value === undefined || value === "") return "—";
   const n = typeof value === "number" ? value : parseFloat(String(value));
   if (isNaN(n)) return "—";
@@ -25,10 +22,7 @@ export function fmtVen(
 }
 
 /** Con prefijo Bs.: "Bs. 1.234.567,89" o "Bs. (1.234.567,89)" */
-export function fmtBs(
-  value: string | number | null | undefined,
-  decimals = 2
-): string {
+export function fmtBs(value: string | number | null | undefined, decimals = 2): string {
   if (value === null || value === undefined || value === "") return "—";
   const n = typeof value === "number" ? value : parseFloat(String(value));
   if (isNaN(n)) return "—";

@@ -50,7 +50,13 @@ type NavbarProps = {
   grantedModules?: string[];
 };
 
-export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notificationSlot, grantedModules }: NavbarProps) {
+export function Navbar({
+  companyId,
+  companyName,
+  userRole = "ACCOUNTANT",
+  notificationSlot,
+  grantedModules,
+}: NavbarProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -74,9 +80,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
   const allSecondaryItems = sections.flatMap((s) => s.items);
 
   const isActive = (href: string) =>
-    href === `/company/${companyId}`
-      ? pathname === href
-      : pathname.startsWith(href);
+    href === `/company/${companyId}` ? pathname === href : pathname.startsWith(href);
 
   const hasActiveSecondary = allSecondaryItems.some((item) => isActive(item.href));
 
@@ -137,9 +141,11 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                   {sections.map((section, sIdx) => (
                     <div key={section.group}>
                       {/* Separador de sección */}
-                      {sIdx > 0 && <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />}
+                      {sIdx > 0 && (
+                        <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+                      )}
                       {/* WCAG 1.4.3: text-zinc-600 (7.4:1) */}
-                      <p className="px-3 pt-1.5 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+                      <p className="text-10 px-3 pt-1.5 pb-0.5 font-semibold tracking-wider text-zinc-600 uppercase dark:text-zinc-400">
                         {section.group}
                       </p>
                       {section.items.map((navItem) => {
@@ -148,13 +154,13 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                           return (
                             <div
                               key={navItem.href}
-                              className="flex items-center justify-between px-3 py-2 text-sm font-medium text-zinc-400 cursor-not-allowed"
+                              className="flex cursor-not-allowed items-center justify-between px-3 py-2 text-sm font-medium text-zinc-400"
                             >
                               <span className="flex items-center gap-2">
                                 <Icon className="h-4 w-4" />
                                 {navItem.label}
                               </span>
-                              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-10 font-medium text-zinc-500 dark:bg-zinc-800">
+                              <span className="text-10 rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-500 dark:bg-zinc-800">
                                 Pronto
                               </span>
                             </div>
@@ -233,7 +239,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                   <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
                 )}
                 {/* WCAG 1.4.3: text-zinc-600 (7.4:1) */}
-                <p className="px-3 pt-1 pb-0.5 text-10 font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+                <p className="text-10 px-3 pt-1 pb-0.5 font-semibold tracking-wider text-zinc-600 uppercase dark:text-zinc-400">
                   {section.group}
                 </p>
                 {section.items.map((navItem) => {
@@ -248,7 +254,7 @@ export function Navbar({ companyId, companyName, userRole = "ACCOUNTANT", notifi
                           <Icon className="h-4 w-4" />
                           {navItem.label}
                         </span>
-                        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-10 font-medium text-zinc-500 dark:bg-zinc-800">
+                        <span className="text-10 rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-500 dark:bg-zinc-800">
                           Pronto
                         </span>
                       </div>

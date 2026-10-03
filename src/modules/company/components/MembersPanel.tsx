@@ -67,12 +67,7 @@ const canManage = (role: UserRole) => role === "OWNER" || role === "ADMIN";
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function MembersPanel({
-  companyId,
-  currentUserId,
-  currentUserRole,
-  initialMembers,
-}: Props) {
+export function MembersPanel({ companyId, currentUserId, currentUserRole, initialMembers }: Props) {
   const [members, setMembers] = useState<MemberRow[]>(initialMembers);
   const [isPending, startTransition] = useTransition();
 
@@ -159,10 +154,10 @@ export function MembersPanel({
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="rounded-lg border p-6 space-y-5">
+    <div className="space-y-5 rounded-lg border p-6">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <UsersIcon className="h-5 w-5 text-muted-foreground" />
+        <UsersIcon className="text-muted-foreground h-5 w-5" />
         <div>
           <h2 className="text-lg font-semibold">Equipo</h2>
           <p className="text-muted-foreground text-sm">
@@ -174,7 +169,7 @@ export function MembersPanel({
       {/* Lista de miembros */}
       <div className="divide-y rounded-md border">
         {members.length === 0 && (
-          <p className="py-4 text-center text-sm text-muted-foreground">
+          <p className="text-muted-foreground py-4 text-center text-sm">
             No hay miembros registrados.
           </p>
         )}
@@ -184,20 +179,17 @@ export function MembersPanel({
           const canEdit = isManager && !isOwner && !isCurrentUser;
 
           return (
-            <div
-              key={member.id}
-              className="flex items-center justify-between gap-4 px-4 py-3"
-            >
+            <div key={member.id} className="flex items-center justify-between gap-4 px-4 py-3">
               {/* Info */}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
                   {member.user.name ?? member.user.email}
                   {isCurrentUser && (
-                    <span className="ml-2 text-xs text-muted-foreground">(tú)</span>
+                    <span className="text-muted-foreground ml-2 text-xs">(tú)</span>
                   )}
                 </p>
                 {member.user.name && (
-                  <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
+                  <p className="text-muted-foreground truncate text-xs">{member.user.email}</p>
                 )}
               </div>
 
@@ -208,7 +200,7 @@ export function MembersPanel({
                   onValueChange={(v) => handleRoleChange(member, v as AssignableRole)}
                   disabled={isPending}
                 >
-                  <SelectTrigger className="w-40 h-8 text-xs">
+                  <SelectTrigger className="h-8 w-40 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -220,9 +212,7 @@ export function MembersPanel({
                   </SelectContent>
                 </Select>
               ) : (
-                <Badge variant={ROLE_BADGE_VARIANT[member.role]}>
-                  {ROLE_LABELS[member.role]}
-                </Badge>
+                <Badge variant={ROLE_BADGE_VARIANT[member.role]}>{ROLE_LABELS[member.role]}</Badge>
               )}
 
               {/* Acción eliminar */}
@@ -230,7 +220,7 @@ export function MembersPanel({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  className="text-destructive hover:text-destructive h-8 w-8"
                   onClick={() => setRemoveTarget(member)}
                   disabled={isPending}
                 >
@@ -278,10 +268,7 @@ export function MembersPanel({
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              onClick={handleAdd}
-              disabled={isPending || !addEmail.trim()}
-            >
+            <Button onClick={handleAdd} disabled={isPending || !addEmail.trim()}>
               {isPending ? (
                 <Loader2Icon className="h-4 w-4 animate-spin" />
               ) : (
@@ -290,8 +277,8 @@ export function MembersPanel({
               <span className="ml-2">Agregar</span>
             </Button>
           </div>
-          {addError && <p className="text-sm text-destructive">{addError}</p>}
-          <p className="text-xs text-muted-foreground">
+          {addError && <p className="text-destructive text-sm">{addError}</p>}
+          <p className="text-muted-foreground text-xs">
             El usuario debe haber iniciado sesión en ContaFlow al menos una vez.
           </p>
         </div>
@@ -311,21 +298,11 @@ export function MembersPanel({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setRemoveTarget(null)}
-              disabled={isRemoving}
-            >
+            <Button variant="outline" onClick={() => setRemoveTarget(null)} disabled={isRemoving}>
               Cancelar
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmRemove}
-              disabled={isRemoving}
-            >
-              {isRemoving ? (
-                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+            <Button variant="destructive" onClick={handleConfirmRemove} disabled={isRemoving}>
+              {isRemoving ? <Loader2Icon className="mr-2 h-4 w-4 animate-spin" /> : null}
               Eliminar
             </Button>
           </DialogFooter>

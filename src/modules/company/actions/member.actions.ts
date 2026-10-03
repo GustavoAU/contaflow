@@ -17,7 +17,11 @@ import {
   RemoveMemberSchema,
 } from "../schemas/member.schema";
 import type { UserRole } from "@prisma/client";
-import type { AddMemberInput, UpdateMemberRoleInput, RemoveMemberInput } from "../schemas/member.schema";
+import type {
+  AddMemberInput,
+  UpdateMemberRoleInput,
+  RemoveMemberInput,
+} from "../schemas/member.schema";
 
 // ─── Tipos y helpers ──────────────────────────────────────────────────────────
 

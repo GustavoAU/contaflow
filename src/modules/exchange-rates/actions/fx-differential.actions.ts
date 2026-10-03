@@ -143,7 +143,8 @@ export async function postFxDifferentialAction(
     if (!settings?.fxGainAccountId || !settings.fxLossAccountId) {
       return {
         success: false,
-        error: "Configure las cuentas de Ganancia y Pérdida Cambiaria en Configuración → Libro Mayor.",
+        error:
+          "Configure las cuentas de Ganancia y Pérdida Cambiaria en Configuración → Libro Mayor.",
       };
     }
     if (!settings.arAccountId || !settings.apAccountId) {
@@ -176,12 +177,7 @@ export async function postFxDifferentialAction(
     }
 
     const result = await prisma.$transaction(async (db) => {
-      const summary = await ExchangeDifferentialService.calculate(
-        companyId,
-        currency,
-        rate,
-        db
-      );
+      const summary = await ExchangeDifferentialService.calculate(companyId, currency, rate, db);
 
       const transactionId = await ExchangeDifferentialService.post(
         summary,

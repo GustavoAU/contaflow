@@ -26,9 +26,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 
 import prisma from "@/lib/prisma";
@@ -46,15 +48,13 @@ function p2034() {
 
 /** Encadena las llamadas dentro de la tx en el orden que hace openFiscalYear. */
 function setupTxMock() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({
-        fiscalYear: prisma.fiscalYear,
-        company: prisma.company,
-        accountingPeriod: prisma.accountingPeriod,
-        auditLog: prisma.auditLog,
-      })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({
+      fiscalYear: prisma.fiscalYear,
+      company: prisma.company,
+      accountingPeriod: prisma.accountingPeriod,
+      auditLog: prisma.auditLog,
+    })) as never);
 }
 
 beforeEach(() => {
@@ -95,9 +95,9 @@ describe("FiscalYearService.openFiscalYear — bootstrap (primer ejercicio)", ()
     vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ fiscalYearStartMonth: 1 } as never);
 
-    await expect(
-      FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID, undefined)
-    ).rejects.toThrow("Debe indicar el año del primer ejercicio a abrir.");
+    await expect(FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID, undefined)).rejects.toThrow(
+      "Debe indicar el año del primer ejercicio a abrir."
+    );
   });
 
   it("régimen regular (startMonth=1): crea el ejercicio con 12 períodos enero-diciembre", async () => {
@@ -106,11 +106,21 @@ describe("FiscalYearService.openFiscalYear — bootstrap (primer ejercicio)", ()
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ fiscalYearStartMonth: 1 } as never);
     vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.fiscalYear.create).mockResolvedValue({
-      id: "fy-1", companyId: COMPANY_ID, year: 2026, startMonth: 1, status: "OPEN", openedBy: USER_ID,
+      id: "fy-1",
+      companyId: COMPANY_ID,
+      year: 2026,
+      startMonth: 1,
+      status: "OPEN",
+      openedBy: USER_ID,
     } as never);
     vi.mocked(prisma.accountingPeriod.createMany).mockResolvedValue({ count: 12 } as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue(
-      Array.from({ length: 12 }, (_, i) => ({ id: `p-${i + 1}`, year: 2026, month: i + 1, status: "OPEN" })) as never
+      Array.from({ length: 12 }, (_, i) => ({
+        id: `p-${i + 1}`,
+        year: 2026,
+        month: i + 1,
+        status: "OPEN",
+      })) as never
     );
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
@@ -120,8 +130,10 @@ describe("FiscalYearService.openFiscalYear — bootstrap (primer ejercicio)", ()
     expect(result.startMonth).toBe(1);
     expect(result.periods).toHaveLength(12);
 
-    const periodsData = vi.mocked(prisma.accountingPeriod.createMany).mock.calls[0]![0]!.data as
-      { year: number; month: number }[];
+    const periodsData = vi.mocked(prisma.accountingPeriod.createMany).mock.calls[0]![0]!.data as {
+      year: number;
+      month: number;
+    }[];
     expect(periodsData).toHaveLength(12);
     expect(periodsData[0]).toMatchObject({ year: 2026, month: 1 });
     expect(periodsData[11]).toMatchObject({ year: 2026, month: 12 });
@@ -135,7 +147,12 @@ describe("FiscalYearService.openFiscalYear — bootstrap (primer ejercicio)", ()
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ fiscalYearStartMonth: 7 } as never);
     vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.fiscalYear.create).mockResolvedValue({
-      id: "fy-1", companyId: COMPANY_ID, year: 2026, startMonth: 7, status: "OPEN", openedBy: USER_ID,
+      id: "fy-1",
+      companyId: COMPANY_ID,
+      year: 2026,
+      startMonth: 7,
+      status: "OPEN",
+      openedBy: USER_ID,
     } as never);
     vi.mocked(prisma.accountingPeriod.createMany).mockResolvedValue({ count: 12 } as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([] as never);
@@ -143,8 +160,10 @@ describe("FiscalYearService.openFiscalYear — bootstrap (primer ejercicio)", ()
 
     await FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID, 2026);
 
-    const periodsData = vi.mocked(prisma.accountingPeriod.createMany).mock.calls[0]![0]!.data as
-      { year: number; month: number }[];
+    const periodsData = vi.mocked(prisma.accountingPeriod.createMany).mock.calls[0]![0]!.data as {
+      year: number;
+      month: number;
+    }[];
     expect(periodsData).toHaveLength(12);
     // Jul-Dic 2026, luego Ene-Jun 2027 — sin huecos ni año calendario forzado.
     expect(periodsData[0]).toMatchObject({ year: 2026, month: 7 });
@@ -159,10 +178,18 @@ describe("FiscalYearService.openFiscalYear — bootstrap (primer ejercicio)", ()
 describe("FiscalYearService.openFiscalYear — apertura secuencial (D-10)", () => {
   it("régimen regular: el próximo ejercicio siempre es year+1, mismo startMonth", async () => {
     vi.mocked(prisma.fiscalYear.count).mockResolvedValue(1);
-    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue({ year: 2026, startMonth: 1 } as never);
+    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue({
+      year: 2026,
+      startMonth: 1,
+    } as never);
     vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.fiscalYear.create).mockResolvedValue({
-      id: "fy-2", companyId: COMPANY_ID, year: 2027, startMonth: 1, status: "OPEN", openedBy: USER_ID,
+      id: "fy-2",
+      companyId: COMPANY_ID,
+      year: 2027,
+      startMonth: 1,
+      status: "OPEN",
+      openedBy: USER_ID,
     } as never);
     vi.mocked(prisma.accountingPeriod.createMany).mockResolvedValue({ count: 12 } as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([] as never);
@@ -172,18 +199,28 @@ describe("FiscalYearService.openFiscalYear — apertura secuencial (D-10)", () =
     const result = await FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID);
 
     expect(result.year).toBe(2027);
-    const created = vi.mocked(prisma.fiscalYear.create).mock.calls[0]![0]!.data as
-      { year: number; startMonth: number };
+    const created = vi.mocked(prisma.fiscalYear.create).mock.calls[0]![0]!.data as {
+      year: number;
+      startMonth: number;
+    };
     expect(created.year).toBe(2027);
     expect(created.startMonth).toBe(1);
   });
 
   it("régimen irregular jul-jun: el próximo ejercicio también empieza en julio, año siguiente", async () => {
     vi.mocked(prisma.fiscalYear.count).mockResolvedValue(1);
-    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue({ year: 2026, startMonth: 7 } as never);
+    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue({
+      year: 2026,
+      startMonth: 7,
+    } as never);
     vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.fiscalYear.create).mockResolvedValue({
-      id: "fy-2", companyId: COMPANY_ID, year: 2027, startMonth: 7, status: "OPEN", openedBy: USER_ID,
+      id: "fy-2",
+      companyId: COMPANY_ID,
+      year: 2027,
+      startMonth: 7,
+      status: "OPEN",
+      openedBy: USER_ID,
     } as never);
     vi.mocked(prisma.accountingPeriod.createMany).mockResolvedValue({ count: 12 } as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([] as never);
@@ -192,14 +229,19 @@ describe("FiscalYearService.openFiscalYear — apertura secuencial (D-10)", () =
     const result = await FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID);
 
     expect(result.year).toBe(2027);
-    const created = vi.mocked(prisma.fiscalYear.create).mock.calls[0]![0]!.data as
-      { year: number; startMonth: number };
+    const created = vi.mocked(prisma.fiscalYear.create).mock.calls[0]![0]!.data as {
+      year: number;
+      startMonth: number;
+    };
     expect(created.startMonth).toBe(7);
   });
 
   it("lanza error si ya existe un FiscalYear para el año calculado", async () => {
     vi.mocked(prisma.fiscalYear.count).mockResolvedValue(1);
-    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue({ year: 2026, startMonth: 1 } as never);
+    vi.mocked(prisma.fiscalYear.findFirst).mockResolvedValue({
+      year: 2026,
+      startMonth: 1,
+    } as never);
     vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue({ id: "fy-existing" } as never);
 
     await expect(FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID)).rejects.toThrow(
@@ -243,7 +285,12 @@ describe("FiscalYearService.openFiscalYear — reintento P2034 (Serializable)", 
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ fiscalYearStartMonth: 1 } as never);
     vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.fiscalYear.create).mockResolvedValue({
-      id: "fy-1", companyId: COMPANY_ID, year: 2026, startMonth: 1, status: "OPEN", openedBy: USER_ID,
+      id: "fy-1",
+      companyId: COMPANY_ID,
+      year: 2026,
+      startMonth: 1,
+      status: "OPEN",
+      openedBy: USER_ID,
     } as never);
     vi.mocked(prisma.accountingPeriod.createMany).mockResolvedValue({ count: 12 } as never);
     vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([] as never);
@@ -258,9 +305,9 @@ describe("FiscalYearService.openFiscalYear — reintento P2034 (Serializable)", 
   it("agotados los 3 intentos el P2034 sale hacia arriba", async () => {
     vi.mocked(prisma.$transaction).mockRejectedValue(p2034());
 
-    await expect(
-      FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID, 2026)
-    ).rejects.toMatchObject({ code: "P2034" });
+    await expect(FiscalYearService.openFiscalYear(COMPANY_ID, USER_ID, 2026)).rejects.toMatchObject(
+      { code: "P2034" }
+    );
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);
   });

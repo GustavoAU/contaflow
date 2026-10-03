@@ -7,7 +7,9 @@ import { InvoiceForm } from "./InvoiceForm";
 
 vi.mock("@/modules/invoices/actions/invoice.actions", () => ({ createInvoiceAction: vi.fn() }));
 vi.mock("@/modules/exchange-rates/actions/exchange-rate.actions", () => ({
-  getLatestRateAction: vi.fn().mockResolvedValue({ success: false, error: "Sin tasa BCV registrada" }),
+  getLatestRateAction: vi
+    .fn()
+    .mockResolvedValue({ success: false, error: "Sin tasa BCV registrada" }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() }, Toaster: () => null }));
 vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));

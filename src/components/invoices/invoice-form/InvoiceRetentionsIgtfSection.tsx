@@ -93,35 +93,35 @@ export function InvoiceRetentionsIgtfSection({
           />
           {type === "SALE" ? "Pago recibido en divisas" : "Pago realizado en divisas"}
         </label>
-          {igtfApplies && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  Base IGTF (3%)
-                  <span className="ml-1 font-normal text-zinc-400">(subtotal + IVA)</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={igtfBase}
-                  onChange={(e) => setIgtfBase(e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-yellow-500 focus:outline-none"
-                  placeholder="0.00"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
-                  Monto IGTF Percibido
-                </label>
-                <input
-                  type="text"
-                  value={igtfCalculation?.igtfAmount ?? "0.00"}
-                  readOnly
-                  className="w-full rounded-md border bg-yellow-100 px-3 py-2 font-mono text-sm font-semibold text-yellow-800"
-                />
-              </div>
+        {igtfApplies && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">
+                Base IGTF (3%)
+                <span className="ml-1 font-normal text-zinc-400">(subtotal + IVA)</span>
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={igtfBase}
+                onChange={(e) => setIgtfBase(e.target.value)}
+                className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                placeholder="0.00"
+              />
             </div>
-          )}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">
+                Monto IGTF Percibido
+              </label>
+              <input
+                type="text"
+                value={igtfCalculation?.igtfAmount ?? "0.00"}
+                readOnly
+                className="w-full rounded-md border bg-yellow-100 px-3 py-2 font-mono text-sm font-semibold text-yellow-800"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

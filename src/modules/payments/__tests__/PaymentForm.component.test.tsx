@@ -64,8 +64,12 @@ function methodSelect(): HTMLSelectElement {
 function fillPagomovil(amount = "1500.00") {
   fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: amount } });
   fireEvent.change(screen.getByPlaceholderText("REF-12345678"), { target: { value: "REF-001" } });
-  fireEvent.change(screen.getByPlaceholderText("0414-1234567"), { target: { value: "0414-1234567" } });
-  fireEvent.change(screen.getByPlaceholderText("0424-7654321"), { target: { value: "0424-7654321" } });
+  fireEvent.change(screen.getByPlaceholderText("0414-1234567"), {
+    target: { value: "0414-1234567" },
+  });
+  fireEvent.change(screen.getByPlaceholderText("0424-7654321"), {
+    target: { value: "0424-7654321" },
+  });
   const selects = screen.getAllByRole("combobox");
   fireEvent.change(selects[1], { target: { value: "Banco Mercantil" } }); // banco origen
   fireEvent.change(selects[2], { target: { value: "Banesco" } }); // banco destino
@@ -105,7 +109,9 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     await waitFor(() => expect(createPaymentAction).toHaveBeenCalledTimes(2));
 
     // createPaymentAction recibe `input: unknown` — tipar el payload para los asserts
-    const calls = vi.mocked(createPaymentAction).mock.calls as unknown as [{ idempotencyKey: string }][];
+    const calls = vi.mocked(createPaymentAction).mock.calls as unknown as [
+      { idempotencyKey: string },
+    ][];
     // LA regresión H6: retry con la misma key → el servidor deduplica (ADR-032)
     expect(calls[0][0].idempotencyKey).toBe("key-1");
     expect(calls[1][0].idempotencyKey).toBe("key-1");
@@ -127,7 +133,9 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     await waitFor(() => expect(createPaymentAction).toHaveBeenCalledTimes(2));
 
     // createPaymentAction recibe `input: unknown` — tipar el payload para los asserts
-    const calls = vi.mocked(createPaymentAction).mock.calls as unknown as [{ idempotencyKey: string }][];
+    const calls = vi.mocked(createPaymentAction).mock.calls as unknown as [
+      { idempotencyKey: string },
+    ][];
     expect(calls[0][0].idempotencyKey).toBe("key-1");
     expect(calls[1][0].idempotencyKey).toBe("key-2");
   });
@@ -261,9 +269,9 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     expect(methodSelect().value).toBe("PAGOMOVIL");
     expect((screen.getByPlaceholderText("0.00") as HTMLInputElement).value).toBe("");
     expect((screen.getByPlaceholderText("REF-12345678") as HTMLInputElement).value).toBe("");
-    expect(
-      (screen.getByPlaceholderText(/Pago factura proveedor/) as HTMLInputElement).value
-    ).toBe("");
+    expect((screen.getByPlaceholderText(/Pago factura proveedor/) as HTMLInputElement).value).toBe(
+      ""
+    );
   });
 
   it("guard doble-submit: disabled={isPending} + aria-busy mientras la action está en vuelo", async () => {

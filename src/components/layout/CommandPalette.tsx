@@ -40,8 +40,8 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
       return { label: item.label, href: item.href, group, Icon: item.icon };
     };
     return [
-      ...primary.map(i => add(i, "Principal")).filter(Boolean) as FlatItem[],
-      ...sections.flatMap(s => s.items.map(i => add(i, s.group)).filter(Boolean) as FlatItem[]),
+      ...(primary.map((i) => add(i, "Principal")).filter(Boolean) as FlatItem[]),
+      ...sections.flatMap((s) => s.items.map((i) => add(i, s.group)).filter(Boolean) as FlatItem[]),
     ];
   }, [sections, primary]);
 
@@ -49,8 +49,8 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
   const filtered = useMemo<FlatItem[]>(() => {
     if (!query.trim()) return allItems;
     const q = query.toLowerCase();
-    return allItems.filter(i =>
-      i.label.toLowerCase().includes(q) || i.group.toLowerCase().includes(q)
+    return allItems.filter(
+      (i) => i.label.toLowerCase().includes(q) || i.group.toLowerCase().includes(q)
     );
   }, [query, allItems]);
 
@@ -65,9 +65,7 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
 
   // Auto-scroll selected item into view
   useEffect(() => {
-    listRef.current
-      ?.querySelector('[data-selected="true"]')
-      ?.scrollIntoView({ block: "nearest" });
+    listRef.current?.querySelector('[data-selected="true"]')?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
   // Focus input on open; reset state inside rAF callback (not directly in effect body)
@@ -103,22 +101,24 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
       />
 
       {/* Panel */}
-      <div className="relative w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden mx-4">
-
+      <div className="relative mx-4 w-full max-w-lg overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl">
         {/* Search row */}
         <div className="flex items-center gap-3 border-b border-zinc-700 px-4 py-3">
           <Search className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden />
           <input
             ref={inputRef}
             value={query}
-            onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-            onKeyDown={e => {
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedIndex(0);
+            }}
+            onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
-                setSelectedIndex(i => Math.min(i + 1, filtered.length - 1));
+                setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
               } else if (e.key === "ArrowUp") {
                 e.preventDefault();
-                setSelectedIndex(i => Math.max(i - 1, 0));
+                setSelectedIndex((i) => Math.max(i - 1, 0));
               } else if (e.key === "Enter") {
                 const item = filtered[selectedIndex];
                 if (item) goToItem(item);
@@ -127,11 +127,11 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
               }
             }}
             placeholder="Buscar módulo o acción..."
-            className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-500 outline-none"
+            className="flex-1 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd className="shrink-0 rounded bg-zinc-700 px-1.5 py-0.5 text-10 font-mono text-zinc-400 not-italic">
+          <kbd className="text-10 shrink-0 rounded bg-zinc-700 px-1.5 py-0.5 font-mono text-zinc-400 not-italic">
             Esc
           </kbd>
         </div>
@@ -145,10 +145,10 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
           ) : (
             Object.entries(grouped).map(([group, items]) => (
               <div key={group}>
-                <p className="px-4 pb-1 pt-2 text-10 font-semibold uppercase tracking-widest text-zinc-500">
+                <p className="text-10 px-4 pt-2 pb-1 font-semibold tracking-widest text-zinc-500 uppercase">
                   {group}
                 </p>
-                {items.map(item => (
+                {items.map((item) => (
                   <button
                     key={item.href}
                     type="button"
@@ -175,7 +175,7 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
         </div>
 
         {/* Footer hint bar */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-700 px-4 py-2 text-10 text-zinc-500">
+        <div className="text-10 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-700 px-4 py-2 text-zinc-500">
           <span>
             <kbd className="rounded bg-zinc-700 px-1 py-0.5 font-mono not-italic">↑↓</kbd> navegar
           </span>
@@ -186,7 +186,8 @@ export function CommandPalette({ open, onClose, sections, primary }: Props) {
             <kbd className="rounded bg-zinc-700 px-1 py-0.5 font-mono not-italic">Esc</kbd> cerrar
           </span>
           <span className="ml-auto">
-            <kbd className="rounded bg-zinc-700 px-1 py-0.5 font-mono not-italic">Ctrl+↵</kbd> guardar formulario
+            <kbd className="rounded bg-zinc-700 px-1 py-0.5 font-mono not-italic">Ctrl+↵</kbd>{" "}
+            guardar formulario
           </span>
         </div>
       </div>

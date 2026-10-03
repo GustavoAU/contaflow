@@ -17,9 +17,11 @@ vi.mock("@/lib/ratelimit", () => ({
   limiters: { fiscal: {}, read: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx),
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -66,7 +68,11 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 vi.mock("@/lib/private-blob", () => ({ getPrivateBlob: vi.fn() }));
 import { getPrivateBlob } from "@/lib/private-blob";
-import { createPaymentAction, listPaymentsAction, analyzeReceiptAction } from "../actions/payment.actions";
+import {
+  createPaymentAction,
+  listPaymentsAction,
+  analyzeReceiptAction,
+} from "../actions/payment.actions";
 import { PaymentService } from "../services/PaymentService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
@@ -82,9 +88,9 @@ const VALID_INPUT = {
   amountVes: "1160.00",
   currency: "VES" as const,
   date: "2026-03-10",
-  referenceNumber: "REF-001",       // TRANSFERENCIA requiere referencia (#2)
-  notes: "Concepto de prueba",      // obligatorio desde #12
-  idempotencyKey: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff",   // H6: obligatoria desde ADR-032 F2
+  referenceNumber: "REF-001", // TRANSFERENCIA requiere referencia (#2)
+  notes: "Concepto de prueba", // obligatorio desde #12
+  idempotencyKey: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff", // H6: obligatoria desde ADR-032 F2
 };
 
 const MOCK_PAYMENT = {
@@ -105,14 +111,20 @@ describe("createPaymentAction — security", () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        auditLog: prisma.auditLog,
+        invoice: prisma.invoice,
+        paymentRecord: prisma.paymentRecord,
+      })) as never);
     // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
     vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "period-1",
+      year: 2026,
+      month: 3,
+    } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -140,9 +152,10 @@ describe("createPaymentAction — security", () => {
   });
 
   it("retorna { success: false } si el rol es VIEWER", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      { ...MEMBER, role: "VIEWER" } as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      ...MEMBER,
+      role: "VIEWER",
+    } as never);
 
     const result = await createPaymentAction(VALID_INPUT);
 
@@ -156,7 +169,7 @@ describe("createPaymentAction — security", () => {
 
     expect(PaymentService.create).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ createdBy: USER_ID }),
+      expect.objectContaining({ createdBy: USER_ID })
     );
   });
 
@@ -187,14 +200,14 @@ describe("createPaymentAction — security", () => {
 
     expect(result.success).toBe(true);
     expect(PaymentService.applyPaymentToInvoice).toHaveBeenCalledTimes(1);
-    const [, companyArg, invoiceArg, amountArg] =
-      vi.mocked(PaymentService.applyPaymentToInvoice).mock.calls[0];
+    const [, companyArg, invoiceArg, amountArg] = vi.mocked(PaymentService.applyPaymentToInvoice)
+      .mock.calls[0];
     expect(companyArg).toBe(COMPANY_ID);
     expect(invoiceArg).toBe("inv-1");
     expect(amountArg.toString()).toBe("1160");
     expect(PaymentService.create).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ appliedToInvoice: true }),
+      expect.objectContaining({ appliedToInvoice: true })
     );
   });
 
@@ -205,14 +218,14 @@ describe("createPaymentAction — security", () => {
     expect(PaymentService.applyPaymentToInvoice).not.toHaveBeenCalled();
     expect(PaymentService.create).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ appliedToInvoice: false }),
+      expect.objectContaining({ appliedToInvoice: false })
     );
   });
 
   it("si el pago excede el saldo (guard ADR-032), retorna error y NO crea el pago", async () => {
     // Once: evita contaminar describes posteriores (clearAllMocks no resetea implementaciones)
     vi.mocked(PaymentService.applyPaymentToInvoice).mockRejectedValueOnce(
-      new Error("El monto del pago excede el saldo pendiente de la factura"),
+      new Error("El monto del pago excede el saldo pendiente de la factura")
     );
 
     const result = await createPaymentAction({ ...VALID_INPUT, invoiceId: "inv-1" });
@@ -235,13 +248,19 @@ describe("createPaymentAction — H6 idempotencia (Z-2)", () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        auditLog: prisma.auditLog,
+        invoice: prisma.invoice,
+        paymentRecord: prisma.paymentRecord,
+      })) as never);
     vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "period-1",
+      year: 2026,
+      month: 3,
+    } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -356,7 +375,7 @@ describe("createPaymentAction — H6 idempotencia (Z-2)", () => {
     expect(result.success).toBe(true);
     expect(PaymentService.create).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ idempotencyKey: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff" }),
+      expect.objectContaining({ idempotencyKey: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff" })
     );
   });
 });
@@ -368,26 +387,30 @@ describe("createPaymentAction — H-004 fecha en período abierto (R-3, Z-3)", (
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        auditLog: prisma.auditLog,
+        invoice: prisma.invoice,
+        paymentRecord: prisma.paymentRecord,
+      })) as never);
     // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
     vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue(
-      { id: "period-1", year: 2026, month: 3 } as never,
-    );
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "period-1",
+      year: 2026,
+      month: 3,
+    } as never);
   });
 
   it("fecha fuera del período abierto → error y NO crea el pago", async () => {
     vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
       new Error(
-        "La fecha (01/2024) está fuera del período contable abierto (03/2026). Solo se pueden registrar operaciones del período abierto actual.",
-      ),
+        "La fecha (01/2024) está fuera del período contable abierto (03/2026). Solo se pueden registrar operaciones del período abierto actual."
+      )
     );
 
     const result = await createPaymentAction({ ...VALID_INPUT, date: "2024-01-15" });
@@ -399,7 +422,7 @@ describe("createPaymentAction — H-004 fecha en período abierto (R-3, Z-3)", (
 
   it("sin período contable abierto → error y NO crea el pago", async () => {
     vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
-      new Error("No hay período contable abierto"),
+      new Error("No hay período contable abierto")
     );
 
     const result = await createPaymentAction(VALID_INPUT);
@@ -414,8 +437,7 @@ describe("createPaymentAction — H-004 fecha en período abierto (R-3, Z-3)", (
 
     expect(result.success).toBe(true);
     expect(PeriodService.assertDateInOpenPeriod).toHaveBeenCalledTimes(1);
-    const [companyArg, dateArg] =
-      vi.mocked(PeriodService.assertDateInOpenPeriod).mock.calls[0];
+    const [companyArg, dateArg] = vi.mocked(PeriodService.assertDateInOpenPeriod).mock.calls[0];
     expect(companyArg).toBe(COMPANY_ID);
     expect((dateArg as Date).toISOString()).toBe("2026-03-10T00:00:00.000Z");
     expect(PaymentService.create).toHaveBeenCalledTimes(1);
@@ -431,9 +453,9 @@ describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", (
   const ZELLE_MANIPULATED = {
     companyId: COMPANY_ID,
     method: "ZELLE" as const,
-    amountVes: "1",          // ← cliente manipuló el equivalente en Bs (ataque)
+    amountVes: "1", // ← cliente manipuló el equivalente en Bs (ataque)
     currency: "USD" as const,
-    amountOriginal: "50",    // 50 USD reales
+    amountOriginal: "50", // 50 USD reales
     date: "2026-04-03",
     notes: "Pago Zelle prueba",
     idempotencyKey: "0d4a1b8e-4b3c-4a2d-9e1f-2a3b4c5d6e7f", // H6
@@ -446,14 +468,20 @@ describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", (
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
     // Empresa CE para que aplique IGTF y verifiquemos su base
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: true } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        auditLog: prisma.auditLog,
+        invoice: prisma.invoice,
+        paymentRecord: prisma.paymentRecord,
+      })) as never);
     // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
     vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "period-1",
+      year: 2026,
+      month: 3,
+    } as never);
     vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(null as never);
@@ -492,8 +520,8 @@ describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", (
     await createPaymentAction(ZELLE_MANIPULATED);
 
     expect(ExchangeRateService.getRateForDate).toHaveBeenCalledTimes(1);
-    const [companyArg, currencyArg, dateArg] =
-      vi.mocked(ExchangeRateService.getRateForDate).mock.calls[0];
+    const [companyArg, currencyArg, dateArg] = vi.mocked(ExchangeRateService.getRateForDate).mock
+      .calls[0];
     expect(companyArg).toBe(COMPANY_ID);
     expect(currencyArg).toBe("USD");
     expect((dateArg as Date).toISOString()).toBe("2026-04-03T00:00:00.000Z");
@@ -517,8 +545,8 @@ describe("createPaymentAction — H-003 recálculo amountVes (Z-2, CRÍTICO)", (
   it("si no hay tasa BCV registrada, retorna error y NO crea el pago", async () => {
     vi.mocked(ExchangeRateService.getRateForDate).mockRejectedValueOnce(
       new Error(
-        "No hay tasa BCV registrada para USD el 2026-04-03. Ingrese la tasa antes de registrar la transacción.",
-      ),
+        "No hay tasa BCV registrada para USD el 2026-04-03. Ingrese la tasa antes de registrar la transacción."
+      )
     );
 
     const result = await createPaymentAction(ZELLE_MANIPULATED);
@@ -551,8 +579,8 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
     amountOriginal: "1807.42",
     invoiceId: "invoice-1",
     date: "2026-04-03",
-    notes: "Pago Zelle prueba",     // obligatorio desde #12
-    idempotencyKey: "7c9e6679-7425-40de-944b-e07fc1f90ae7",   // H6
+    notes: "Pago Zelle prueba", // obligatorio desde #12
+    idempotencyKey: "7c9e6679-7425-40de-944b-e07fc1f90ae7", // H6
   };
 
   beforeEach(() => {
@@ -561,14 +589,20 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, invoice: prisma.invoice, paymentRecord: prisma.paymentRecord })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        auditLog: prisma.auditLog,
+        invoice: prisma.invoice,
+        paymentRecord: prisma.paymentRecord,
+      })) as never);
     // H6: sin duplicado por defecto — el pre-check de idempotencia pasa
     vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue(null as never);
     vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "period-1", year: 2026, month: 3 } as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "period-1",
+      year: 2026,
+      month: 3,
+    } as never);
     vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
@@ -587,28 +621,32 @@ describe("createPaymentAction — IGTF acumulado en Invoice", () => {
   it("acumula igtfBase/igtfAmount en Invoice SALE cuando pago es en USD y empresa es CE (A5)", async () => {
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: true } as never);
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
-      type: "SALE", igtfBase: { toString: () => "0" }, igtfAmount: { toString: () => "0" },
+      type: "SALE",
+      igtfBase: { toString: () => "0" },
+      igtfAmount: { toString: () => "0" },
     } as never);
 
     await createPaymentAction(USD_INPUT);
 
     expect(prisma.invoice.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "invoice-1" } }),
+      expect.objectContaining({ where: { id: "invoice-1" } })
     );
     expect(prisma.invoice.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "invoice-1" },
         data: expect.objectContaining({
-          igtfBase:   expect.anything(),
+          igtfBase: expect.anything(),
           igtfAmount: expect.anything(),
         }),
-      }),
+      })
     );
   });
 
   it("NO actualiza Invoice si el tipo es PURCHASE", async () => {
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
-      type: "PURCHASE", igtfBase: { toString: () => "0" }, igtfAmount: { toString: () => "0" },
+      type: "PURCHASE",
+      igtfBase: { toString: () => "0" },
+      igtfAmount: { toString: () => "0" },
     } as never);
 
     await createPaymentAction(USD_INPUT);
@@ -680,9 +718,10 @@ describe("listPaymentsAction — IDOR guard", () => {
   });
 
   it("permite acceso a VIEWER (operación de solo lectura — guard es de membresía)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      { ...MEMBER, role: "VIEWER" } as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      ...MEMBER,
+      role: "VIEWER",
+    } as never);
 
     const result = await listPaymentsAction(COMPANY_ID);
 
@@ -699,7 +738,7 @@ describe("listPaymentsAction — IDOR guard", () => {
     expect(prisma.companyMember.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ companyId: COMPANY_ID, userId: USER_ID }),
-      }),
+      })
     );
   });
 });
@@ -750,9 +789,10 @@ describe("analyzeReceiptAction — seguridad y degradación graceful", () => {
   });
 
   it("retorna { success: false } para rol VIEWER", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      { ...MEMBER, role: "VIEWER" } as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      ...MEMBER,
+      role: "VIEWER",
+    } as never);
 
     const result = await analyzeReceiptAction(COMPANY_ID, ATTACHMENT_ID);
 

@@ -152,7 +152,9 @@ export class SeniatReportingService {
       const token = process.env.QSTASH_TOKEN;
       if (!token) {
         // Patrón no-op de src/lib/ratelimit.ts: sin infra configurada → degradación silenciosa
-        console.warn("[SeniatReportingService] QSTASH_TOKEN no configurado — submission queda PENDING (poller la recogerá)");
+        console.warn(
+          "[SeniatReportingService] QSTASH_TOKEN no configurado — submission queda PENDING (poller la recogerá)"
+        );
         return false;
       }
 

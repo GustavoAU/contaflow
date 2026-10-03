@@ -17,7 +17,7 @@ import type { PayrollFrequency } from "@prisma/client";
 
 export interface PeriodoNomina {
   start: string; // YYYY-MM-DD
-  end: string;   // YYYY-MM-DD
+  end: string; // YYYY-MM-DD
 }
 
 function pad(n: number): string {
@@ -41,10 +41,7 @@ function parseISO(iso: string): { y: number; m: number; d: number } {
  * semana registrados—, así que se propone la semana natural (lunes a domingo)
  * que contiene la fecha. Es una propuesta editable, no una afirmación.
  */
-export function periodoPorDefecto(
-  todayISO: string,
-  frequency: PayrollFrequency,
-): PeriodoNomina {
+export function periodoPorDefecto(todayISO: string, frequency: PayrollFrequency): PeriodoNomina {
   const { y, m, d } = parseISO(todayISO);
   const mm = pad(m);
   const ultimo = ultimoDiaDelMes(y, m);
@@ -80,10 +77,7 @@ export function periodoPorDefecto(
  * No fuerza el inicio: si el contador escribe una fecha que no es corte —porque
  * está regularizando algo— se respeta y sólo se propone un fin coherente.
  */
-export function finDesdeInicio(
-  startISO: string,
-  frequency: PayrollFrequency,
-): string {
+export function finDesdeInicio(startISO: string, frequency: PayrollFrequency): string {
   const { y, m, d } = parseISO(startISO);
   const mm = pad(m);
   const ultimo = ultimoDiaDelMes(y, m);

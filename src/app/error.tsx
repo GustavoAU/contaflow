@@ -38,9 +38,7 @@ export default function Error({
         <p className="text-sm text-zinc-500">
           Ocurrió un error inesperado. El equipo ha sido notificado automáticamente.
         </p>
-        {error.digest && (
-          <p className="font-mono text-xs text-zinc-400">Ref: {error.digest}</p>
-        )}
+        {error.digest && <p className="font-mono text-xs text-zinc-400">Ref: {error.digest}</p>}
       </div>
       <Button variant="outline" onClick={reset}>
         Reintentar

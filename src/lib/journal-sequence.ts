@@ -6,7 +6,10 @@
 
 import type { Prisma } from "@prisma/client";
 
-type Tx = Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
+type Tx = Omit<
+  Prisma.TransactionClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 export async function getNextJournalNumber(tx: Tx, companyId: string, date: Date): Promise<string> {
   // Fecha de NEGOCIO: getters UTC (se persiste a medianoche UTC).

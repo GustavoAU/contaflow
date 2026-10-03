@@ -107,7 +107,14 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
 
   const SECTIONS = isEdit
     ? ["Identificación", "Datos personales", "Contrato", "Banco", "Parafiscales"]
-    : ["Identificación", "Datos personales", "Contrato", "Banco", "Parafiscales", "Salario inicial"];
+    : [
+        "Identificación",
+        "Datos personales",
+        "Contrato",
+        "Banco",
+        "Parafiscales",
+        "Salario inicial",
+      ];
 
   return (
     <div className="space-y-5 rounded-lg border p-6">
@@ -122,7 +129,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
               key={sec}
               className="flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"
             >
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-xs font-bold leading-none">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-xs leading-none font-bold text-white">
                 {i + 1}
               </span>
               {sec}
@@ -186,11 +193,15 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
 
       {/* ② Datos personales */}
       <div className="border-t pt-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">② Datos personales</p>
+        <p className="mb-3 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          ② Datos personales
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Fecha de nacimiento</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            Fecha de nacimiento
+          </label>
           <input
             type="date"
             value={form.birthDate}
@@ -200,8 +211,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">
-            Estado civil{" "}
-            <span className="text-gray-400 font-normal">(ISLR D. 1808)</span>
+            Estado civil <span className="font-normal text-gray-400">(ISLR D. 1808)</span>
           </label>
           <select
             value={form.maritalStatus}
@@ -220,7 +230,9 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
 
       {/* ③ Contrato */}
       <div className="border-t pt-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">③ Contrato</p>
+        <p className="mb-3 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          ③ Contrato
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -238,9 +250,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">
-            Régimen LOTTT *
-          </label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Régimen LOTTT *</label>
           <select
             value={form.employeeRegime}
             onChange={(e) => set("employeeRegime", e.target.value as typeof form.employeeRegime)}
@@ -259,7 +269,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">
             Fecha de vencimiento del contrato{" "}
-            <span className="text-gray-400 font-normal">(LOTTT Art. 64)</span>
+            <span className="font-normal text-gray-400">(LOTTT Art. 64)</span>
           </label>
           <input
             type="date"
@@ -272,9 +282,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
 
       {!isEdit && (
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">
-            Fecha de ingreso *
-          </label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Fecha de ingreso *</label>
           <input
             type="date"
             value={form.hireDate}
@@ -288,8 +296,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">
-            Tipo trabajador *{" "}
-            <span className="text-gray-400 font-normal">(Art. 1 LOTTT)</span>
+            Tipo trabajador * <span className="font-normal text-gray-400">(Art. 1 LOTTT)</span>
           </label>
           <select
             value={form.payrollWorkerType}
@@ -379,7 +386,9 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
 
       {/* ④ Banco */}
       <div className="border-t pt-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">④ Datos bancarios</p>
+        <p className="mb-3 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          ④ Datos bancarios
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -387,11 +396,13 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
           <select
             value={form.bankName}
             onChange={(e) => set("bankName", e.target.value)}
-            className="w-full rounded border px-3 py-2 text-sm bg-white"
+            className="w-full rounded border bg-white px-3 py-2 text-sm"
           >
             <option value="">— Seleccionar banco —</option>
             {VENEZUELA_BANKS.map((b) => (
-              <option key={b} value={b}>{b}</option>
+              <option key={b} value={b}>
+                {b}
+              </option>
             ))}
           </select>
         </div>
@@ -408,12 +419,16 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
 
       {/* ⑤ Parafiscal */}
       <div className="border-t pt-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">⑤ Parafiscales</p>
+        <p className="mb-3 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+          ⑤ Parafiscales
+        </p>
       </div>
-      <div className="rounded bg-slate-50 p-4 space-y-3">
+      <div className="space-y-3 rounded bg-slate-50 p-4">
         <p className="text-xs font-medium text-slate-700">
           Datos parafiscales{" "}
-          <span className="font-normal text-slate-500">(IVSS Forma 14-02, Banavih, ISLR D. 1808)</span>
+          <span className="font-normal text-slate-500">
+            (IVSS Forma 14-02, Banavih, ISLR D. 1808)
+          </span>
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -424,7 +439,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
               type="text"
               value={form.ivssNumber}
               onChange={(e) => set("ivssNumber", e.target.value)}
-              className="w-full rounded border px-3 py-2 text-sm font-mono"
+              className="w-full rounded border px-3 py-2 font-mono text-sm"
               placeholder="ej. 12-34567890-1"
               maxLength={20}
             />
@@ -437,7 +452,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
               type="text"
               value={form.banavihNumber}
               onChange={(e) => set("banavihNumber", e.target.value)}
-              className="w-full rounded border px-3 py-2 text-sm font-mono"
+              className="w-full rounded border px-3 py-2 font-mono text-sm"
               placeholder="Número FAOVWeb"
               maxLength={20}
             />
@@ -446,7 +461,9 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">
             Cargas familiares{" "}
-            <span className="text-gray-400 font-normal">(hijos u otros dependientes — D. 1808)</span>
+            <span className="font-normal text-gray-400">
+              (hijos u otros dependientes — D. 1808)
+            </span>
           </label>
           <input
             type="number"
@@ -470,13 +487,16 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
           className="mt-0.5 accent-blue-600"
         />
         <div>
-          <label htmlFor="useFideicomiso" className="text-xs font-medium text-slate-700 cursor-pointer">
+          <label
+            htmlFor="useFideicomiso"
+            className="cursor-pointer text-xs font-medium text-slate-700"
+          >
             Fideicomiso bancario individual{" "}
             <span className="font-normal text-slate-500">(Art. 143 LOTTT)</span>
           </label>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Activa si el trabajador optó por depositar sus prestaciones en un fideicomiso bancario real.
-            Por defecto, el sistema lleva contabilidad interna.
+          <p className="mt-0.5 text-xs text-slate-400">
+            Activa si el trabajador optó por depositar sus prestaciones en un fideicomiso bancario
+            real. Por defecto, el sistema lleva contabilidad interna.
           </p>
         </div>
       </div>
@@ -485,7 +505,9 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
       {!isEdit && (
         <>
           <div className="border-t pt-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">⑥ Salario inicial</p>
+            <p className="mb-3 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+              ⑥ Salario inicial
+            </p>
           </div>
         </>
       )}
@@ -496,8 +518,7 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
           </p>
           {/* U-07: indicador de salario mínimo legal */}
           <p className="mb-3 text-xs text-blue-700">
-            Salario mínimo legal vigente (LOTTT Art. 130):{" "}
-            <strong>VES 130,00</strong> — verifica en{" "}
+            Salario mínimo legal vigente (LOTTT Art. 130): <strong>VES 130,00</strong> — verifica en{" "}
             <a
               href="https://www.minpptrass.gob.ve"
               target="_blank"
@@ -506,8 +527,8 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
             >
               MINPPTRASS
             </a>
-            . El sistema valida el tope de cotización IVSS/INCES con el valor configurado en
-            Nómina → Configuración → Salario Mínimo.
+            . El sistema valida el tope de cotización IVSS/INCES con el valor configurado en Nómina
+            → Configuración → Salario Mínimo.
           </p>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">

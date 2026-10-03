@@ -79,8 +79,7 @@ export function todayInTimeZone(timeZone: string, now: Date = new Date()): strin
       day: "2-digit",
     }).formatToParts(now);
 
-    const get = (type: Intl.DateTimeFormatPartTypes) =>
-      parts.find((p) => p.type === type)?.value;
+    const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value;
 
     const y = get("year");
     const m = get("month");

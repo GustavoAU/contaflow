@@ -43,7 +43,8 @@ const RULES: Rule[] = [
     id: "ven-alias",
     // Alias VEN-only de tax-config: el código país-neutral debe resolver la
     // config en runtime desde el país de la empresa.
-    pattern: /\b(VEN_RIF_REGEX|VEN_TAX_RATES|VEN_CONTROL_NUMBER_REGEX|VEN_FISCAL_CONFIG|validateVenezuelanRif)\b/,
+    pattern:
+      /\b(VEN_RIF_REGEX|VEN_TAX_RATES|VEN_CONTROL_NUMBER_REGEX|VEN_FISCAL_CONFIG|validateVenezuelanRif)\b/,
     hint: 'usa getFiscalConfig(ctx.country) de "@/lib/countries" en vez del alias VEN',
   },
   {
@@ -184,7 +185,7 @@ function findInContent(relPath: string, content: string): Violation[] {
 
 function scan(): { violations: Violation[]; filesWithViolations: Set<string> } {
   const files = collectSourceFiles(path.join(ROOT, "src")).filter(
-    (f) => !f.startsWith(path.join(ROOT, "src", "__tests__")),
+    (f) => !f.startsWith(path.join(ROOT, "src", "__tests__"))
   );
 
   const violations: Violation[] = [];
@@ -211,9 +212,7 @@ describe("Arquitectura: acoplamiento por país (ADR-042 D-11)", () => {
   const { violations, filesWithViolations } = scan();
 
   it("ningún archivo fuera de la whitelist se acopla a Venezuela", () => {
-    const offenders = violations.filter(
-      (v) => !isPermanent(v.file) && !isTemporal(v.file),
-    );
+    const offenders = violations.filter((v) => !isPermanent(v.file) && !isTemporal(v.file));
 
     const detail = offenders
       .map((v) => `  ${v.file}:${v.line} [${v.rule}] ${v.text}\n      → ${v.hint}`)
@@ -224,7 +223,7 @@ describe("Arquitectura: acoplamiento por país (ADR-042 D-11)", () => {
       "Acoplamiento nuevo a Venezuela en código país-neutral.\n" +
         "Resuelve la config con getFiscalConfig(ctx.country), o si el módulo es\n" +
         "100% venezolano agrégalo a PERMANENT en este archivo.\n" +
-        detail,
+        detail
     ).toHaveLength(0);
   });
 
@@ -235,7 +234,7 @@ describe("Arquitectura: acoplamiento por país (ADR-042 D-11)", () => {
       stale,
       "Estas entradas de TEMPORAL ya no tienen acoplamiento: bórralas de la\n" +
         "whitelist para que el trinquete no retroceda.\n" +
-        stale.map((f) => `  ${f}  (${TEMPORAL[f]})`).join("\n"),
+        stale.map((f) => `  ${f}  (${TEMPORAL[f]})`).join("\n")
     ).toHaveLength(0);
   });
 
@@ -243,17 +242,17 @@ describe("Arquitectura: acoplamiento por país (ADR-042 D-11)", () => {
     const overlap = Object.keys(TEMPORAL).filter(isPermanent);
     expect(
       overlap,
-      `Rutas en TEMPORAL cubiertas también por PERMANENT (la deuda nunca se cerraría):\n${overlap.join("\n")}`,
+      `Rutas en TEMPORAL cubiertas también por PERMANENT (la deuda nunca se cerraría):\n${overlap.join("\n")}`
     ).toHaveLength(0);
   });
 
   it("las entradas de TEMPORAL apuntan a archivos existentes", () => {
     const missing = Object.keys(TEMPORAL).filter(
-      (f) => !fs.existsSync(path.join(ROOT, f.replace(/\//g, path.sep))),
+      (f) => !fs.existsSync(path.join(ROOT, f.replace(/\//g, path.sep)))
     );
     expect(
       missing,
-      `Entradas de TEMPORAL que ya no existen (renombradas o borradas):\n${missing.join("\n")}`,
+      `Entradas de TEMPORAL que ya no existen (renombradas o borradas):\n${missing.join("\n")}`
     ).toHaveLength(0);
   });
 
@@ -261,7 +260,7 @@ describe("Arquitectura: acoplamiento por país (ADR-042 D-11)", () => {
     const bad = Object.entries(TEMPORAL).filter(([, phase]) => !/^MP-\d+[ab]?$/.test(phase));
     expect(
       bad,
-      `Entradas sin fase válida (formato MP-N):\n${bad.map(([f, p]) => `  ${f} → "${p}"`).join("\n")}`,
+      `Entradas sin fase válida (formato MP-N):\n${bad.map(([f, p]) => `  ${f} → "${p}"`).join("\n")}`
     ).toHaveLength(0);
   });
 
@@ -289,7 +288,10 @@ describe("country-coupling: el detector funciona", () => {
       "validateVenezuelanRif",
     ]) {
       const hits = check(`import { ${alias} } from "@/lib/tax-config";`);
-      expect(hits.map((h) => h.rule), alias).toContain("ven-alias");
+      expect(
+        hits.map((h) => h.rule),
+        alias
+      ).toContain("ven-alias");
     }
   });
 
@@ -297,28 +299,34 @@ describe("country-coupling: el detector funciona", () => {
     for (const rate of ["0.16", "0.08", "0.31", "0.15", "0.03"]) {
       const dquote = check(`const iva = base.mul("${rate}");`);
       const squote = check(`const iva = base.mul('${rate}');`);
-      expect(dquote.map((h) => h.rule), rate).toContain("rate-literal");
-      expect(squote.map((h) => h.rule), rate).toContain("rate-literal");
+      expect(
+        dquote.map((h) => h.rule),
+        rate
+      ).toContain("rate-literal");
+      expect(
+        squote.map((h) => h.rule),
+        rate
+      ).toContain("rate-literal");
     }
   });
 
   it("reporta el número de línea correcto", () => {
-    const hits = check(['const a = 1;', 'const b = 2;', 'const c = VEN_TAX_RATES;'].join("\n"));
+    const hits = check(["const a = 1;", "const b = 2;", "const c = VEN_TAX_RATES;"].join("\n"));
     expect(hits).toHaveLength(1);
     expect(hits[0].line).toBe(3);
   });
 
   it("ignora comentarios de línea, de bloque y JSDoc", () => {
-    expect(check('// usa VEN_TAX_RATES aquí')).toHaveLength(0);
+    expect(check("// usa VEN_TAX_RATES aquí")).toHaveLength(0);
     expect(check('/** IVA general (VEN: "0.16") */')).toHaveLength(0);
     expect(check(' * evita "0.16" hardcodeado')).toHaveLength(0);
-    expect(check('/* VEN_RIF_REGEX */')).toHaveLength(0);
+    expect(check("/* VEN_RIF_REGEX */")).toHaveLength(0);
   });
 
   it("no marca código país-neutral correcto", () => {
-    expect(check('const cfg = getFiscalConfig(ctx.country);')).toHaveLength(0);
-    expect(check('const iva = base.mul(cfg.taxRates.ivaGeneral);')).toHaveLength(0);
-    expect(check('const pct = cfg.taxLineRates.IVA_GENERAL.percent;')).toHaveLength(0);
+    expect(check("const cfg = getFiscalConfig(ctx.country);")).toHaveLength(0);
+    expect(check("const iva = base.mul(cfg.taxRates.ivaGeneral);")).toHaveLength(0);
+    expect(check("const pct = cfg.taxLineRates.IVA_GENERAL.percent;")).toHaveLength(0);
   });
 
   it("no confunde alícuotas con otros decimales ni con subcadenas", () => {
@@ -327,6 +335,6 @@ describe("country-coupling: el detector funciona", () => {
     expect(check('const y = "10.16";')).toHaveLength(0);
     expect(check('const z = "0.5";')).toHaveLength(0);
     // Identificadores que contienen el alias como subcadena
-    expect(check('const MY_VEN_TAX_RATES_COPY = 1;')).toHaveLength(0);
+    expect(check("const MY_VEN_TAX_RATES_COPY = 1;")).toHaveLength(0);
   });
 });

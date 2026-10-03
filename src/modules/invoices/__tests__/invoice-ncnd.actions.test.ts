@@ -52,7 +52,9 @@ describe("searchInvoicesForPickerAction", () => {
   });
 
   it("ADMINISTRATIVE recibe facturas (WRITERS)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await searchInvoicesForPickerAction(COMPANY_ID, "SALE", "");
     expect(r.success).toBe(true);
   });

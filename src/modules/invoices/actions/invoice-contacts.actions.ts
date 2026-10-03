@@ -57,10 +57,22 @@ export async function searchContactsByRifAction(
     const results: ContactSuggestion[] = [
       ...vendors
         .filter((v) => v.rif)
-        .map((v) => ({ rif: v.rif!, name: v.name, address: v.address ?? null, isSpecialContributor: v.isSpecialContributor, source: "vendor" as const })),
+        .map((v) => ({
+          rif: v.rif!,
+          name: v.name,
+          address: v.address ?? null,
+          isSpecialContributor: v.isSpecialContributor,
+          source: "vendor" as const,
+        })),
       ...customers
         .filter((c) => c.rif)
-        .map((c) => ({ rif: c.rif!, name: c.name, address: c.address ?? null, isSpecialContributor: false, source: "customer" as const })),
+        .map((c) => ({
+          rif: c.rif!,
+          name: c.name,
+          address: c.address ?? null,
+          isSpecialContributor: false,
+          source: "customer" as const,
+        })),
     ].slice(0, 8);
 
     return { success: true, data: results };

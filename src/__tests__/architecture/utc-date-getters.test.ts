@@ -27,7 +27,8 @@ import { readdirSync, statSync } from "node:fs";
 const SRC = join(process.cwd(), "src");
 
 /** Construcción con Date.UTC seguida de un getter LOCAL en la misma expresión. */
-const ANTI_PATTERN = /new Date\(\s*Date\.UTC\([^;]*?\)\s*\)\s*\.get(?:Date|Month|FullYear|Hours)\(\)/g;
+const ANTI_PATTERN =
+  /new Date\(\s*Date\.UTC\([^;]*?\)\s*\)\s*\.get(?:Date|Month|FullYear|Hours)\(\)/g;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -89,7 +90,7 @@ describe("Arquitectura: fechas UTC", () => {
       "`new Date().toISOString()` da el día SIGUIENTE en husos negativos a partir " +
         "de las 20:00. En cliente usa todayLocalISO(); en servidor, " +
         "todayInTimeZone(getFiscalConfig(country).timezone). Ver src/lib/today.ts.\n" +
-        offenders.join("\n"),
+        offenders.join("\n")
     ).toHaveLength(0);
   });
 
@@ -113,7 +114,7 @@ describe("Arquitectura: fechas UTC", () => {
     }
     expect(
       stale,
-      "Entradas obsoletas en UTC_IS_CORRECT — bórralas:\n" + stale.join("\n"),
+      "Entradas obsoletas en UTC_IS_CORRECT — bórralas:\n" + stale.join("\n")
     ).toHaveLength(0);
   });
 
@@ -130,7 +131,7 @@ describe("Arquitectura: fechas UTC", () => {
       offenders,
       "Construir con Date.UTC y leer en local devuelve el día ANTERIOR en zonas " +
         "negativas (Venezuela, UTC−4). Usa getUTCDate/getUTCMonth/getUTCFullYear.\n" +
-        offenders.join("\n"),
+        offenders.join("\n")
     ).toHaveLength(0);
   });
 });

@@ -21,7 +21,7 @@ export type StockControlLevel = z.infer<typeof StockControlLevelSchema>;
 
 // ─── Leer nivel actual ────────────────────────────────────────────────────────
 export async function getStockControlLevelAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<{ level: StockControlLevel }>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
@@ -42,13 +42,15 @@ export async function getStockControlLevelAction(
 }
 
 // ─── Actualizar nivel ─────────────────────────────────────────────────────────
-export async function updateStockControlLevelAction(input: unknown): Promise<
-  { success: true } | { success: false; error: string }
-> {
-  const parsed = z.object({
-    companyId: z.string().min(1),
-    level: StockControlLevelSchema,
-  }).safeParse(input);
+export async function updateStockControlLevelAction(
+  input: unknown
+): Promise<{ success: true } | { success: false; error: string }> {
+  const parsed = z
+    .object({
+      companyId: z.string().min(1),
+      level: StockControlLevelSchema,
+    })
+    .safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };
 
   try {

@@ -20,14 +20,20 @@ interface Props {
   selected: Set<string>;
   onToggle: (id: string) => void;
   onSelectCurrency: (currency: string) => void;
-  currencies: (PickerEmployee["currency"])[];
+  currencies: PickerEmployee["currency"][];
   mixed: boolean;
   /** Monedas mezcladas en la selección actual, ya formateadas. `null` si es válida. */
   invalidMix: string | null;
 }
 
 export function EmployeePicker({
-  employees, selected, onToggle, onSelectCurrency, currencies, mixed, invalidMix,
+  employees,
+  selected,
+  onToggle,
+  onSelectCurrency,
+  currencies,
+  mixed,
+  invalidMix,
 }: Props) {
   if (employees.length === 0) return null;
 
@@ -39,8 +45,7 @@ export function EmployeePicker({
         <div>
           <p className="text-sm font-medium text-gray-800">Trabajadores a incluir</p>
           <p className="text-xs text-gray-500">
-            {selected.size} de {elegibles} seleccionados · moneda vigente al
-            inicio del período
+            {selected.size} de {elegibles} seleccionados · moneda vigente al inicio del período
           </p>
         </div>
         {mixed && (
@@ -61,9 +66,8 @@ export function EmployeePicker({
 
       {mixed && (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Hay sueldos en más de una moneda. Una nómina no puede mezclarlas —los
-          totales no serían de ninguna de las dos—, así que hay que procesar una
-          moneda por proceso.
+          Hay sueldos en más de una moneda. Una nómina no puede mezclarlas —los totales no serían de
+          ninguna de las dos—, así que hay que procesar una moneda por proceso.
         </p>
       )}
 
@@ -100,9 +104,7 @@ export function EmployeePicker({
         </p>
       )}
       {selected.size === 0 && (
-        <p className="mt-2 text-xs font-medium text-red-600">
-          Selecciona al menos un trabajador.
-        </p>
+        <p className="mt-2 text-xs font-medium text-red-600">Selecciona al menos un trabajador.</p>
       )}
     </div>
   );

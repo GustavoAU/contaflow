@@ -26,10 +26,7 @@ export const BankStatementService = {
    * @internal Requiere que el caller pase un tx de $transaction.
    * No llama a prisma directamente — solo opera sobre tx para garantizar atomicidad (LL-010).
    */
-  async addTransaction(
-    input: CreateBankTransactionInput,
-    tx: Prisma.TransactionClient
-  ) {
+  async addTransaction(input: CreateBankTransactionInput, tx: Prisma.TransactionClient) {
     return tx.bankTransaction.create({
       data: {
         statementId: input.statementId,
@@ -53,7 +50,9 @@ export const BankStatementService = {
     const stmt = await prisma.bankStatement.findUnique({
       where: { id: statementId },
       include: {
-        bankAccount: { select: { id: true, name: true, bankName: true, currency: true, companyId: true } },
+        bankAccount: {
+          select: { id: true, name: true, bankName: true, currency: true, companyId: true },
+        },
         transactions: {
           orderBy: [{ date: "asc" }, { createdAt: "asc" }],
           include: {

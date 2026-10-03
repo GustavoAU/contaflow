@@ -99,9 +99,7 @@ function nonNegativeBelowCeiling(v: string): boolean {
 export const CreateRetentionSchema = z.object({
   companyId: z.string().min(1, { error: "Empresa requerida" }),
   providerName: z.string().min(1, { error: "Nombre del proveedor requerido" }).trim().max(200),
-  providerRif: z
-    .string()
-    .regex(VEN_RIF_REGEX, { error: "RIF inválido. Formato: J-12345678-9" }),
+  providerRif: z.string().regex(VEN_RIF_REGEX, { error: "RIF inválido. Formato: J-12345678-9" }),
   invoiceNumber: z.string().min(1, { error: "Número de factura requerido" }),
   invoiceDate: zBusinessDate(),
   invoiceAmount: z
@@ -130,7 +128,9 @@ export type CreateRetentionInput = z.infer<typeof CreateRetentionSchema>;
 export const EnterRetentionSchema = z.object({
   retentionId: z.string().min(1, { error: "ID de retención requerido" }),
   companyId: z.string().min(1, { error: "Empresa requerida" }),
-  liabilityAccountId: z.string().min(1, { error: "Cuenta pasivo (Retenciones por Pagar) requerida" }),
+  liabilityAccountId: z
+    .string()
+    .min(1, { error: "Cuenta pasivo (Retenciones por Pagar) requerida" }),
   bankAccountId: z.string().min(1, { error: "Cuenta banco/caja requerida" }),
   enterDate: zBusinessDate(),
 });

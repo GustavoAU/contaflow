@@ -36,10 +36,14 @@ function dec(v: unknown): Decimal {
 // SIVIT tipo documento: F | NC | ND | PI
 function mapDocType(docType: string): string {
   switch (docType) {
-    case "NOTA_CREDITO":        return "NC";
-    case "NOTA_DEBITO":         return "ND";
-    case "PLANILLA_IMPORTACION": return "PI";
-    default:                    return "F";
+    case "NOTA_CREDITO":
+      return "NC";
+    case "NOTA_DEBITO":
+      return "ND";
+    case "PLANILLA_IMPORTACION":
+      return "PI";
+    default:
+      return "F";
   }
 }
 
@@ -56,19 +60,19 @@ async function fetchInvoices(params: SIVITParams, type: "SALE" | "PURCHASE") {
       deletedAt: null,
     },
     select: {
-      invoiceNumber:          true,
-      controlNumber:          true,
-      docType:                true,
-      date:                   true,
-      counterpartName:        true,
-      counterpartRif:         true,
-      ivaRetentionAmount:     true,
-      ivaRetentionVoucher:    true,
-      ivaRetentionDate:       true,
-      islrRetentionAmount:    true,
-      igtfBase:               true,
-      igtfAmount:             true,
-      relatedDocNumber:       true,
+      invoiceNumber: true,
+      controlNumber: true,
+      docType: true,
+      date: true,
+      counterpartName: true,
+      counterpartRif: true,
+      ivaRetentionAmount: true,
+      ivaRetentionVoucher: true,
+      ivaRetentionDate: true,
+      islrRetentionAmount: true,
+      igtfBase: true,
+      igtfAmount: true,
+      relatedDocNumber: true,
       taxLines: {
         select: { taxType: true, base: true, amount: true },
       },
@@ -80,25 +84,27 @@ async function fetchInvoices(params: SIVITParams, type: "SALE" | "PURCHASE") {
 // ─── Row builder ──────────────────────────────────────────────────────────────
 
 function buildSIVITLine(inv: InvRow, type: "SALE" | "PURCHASE"): string {
-  const exento    = inv.taxLines.find((t) => t.taxType === "EXENTO");
-  const reducido  = inv.taxLines.find((t) => t.taxType === "IVA_REDUCIDO");
-  const general   = inv.taxLines.find((t) => t.taxType === "IVA_GENERAL");
+  const exento = inv.taxLines.find((t) => t.taxType === "EXENTO");
+  const reducido = inv.taxLines.find((t) => t.taxType === "IVA_REDUCIDO");
+  const general = inv.taxLines.find((t) => t.taxType === "IVA_GENERAL");
   const adicional = inv.taxLines.find((t) => t.taxType === "IVA_ADICIONAL");
 
-  const montoExento        = dec(exento?.base);
-  const baseReducida       = dec(reducido?.base);
-  const ivaReducida        = dec(reducido?.amount);
-  const baseGeneral        = dec(general?.base);
-  const ivaGeneral         = dec(general?.amount);
+  const montoExento = dec(exento?.base);
+  const baseReducida = dec(reducido?.base);
+  const ivaReducida = dec(reducido?.amount);
+  const baseGeneral = dec(general?.base);
+  const ivaGeneral = dec(general?.amount);
   // IVA_ADICIONAL comparte base con IVA_GENERAL; no se suma la base de nuevo al total
-  const baseAdicional      = dec(adicional?.base);
-  const ivaAdicional       = dec(adicional?.amount);
-  const ivaRetenido        = dec(inv.ivaRetentionAmount);
+  const baseAdicional = dec(adicional?.base);
+  const ivaAdicional = dec(adicional?.amount);
+  const ivaRetenido = dec(inv.ivaRetentionAmount);
 
   // Total = base exenta + base 8% + iva 8% + base 16% + iva 16% + iva adicional (no base adicional, ya está en base 16%)
   const total = montoExento
-    .plus(baseReducida).plus(ivaReducida)
-    .plus(baseGeneral).plus(ivaGeneral)
+    .plus(baseReducida)
+    .plus(ivaReducida)
+    .plus(baseGeneral)
+    .plus(ivaGeneral)
     .plus(ivaAdicional);
 
   const fields = [
@@ -110,7 +116,7 @@ function buildSIVITLine(inv: InvRow, type: "SALE" | "PURCHASE"): string {
     inv.counterpartName,
     inv.relatedDocNumber ?? "",
     fmtNum(montoExento),
-    "0.00",                           // monto no sujeto — no tracked separately
+    "0.00", // monto no sujeto — no tracked separately
     fmtNum(baseReducida),
     fmtNum(ivaReducida),
     fmtNum(baseGeneral),
@@ -144,10 +150,10 @@ export async function generateSIVITZip(params: SIVITParams): Promise<Buffer> {
   ]);
 
   const from = fmtDate(params.dateFrom);
-  const to   = fmtDate(params.dateTo);
+  const to = fmtDate(params.dateTo);
 
   const zip = new JSZip();
-  if (ventasTxt)  zip.file("LV.txt", ventasTxt);
+  if (ventasTxt) zip.file("LV.txt", ventasTxt);
   if (comprasTxt) zip.file("LC.txt", comprasTxt);
   zip.file(
     "LEEME.txt",

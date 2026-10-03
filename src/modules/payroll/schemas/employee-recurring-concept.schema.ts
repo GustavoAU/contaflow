@@ -24,13 +24,10 @@ export const CreateRecurringConceptSchema = z
     effectiveTo: zBusinessDateString.optional(),
     notes: z.string().max(300).optional(),
   })
-  .refine(
-    (d) => !d.effectiveTo || d.effectiveTo >= d.effectiveFrom,
-    {
-      error: "La fecha de fin no puede ser anterior a la de inicio",
-      path: ["effectiveTo"],
-    },
-  );
+  .refine((d) => !d.effectiveTo || d.effectiveTo >= d.effectiveFrom, {
+    error: "La fecha de fin no puede ser anterior a la de inicio",
+    path: ["effectiveTo"],
+  });
 
 export type CreateRecurringConceptInput = z.infer<typeof CreateRecurringConceptSchema>;
 

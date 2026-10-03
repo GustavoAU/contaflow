@@ -10,11 +10,11 @@ import { Button } from "@/components/ui/button";
 import { SetupWizard } from "./SetupWizard";
 
 interface Props {
-  companyId:   string;
+  companyId: string;
   companyName: string;
-  companyRif:  string | null;
+  companyRif: string | null;
   hasAccounts: boolean;
-  hasPeriod:   boolean;
+  hasPeriod: boolean;
 }
 
 export function SetupWizardTrigger(props: Props) {
@@ -35,11 +35,7 @@ export function SetupWizardTrigger(props: Props) {
         Guía de configuración
       </Button>
 
-      <SetupWizard
-        {...props}
-        forceOpen={forceOpen}
-        onClose={() => setForceOpen(false)}
-      />
+      <SetupWizard {...props} forceOpen={forceOpen} onClose={() => setForceOpen(false)} />
     </>
   );
 }

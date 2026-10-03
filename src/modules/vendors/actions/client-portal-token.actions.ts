@@ -15,7 +15,7 @@ export type GenerateClientPortalTokenResult =
 
 export async function generateClientPortalTokenAction(
   companyId: string,
-  customerId: string,
+  customerId: string
 ): Promise<GenerateClientPortalTokenResult> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
   if (!ctx.ok) return ctx.error;

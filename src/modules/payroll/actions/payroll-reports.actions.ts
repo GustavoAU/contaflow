@@ -22,7 +22,10 @@ import {
   type IncesReportData,
   type ArcReportData,
 } from "../services/PayrollReportService";
-import { PayrollPdfReportService, type ConstanciaTrabajoData } from "../services/PayrollPdfReportService";
+import {
+  PayrollPdfReportService,
+  type ConstanciaTrabajoData,
+} from "../services/PayrollPdfReportService";
 import { PayrollBankTxtService } from "../services/PayrollBankTxtService";
 import { MintraReportService } from "../services/MintraReportService";
 import { mapPrismaError } from "@/lib/prisma-errors";
@@ -31,7 +34,9 @@ import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
 type PdfResult = { success: true; buffer: string } | { success: false; error: string };
-type TxtResult = { success: true; txt: string; filename: string } | { success: false; error: string };
+type TxtResult =
+  | { success: true; txt: string; filename: string }
+  | { success: false; error: string };
 
 // ─── IVSS ─────────────────────────────────────────────────────────────────────
 
@@ -56,7 +61,10 @@ export async function exportIvssPdfAction(
   year: number,
   month: number
 ): Promise<PdfResult> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -91,7 +99,10 @@ export async function exportBanavihPdfAction(
   year: number,
   month: number
 ): Promise<PdfResult> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -126,7 +137,10 @@ export async function exportIncesPdfAction(
   year: number,
   quarter: number
 ): Promise<PdfResult> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -168,7 +182,10 @@ export async function exportArcPdfAction(
   employeeId: string,
   year: number
 ): Promise<PdfResult> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   // IDOR guard
@@ -194,7 +211,10 @@ export async function exportIvssExcelAction(
   year: number,
   month: number
 ): Promise<{ success: true; buffer: string } | { success: false; error: string }> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -222,7 +242,12 @@ export async function exportIvssExcelAction(
         total: parseFloat(r.ivssTotalAmount.toString()),
       });
     }
-    ws.addRow({ name: "TOTALES", worker: parseFloat(data.totalWorkerAmount.toString()), employer: parseFloat(data.totalEmployerAmount.toString()), total: parseFloat(data.totalAmount.toString()) });
+    ws.addRow({
+      name: "TOTALES",
+      worker: parseFloat(data.totalWorkerAmount.toString()),
+      employer: parseFloat(data.totalEmployerAmount.toString()),
+      total: parseFloat(data.totalAmount.toString()),
+    });
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
     return { success: true, buffer: buf.toString("base64") };
   } catch (err) {
@@ -237,7 +262,10 @@ export async function exportBanavihExcelAction(
   year: number,
   month: number
 ): Promise<{ success: true; buffer: string } | { success: false; error: string }> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -263,7 +291,12 @@ export async function exportBanavihExcelAction(
         total: parseFloat(r.faovTotalAmount.toString()),
       });
     }
-    ws.addRow({ name: "TOTALES", worker: parseFloat(data.totalWorkerAmount.toString()), employer: parseFloat(data.totalEmployerAmount.toString()), total: parseFloat(data.totalAmount.toString()) });
+    ws.addRow({
+      name: "TOTALES",
+      worker: parseFloat(data.totalWorkerAmount.toString()),
+      employer: parseFloat(data.totalEmployerAmount.toString()),
+      total: parseFloat(data.totalAmount.toString()),
+    });
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
     return { success: true, buffer: buf.toString("base64") };
   } catch (err) {
@@ -278,7 +311,10 @@ export async function exportIncesExcelAction(
   year: number,
   quarter: number
 ): Promise<{ success: true; buffer: string } | { success: false; error: string }> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -322,18 +358,31 @@ export async function exportConstanciaTrabajoAction(
   companyId: string,
   employeeId: string
 ): Promise<PdfResult> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
     const [company, emp] = await Promise.all([
-      prisma.company.findUniqueOrThrow({ where: { id: companyId }, select: { name: true, rif: true } }),
+      prisma.company.findUniqueOrThrow({
+        where: { id: companyId },
+        select: { name: true, rif: true },
+      }),
       prisma.employee.findFirstOrThrow({
         where: { id: employeeId, companyId },
         select: {
-          firstName: true, lastName: true, cedulaType: true, cedulaNumber: true,
-          ivssNumber: true, position: true, payrollWorkerType: true,
-          contractType: true, hireDate: true, terminationDate: true,
+          firstName: true,
+          lastName: true,
+          cedulaType: true,
+          cedulaNumber: true,
+          ivssNumber: true,
+          position: true,
+          payrollWorkerType: true,
+          contractType: true,
+          hireDate: true,
+          terminationDate: true,
           salaryHistory: { orderBy: { effectiveFrom: "desc" }, take: 1, select: { amount: true } },
         },
       }),
@@ -350,7 +399,9 @@ export async function exportConstanciaTrabajoAction(
       payrollWorkerType: emp.payrollWorkerType,
       contractType: emp.contractType,
       hireDate: new Date(emp.hireDate).toISOString().slice(0, 10),
-      terminationDate: emp.terminationDate ? new Date(emp.terminationDate).toISOString().slice(0, 10) : null,
+      terminationDate: emp.terminationDate
+        ? new Date(emp.terminationDate).toISOString().slice(0, 10)
+        : null,
       salaryMensual: emp.salaryHistory[0]?.amount?.toString() ?? "0.00",
       // Fecha impresa en la constancia: la del calendario de la empresa, no la UTC
       issueDate: todayForCountry(ctx.country),

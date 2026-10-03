@@ -4,7 +4,11 @@
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
-import { VendorGroupService, CustomerGroupService, type ContactGroupRow } from "../services/ContactGroupService";
+import {
+  VendorGroupService,
+  CustomerGroupService,
+  type ContactGroupRow,
+} from "../services/ContactGroupService";
 import { CreateContactGroupSchema } from "../schemas/vendor.schemas";
 import type { ActionResult } from "../types/action-result";
 
@@ -12,13 +16,17 @@ import type { ActionResult } from "../types/action-result";
 
 export async function createVendorGroupAction(
   companyId: string,
-  name: string,
+  name: string
 ): Promise<ActionResult<ContactGroupRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.WRITERS,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   const parsed = CreateContactGroupSchema.safeParse({ name });
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
     const data = await VendorGroupService.create(companyId, parsed.data.name);
@@ -30,9 +38,12 @@ export async function createVendorGroupAction(
 
 export async function deleteVendorGroupAction(
   companyId: string,
-  groupId: string,
+  groupId: string
 ): Promise<ActionResult<true>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   const ok = await VendorGroupService.delete(companyId, groupId);
@@ -44,13 +55,17 @@ export async function deleteVendorGroupAction(
 
 export async function createCustomerGroupAction(
   companyId: string,
-  name: string,
+  name: string
 ): Promise<ActionResult<ContactGroupRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.WRITERS,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   const parsed = CreateContactGroupSchema.safeParse({ name });
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
     const data = await CustomerGroupService.create(companyId, parsed.data.name);
@@ -62,9 +77,12 @@ export async function createCustomerGroupAction(
 
 export async function deleteCustomerGroupAction(
   companyId: string,
-  groupId: string,
+  groupId: string
 ): Promise<ActionResult<true>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   const ok = await CustomerGroupService.delete(companyId, groupId);

@@ -14,10 +14,7 @@ type Props = {
   limit: number | null;
 };
 
-const TIER_META: Record<
-  DespachoTier,
-  { label: string; Icon: React.ElementType; color: string }
-> = {
+const TIER_META: Record<DespachoTier, { label: string; Icon: React.ElementType; color: string }> = {
   STARTER: { label: "Starter", Icon: ZapIcon, color: "text-sky-600" },
   PRO: { label: "Pro", Icon: StarIcon, color: "text-violet-600" },
   UNLIMITED: { label: "Ilimitado", Icon: InfinityIcon, color: "text-emerald-600" },
@@ -28,19 +25,16 @@ export function DespachoTierCard({ companyId, despachoTier, currentCount, limit 
 
   if (!despachoTier) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-3">
+      <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
         <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
           Sin tier Despacho activo
         </p>
         <p className="text-sm text-amber-700 dark:text-amber-500">
           Activa un tier para gestionar RIFs de clientes.
         </p>
-        <Button
-          size="sm"
-          onClick={() => router.push(`/company/${companyId}/despacho/upgrade`)}
-        >
+        <Button size="sm" onClick={() => router.push(`/company/${companyId}/despacho/upgrade`)}>
           Ver planes Despacho
-          <ArrowUpRightIcon className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
+          <ArrowUpRightIcon className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       </div>
     );
@@ -53,13 +47,11 @@ export function DespachoTierCard({ companyId, despachoTier, currentCount, limit 
   const nearLimit = limit !== null && pct >= 80;
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icon className={`h-5 w-5 ${meta.color}`} aria-hidden="true" />
-          <span className="font-semibold text-gray-900 dark:text-white">
-            Despacho {meta.label}
-          </span>
+          <span className="font-semibold text-gray-900 dark:text-white">Despacho {meta.label}</span>
         </div>
         <Badge variant="outline" className={`${meta.color} border-current`}>
           {meta.label}
@@ -69,12 +61,14 @@ export function DespachoTierCard({ companyId, despachoTier, currentCount, limit 
       <div className="space-y-1">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-600 dark:text-gray-400">RIFs gestionados</span>
-          <span className={`font-medium ${nearLimit ? "text-amber-600" : "text-gray-900 dark:text-white"}`}>
+          <span
+            className={`font-medium ${nearLimit ? "text-amber-600" : "text-gray-900 dark:text-white"}`}
+          >
             {usageLabel}
           </span>
         </div>
         {limit !== null && (
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+          <div className="h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
             <div
               className={`h-1.5 rounded-full transition-all ${nearLimit ? "bg-amber-500" : "bg-blue-500"}`}
               style={{ width: `${Math.min(pct, 100)}%` }}
@@ -94,7 +88,7 @@ export function DespachoTierCard({ companyId, despachoTier, currentCount, limit 
           onClick={() => router.push(`/company/${companyId}/despacho/upgrade`)}
         >
           Mejorar plan
-          <ArrowUpRightIcon className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
+          <ArrowUpRightIcon className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
         </Button>
       )}
     </div>

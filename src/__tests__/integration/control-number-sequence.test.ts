@@ -47,11 +47,11 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
   it("dos llamadas secuenciales retornan números distintos", async () => {
     const n1 = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     const n2 = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     expect(n1).not.toBe(n2);
     expect(n1).toMatch(/^00-\d{8}$/);
@@ -71,7 +71,7 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
         try {
           return await prisma.$transaction(
             (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-            { isolationLevel: "Serializable" },
+            { isolationLevel: "Serializable" }
           );
         } catch (e) {
           const isSerializationFailure = (e as { code?: string }).code === "P2034";
@@ -91,11 +91,11 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
   it("tipos distintos (SALE vs PURCHASE) tienen secuencias independientes", async () => {
     const sale = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     const purchase = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.PURCHASE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     // Cada tipo tiene su propia secuencia — no interfieren entre sí
     expect(sale).not.toBe(purchase);

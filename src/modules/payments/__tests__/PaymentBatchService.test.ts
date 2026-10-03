@@ -16,7 +16,8 @@ vi.mock("@/lib/prisma", () => ({
     // bancarias pedidas existen y son de esta empresa.
     bankAccount: {
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.map((id) => ({ id }))),
+        where.id.in.map((id) => ({ id }))
+      ),
     },
     $transaction: vi.fn(),
   },
@@ -88,17 +89,18 @@ const BASE_BATCH = {
 
 // Helper: $transaction ejecuta el callback inmediatamente
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown, _opts?: unknown) =>
-      fn({
-        paymentBatch: prisma.paymentBatch,
-        invoice: prisma.invoice,
-        invoicePayment: prisma.invoicePayment,
-        company: prisma.company,
-        auditLog: prisma.auditLog,
-        bankAccount: prisma.bankAccount,
-      })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((
+    fn: (tx: unknown) => unknown,
+    _opts?: unknown
+  ) =>
+    fn({
+      paymentBatch: prisma.paymentBatch,
+      invoice: prisma.invoice,
+      invoicePayment: prisma.invoicePayment,
+      company: prisma.company,
+      auditLog: prisma.auditLog,
+      bankAccount: prisma.bankAccount,
+    })) as never);
 }
 
 // ─── validateSumInvariant ─────────────────────────────────────────────────────
@@ -160,7 +162,11 @@ describe("PaymentBatchService.createBatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTx();
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "p-1", year: 2026, month: 5 });
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "p-1",
+      year: 2026,
+      month: 5,
+    });
   });
 
   it("happy path — crea batch DRAFT con dos líneas", async () => {
@@ -327,8 +333,15 @@ describe("PaymentBatchService.createBatch — P2002 por target", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTx();
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "p-1", year: 2026, month: 5 });
-    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({ id: INV_A, paymentStatus: "UNPAID" } as never);
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "p-1",
+      year: 2026,
+      month: 5,
+    });
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+      id: INV_A,
+      paymentStatus: "UNPAID",
+    } as never);
     vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
@@ -410,7 +423,11 @@ describe("PaymentBatchService.applyBatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTx();
-    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({ id: "p-1", year: 2026, month: 5 });
+    vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+      id: "p-1",
+      year: 2026,
+      month: 5,
+    });
   });
 
   it("happy path — aplica batch, crea InvoicePayment por línea y cambia estado a APPLIED", async () => {
@@ -637,8 +654,16 @@ describe("PaymentBatchService.voidBatch", () => {
       status: "APPLIED",
     } as never);
     vi.mocked(prisma.invoicePayment.findFirst)
-      .mockResolvedValueOnce({ id: "ip-1", amount: new Decimal("150000"), invoiceId: INV_A } as never)
-      .mockResolvedValueOnce({ id: "ip-2", amount: new Decimal("350000"), invoiceId: INV_B } as never);
+      .mockResolvedValueOnce({
+        id: "ip-1",
+        amount: new Decimal("150000"),
+        invoiceId: INV_A,
+      } as never)
+      .mockResolvedValueOnce({
+        id: "ip-2",
+        amount: new Decimal("350000"),
+        invoiceId: INV_B,
+      } as never);
     vi.mocked(prisma.invoicePayment.update).mockResolvedValue({} as never);
     vi.mocked(prisma.invoice.findFirst)
       .mockResolvedValueOnce({
@@ -805,9 +830,7 @@ describe("PaymentBatchService.voidBatch — aislamiento del lookup por idempoten
   function fakeFindFirst(rows: Array<Record<string, unknown>>) {
     return vi.fn(async (args?: { where?: Record<string, unknown> }) => {
       const where = args?.where ?? {};
-      const scalar = Object.entries(where).filter(
-        ([, v]) => v === null || typeof v !== "object"
-      );
+      const scalar = Object.entries(where).filter(([, v]) => v === null || typeof v !== "object");
       return rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null;
     });
   }
@@ -857,9 +880,7 @@ describe("PaymentBatchService.voidBatch — aislamiento del lookup por idempoten
   });
 
   it("el where del lookup lleva companyId además de la clave derivada", async () => {
-    vi.mocked(prisma.invoicePayment.findFirst).mockImplementation(
-      fakeFindFirst([]) as never
-    );
+    vi.mocked(prisma.invoicePayment.findFirst).mockImplementation(fakeFindFirst([]) as never);
 
     await PaymentBatchService.voidBatch({
       batchId: BATCH_ID,

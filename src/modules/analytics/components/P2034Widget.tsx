@@ -21,7 +21,7 @@ export function P2034Widget({ data }: Props) {
 
   return (
     <div className="rounded-lg border bg-white">
-      <div className="border-b px-5 py-3 flex items-center justify-between">
+      <div className="flex items-center justify-between border-b px-5 py-3">
         <div>
           <h3 className="text-sm font-semibold text-zinc-700">
             Conflictos de Concurrencia (P2034)
@@ -31,16 +31,16 @@ export function P2034Widget({ data }: Props) {
           </p>
         </div>
         <span
-          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${alertLevel.cls}`}
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${alertLevel.cls}`}
         >
           {alertLevel.label}
         </span>
       </div>
-      <div className="px-5 py-4 space-y-2">
+      <div className="space-y-2 px-5 py-4">
         {data.map(({ date, count }) => (
           <div key={date} className="flex items-center gap-3 text-sm">
             <span className="w-24 shrink-0 font-mono text-xs text-zinc-400">{date}</span>
-            <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100">
               <div
                 className={`h-full rounded-full ${count > 0 ? "bg-amber-400" : ""}`}
                 style={{ width: `${(count / maxCount) * 100}%` }}
@@ -48,7 +48,7 @@ export function P2034Widget({ data }: Props) {
             </div>
             <span
               className={`w-5 text-right font-mono text-xs ${
-                count > 0 ? "text-amber-700 font-semibold" : "text-zinc-300"
+                count > 0 ? "font-semibold text-amber-700" : "text-zinc-300"
               }`}
             >
               {count}
@@ -56,7 +56,7 @@ export function P2034Widget({ data }: Props) {
           </div>
         ))}
         {total > 10 && (
-          <p className="mt-3 text-xs text-red-600 border-t pt-3">
+          <p className="mt-3 border-t pt-3 text-xs text-red-600">
             Frecuencia alta — considera activar la Opción B (advisory locks) si persiste.
           </p>
         )}

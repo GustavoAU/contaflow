@@ -32,8 +32,8 @@ export default async function OrdersPage({ params }: Props) {
   if (!member) redirect("/");
 
   const role = member.role;
-  const isOperations = canAccess(role, ROLES.OPERATIONS);   // OWNER, ADMIN, ADMINISTRATIVE
-  const isAccounting = canAccess(role, ROLES.ACCOUNTING);   // OWNER, ADMIN, ACCOUNTANT
+  const isOperations = canAccess(role, ROLES.OPERATIONS); // OWNER, ADMIN, ADMINISTRATIVE
+  const isAccounting = canAccess(role, ROLES.ACCOUNTING); // OWNER, ADMIN, ACCOUNTANT
 
   // Cargar cotizaciones, órdenes y período activo en paralelo
   const [quotations, orders, activePeriodResult] = await Promise.all([
@@ -53,7 +53,7 @@ export default async function OrdersPage({ params }: Props) {
   // El proceso corre en UTC: "hoy" hay que resolverlo en la zona de la empresa o a
   // las 20:00 de Venezuela ya devuelve mañana (y el 31 a las 22:00, el mes siguiente).
   const companyTz = getFiscalConfig(
-    isSupportedCountry(member.company.country) ? member.company.country : "VEN",
+    isSupportedCountry(member.company.country) ? member.company.country : "VEN"
   ).timezone;
   let defaultInvoiceDate = todayInTimeZone(companyTz);
   if (activePeriod) {
@@ -66,7 +66,7 @@ export default async function OrdersPage({ params }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Compras y Ventas</h1>
@@ -79,9 +79,7 @@ export default async function OrdersPage({ params }: Props) {
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-1 text-base font-semibold text-gray-800">
           Cotizaciones / Presupuestos
-          <span className="ml-2 text-sm font-normal text-gray-500">
-            ({quotations.length})
-          </span>
+          <span className="ml-2 text-sm font-normal text-gray-500">({quotations.length})</span>
         </h2>
         <p className="mb-4 text-xs text-gray-500">
           Pre-contables — no generan asiento. Flujo: Borrador → Aprobada → Orden.
@@ -89,7 +87,7 @@ export default async function OrdersPage({ params }: Props) {
 
         {isOperations && (
           <details className="mb-6">
-            <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:underline mb-3">
+            <summary className="mb-3 cursor-pointer text-sm font-medium text-blue-600 hover:underline">
               + Nueva cotización / presupuesto
             </summary>
             <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 p-4">
@@ -110,25 +108,20 @@ export default async function OrdersPage({ params }: Props) {
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-1 text-base font-semibold text-gray-800">
           Órdenes de Compra y Venta
-          <span className="ml-2 text-sm font-normal text-gray-500">
-            ({orders.length})
-          </span>
+          <span className="ml-2 text-sm font-normal text-gray-500">({orders.length})</span>
         </h2>
         <p className="mb-4 text-xs text-gray-500">
-          Pre-contables — no generan asiento. Flujo: Borrador → Aprobada → Factura.
-          La conversión a Factura genera el asiento contable.
+          Pre-contables — no generan asiento. Flujo: Borrador → Aprobada → Factura. La conversión a
+          Factura genera el asiento contable.
         </p>
 
         {isOperations && (
           <details className="mb-6">
-            <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:underline mb-3">
+            <summary className="mb-3 cursor-pointer text-sm font-medium text-blue-600 hover:underline">
               + Nueva orden de compra / venta
             </summary>
             <div className="mt-3 rounded-md border border-gray-100 bg-gray-50 p-4">
-              <OrderForm
-                companyId={companyId}
-                approvedQuotations={approvedQuotations}
-              />
+              <OrderForm companyId={companyId} approvedQuotations={approvedQuotations} />
             </div>
           </details>
         )}

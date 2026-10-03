@@ -28,7 +28,18 @@ export function JournalExportButton({ transactions, period, companyName }: Props
     ws.addRow(["LIBRO DIARIO"]);
     ws.addRow([`Período: ${period}`]);
     ws.addRow([]);
-    ws.addRow(["Folio", "Número", "Fecha", "Tipo", "Descripción", "Referencia", "Código", "Cuenta", "Débito (Bs.)", "Crédito (Bs.)"]);
+    ws.addRow([
+      "Folio",
+      "Número",
+      "Fecha",
+      "Tipo",
+      "Descripción",
+      "Referencia",
+      "Código",
+      "Cuenta",
+      "Débito (Bs.)",
+      "Crédito (Bs.)",
+    ]);
 
     transactions.forEach((tx, idx) => {
       const folio = idx + 1;
@@ -47,7 +58,14 @@ export function JournalExportButton({ transactions, period, companyName }: Props
         ]);
       }
       ws.addRow([
-        "", "", "", "", "Sumas iguales", "", "", "",
+        "",
+        "",
+        "",
+        "",
+        "Sumas iguales",
+        "",
+        "",
+        "",
         parseFloat(tx.totalDebit),
         parseFloat(tx.totalCredit),
       ]);

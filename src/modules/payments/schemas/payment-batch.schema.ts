@@ -33,9 +33,9 @@ function isValidPct(v: string) {
 
 export const BatchLineInputSchema = z.object({
   invoiceId: z.string().min(1),
-  amountVes: z
-    .string()
-    .refine(isPositiveDecimal, { error: "amountVes debe ser un número positivo dentro del rango permitido" }),
+  amountVes: z.string().refine(isPositiveDecimal, {
+    error: "amountVes debe ser un número positivo dentro del rango permitido",
+  }),
   amountOriginal: z
     .string()
     .refine(isPositiveDecimal, { error: "amountOriginal fuera del rango permitido" })
@@ -51,9 +51,9 @@ export const CreateBatchSchema = z
   .object({
     companyId: z.string().min(1),
     method: z.enum(["EFECTIVO", "TRANSFERENCIA", "PAGOMOVIL", "ZELLE", "CASHEA"]),
-    totalAmountVes: z
-      .string()
-      .refine(isPositiveDecimal, { error: "totalAmountVes debe ser un número positivo dentro del rango permitido" }),
+    totalAmountVes: z.string().refine(isPositiveDecimal, {
+      error: "totalAmountVes debe ser un número positivo dentro del rango permitido",
+    }),
     currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
     totalAmountOriginal: z
       .string()
@@ -78,9 +78,7 @@ export const CreateBatchSchema = z
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: "Fecha inválida (YYYY-MM-DD)" }),
     notes: z.string().max(500).optional(),
     idempotencyKey: z.string().min(1).max(200),
-    lines: z
-      .array(BatchLineInputSchema)
-      .min(1, { error: "El lote debe tener al menos una línea" }),
+    lines: z.array(BatchLineInputSchema).min(1, { error: "El lote debe tener al menos una línea" }),
     // ADR-030: FK opcional a BankAccount para GL auto-posting en applyBatch()
     bankAccountId: z.string().optional(),
   })
@@ -92,7 +90,10 @@ export const CreateBatchSchema = z
         message: "Número de referencia requerido para PagoMóvil",
       });
     }
-    if (data.method === "ZELLE" && (!data.totalAmountOriginal || parseFloat(data.totalAmountOriginal) <= 0)) {
+    if (
+      data.method === "ZELLE" &&
+      (!data.totalAmountOriginal || parseFloat(data.totalAmountOriginal) <= 0)
+    ) {
       ctx.addIssue({
         code: "custom",
         path: ["totalAmountOriginal"],

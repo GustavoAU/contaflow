@@ -29,14 +29,22 @@ export async function exportForma30PDFAction(
   companyId: string,
   year: number,
   month: number,
-  creditoFiscalPeriodoAnterior?: number,
+  creditoFiscalPeriodoAnterior?: number
 ): Promise<ActionResult<string>> {
   // 1. Auth + rate limit + membresía (cualquier rol puede exportar reportes) — ADR-041
-  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: "MEMBER_ANY",
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   // 2. Validar input
-  const parsed = GenerarForma30Schema.safeParse({ companyId, year, month, creditoFiscalPeriodoAnterior });
+  const parsed = GenerarForma30Schema.safeParse({
+    companyId,
+    year,
+    month,
+    creditoFiscalPeriodoAnterior,
+  });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -45,7 +53,16 @@ export async function exportForma30PDFAction(
     // Obtener datos de la empresa para el encabezado PA-121 del PDF
     const company = await prisma.company.findUnique({
       where: { id: parsed.data.companyId },
-      select: { name: true, rif: true, isSpecialContributor: true, address: true, telefono: true, email: true, ciiu: true, actividad: true },
+      select: {
+        name: true,
+        rif: true,
+        isSpecialContributor: true,
+        address: true,
+        telefono: true,
+        email: true,
+        ciiu: true,
+        actividad: true,
+      },
     });
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
@@ -56,7 +73,7 @@ export async function exportForma30PDFAction(
       parsed.data.year,
       parsed.data.month,
       undefined,
-      creditoDecimal,
+      creditoDecimal
     );
 
     // 6. Generar PDF

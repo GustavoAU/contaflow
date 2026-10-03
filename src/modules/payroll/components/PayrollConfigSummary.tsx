@@ -30,12 +30,20 @@ const LOTT_LABELS: Record<string, string> = {
   MIXED: "Mixto (pre-1997 + post-2012)",
 };
 const CURRENCY_LABELS: Record<string, string> = { VES: "VES", USD: "USD", MIXED: "VES + USD" };
-const FREQUENCY_LABELS: Record<string, string> = { BIWEEKLY: "Quincenal", MONTHLY: "Mensual", SEMANAL: "Semanal" };
+const FREQUENCY_LABELS: Record<string, string> = {
+  BIWEEKLY: "Quincenal",
+  MONTHLY: "Mensual",
+  SEMANAL: "Semanal",
+};
 const FIDEICOMISO_LABELS: Record<string, string> = {
   EXTERNAL_BANK: "Banco externo",
   INTERNAL: "Contabilidad interna",
 };
-const CESTA_LABELS: Record<string, string> = { CARD: "Tarjeta", CASH: "Efectivo", NONE: "No aplica" };
+const CESTA_LABELS: Record<string, string> = {
+  CARD: "Tarjeta",
+  CASH: "Efectivo",
+  NONE: "No aplica",
+};
 
 function Badge({ active }: { active: boolean }) {
   return (
@@ -62,15 +70,21 @@ export default function PayrollConfigSummary({ cfg }: { cfg: PayrollConfigRow })
       </div>
       <div>
         <dt className="text-xs font-medium text-gray-500">IVSS</dt>
-        <dd className="mt-0.5"><Badge active={cfg.ivssEnabled} /></dd>
+        <dd className="mt-0.5">
+          <Badge active={cfg.ivssEnabled} />
+        </dd>
       </div>
       <div>
         <dt className="text-xs font-medium text-gray-500">INCES</dt>
-        <dd className="mt-0.5"><Badge active={cfg.incesEnabled} /></dd>
+        <dd className="mt-0.5">
+          <Badge active={cfg.incesEnabled} />
+        </dd>
       </div>
       <div>
         <dt className="text-xs font-medium text-gray-500">Banavih / FAOV</dt>
-        <dd className="mt-0.5"><Badge active={cfg.banavihEnabled} /></dd>
+        <dd className="mt-0.5">
+          <Badge active={cfg.banavihEnabled} />
+        </dd>
       </div>
       <div>
         <dt className="text-xs font-medium text-gray-500">Cesta Ticket</dt>
@@ -90,7 +104,10 @@ export default function PayrollConfigSummary({ cfg }: { cfg: PayrollConfigRow })
       </div>
       <div className="col-span-2 border-t pt-2">
         <dt className="text-xs text-gray-400">Última actualización</dt>
-        <dd className="mt-0.5 text-xs text-gray-500" title={new Date(cfg.updatedAt).toLocaleString("es-VE")}>
+        <dd
+          className="mt-0.5 text-xs text-gray-500"
+          title={new Date(cfg.updatedAt).toLocaleString("es-VE")}
+        >
           {formatRelative(cfg.updatedAt)}
         </dd>
       </div>

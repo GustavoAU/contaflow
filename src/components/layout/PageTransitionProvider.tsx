@@ -27,14 +27,14 @@ export function PageTransitionProvider({ children }: { children: React.ReactNode
     (href: string) => {
       startTransition(() => router.push(href));
     },
-    [router],
+    [router]
   );
 
   const replace = useCallback(
     (href: string) => {
       startTransition(() => router.replace(href));
     },
-    [router],
+    [router]
   );
 
   return (

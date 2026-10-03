@@ -23,7 +23,12 @@ function fmt(amount: string | Decimal | null | undefined, fractionDigits = 2): s
 function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const dt = typeof d === "string" ? new Date(d) : d;
-  return dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+  return dt.toLocaleDateString("es-VE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 export default async function EmployeePortalPage({ params }: Props) {
@@ -94,7 +99,16 @@ export default async function EmployeePortalPage({ params }: Props) {
       const net = earnings.minus(deductions);
       // Currency from first line's snapshot (all lines in same run share currency)
       const currency = r.lines[0]?.salarySnapshotCurrency ?? "VES";
-      return { id: r.id, periodStart: r.periodStart, periodEnd: r.periodEnd, currency, earnings, deductions, net, lines: r.lines };
+      return {
+        id: r.id,
+        periodStart: r.periodStart,
+        periodEnd: r.periodEnd,
+        currency,
+        earnings,
+        deductions,
+        net,
+        lines: r.lines,
+      };
     });
 
   // 4. Historial de vacaciones (últimos 5 registros)
@@ -145,7 +159,10 @@ export default async function EmployeePortalPage({ params }: Props) {
 
       {/* Datos del empleado */}
       <section aria-labelledby="emp-heading">
-        <h2 id="emp-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h2
+          id="emp-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
           Datos personales
         </h2>
         <div className="rounded-lg border bg-white p-5 shadow-sm">
@@ -159,8 +176,8 @@ export default async function EmployeePortalPage({ params }: Props) {
                 employee.status === "ACTIVE"
                   ? "bg-green-100 text-green-700"
                   : employee.status === "TERMINATED"
-                  ? "bg-gray-100 text-gray-600"
-                  : "bg-yellow-100 text-yellow-700"
+                    ? "bg-gray-100 text-gray-600"
+                    : "bg-yellow-100 text-yellow-700"
               }`}
             >
               {STATUS_LABELS[employee.status] ?? employee.status}
@@ -205,8 +222,12 @@ export default async function EmployeePortalPage({ params }: Props) {
 
       {/* Recibos de pago */}
       <section aria-labelledby="payslip-heading">
-        <h2 id="payslip-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-          Recibos de pago ({payslips.length > 0 ? `últimas ${payslips.length} nóminas aprobadas` : "sin registros"})
+        <h2
+          id="payslip-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
+          Recibos de pago (
+          {payslips.length > 0 ? `últimas ${payslips.length} nóminas aprobadas` : "sin registros"})
         </h2>
         {payslips.length === 0 ? (
           <div className="rounded-lg border border-dashed bg-white p-6 text-center text-sm text-gray-400">
@@ -230,7 +251,7 @@ export default async function EmployeePortalPage({ params }: Props) {
                     </p>
                   </div>
                 </summary>
-                <div className="border-t px-4 pb-4 pt-3">
+                <div className="border-t px-4 pt-3 pb-4">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-xs text-gray-400">
@@ -255,11 +276,17 @@ export default async function EmployeePortalPage({ params }: Props) {
                     <tfoot className="border-t border-gray-200 font-semibold">
                       <tr>
                         <td className="pt-2 text-gray-700">Total</td>
-                        <td className="pt-2 text-right font-mono text-green-700">{fmt(p.earnings)}</td>
-                        <td className="pt-2 text-right font-mono text-red-600">{fmt(p.deductions)}</td>
+                        <td className="pt-2 text-right font-mono text-green-700">
+                          {fmt(p.earnings)}
+                        </td>
+                        <td className="pt-2 text-right font-mono text-red-600">
+                          {fmt(p.deductions)}
+                        </td>
                       </tr>
                       <tr>
-                        <td colSpan={2} className="pt-1 text-gray-700">Neto a cobrar</td>
+                        <td colSpan={2} className="pt-1 text-gray-700">
+                          Neto a cobrar
+                        </td>
                         <td className="pt-1 text-right font-mono font-bold text-gray-900">
                           {fmt(p.net)} {p.currency}
                         </td>
@@ -275,7 +302,10 @@ export default async function EmployeePortalPage({ params }: Props) {
 
       {/* Vacaciones */}
       <section aria-labelledby="vac-heading">
-        <h2 id="vac-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h2
+          id="vac-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
           Vacaciones
         </h2>
         {vacations.length === 0 ? (
@@ -287,26 +317,46 @@ export default async function EmployeePortalPage({ params }: Props) {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-xs font-medium text-gray-500">
                 <tr>
-                  <th scope="col" className="px-4 py-2 text-left">Período</th>
-                  <th scope="col" className="px-4 py-2 text-center">Días vacac.</th>
-                  <th scope="col" className="px-4 py-2 text-center">Días bono</th>
-                  <th scope="col" className="px-4 py-2 text-left">Inicio</th>
-                  <th scope="col" className="px-4 py-2 text-left">Fin</th>
-                  <th scope="col" className="px-4 py-2 text-center">Tipo</th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Período
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-center">
+                    Días vacac.
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-center">
+                    Días bono
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Inicio
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Fin
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-center">
+                    Tipo
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {vacations.map((v, i) => (
                   <tr key={i} className="hover:bg-gray-50">
                     <td className="px-4 py-2 font-medium">{v.periodYear}</td>
-                    <td className="px-4 py-2 text-center font-mono">{fmt(v.vacationDays.toString(), 0)}</td>
-                    <td className="px-4 py-2 text-center font-mono">{fmt(v.bonusDays.toString(), 0)}</td>
+                    <td className="px-4 py-2 text-center font-mono">
+                      {fmt(v.vacationDays.toString(), 0)}
+                    </td>
+                    <td className="px-4 py-2 text-center font-mono">
+                      {fmt(v.bonusDays.toString(), 0)}
+                    </td>
                     <td className="px-4 py-2">{fmtDate(v.startDate)}</td>
                     <td className="px-4 py-2">{fmtDate(v.endDate)}</td>
                     <td className="px-4 py-2 text-center">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        v.isFractional ? "bg-purple-100 text-purple-700" : "bg-green-100 text-green-700"
-                      }`}>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          v.isFractional
+                            ? "bg-purple-100 text-purple-700"
+                            : "bg-green-100 text-green-700"
+                        }`}
+                      >
                         {v.isFractional ? "Fraccionadas" : "Completas"}
                       </span>
                     </td>
@@ -320,7 +370,10 @@ export default async function EmployeePortalPage({ params }: Props) {
 
       {/* Préstamo activo */}
       <section aria-labelledby="loan-heading">
-        <h2 id="loan-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h2
+          id="loan-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
           Préstamo activo
         </h2>
         {!loan ? (
@@ -332,11 +385,15 @@ export default async function EmployeePortalPage({ params }: Props) {
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-xs text-gray-400">Monto total</dt>
-                <dd className="font-semibold">{fmt(loan.totalAmount.toString())} {loan.currency}</dd>
+                <dd className="font-semibold">
+                  {fmt(loan.totalAmount.toString())} {loan.currency}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-gray-400">Saldo pendiente</dt>
-                <dd className="font-semibold text-red-600">{fmt(loan.remainingBalance.toString())} {loan.currency}</dd>
+                <dd className="font-semibold text-red-600">
+                  {fmt(loan.remainingBalance.toString())} {loan.currency}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-gray-400">Cuotas</dt>
@@ -346,14 +403,18 @@ export default async function EmployeePortalPage({ params }: Props) {
               </div>
               <div>
                 <dt className="text-xs text-gray-400">Cuota mensual</dt>
-                <dd className="font-semibold">{fmt(loan.installmentAmount.toString())} {loan.currency}</dd>
+                <dd className="font-semibold">
+                  {fmt(loan.installmentAmount.toString())} {loan.currency}
+                </dd>
               </div>
             </dl>
             <div className="mt-4">
               <div className="h-2 overflow-hidden rounded-full bg-gray-200">
                 <div
                   className="h-full rounded-full bg-blue-500 transition-all"
-                  style={{ width: `${Math.round((loan.paidInstallments / loan.installments) * 100)}%` }}
+                  style={{
+                    width: `${Math.round((loan.paidInstallments / loan.installments) * 100)}%`,
+                  }}
                   role="progressbar"
                   aria-valuenow={loan.paidInstallments}
                   aria-valuemin={0}
@@ -370,7 +431,13 @@ export default async function EmployeePortalPage({ params }: Props) {
       </section>
 
       <p className="text-center text-xs text-gray-400">
-        Enlace generado el {new Date().toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" })}. Válido por 30 días.
+        Enlace generado el{" "}
+        {new Date().toLocaleDateString("es-VE", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })}
+        . Válido por 30 días.
       </p>
     </div>
   );

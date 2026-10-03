@@ -102,7 +102,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
         {!showForm && (
           <button
             onClick={handleOpenForm}
-            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
           >
             <PlusIcon className="h-4 w-4" aria-hidden="true" />
             Nueva cuenta bancaria
@@ -136,7 +136,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej. Cuenta corriente operativa"
                 required
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>
             <div>
@@ -148,11 +148,13 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
                 required
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="">— Seleccionar banco —</option>
                 {VENEZUELA_BANKS.map((b) => (
-                  <option key={b} value={b}>{b}</option>
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
                 ))}
               </select>
             </div>
@@ -165,7 +167,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
                 required
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="">Selecciona una cuenta contable...</option>
                 {chartAccounts.map((a) => (
@@ -183,7 +185,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                 id="ba-currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value as "VES" | "USD" | "EUR")}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="VES">VES — Bolívar</option>
                 <option value="USD">USD — Dólar</option>
@@ -203,9 +205,10 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
               <button
                 type="submit"
                 disabled={isPending}
-                className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-60"
               >
-                {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Guardando..." : "Guardar cuenta"}
+                {isPending && <Loader2Icon className="size-4 animate-spin" />}
+                {isPending ? "Guardando..." : "Guardar cuenta"}
               </button>
               <button
                 type="button"
@@ -231,14 +234,26 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
       ) : accounts.length > 0 ? (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <table className="w-full text-sm">
-            <thead className="border-b bg-zinc-50 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            <thead className="border-b bg-zinc-50 text-xs font-medium tracking-wide text-zinc-500 uppercase">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left">Nombre</th>
-                <th scope="col" className="px-4 py-3 text-left">Banco</th>
-                <th scope="col" className="px-4 py-3 text-left">Moneda</th>
-                <th scope="col" className="px-4 py-3 text-right">Último balance</th>
-                <th scope="col" className="px-4 py-3 text-left">Última fecha</th>
-                <th scope="col" className="px-4 py-3 text-left">Acciones</th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Nombre
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Banco
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Moneda
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Último balance
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Última fecha
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -259,7 +274,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                     </span>
                   </td>
                   <td
-                    className="px-4 py-3 text-right font-mono text-15"
+                    className="text-15 px-4 py-3 text-right font-mono"
                     style={{ fontVariantNumeric: "tabular-nums" }}
                   >
                     {account.lastClosingBalance
@@ -268,13 +283,15 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-zinc-500">
                     {account.lastStatementDate
-                      ? new Date(account.lastStatementDate).toLocaleDateString("es-VE", { timeZone: "UTC" })
+                      ? new Date(account.lastStatementDate).toLocaleDateString("es-VE", {
+                          timeZone: "UTC",
+                        })
                       : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/company/${companyId}/bank-reconciliation?accountId=${account.id}`}
-                      className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     >
                       Ver extractos
                       <ChevronRightIcon className="h-3.5 w-3.5" aria-hidden="true" />

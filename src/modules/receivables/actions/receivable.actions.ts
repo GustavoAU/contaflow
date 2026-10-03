@@ -8,7 +8,11 @@ import prisma from "@/lib/prisma";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { limiters } from "@/lib/ratelimit";
 import { ReceivableService } from "../services/ReceivableService";
-import type { AgingReport, InvoicePaymentSummary, ReceivablePage } from "../services/ReceivableService";
+import type {
+  AgingReport,
+  InvoicePaymentSummary,
+  ReceivablePage,
+} from "../services/ReceivableService";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import {
@@ -19,7 +23,10 @@ import {
 } from "../schemas/receivable.schema";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 // ADR-032 F2: la vía canónica de pagos vive en el módulo payments — receivables delega
-import { PaymentService, type PaymentRecordSummary } from "@/modules/payments/services/PaymentService";
+import {
+  PaymentService,
+  type PaymentRecordSummary,
+} from "@/modules/payments/services/PaymentService";
 import { PaymentGLService } from "@/modules/payments/services/PaymentGLService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
@@ -152,7 +159,7 @@ export async function recordPaymentAction(
       const rate = await ExchangeRateService.getRateForDate(
         d.companyId,
         d.currency as Currency,
-        d.date,
+        d.date
       );
       amountVes = amountOriginal
         .mul(new Decimal(rate.rate))
@@ -191,12 +198,7 @@ export async function recordPaymentAction(
           // ADR-032 F1: saldo + guards (FOR UPDATE, sobre-pago tolerancia 0,
           // año fiscal cerrado R-3, factura anulada) — mismo $transaction.
           // El saldo de la factura es VES → aplicar el amountVes autoritativo.
-          await PaymentService.applyPaymentToInvoice(
-            tx,
-            d.companyId,
-            d.invoiceId,
-            amountVes,
-          );
+          await PaymentService.applyPaymentToInvoice(tx, d.companyId, d.invoiceId, amountVes);
 
           const record = await PaymentService.create(tx as typeof prisma, {
             companyId: d.companyId,
@@ -315,7 +317,7 @@ export async function recordPaymentAction(
 
           return record;
         }),
-      { timeout: 30000 },
+      { timeout: 30000 }
     );
 
     revalidatePath(`/company/${d.companyId}/receivables`);
@@ -327,7 +329,10 @@ export async function recordPaymentAction(
     }
     if (isPrismaError(error, "P2002")) {
       // Race: dos submits simultáneos con la misma key — el unique de BD ganó
-      return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
+      return {
+        success: false,
+        error: "Pago duplicado — ya existe un pago con esta clave de idempotencia",
+      };
     }
     return toActionError(error);
   }
@@ -335,9 +340,7 @@ export async function recordPaymentAction(
 
 // ─── Cancelar un pago ──────────────────────────────────────────────────────────
 // Solo ADMIN u OWNER pueden cancelar pagos (operación de anulación — ADR-006 D-1)
-export async function cancelPaymentAction(
-  input: unknown
-): Promise<ActionResult<{ ok: true }>> {
+export async function cancelPaymentAction(input: unknown): Promise<ActionResult<{ ok: true }>> {
   const parsed = CancelPaymentSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
@@ -357,7 +360,13 @@ export async function cancelPaymentAction(
     // siguen el flujo histórico de ReceivableService.
     const canonical = await prisma.paymentRecord.findFirst({
       where: { id: parsed.data.paymentId, companyId: parsed.data.companyId },
-      select: { id: true, deletedAt: true, invoiceId: true, appliedToInvoice: true, amountVes: true },
+      select: {
+        id: true,
+        deletedAt: true,
+        invoiceId: true,
+        appliedToInvoice: true,
+        amountVes: true,
+      },
     });
 
     if (canonical) {
@@ -366,7 +375,10 @@ export async function cancelPaymentAction(
       await prisma.$transaction(async (tx) => {
         // ADR-030: reverso del asiento GL si existe
         await PaymentGLService.reversePaymentRecordGL(
-          tx, parsed.data.paymentId, parsed.data.companyId, userId,
+          tx,
+          parsed.data.paymentId,
+          parsed.data.companyId,
+          userId,
           {
             companyId: parsed.data.companyId,
             date: new Date(),
@@ -374,19 +386,24 @@ export async function cancelPaymentAction(
             description: "Anulación de pago desde cartera (CxC/CxP)",
             ipAddress,
             userAgent,
-          },
+          }
         );
 
         await PaymentService.void(
-          tx as typeof prisma, parsed.data.paymentId, parsed.data.companyId,
-          "Anulado desde cartera (CxC/CxP)",
+          tx as typeof prisma,
+          parsed.data.paymentId,
+          parsed.data.companyId,
+          "Anulado desde cartera (CxC/CxP)"
         );
 
         // ADR-032 D-4: restaurar saldo SOLO si este pago lo decrementó
         if (canonical.appliedToInvoice && canonical.invoiceId) {
           await PaymentService.revertPaymentFromInvoice(
-            tx, parsed.data.companyId, canonical.invoiceId, parsed.data.paymentId,
-            new Decimal(canonical.amountVes.toString()),
+            tx,
+            parsed.data.companyId,
+            canonical.invoiceId,
+            parsed.data.paymentId,
+            new Decimal(canonical.amountVes.toString())
           );
         }
 
@@ -410,7 +427,13 @@ export async function cancelPaymentAction(
       });
     } else {
       // Pago legacy (InvoicePayment) — flujo histórico
-      await ReceivableService.cancelPayment(parsed.data.paymentId, parsed.data.companyId, userId, ipAddress, userAgent);
+      await ReceivableService.cancelPayment(
+        parsed.data.paymentId,
+        parsed.data.companyId,
+        userId,
+        ipAddress,
+        userAgent
+      );
     }
 
     revalidatePath(`/company/${parsed.data.companyId}/receivables`);

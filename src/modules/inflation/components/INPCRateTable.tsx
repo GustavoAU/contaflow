@@ -3,8 +3,19 @@
 import { fmtVen } from "@/lib/fmt-ven";
 
 const MONTHS = [
-  "","Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+  "",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 type SerializedINPCRate = {
@@ -23,7 +34,7 @@ type Props = {
 export function INPCRateTable({ rates }: Props) {
   if (rates.length === 0) {
     return (
-      <p className="text-center text-sm text-gray-500 py-6">
+      <p className="py-6 text-center text-sm text-gray-500">
         No hay índices INPC cargados. Use el formulario para agregar el primero.
       </p>
     );
@@ -50,7 +61,7 @@ export function INPCRateTable({ rates }: Props) {
                 {fmtVen(r.indexValue, 2)}
               </td>
               <td className="px-4 py-3 text-gray-500">{r.source ?? "BCV"}</td>
-              <td className="px-4 py-3 text-gray-400 text-xs">
+              <td className="px-4 py-3 text-xs text-gray-400">
                 {new Date(r.createdAt).toLocaleDateString("es-VE")}
               </td>
             </tr>

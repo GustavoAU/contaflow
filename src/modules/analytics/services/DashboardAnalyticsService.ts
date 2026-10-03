@@ -48,10 +48,7 @@ export const DashboardAnalyticsService = {
    * Usa $queryRaw para hacer GROUP BY sobre columnas calculadas (EXTRACT).
    * Excluye asientos de tipo CIERRE para no distorsionar los totales.
    */
-  async getRevenueExpenseTrend(
-    companyId: string,
-    year: number,
-  ): Promise<MonthlyRevExpPoint[]> {
+  async getRevenueExpenseTrend(companyId: string, year: number): Promise<MonthlyRevExpPoint[]> {
     type RawRow = {
       year: bigint;
       month: bigint;
@@ -94,10 +91,7 @@ export const DashboardAnalyticsService = {
    * Composición de líneas de IVA del año (o de todos los tiempos si year es null).
    * Agrupa InvoiceTaxLine por taxType y suma los montos.
    */
-  async getIvaComposition(
-    companyId: string,
-    year?: number,
-  ): Promise<IvaCompositionItem[]> {
+  async getIvaComposition(companyId: string, year?: number): Promise<IvaCompositionItem[]> {
     const dateFilter =
       year !== undefined
         ? {
@@ -146,10 +140,10 @@ export const DashboardAnalyticsService = {
     // "0-30" = dueDate > hoy−31d (incluye vencimientos futuros, igual que antes).
     // Un rango sobre dueDate excluye NULL (reemplaza el { not: null }).
     const windows = [
-      { bucket: "0-30" as const,  range: { gt: t31 } },
+      { bucket: "0-30" as const, range: { gt: t31 } },
       { bucket: "31-60" as const, range: { gt: t61, lte: t31 } },
       { bucket: "61-90" as const, range: { gt: t91, lte: t61 } },
-      { bucket: "90+" as const,   range: { lte: t91 } },
+      { bucket: "90+" as const, range: { lte: t91 } },
     ];
 
     const perWindow = await Promise.all(
@@ -163,8 +157,8 @@ export const DashboardAnalyticsService = {
             dueDate: w.range,
           },
           _sum: { pendingAmount: true },
-        }),
-      ),
+        })
+      )
     );
 
     return windows.map((w, i) => {
@@ -188,9 +182,7 @@ export const DashboardAnalyticsService = {
    * Ratio global de conciliación bancaria de la empresa.
    * Cuenta transacciones activas (deletedAt IS NULL) reconciliadas vs total.
    */
-  async getBankReconciliationRatio(
-    companyId: string,
-  ): Promise<BankReconciliationRatio> {
+  async getBankReconciliationRatio(companyId: string): Promise<BankReconciliationRatio> {
     const [total, reconciled] = await Promise.all([
       prisma.bankTransaction.count({
         where: { companyId, deletedAt: null },
@@ -213,7 +205,7 @@ export const DashboardAnalyticsService = {
   async getBcvRateTrend(
     companyId: string,
     currency: Currency = Currency.USD,
-    months = 12,
+    months = 12
   ): Promise<BcvRatePoint[]> {
     const since = new Date();
     since.setUTCHours(0, 0, 0, 0);

@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ companyId: string }> },
+  { params }: { params: Promise<{ companyId: string }> }
 ): Promise<Response> {
   const { companyId } = await params;
 

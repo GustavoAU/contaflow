@@ -288,7 +288,9 @@ describe("whereIsScoped — escalares", () => {
   });
 
   it("otras claves sin companyId → NO acotado por muchas que sean", () => {
-    expect(whereIsScoped({ status: "PAID", deletedAt: null, total: { gt: 0 } }, invoice)).toBe(false);
+    expect(whereIsScoped({ status: "PAID", deletedAt: null, total: { gt: 0 } }, invoice)).toBe(
+      false
+    );
   });
 
   it("clave de tenant distinta a companyId (Company → id) se respeta", () => {
@@ -332,9 +334,9 @@ describe("whereIsScoped — escalares", () => {
 
   it("una clave de tenant que no acota no bloquea la evaluación del resto del where", () => {
     // `companyId: { not }` no acota, pero el AND hermano sí: el resultado es acotado.
-    expect(
-      whereIsScoped({ companyId: { not: "x" }, AND: [{ companyId: "c1" }] }, invoice),
-    ).toBe(true);
+    expect(whereIsScoped({ companyId: { not: "x" }, AND: [{ companyId: "c1" }] }, invoice)).toBe(
+      true
+    );
   });
 
   it("companyId: '' (cadena vacía) cuenta como acotado — no filtra de más, devuelve vacío", () => {
@@ -416,9 +418,9 @@ describe("whereIsScoped — AND", () => {
   });
 
   it("AND anidado dentro de AND", () => {
-    expect(
-      whereIsScoped({ AND: [{ AND: [{ status: "X" }, { companyId: "c1" }] }] }, invoice),
-    ).toBe(true);
+    expect(whereIsScoped({ AND: [{ AND: [{ status: "X" }, { companyId: "c1" }] }] }, invoice)).toBe(
+      true
+    );
   });
 
   it("companyId en el nivel raíz junto a un AND no acotado → acotado", () => {
@@ -447,10 +449,7 @@ describe("whereIsScoped — OR (deben acotar TODAS las ramas)", () => {
 
   it("OR de 3 ramas con la última sin acotar → NO acotado", () => {
     expect(
-      whereIsScoped(
-        { OR: [{ companyId: "a" }, { companyId: "b" }, { status: "DRAFT" }] },
-        invoice,
-      ),
+      whereIsScoped({ OR: [{ companyId: "a" }, { companyId: "b" }, { status: "DRAFT" }] }, invoice)
     ).toBe(false);
   });
 
@@ -458,15 +457,15 @@ describe("whereIsScoped — OR (deben acotar TODAS las ramas)", () => {
     expect(
       whereIsScoped(
         { AND: [{ OR: [{ companyId: "a" }, { status: "X" }] }, { companyId: "a" }] },
-        invoice,
-      ),
+        invoice
+      )
     ).toBe(true);
   });
 
   it("solo un OR mal formado dentro de AND → NO acotado", () => {
-    expect(
-      whereIsScoped({ AND: [{ OR: [{ companyId: "a" }, { status: "X" }] }] }, invoice),
-    ).toBe(false);
+    expect(whereIsScoped({ AND: [{ OR: [{ companyId: "a" }, { status: "X" }] }] }, invoice)).toBe(
+      false
+    );
   });
 });
 
@@ -504,15 +503,9 @@ describe("whereIsScoped — relaciones anidadas", () => {
   });
 
   it("relación con AND/OR anidados dentro se evalúa recursivamente", () => {
+    expect(whereIsScoped({ invoice: { AND: [{ companyId: "x" }] } }, childSpec, lookup)).toBe(true);
     expect(
-      whereIsScoped({ invoice: { AND: [{ companyId: "x" }] } }, childSpec, lookup),
-    ).toBe(true);
-    expect(
-      whereIsScoped(
-        { invoice: { OR: [{ companyId: "x" }, { status: "X" }] } },
-        childSpec,
-        lookup,
-      ),
+      whereIsScoped({ invoice: { OR: [{ companyId: "x" }, { status: "X" }] } }, childSpec, lookup)
     ).toBe(false);
   });
 
@@ -526,7 +519,7 @@ describe("whereIsScoped — relaciones anidadas", () => {
 
   it("{ invoice: { isNot: { companyId } } } → NO acotado (niega, no restringe)", () => {
     expect(whereIsScoped({ invoice: { isNot: { companyId: "x" } } }, childSpec, lookup)).toBe(
-      false,
+      false
     );
   });
 
@@ -545,12 +538,12 @@ describe("whereIsScoped — relaciones anidadas", () => {
     const deepLookup = (model: string): ScopeSpec | undefined =>
       model === "InvoiceLine" ? lineSpec : model === "Invoice" ? invoiceSpec : undefined;
 
-    expect(
-      whereIsScoped({ line: { invoice: { companyId: "x" } } }, grandChild, deepLookup),
-    ).toBe(true);
-    expect(
-      whereIsScoped({ line: { invoice: { status: "X" } } }, grandChild, deepLookup),
-    ).toBe(false);
+    expect(whereIsScoped({ line: { invoice: { companyId: "x" } } }, grandChild, deepLookup)).toBe(
+      true
+    );
+    expect(whereIsScoped({ line: { invoice: { status: "X" } } }, grandChild, deepLookup)).toBe(
+      false
+    );
   });
 
   it("usa el SCOPE_MAP real cuando no se pasa lookup (InvoiceTaxLine → Invoice)", () => {
@@ -611,16 +604,19 @@ describe("createDataIsScoped", () => {
 
   it("todas las filas con companyId → acotado", () => {
     expect(
-      createDataIsScoped([{ companyId: "c1", total: 1 }, { companyId: "c1", total: 2 }], invoice),
+      createDataIsScoped(
+        [
+          { companyId: "c1", total: 1 },
+          { companyId: "c1", total: 2 },
+        ],
+        invoice
+      )
     ).toBe(true);
   });
 
   it("una sola fila sin companyId invalida el lote entero", () => {
     expect(
-      createDataIsScoped(
-        [{ companyId: "c1" }, { total: 2 }, { companyId: "c1" }],
-        invoice,
-      ),
+      createDataIsScoped([{ companyId: "c1" }, { total: 2 }, { companyId: "c1" }], invoice)
     ).toBe(false);
   });
 
@@ -736,7 +732,7 @@ describe("uniqueWhereIsScoped — (1) la exención superviviente: `id` string en
     expect(uniqueWhereIsScoped({ id: "inv-1", deletedAt: null }, invoice)).toBe(true);
     // Mismo patrón, extremo a extremo por la vía de fila única.
     expect(
-      assertViolation("Invoice", "update", { where: { id: "inv-1", deletedAt: null } }),
+      assertViolation("Invoice", "update", { where: { id: "inv-1", deletedAt: null } })
     ).toBeNull();
   });
 
@@ -771,7 +767,7 @@ describe("uniqueWhereIsScoped — (1) la exención superviviente: `id` string en
 
     // Extremo a extremo: un findUnique con `id` filtrado es VIOLACIÓN.
     expect(assertViolation("Invoice", "findUnique", { where: { id: { in: ["a"] } } })).toBe(
-      "Invoice.findUnique por clave única sin companyId ni id",
+      "Invoice.findUnique por clave única sin companyId ni id"
     );
   });
 
@@ -800,8 +796,8 @@ describe("uniqueWhereIsScoped — (1) la exención superviviente: `id` string en
     expect(
       uniqueWhereIsScoped(
         { nada: undefined, companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" } },
-        invoice,
-      ),
+        invoice
+      )
     ).toBe(true);
     expect(uniqueWhereIsScoped({ nada: undefined, otro: { status: "PAID" } }, invoice)).toBe(false);
   });
@@ -873,8 +869,8 @@ describe("uniqueWhereIsScoped — (3) selector compuesto @@unique([companyId, �
     expect(
       uniqueWhereIsScoped(
         { companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" } },
-        expense,
-      ),
+        expense
+      )
     ).toBe(true);
   });
 
@@ -882,23 +878,20 @@ describe("uniqueWhereIsScoped — (3) selector compuesto @@unique([companyId, �
     expect(
       uniqueWhereIsScoped(
         { companyId_year_month: { companyId: "c1", year: 2026, month: 8 } },
-        expense,
-      ),
+        expense
+      )
     ).toBe(true);
   });
 
   it("selector compuesto SIN tenant → NO acotado", () => {
     expect(
-      uniqueWhereIsScoped(
-        { invoiceNumber_type: { invoiceNumber: "00001", type: "SALE" } },
-        expense,
-      ),
+      uniqueWhereIsScoped({ invoiceNumber_type: { invoiceNumber: "00001", type: "SALE" } }, expense)
     ).toBe(false);
   });
 
   it("selector compuesto al que le FALTA el companyId → NO acotado", () => {
     expect(
-      uniqueWhereIsScoped({ companyId_idempotencyKey: { idempotencyKey: "k" } }, expense),
+      uniqueWhereIsScoped({ companyId_idempotencyKey: { idempotencyKey: "k" } }, expense)
     ).toBe(false);
   });
 
@@ -906,8 +899,8 @@ describe("uniqueWhereIsScoped — (3) selector compuesto @@unique([companyId, �
     expect(
       uniqueWhereIsScoped(
         { companyId_idempotencyKey: { companyId: { not: "c1" }, idempotencyKey: "k" } },
-        expense,
-      ),
+        expense
+      )
     ).toBe(false);
   });
 
@@ -915,9 +908,9 @@ describe("uniqueWhereIsScoped — (3) selector compuesto @@unique([companyId, �
     expect(uniqueWhereIsScoped({ companyId_idempotencyKey: {} }, expense)).toBe(false);
     expect(uniqueWhereIsScoped({ companyId_idempotencyKey: null }, expense)).toBe(false);
     expect(uniqueWhereIsScoped({ companyId_idempotencyKey: "c1_k" }, expense)).toBe(false);
-    expect(
-      uniqueWhereIsScoped({ companyId_idempotencyKey: [{ companyId: "c1" }] }, expense),
-    ).toBe(false);
+    expect(uniqueWhereIsScoped({ companyId_idempotencyKey: [{ companyId: "c1" }] }, expense)).toBe(
+      false
+    );
   });
 
   it("se recorren TODAS las claves: basta un selector acotado entre varios", () => {
@@ -927,8 +920,8 @@ describe("uniqueWhereIsScoped — (3) selector compuesto @@unique([companyId, �
           otro_selector: { a: 1 },
           companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" },
         },
-        expense,
-      ),
+        expense
+      )
     ).toBe(true);
   });
 
@@ -949,7 +942,7 @@ describe("uniqueWhereIsScoped — el caso REAL que obligó a estrechar la exenci
     // ÉSTE es el bug. Con la exención vieja, esta consulta se daba por acotada y
     // pasaba sin ruido; devolvía la fila entera de OTRA empresa.
     expect(
-      uniqueWhereIsScoped({ idempotencyKey: "8f14e45f-ceea-467a-9c0e-1f8b0b0f0a11" }, expense),
+      uniqueWhereIsScoped({ idempotencyKey: "8f14e45f-ceea-467a-9c0e-1f8b0b0f0a11" }, expense)
     ).toBe(false);
   });
 
@@ -1007,13 +1000,19 @@ describe("assertViolation", () => {
     expect(assertViolation("Invoice", "findMany", { where: { status: "PAID" } })).toBeTruthy();
   });
 
-  it.each(["findFirst", "findFirstOrThrow", "count", "aggregate", "groupBy", "updateMany", "updateManyAndReturn", "deleteMany"])(
-    "%s es multi-fila: sin companyId → VIOLACIÓN, con companyId → null",
-    (op) => {
-      expect(assertViolation("Invoice", op, { where: {} })).toBeTruthy();
-      expect(assertViolation("Invoice", op, { where: { companyId: "c1" } })).toBeNull();
-    },
-  );
+  it.each([
+    "findFirst",
+    "findFirstOrThrow",
+    "count",
+    "aggregate",
+    "groupBy",
+    "updateMany",
+    "updateManyAndReturn",
+    "deleteMany",
+  ])("%s es multi-fila: sin companyId → VIOLACIÓN, con companyId → null", (op) => {
+    expect(assertViolation("Invoice", op, { where: {} })).toBeTruthy();
+    expect(assertViolation("Invoice", op, { where: { companyId: "c1" } })).toBeNull();
+  });
 
   // ── D-3-bis: aquí vivía la exención en bloque, y se ha revertido ────────────
   //
@@ -1034,7 +1033,7 @@ describe("assertViolation", () => {
     "D-3-bis: %s con where { id } a secas SIGUE exenta — la PK la genera el servidor",
     (op) => {
       expect(assertViolation("Invoice", op, { where: { id: "inv-1" } })).toBeNull();
-    },
+    }
   );
 
   it.each(UNIQUE_OPS)(
@@ -1047,7 +1046,7 @@ describe("assertViolation", () => {
       expect(violation).toContain("Expense");
       expect(violation).toContain(op);
       expect(violation).toContain("companyId");
-    },
+    }
   );
 
   it.each(UNIQUE_OPS)(
@@ -1056,9 +1055,9 @@ describe("assertViolation", () => {
       expect(
         assertViolation("Expense", op, {
           where: { companyId_idempotencyKey: { companyId: "c1", idempotencyKey: "k" } },
-        }),
+        })
       ).toBeNull();
-    },
+    }
   );
 
   it.each(UNIQUE_OPS)("D-3-bis: %s sin where en absoluto → VIOLACIÓN", (op) => {
@@ -1069,11 +1068,11 @@ describe("assertViolation", () => {
 
   it("D-3-bis: el mensaje distingue la vía de fila única y nombra modelo, operación e id", () => {
     expect(assertViolation("Expense", "findUnique", { where: { idempotencyKey: "k" } })).toBe(
-      "Expense.findUnique por clave única sin companyId ni id",
+      "Expense.findUnique por clave única sin companyId ni id"
     );
     // ...y NO se confunde con el mensaje de las multi-fila, que apunta al `where`.
     expect(assertViolation("Expense", "findMany", { where: { idempotencyKey: "k" } })).toBe(
-      "Expense.findMany sin companyId en where",
+      "Expense.findMany sin companyId en where"
     );
   });
 
@@ -1083,13 +1082,13 @@ describe("assertViolation", () => {
     // así que salía "Company.findUnique por clave única sin id ni id": un mensaje que
     // manda a buscar el bug a la extensión en vez de al call-site, que es donde está.
     expect(assertViolation("Company", "findUnique", { where: { rif: "J-12345678-9" } })).toBe(
-      "Company.findUnique por clave única sin id",
+      "Company.findUnique por clave única sin id"
     );
     // El subrayado del defecto: la cadena duplicada NO puede reaparecer. (El literal
     // tiene que ser "id ni id" — con "ni id ni" este expect sería verde también con
     // la verruga puesta, o sea un test incapaz de fallar.)
     expect(assertViolation("Company", "delete", { where: { rif: "J-12345678-9" } })).not.toContain(
-      "id ni id",
+      "id ni id"
     );
     // Con la PK sí presente no hay nada que reportar (vía (1) y vía (2) a la vez).
     expect(assertViolation("Company", "findUnique", { where: { id: "cmp-1" } })).toBeNull();
@@ -1097,16 +1096,16 @@ describe("assertViolation", () => {
     // El resto de modelos conserva las DOS claves en el mensaje, incluido el otro
     // override, cuyo escalar no se llama companyId.
     expect(assertViolation("ManagedClient", "findUnique", { where: { rif: "J-12345678-9" } })).toBe(
-      "ManagedClient.findUnique por clave única sin despachoCompanyId ni id",
+      "ManagedClient.findUnique por clave única sin despachoCompanyId ni id"
     );
     expect(
-      assertViolation("ManagedClient", "findUnique", { where: { despachoCompanyId: "d1" } }),
+      assertViolation("ManagedClient", "findUnique", { where: { despachoCompanyId: "d1" } })
     ).toBeNull();
   });
 
   it("D-3-bis: el modelo hijo también queda cubierto por la vía de fila única", () => {
     expect(
-      assertViolation("InvoiceTaxLine", "update", { where: { invoiceId: "inv-1" } }),
+      assertViolation("InvoiceTaxLine", "update", { where: { invoiceId: "inv-1" } })
     ).toBeNull();
     const violation = assertViolation("InvoiceTaxLine", "update", {
       where: { luxuryGroupId: "g1" },
@@ -1135,17 +1134,19 @@ describe("assertViolation", () => {
 
   it("el mensaje nombra modelo, operación y la clave esperada", () => {
     expect(assertViolation("Invoice", "findMany", {})).toBe(
-      "Invoice.findMany sin companyId en where",
+      "Invoice.findMany sin companyId en where"
     );
     expect(assertViolation("Invoice", "createMany", { data: [{}] })).toBe(
-      "Invoice.createMany sin companyId en data",
+      "Invoice.createMany sin companyId en data"
     );
   });
 
   it("modelo hijo (InvoiceTaxLine): acotar por invoiceId o por la relación basta", () => {
-    expect(assertViolation("InvoiceTaxLine", "findMany", { where: { invoiceId: "i1" } })).toBeNull();
     expect(
-      assertViolation("InvoiceTaxLine", "findMany", { where: { invoice: { companyId: "c1" } } }),
+      assertViolation("InvoiceTaxLine", "findMany", { where: { invoiceId: "i1" } })
+    ).toBeNull();
+    expect(
+      assertViolation("InvoiceTaxLine", "findMany", { where: { invoice: { companyId: "c1" } } })
     ).toBeNull();
     const violation = assertViolation("InvoiceTaxLine", "findMany", { where: { taxType: "IVA" } });
     expect(violation).toContain("InvoiceTaxLine.findMany");
@@ -1159,28 +1160,30 @@ describe("assertViolation", () => {
 
   it("ManagedClient se acota por despachoCompanyId, NO por companyId", () => {
     expect(
-      assertViolation("ManagedClient", "findMany", { where: { despachoCompanyId: "d1" } }),
+      assertViolation("ManagedClient", "findMany", { where: { despachoCompanyId: "d1" } })
     ).toBeNull();
-    expect(assertViolation("ManagedClient", "findMany", { where: { companyId: "c1" } })).toBeTruthy();
+    expect(
+      assertViolation("ManagedClient", "findMany", { where: { companyId: "c1" } })
+    ).toBeTruthy();
   });
 
   it("caso real de fuga: OR entre 'mis facturas' y 'las públicas' → VIOLACIÓN", () => {
     expect(
       assertViolation("Invoice", "findMany", {
         where: { OR: [{ companyId: "c1" }, { isPublic: true }] },
-      }),
+      })
     ).toBeTruthy();
   });
 
   it("HIGH-1 extremo a extremo: findMany con companyId negado → VIOLACIÓN", () => {
     expect(
-      assertViolation("Invoice", "findMany", { where: { companyId: { not: "c1" } } }),
+      assertViolation("Invoice", "findMany", { where: { companyId: { not: "c1" } } })
     ).toBeTruthy();
     expect(
-      assertViolation("Invoice", "findMany", { where: { companyId: { in: undefined } } }),
+      assertViolation("Invoice", "findMany", { where: { companyId: { in: undefined } } })
     ).toBeTruthy();
     expect(
-      assertViolation("Invoice", "findMany", { where: { companyId: { in: ["c1"] } } }),
+      assertViolation("Invoice", "findMany", { where: { companyId: { in: ["c1"] } } })
     ).toBeNull();
   });
 
@@ -1203,7 +1206,7 @@ describe("catálogos de operaciones", () => {
         "groupBy",
         "updateMany",
         "updateManyAndReturn",
-      ].sort(),
+      ].sort()
     );
   });
 
@@ -1330,7 +1333,7 @@ describe("SCOPE_MAP (DMMF real)", () => {
       `Modelos sin ámbito derivable: ${fuera.join(", ")}. ` +
         "Si acabas de añadir un modelo, o le falta companyId, o su FK no sigue la " +
         "convención <relación>Id. Mientras esté fuera del mapa, la aserción de " +
-        "ADR-044 D-3 NO lo protege: sus findMany sin companyId pasan en silencio.",
+        "ADR-044 D-3 NO lo protege: sus findMany sin companyId pasan en silencio."
     ).toEqual(["User"]);
   });
 
@@ -1348,7 +1351,7 @@ describe("SCOPE_MAP (DMMF real)", () => {
     for (const [name, scopeSpec] of SCOPE_MAP) {
       const model = Prisma.dmmf.datamodel.models.find((mm) => mm.name === name);
       const scalarNames = new Set(
-        (model?.fields ?? []).filter((f) => f.kind === "scalar").map((f) => f.name),
+        (model?.fields ?? []).filter((f) => f.kind === "scalar").map((f) => f.name)
       );
       for (const key of scopeSpec.scalars) {
         if (!scalarNames.has(key)) inexistentes.push(`${name}.${key}`);
@@ -1356,7 +1359,7 @@ describe("SCOPE_MAP (DMMF real)", () => {
     }
     expect(
       inexistentes,
-      `Claves de ámbito que no son columnas reales: ${inexistentes.join(", ")}`,
+      `Claves de ámbito que no son columnas reales: ${inexistentes.join(", ")}`
     ).toEqual([]);
   });
 
@@ -1367,10 +1370,7 @@ describe("SCOPE_MAP (DMMF real)", () => {
         if (!SCOPE_MAP.has(parent)) huérfanas.push(`${name}.${relName}→${parent}`);
       }
     }
-    expect(
-      huérfanas,
-      `Relaciones a modelos sin ámbito: ${huérfanas.join(", ")}`,
-    ).toEqual([]);
+    expect(huérfanas, `Relaciones a modelos sin ámbito: ${huérfanas.join(", ")}`).toEqual([]);
   });
 
   it("GUARD: todo modelo del mapa acepta un where acotado por alguna de sus claves", () => {
@@ -1452,7 +1452,7 @@ describe("unscoped / currentUnscopedReason", () => {
       unscoped("webhook:qstash", async () => {
         expect(currentUnscopedReason()).toBe("webhook:qstash");
         throw new Error("boom");
-      }),
+      })
     ).rejects.toThrow("boom");
 
     expect(currentUnscopedReason()).toBeUndefined();
@@ -1526,7 +1526,7 @@ function handlerFor(mode: TenantAssertMode): AllOperationsHandler {
   if (typeof handler !== "function") {
     throw new Error(
       "No se pudo extraer $allOperations: cambió la forma de Prisma.defineExtension. " +
-        "Arreglar este helper ANTES de dar por buena la extensión.",
+        "Arreglar este helper ANTES de dar por buena la extensión."
     );
   }
   return handler;
@@ -1626,7 +1626,7 @@ describe("createTenantAssertExtension", () => {
         level: "info",
         message: "unscoped: Invoice.findMany",
         data: { unscoped_reason: "cron:billing-lifecycle" },
-      }),
+      })
     );
   });
 
@@ -1646,7 +1646,7 @@ describe("createTenantAssertExtension", () => {
     const handler = handlerFor("enforce");
 
     await expect(
-      handler({ model: undefined, operation: "$queryRaw", args: {}, query }),
+      handler({ model: undefined, operation: "$queryRaw", args: {}, query })
     ).resolves.toBe(1);
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });
@@ -1661,7 +1661,7 @@ describe("createTenantAssertExtension", () => {
         operation: "findUnique",
         args: { where: { id: "inv-1" } },
         query,
-      }),
+      })
     ).resolves.toEqual({ id: "inv-1" });
     expect(query).toHaveBeenCalledTimes(1);
   });
@@ -1678,7 +1678,7 @@ describe("createTenantAssertExtension", () => {
         operation: "findUnique",
         args: { where: { idempotencyKey: "8f14e45f-ceea-467a-9c0e-1f8b0b0f0a11" } },
         query,
-      }),
+      })
     ).rejects.toThrow(TENANT_ASSERT_MESSAGE);
     expect(query).not.toHaveBeenCalled();
   });
@@ -1693,7 +1693,7 @@ describe("createTenantAssertExtension", () => {
         operation: "delete",
         args: { where: { idempotencyKey: "k" } },
         query,
-      }),
+      })
     ).rejects.toThrow(TENANT_ASSERT_MESSAGE);
     expect(query).not.toHaveBeenCalled();
   });
@@ -1712,7 +1712,7 @@ describe("createTenantAssertExtension", () => {
           update: {},
         },
         query,
-      }),
+      })
     ).resolves.toBeNull();
     expect(query).toHaveBeenCalledTimes(1);
   });
@@ -1747,7 +1747,7 @@ describe("createTenantAssertExtension", () => {
         operation: "findMany",
         args: { where: { companyId: "c1" } },
         query,
-      }),
+      })
     ).rejects.toThrow("P2002");
   });
 
@@ -1783,7 +1783,7 @@ describe("createTenantAssertExtension", () => {
         operation: "findMany",
         args: { where: { cedula: "V-12345678" } },
         query: vi.fn(),
-      }),
+      })
     ).rejects.toThrow(TENANT_ASSERT_MESSAGE);
     expect(TENANT_ASSERT_MESSAGE).not.toContain("cedula");
   });
@@ -1820,8 +1820,9 @@ describe("createTenantAssertExtension — robustez de la instrumentación", () =
 
     const tags = vi
       .mocked(Sentry.captureMessage)
-      .mock.calls.map((call) => (call[1] as { tags: Record<string, string> }).tags
-        .tenant_assert_violation);
+      .mock.calls.map(
+        (call) => (call[1] as { tags: Record<string, string> }).tags.tenant_assert_violation
+      );
     expect(tags).toEqual(["Invoice.findMany", "Invoice.count", "Employee.findMany"]);
   });
 
@@ -1859,7 +1860,7 @@ describe("createTenantAssertExtension — robustez de la instrumentación", () =
     const handler = handlerFor("report");
 
     await expect(
-      handler({ model: "Invoice", operation: "findMany", args: violatingArgs, query }),
+      handler({ model: "Invoice", operation: "findMany", args: violatingArgs, query })
     ).resolves.toEqual([{ id: "inv-1" }]);
     expect(query).toHaveBeenCalledTimes(1);
   });
@@ -1873,7 +1874,7 @@ describe("createTenantAssertExtension — robustez de la instrumentación", () =
 
     await unscoped("health", async () => {
       await expect(
-        handler({ model: "Invoice", operation: "findMany", args: violatingArgs, query }),
+        handler({ model: "Invoice", operation: "findMany", args: violatingArgs, query })
       ).resolves.toEqual([]);
     });
 
@@ -1891,7 +1892,7 @@ describe("createTenantAssertExtension — robustez de la instrumentación", () =
       const handler = handlerFor("enforce");
 
       await expect(
-        handler({ model: "Invoice", operation: "findMany", args: violatingArgs, query }),
+        handler({ model: "Invoice", operation: "findMany", args: violatingArgs, query })
       ).rejects.toThrow(TENANT_ASSERT_MESSAGE);
       expect(query).not.toHaveBeenCalled();
     } finally {
@@ -1914,27 +1915,27 @@ describe("SCOPE_MAP cuando el DMMF no está disponible", () => {
     ["Prisma sin dmmf", {}],
     ["dmmf sin datamodel", { dmmf: {} }],
     ["datamodel sin models", { dmmf: { datamodel: {} } }],
-  ])("%s → mapa vacío y aviso a Sentry (level error), nunca un crash de arranque", async (
-    _caso: string,
-    prismaShape: object,
-  ) => {
-    vi.resetModules();
-    vi.doMock("@prisma/client", () => ({
-      Prisma: { ...prismaShape, defineExtension: (e: unknown) => e },
-    }));
+  ])(
+    "%s → mapa vacío y aviso a Sentry (level error), nunca un crash de arranque",
+    async (_caso: string, prismaShape: object) => {
+      vi.resetModules();
+      vi.doMock("@prisma/client", () => ({
+        Prisma: { ...prismaShape, defineExtension: (e: unknown) => e },
+      }));
 
-    const sentry = await import("@sentry/nextjs");
-    vi.mocked(sentry.captureMessage).mockClear();
+      const sentry = await import("@sentry/nextjs");
+      vi.mocked(sentry.captureMessage).mockClear();
 
-    const mod = await import("../prisma-tenant-assert");
+      const mod = await import("../prisma-tenant-assert");
 
-    // Fail-open a nivel de aserción (no rompe la app) pero RUIDOSO en Sentry: sin
-    // DMMF la extensión no puede afirmar nada, y eso tiene que verse.
-    expect(mod.SCOPE_MAP.size).toBe(0);
-    expect(mod.assertViolation("Invoice", "findMany", {})).toBeNull();
-    expect(sentry.captureMessage).toHaveBeenCalledWith(
-      expect.stringContaining("SCOPE_MAP vacío"),
-      { level: "error" },
-    );
-  });
+      // Fail-open a nivel de aserción (no rompe la app) pero RUIDOSO en Sentry: sin
+      // DMMF la extensión no puede afirmar nada, y eso tiene que verse.
+      expect(mod.SCOPE_MAP.size).toBe(0);
+      expect(mod.assertViolation("Invoice", "findMany", {})).toBeNull();
+      expect(sentry.captureMessage).toHaveBeenCalledWith(
+        expect.stringContaining("SCOPE_MAP vacío"),
+        { level: "error" }
+      );
+    }
+  );
 });

@@ -97,18 +97,34 @@ export const CreatePaymentSchema = z
   .superRefine((data, ctx) => {
     if (data.method === "PAGOMOVIL") {
       if (!data.referenceNumber?.trim()) {
-        ctx.addIssue({ code: "custom", path: ["referenceNumber"], message: "Número de referencia requerido para PagoMóvil" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["referenceNumber"],
+          message: "Número de referencia requerido para PagoMóvil",
+        });
       }
       if (!data.senderPhone?.trim()) {
-        ctx.addIssue({ code: "custom", path: ["senderPhone"], message: "Teléfono del emisor requerido para PagoMóvil" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["senderPhone"],
+          message: "Teléfono del emisor requerido para PagoMóvil",
+        });
       }
       if (!data.destBank?.trim()) {
-        ctx.addIssue({ code: "custom", path: ["destBank"], message: "Banco destino requerido para PagoMóvil" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["destBank"],
+          message: "Banco destino requerido para PagoMóvil",
+        });
       }
     }
     if (data.method === "TRANSFERENCIA") {
       if (!data.referenceNumber?.trim()) {
-        ctx.addIssue({ code: "custom", path: ["referenceNumber"], message: "Número de referencia requerido para Transferencia" });
+        ctx.addIssue({
+          code: "custom",
+          path: ["referenceNumber"],
+          message: "Número de referencia requerido para Transferencia",
+        });
       }
     }
     if (data.method === "ZELLE") {

@@ -67,7 +67,8 @@ vi.mock("../services/TransactionService", async (importOriginal) => {
 
 vi.mock("@/modules/billing/services/SubscriptionService", () => ({
   assertWriteAllowed: vi.fn().mockResolvedValue(undefined),
-  READ_ONLY_MESSAGE: "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.",
+  READ_ONLY_MESSAGE:
+    "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.",
 }));
 
 import { auth } from "@clerk/nextjs/server";
@@ -227,7 +228,7 @@ describe("createTransactionAction — ADR-025 grant vs canAccess (VIEWER bypass 
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toBe(
-        "Crear asientos contables requiere rol Contador, Administrador o Propietario",
+        "Crear asientos contables requiere rol Contador, Administrador o Propietario"
       );
     }
     expect(TransactionService.createBalancedTransaction).not.toHaveBeenCalled();

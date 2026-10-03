@@ -20,8 +20,14 @@ import { useRouter } from "next/navigation";
 import { setAutoDraftAction } from "../actions/payroll-config.actions";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
 type Props = {
@@ -61,7 +67,11 @@ export function AutoDraftToggle({ companyId, enabled, frequency }: Props) {
       <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-medium">
-            {enabled ? <BotIcon className="h-4 w-4 text-emerald-600" /> : <BotOffIcon className="h-4 w-4 text-gray-400" />}
+            {enabled ? (
+              <BotIcon className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <BotOffIcon className="h-4 w-4 text-gray-400" />
+            )}
             Borrador automático
             <span
               className={
@@ -115,16 +125,16 @@ export function AutoDraftToggle({ companyId, enabled, frequency }: Props) {
                     </p>
                     <p>
                       Mientras esté activo, el aviso del panel deja de ser &laquo;falta la
-                      nómina&raquo; y pasa a ser <strong>&laquo;hay trabajadores sin
-                      cobrar&raquo;</strong>, que también avisa si el proceso automático no
-                      llegó a crearse.
+                      nómina&raquo; y pasa a ser{" "}
+                      <strong>&laquo;hay trabajadores sin cobrar&raquo;</strong>, que también avisa
+                      si el proceso automático no llegó a crearse.
                     </p>
                   </>
                 ) : (
                   <p>
-                    Dejarán de crearse borradores solos. Los procesos vuelven a crearse a mano
-                    desde &laquo;Nuevo Proceso&raquo;, y el panel te seguirá avisando de los
-                    trabajadores que no hayan cobrado un período cerrado.
+                    Dejarán de crearse borradores solos. Los procesos vuelven a crearse a mano desde
+                    &laquo;Nuevo Proceso&raquo;, y el panel te seguirá avisando de los trabajadores
+                    que no hayan cobrado un período cerrado.
                   </p>
                 )}
               </div>
@@ -133,7 +143,10 @@ export function AutoDraftToggle({ companyId, enabled, frequency }: Props) {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Volver</AlertDialogCancel>
             <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); handleConfirm(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirm();
+              }}
               disabled={isPending}
               aria-busy={isPending}
             >

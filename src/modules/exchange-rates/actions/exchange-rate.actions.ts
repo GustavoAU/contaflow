@@ -16,7 +16,7 @@ import { toActionError } from "../utils/action-errors";
 
 // ─── Upsert tasa BCV ──────────────────────────────────────────────────────────
 export async function upsertExchangeRateAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<ExchangeRateSummary>> {
   try {
     const parsed = UpsertExchangeRateSchema.safeParse(input);
@@ -45,7 +45,7 @@ export async function upsertExchangeRateAction(
         dateObj,
         rateDecimal,
         source ?? "BCV",
-        userId,
+        userId
       );
       await tx.auditLog.create({
         data: {
@@ -73,7 +73,7 @@ export async function upsertExchangeRateAction(
 export async function listExchangeRatesAction(
   companyId: string,
   currency?: Currency,
-  limit?: number,
+  limit?: number
 ): Promise<ActionResult<ExchangeRateSummary[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
@@ -92,7 +92,7 @@ type BcvFetcher = () => Promise<{ rate: Decimal; date: Date }>;
 async function fetchBcvCurrencyRateInternal(
   companyId: string,
   currency: Currency,
-  fetchBcv: BcvFetcher,
+  fetchBcv: BcvFetcher
 ): Promise<ActionResult<ExchangeRateSummary>> {
   try {
     if (!companyId) return { success: false, error: "companyId requerido" };
@@ -115,7 +115,7 @@ async function fetchBcvCurrencyRateInternal(
         date,
         rate,
         "BCV-AUTO",
-        userId,
+        userId
       );
       await tx.auditLog.create({
         data: {
@@ -147,14 +147,14 @@ async function fetchBcvCurrencyRateInternal(
 
 // ─── Auto-fetch tasa BCV (USD) ────────────────────────────────────────────────
 export async function fetchBcvRateAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<ExchangeRateSummary>> {
   return fetchBcvCurrencyRateInternal(companyId, Currency.USD, () => BcvFetchService.fetchUsdVes());
 }
 
 // ─── Auto-fetch tasa EUR (BCV) ────────────────────────────────────────────────
 export async function fetchBcvEurRateAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<ExchangeRateSummary>> {
   return fetchBcvCurrencyRateInternal(companyId, Currency.EUR, () => BcvFetchService.fetchEurVes());
 }
@@ -163,7 +163,7 @@ export async function fetchBcvEurRateAction(
 export type RateWithDelta = ExchangeRateSummary & { delta: string | null };
 
 export async function getLatestRatesWithDeltaAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<{ usd: RateWithDelta | null; eur: RateWithDelta | null }>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
@@ -198,7 +198,7 @@ export async function getLatestRatesWithDeltaAction(
 // ─── Obtener tasa más reciente (para precompletar form) ───────────────────────
 export async function getLatestRateAction(
   companyId: string,
-  currency: Currency,
+  currency: Currency
 ): Promise<ActionResult<ExchangeRateSummary | null>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });

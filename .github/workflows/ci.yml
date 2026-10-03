@@ -49,10 +49,10 @@ jobs:
       - name: Lint (ESLint)
         run: pnpm lint
 
-      # Format check (Prettier) — pendiente: ejecutar npx prettier --write en toda la base
-      # y habilitar este check. Por ahora se omite para no romper CI con 237 archivos existentes.
-      # - name: Format check (Prettier)
-      #   run: npx prettier --check "src/**/*.{ts,tsx,json}"
+      # Format check (Prettier). Activado el 2026-10-03 tras formatear src/ (SPEC-002 A).
+      # Para corregir en local: pnpm format
+      - name: Format check (Prettier)
+        run: pnpm format:check
 
       - name: TypeScript type check
         run: pnpm tsc --noEmit

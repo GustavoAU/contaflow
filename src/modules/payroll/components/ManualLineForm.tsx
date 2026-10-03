@@ -62,7 +62,10 @@ export function ManualLineForm({ companyId, runId, currency, employees, concepts
     e.preventDefault();
     startTransition(async () => {
       const result = await addManualPayrollLineAction(companyId, {
-        runId, employeeId, conceptId, amount,
+        runId,
+        employeeId,
+        conceptId,
+        amount,
       });
       if (result.success) {
         toast.success("Concepto agregado al proceso");
@@ -91,9 +94,8 @@ export function ManualLineForm({ companyId, runId, currency, employees, concepts
       <div>
         <h3 className="text-sm font-semibold text-zinc-700">Agregar concepto al proceso</h3>
         <p className="mt-0.5 text-xs text-zinc-500">
-          Para lo puntual de esta nómina: retención de ISLR, un bono de una vez, un
-          descuento acordado. Lo que se repite cada mes va en las asignaciones
-          fijas del trabajador.
+          Para lo puntual de esta nómina: retención de ISLR, un bono de una vez, un descuento
+          acordado. Lo que se repite cada mes va en las asignaciones fijas del trabajador.
         </p>
       </div>
 
@@ -106,7 +108,9 @@ export function ManualLineForm({ companyId, runId, currency, employees, concepts
             className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
           >
             {employees.map((e) => (
-              <option key={e.id} value={e.id}>{e.name}</option>
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
             ))}
           </select>
         </label>
@@ -137,7 +141,7 @@ export function ManualLineForm({ companyId, runId, currency, employees, concepts
             onChange={(e) => setAmount(e.target.value)}
             required
             placeholder="0,00"
-            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500"
           />
         </label>
       </div>
@@ -148,10 +152,9 @@ export function ManualLineForm({ companyId, runId, currency, employees, concepts
         // añadir una línea salarial ahora no las mueve: contará para el mes
         // siguiente. Si el contador quiere verlo reflejado ya, Recalcular.
         <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Este concepto tiene incidencia salarial. Las bases de cotización de esta
-          nómina ya están calculadas sobre el mes anterior (LOTTT Art. 107), así
-          que esta línea contará para el mes siguiente, no para éste. Si necesitas
-          que entre ya, usa <strong>Recalcular</strong>.
+          Este concepto tiene incidencia salarial. Las bases de cotización de esta nómina ya están
+          calculadas sobre el mes anterior (LOTTT Art. 107), así que esta línea contará para el mes
+          siguiente, no para éste. Si necesitas que entre ya, usa <strong>Recalcular</strong>.
         </p>
       )}
 

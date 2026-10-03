@@ -66,13 +66,11 @@ describe("fetchBcvRateAction", () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
     mockFetchUsdVes.mockResolvedValue({ rate: RATE, date: TODAY, rawRate: 46.5 });
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          exchangeRate: prisma.exchangeRate,
-          auditLog: prisma.auditLog,
-        })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        exchangeRate: prisma.exchangeRate,
+        auditLog: prisma.auditLog,
+      })) as never);
     vi.mocked(prisma.exchangeRate.upsert).mockResolvedValue(RATE_RECORD as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
@@ -97,7 +95,7 @@ describe("fetchBcvRateAction", () => {
     expect(prisma.exchangeRate.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ source: "BCV-AUTO" }),
-      }),
+      })
     );
   });
 
@@ -110,7 +108,7 @@ describe("fetchBcvRateAction", () => {
           action: "UPSERT",
           userId: USER_ID,
         }),
-      }),
+      })
     );
   });
 
@@ -139,7 +137,7 @@ describe("fetchBcvRateAction", () => {
 
   it("retorna { success: false } si BcvFetchService lanza error (API no disponible)", async () => {
     mockFetchUsdVes.mockRejectedValue(
-      new Error("BcvFetchService: no se pudo contactar el endpoint BCV"),
+      new Error("BcvFetchService: no se pudo contactar el endpoint BCV")
     );
     const result = await fetchBcvRateAction(COMPANY_ID);
     expect(result.success).toBe(false);
@@ -165,13 +163,11 @@ describe("upsertExchangeRateAction", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue({ userId: USER_ID });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          exchangeRate: prisma.exchangeRate,
-          auditLog: prisma.auditLog,
-        })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        exchangeRate: prisma.exchangeRate,
+        auditLog: prisma.auditLog,
+      })) as never);
     vi.mocked(prisma.exchangeRate.upsert).mockResolvedValue(RATE_RECORD as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
@@ -221,7 +217,10 @@ describe("upsertExchangeRateAction", () => {
   });
 
   it("retorna { success: false } si el rol es VIEWER", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ ...MEMBER, role: "VIEWER" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      ...MEMBER,
+      role: "VIEWER",
+    } as never);
     const result = await upsertExchangeRateAction({
       companyId: COMPANY_ID,
       currency: "USD",
@@ -242,7 +241,7 @@ describe("upsertExchangeRateAction", () => {
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ userId: USER_ID }),
-      }),
+      })
     );
   });
 });
@@ -257,10 +256,8 @@ describe("fetchBcvEurRateAction", () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER as never);
     mockFetchEurVes.mockResolvedValue({ rate: new Decimal("1.08"), date: TODAY });
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ exchangeRate: prisma.exchangeRate, auditLog: prisma.auditLog })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ exchangeRate: prisma.exchangeRate, auditLog: prisma.auditLog })) as never);
     vi.mocked(prisma.exchangeRate.upsert).mockResolvedValue(EUR_RATE_RECORD as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });

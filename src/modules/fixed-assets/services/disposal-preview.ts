@@ -47,7 +47,7 @@ export function monthsBetween(acquisitionDate: Date, disposalDate: Date): number
   return Math.max(
     0,
     (disposalDate.getUTCFullYear() - acquisitionDate.getUTCFullYear()) * 12 +
-      (disposalDate.getUTCMonth() - acquisitionDate.getUTCMonth()),
+      (disposalDate.getUTCMonth() - acquisitionDate.getUTCMonth())
   );
 }
 

@@ -38,13 +38,14 @@ export interface SalMinAlert {
 export function computeSalMinAlert(
   value: string | null | undefined,
   lastUpdate: string | null | undefined,
-  now: number = Date.now(),
+  now: number = Date.now()
 ): SalMinAlert {
   const sinRegistro = value == null;
   const noCoincide = value != null && !new Decimal(value).eq(SALARY_MIN_VES_REFERENCE);
-  const necesitaConfirmar = !sinRegistro && !noCoincide && (
-    !lastUpdate || (now - new Date(lastUpdate).getTime()) > THIRTY_DAYS_MS
-  );
+  const necesitaConfirmar =
+    !sinRegistro &&
+    !noCoincide &&
+    (!lastUpdate || now - new Date(lastUpdate).getTime() > THIRTY_DAYS_MS);
 
   const tieneAviso = sinRegistro || noCoincide || necesitaConfirmar;
 
@@ -54,11 +55,17 @@ export function computeSalMinAlert(
       ? "El salario mínimo registrado no coincide con el vigente"
       : "Confirma que el salario mínimo sigue vigente";
 
-  const salMinFormatted = value != null
-    ? `Bs. ${parseFloat(value).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : null;
+  const salMinFormatted =
+    value != null
+      ? `Bs. ${parseFloat(value).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : null;
   const lastUpdateFormatted = lastUpdate
-    ? new Date(lastUpdate).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" })
+    ? new Date(lastUpdate).toLocaleDateString("es-VE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "UTC",
+      })
     : null;
 
   const mensaje = sinRegistro

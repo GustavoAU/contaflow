@@ -59,7 +59,14 @@ export const PayrollBankTxtService = {
 
     // Acumular neto por empleado
     type EmployeeAccum = {
-      emp: { firstName: string; lastName: string; cedulaType: string; cedulaNumber: string; bankName: string | null; bankAccount: string | null };
+      emp: {
+        firstName: string;
+        lastName: string;
+        cedulaType: string;
+        cedulaNumber: string;
+        bankName: string | null;
+        bankAccount: string | null;
+      };
       earnings: Decimal;
       deductions: Decimal;
     };
@@ -101,7 +108,7 @@ export const PayrollBankTxtService = {
     rows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
     const periodStart = run.periodStart.toISOString().slice(0, 10);
-    const periodEnd   = run.periodEnd.toISOString().slice(0, 10);
+    const periodEnd = run.periodEnd.toISOString().slice(0, 10);
     const generatedAt = new Date().toISOString().slice(0, 10);
     const warningCount = rows.filter((r) => r.missingBankInfo).length;
 
@@ -110,14 +117,14 @@ export const PayrollBankTxtService = {
       `# Generado: ${generatedAt}`,
       `# Total empleados: ${rows.length} | Neto total: ${totalAmount.toFixed(2)}`,
       ...(warningCount > 0
-        ? [`# AVISO: ${warningCount} empleado(s) sin datos bancarios — completar en Empleados antes de enviar al banco`]
+        ? [
+            `# AVISO: ${warningCount} empleado(s) sin datos bancarios — completar en Empleados antes de enviar al banco`,
+          ]
         : []),
       "CEDULA|NOMBRE|BANCO|CUENTA|MONTO",
     ];
 
-    const dataLines = rows.map(
-      (r) => `${r.cedula}|${r.nombre}|${r.banco}|${r.cuenta}|${r.monto}`,
-    );
+    const dataLines = rows.map((r) => `${r.cedula}|${r.nombre}|${r.banco}|${r.cuenta}|${r.monto}`);
 
     return {
       rows,
@@ -138,42 +145,58 @@ export const PayrollBankTxtService = {
     const periodStart = new Date(Date.UTC(year, month - 1, 1));
     const periodEnd = new Date(Date.UTC(year, month, 0));
 
-    const runIds = (await prisma.payrollRun.findMany({
-      where: { companyId, status: "APPROVED", periodStart: { gte: periodStart }, periodEnd: { lte: periodEnd } },
-      select: { id: true },
-    })).map((r) => r.id);
+    const runIds = (
+      await prisma.payrollRun.findMany({
+        where: {
+          companyId,
+          status: "APPROVED",
+          periodStart: { gte: periodStart },
+          periodEnd: { lte: periodEnd },
+        },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
 
     const employees = await prisma.employee.findMany({
       where: { companyId, status: "ACTIVE" },
       select: {
-        id: true, firstName: true, lastName: true,
-        cedulaType: true, cedulaNumber: true,
-        bankName: true, bankAccount: true,
+        id: true,
+        firstName: true,
+        lastName: true,
+        cedulaType: true,
+        cedulaNumber: true,
+        bankName: true,
+        bankAccount: true,
         banavihNumber: true,
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
 
     // Salario base y aportes FAOV del período
-    const lines = runIds.length > 0
-      ? await prisma.payrollRunLine.findMany({
-          // companyId explicito: PayrollRunLine tiene columna propia, asi que
-          // acotar solo por payrollRunId no satisface la asercion de tenant
-          // (ADR-044 D-3) y ademas pierde el indice compuesto.
-          where: {
-            companyId,
-            payrollRunId: { in: runIds },
-            conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] },
-          },
-          select: { employeeId: true, conceptCode: true, amount: true },
-        })
-      : [];
+    const lines =
+      runIds.length > 0
+        ? await prisma.payrollRunLine.findMany({
+            // companyId explicito: PayrollRunLine tiene columna propia, asi que
+            // acotar solo por payrollRunId no satisface la asercion de tenant
+            // (ADR-044 D-3) y ademas pierde el indice compuesto.
+            where: {
+              companyId,
+              payrollRunId: { in: runIds },
+              conceptCode: { in: ["FAOV_OBR", "FAOV_PAT", "SAL_BASE"] },
+            },
+            select: { employeeId: true, conceptCode: true, amount: true },
+          })
+        : [];
 
     type Agg = { faovOBR: Decimal; faovPAT: Decimal; salBase: Decimal };
     const agg = new Map<string, Agg>();
     for (const l of lines) {
       if (!agg.has(l.employeeId)) {
-        agg.set(l.employeeId, { faovOBR: new Decimal(0), faovPAT: new Decimal(0), salBase: new Decimal(0) });
+        agg.set(l.employeeId, {
+          faovOBR: new Decimal(0),
+          faovPAT: new Decimal(0),
+          salBase: new Decimal(0),
+        });
       }
       const e = agg.get(l.employeeId)!;
       // Cada codigo se asigna explicitamente: el `else` que habia aqui mandaba a
@@ -211,8 +234,21 @@ export const PayrollBankTxtService = {
       ].join("|");
     });
 
-    const MONTHS = ["", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
-      "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
+    const MONTHS = [
+      "",
+      "ENERO",
+      "FEBRERO",
+      "MARZO",
+      "ABRIL",
+      "MAYO",
+      "JUNIO",
+      "JULIO",
+      "AGOSTO",
+      "SEPTIEMBRE",
+      "OCTUBRE",
+      "NOVIEMBRE",
+      "DICIEMBRE",
+    ];
 
     const header = [
       `# BANAVIH FAOV-WEB — ContaFlow`,

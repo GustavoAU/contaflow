@@ -61,10 +61,10 @@ export async function listManagedClientsAction(companyId: string) {
 export async function addManagedClientAction(formData: FormData) {
   const raw = {
     companyId: formData.get("companyId") as string,
-    rif: (formData.get("rif") as string ?? "").toUpperCase().trim(),
-    clientName: (formData.get("clientName") as string ?? "").trim(),
-    ciiu: (formData.get("ciiu") as string ?? "").trim() || undefined,
-    notes: (formData.get("notes") as string ?? "").trim() || undefined,
+    rif: ((formData.get("rif") as string) ?? "").toUpperCase().trim(),
+    clientName: ((formData.get("clientName") as string) ?? "").trim(),
+    ciiu: ((formData.get("ciiu") as string) ?? "").trim() || undefined,
+    notes: ((formData.get("notes") as string) ?? "").trim() || undefined,
   };
 
   const parsed = AddManagedClientSchema.safeParse(raw);
@@ -82,10 +82,15 @@ export async function addManagedClientAction(formData: FormData) {
 
   const result = await addManagedClient(
     parsed.data.companyId,
-    { rif: parsed.data.rif, clientName: parsed.data.clientName, ciiu: parsed.data.ciiu, notes: parsed.data.notes },
+    {
+      rif: parsed.data.rif,
+      clientName: parsed.data.clientName,
+      ciiu: parsed.data.ciiu,
+      notes: parsed.data.notes,
+    },
     ctx.userId,
     ctx.ipAddress,
-    ctx.userAgent,
+    ctx.userAgent
   );
 
   if (result.success) {
@@ -120,7 +125,7 @@ export async function upgradeDespachoTierAction(input: {
     parsed.data.tier,
     ctx.userId,
     ctx.ipAddress,
-    ctx.userAgent,
+    ctx.userAgent
   );
 }
 
@@ -144,7 +149,7 @@ export async function archiveManagedClientAction(formData: FormData) {
     parsed.data.managedClientId,
     ctx.userId,
     ctx.ipAddress,
-    ctx.userAgent,
+    ctx.userAgent
   );
 
   if (result.success) {

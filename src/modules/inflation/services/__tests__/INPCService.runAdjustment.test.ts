@@ -21,8 +21,8 @@ describe("INPCService.runAdjustment — guard de cuenta ajena", () => {
           adjustmentAccountId: "acc-ajena",
         } as never,
         "user-1",
-        tx as never,
-      ),
+        tx as never
+      )
     ).rejects.toThrow(/no pertenece/);
   });
 });

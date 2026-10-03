@@ -154,13 +154,15 @@ describe("validateStockForLines", () => {
   const makeTxMock = (stockQuantity: string) =>
     ({
       inventoryItem: {
-        findMany: vi.fn().mockResolvedValue([{
-          id: "item-1",
-          stockQuantity: new Decimal(stockQuantity),
-          name: "Producto A",
-          baseUnitId: "unit-1",
-          sku: "SKU-001",
-        }]),
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "item-1",
+            stockQuantity: new Decimal(stockQuantity),
+            name: "Producto A",
+            baseUnitId: "unit-1",
+            sku: "SKU-001",
+          },
+        ]),
       },
     }) as unknown as Parameters<typeof validateStockForLines>[4];
 
@@ -220,9 +222,9 @@ describe("validateStockForLines", () => {
       inventoryItem: { findMany: vi.fn().mockResolvedValue([]) },
     } as unknown as Parameters<typeof validateStockForLines>[4];
 
-    await expect(
-      validateStockForLines([line], "company-1", "WARN", false, txMock)
-    ).rejects.toThrow("no pertenece a esta empresa");
+    await expect(validateStockForLines([line], "company-1", "WARN", false, txMock)).rejects.toThrow(
+      "no pertenece a esta empresa"
+    );
   });
 
   it("retorna ok si no hay líneas con inventoryItemId (servicios puros)", async () => {
@@ -405,7 +407,7 @@ describe("createInvoiceLinesInTx", () => {
       "user-1",
       "WARN",
       txMock,
-      "PURCHASE"  // OM-01
+      "PURCHASE" // OM-01
     );
 
     // Movimiento debe ser ENTRADA
@@ -444,8 +446,14 @@ describe("createInvoiceLinesInTx", () => {
     } as never;
 
     await createInvoiceLinesInTx(
-      "invoice-1", "company-1", computed, new Date("2026-05-06"), "user-1",
-      "WARN", txMock, "PURCHASE"
+      "invoice-1",
+      "company-1",
+      computed,
+      new Date("2026-05-06"),
+      "user-1",
+      "WARN",
+      txMock,
+      "PURCHASE"
     );
 
     // No debe llamar SELECT FOR UPDATE para ENTRADA

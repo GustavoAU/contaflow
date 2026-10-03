@@ -80,9 +80,7 @@ const validNoteData = {
   date: new Date("2026-04-10"),
   counterpartName: "Cliente ABC",
   counterpartRif: "J-12345678-9",
-  taxLines: [
-    { taxType: "IVA_GENERAL" as const, base: "862.07", rate: "16", amount: "137.93" },
-  ],
+  taxLines: [{ taxType: "IVA_GENERAL" as const, base: "862.07", rate: "16", amount: "137.93" }],
   ivaRetentionAmount: "0",
   islrRetentionAmount: "0",
   igtfBase: "0",
@@ -117,24 +115,22 @@ const mockNcInvoice = {
 const mockSeniatSubmissionCreate = vi.fn();
 
 function setupTransactionMock() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({
-        invoice: prisma.invoice,
-        auditLog: prisma.auditLog,
-        transaction: { create: vi.fn() },
-        journalEntry: { create: vi.fn() },
-        transactionLine: { createMany: vi.fn() },
-        // H-002: controlNumberSequence para auto-generación de Nº Control en NC/ND SALE
-        controlNumberSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
-        // ADR-019 D-1/D-1.1d: outbox PA-121 para NC/ND de venta
-        seniatSubmission: { create: mockSeniatSubmissionCreate },
-        company: { findUnique: vi.fn().mockResolvedValue({ rif: "J-99999999-9" }) },
-        // Fix A2: período CLOSED guard + companySettings para GL posting
-        accountingPeriod: { findFirst: mockAccountingPeriodFindFirst },
-        companySettings: { findUnique: mockCompanySettingsFindUnique },
-      })) as never,
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({
+      invoice: prisma.invoice,
+      auditLog: prisma.auditLog,
+      transaction: { create: vi.fn() },
+      journalEntry: { create: vi.fn() },
+      transactionLine: { createMany: vi.fn() },
+      // H-002: controlNumberSequence para auto-generación de Nº Control en NC/ND SALE
+      controlNumberSequence: { upsert: vi.fn().mockResolvedValue({ lastNumber: 1 }) },
+      // ADR-019 D-1/D-1.1d: outbox PA-121 para NC/ND de venta
+      seniatSubmission: { create: mockSeniatSubmissionCreate },
+      company: { findUnique: vi.fn().mockResolvedValue({ rif: "J-99999999-9" }) },
+      // Fix A2: período CLOSED guard + companySettings para GL posting
+      accountingPeriod: { findFirst: mockAccountingPeriodFindFirst },
+      companySettings: { findUnique: mockCompanySettingsFindUnique },
+    })) as never);
 }
 
 // ─── createCreditNote tests ───────────────────────────────────────────────────
@@ -142,9 +138,7 @@ describe("InvoiceService.createCreditNote", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupTransactionMock();
-    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(
-      validOriginalInvoice as never,
-    );
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(validOriginalInvoice as never);
     vi.mocked(prisma.invoice.create).mockResolvedValue(mockNcInvoice as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({
       ...validOriginalInvoice,
@@ -153,7 +147,12 @@ describe("InvoiceService.createCreditNote", () => {
     } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     // Fix A2 defaults: período OPEN, sin config GL (GL posting skipped)
-    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockAccountingPeriodFindFirst.mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 4,
+    });
     mockCompanySettingsFindUnique.mockResolvedValue(null);
     mockGLCanPost.mockReturnValue(false);
   });
@@ -170,7 +169,7 @@ describe("InvoiceService.createCreditNote", () => {
         data: expect.objectContaining({
           paymentStatus: "PAID",
         }),
-      }),
+      })
     );
   });
 
@@ -179,9 +178,7 @@ describe("InvoiceService.createCreditNote", () => {
     // original.pendingAmount = 1000, NC = 500 → queda 500 → PARTIAL
     const partialNoteData = {
       ...validNoteData,
-      taxLines: [
-        { taxType: "IVA_GENERAL" as const, base: "431.03", rate: "16", amount: "68.97" },
-      ],
+      taxLines: [{ taxType: "IVA_GENERAL" as const, base: "431.03", rate: "16", amount: "68.97" }],
     };
     const partialNcInvoice = {
       ...mockNcInvoice,
@@ -202,7 +199,7 @@ describe("InvoiceService.createCreditNote", () => {
         data: expect.objectContaining({
           paymentStatus: "PARTIAL",
         }),
-      }),
+      })
     );
   });
 
@@ -215,9 +212,9 @@ describe("InvoiceService.createCreditNote", () => {
       ],
     };
 
-    await expect(
-      createCreditNote(COMPANY_ID, overAmountNoteData, CREATED_BY),
-    ).rejects.toThrow("El monto de la nota supera el saldo pendiente de la factura original");
+    await expect(createCreditNote(COMPANY_ID, overAmountNoteData, CREATED_BY)).rejects.toThrow(
+      "El monto de la nota supera el saldo pendiente de la factura original"
+    );
   });
 
   // ── Test 4: rejects if original.docType !== FACTURA (loop prevention) ─────
@@ -227,9 +224,9 @@ describe("InvoiceService.createCreditNote", () => {
       docType: "NOTA_CREDITO",
     } as never);
 
-    await expect(
-      createCreditNote(COMPANY_ID, validNoteData, CREATED_BY),
-    ).rejects.toThrow("Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)");
+    await expect(createCreditNote(COMPANY_ID, validNoteData, CREATED_BY)).rejects.toThrow(
+      "Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)"
+    );
   });
 
   // ── Test 5: rejects if original.deletedAt is set ──────────────────────────
@@ -239,9 +236,9 @@ describe("InvoiceService.createCreditNote", () => {
       deletedAt: new Date("2026-03-01"),
     } as never);
 
-    await expect(
-      createCreditNote(COMPANY_ID, validNoteData, CREATED_BY),
-    ).rejects.toThrow("La factura original está anulada");
+    await expect(createCreditNote(COMPANY_ID, validNoteData, CREATED_BY)).rejects.toThrow(
+      "La factura original está anulada"
+    );
   });
 
   // ── Test 6: rejects if original.paymentStatus === VOIDED ─────────────────
@@ -251,9 +248,9 @@ describe("InvoiceService.createCreditNote", () => {
       paymentStatus: "VOIDED",
     } as never);
 
-    await expect(
-      createCreditNote(COMPANY_ID, validNoteData, CREATED_BY),
-    ).rejects.toThrow("La factura original está anulada");
+    await expect(createCreditNote(COMPANY_ID, validNoteData, CREATED_BY)).rejects.toThrow(
+      "La factura original está anulada"
+    );
   });
 
   // ── Test 7: CRITICAL-1 — rejects if relatedInvoiceId belongs to different companyId ──
@@ -261,10 +258,8 @@ describe("InvoiceService.createCreditNote", () => {
     // findFirst returns null when companyId does not match
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
 
-    await expect(
-      createCreditNote(COMPANY_ID, validNoteData, CREATED_BY),
-    ).rejects.toThrow(
-      "Factura original no encontrada o no pertenece a esta empresa",
+    await expect(createCreditNote(COMPANY_ID, validNoteData, CREATED_BY)).rejects.toThrow(
+      "Factura original no encontrada o no pertenece a esta empresa"
     );
   });
 
@@ -278,7 +273,7 @@ describe("InvoiceService.createCreditNote", () => {
           relatedDocNumber: validOriginalInvoice.invoiceNumber, // "0000001"
           relatedInvoiceId: validOriginalInvoice.id,
         }),
-      }),
+      })
     );
   });
 
@@ -294,7 +289,7 @@ describe("InvoiceService.createCreditNote", () => {
           action: "CREATE_NC",
           entityName: "Invoice",
         }),
-      }),
+      })
     );
     // Second call: PENDING_AMOUNT_UPDATE
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
@@ -304,7 +299,7 @@ describe("InvoiceService.createCreditNote", () => {
           entityName: "Invoice",
           entityId: validOriginalInvoice.id,
         }),
-      }),
+      })
     );
   });
 
@@ -319,7 +314,7 @@ describe("InvoiceService.createCreditNote", () => {
           companyId: COMPANY_ID,
           invoiceId: "nc-1",
         }),
-      }),
+      })
     );
   });
 
@@ -332,9 +327,9 @@ describe("InvoiceService.createCreditNote", () => {
       month: 4,
     });
 
-    await expect(
-      createCreditNote(COMPANY_ID, validNoteData, CREATED_BY)
-    ).rejects.toThrow("CERRADO");
+    await expect(createCreditNote(COMPANY_ID, validNoteData, CREATED_BY)).rejects.toThrow(
+      "CERRADO"
+    );
   });
 
   // ── Fix A2: periodId asignado en la NC creada ─────────────────────────────
@@ -408,9 +403,7 @@ describe("InvoiceService.createDebitNote", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupTransactionMock();
-    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(
-      validOriginalInvoice as never,
-    );
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(validOriginalInvoice as never);
     vi.mocked(prisma.invoice.create).mockResolvedValue(mockNdInvoice as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({
       ...validOriginalInvoice,
@@ -419,7 +412,12 @@ describe("InvoiceService.createDebitNote", () => {
     } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     // Fix A2 defaults: período OPEN, sin config GL
-    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockAccountingPeriodFindFirst.mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 4,
+    });
     mockCompanySettingsFindUnique.mockResolvedValue(null);
     mockGLCanPost.mockReturnValue(false);
   });
@@ -430,9 +428,7 @@ describe("InvoiceService.createDebitNote", () => {
     date: new Date("2026-04-10"),
     counterpartName: "Cliente ABC",
     counterpartRif: "J-12345678-9",
-    taxLines: [
-      { taxType: "IVA_GENERAL" as const, base: "172.41", rate: "16", amount: "27.59" },
-    ],
+    taxLines: [{ taxType: "IVA_GENERAL" as const, base: "172.41", rate: "16", amount: "27.59" }],
     ivaRetentionAmount: "0",
     islrRetentionAmount: "0",
     igtfBase: "0",
@@ -452,7 +448,7 @@ describe("InvoiceService.createDebitNote", () => {
         data: expect.objectContaining({
           pendingAmount: expect.anything(), // Decimal increased
         }),
-      }),
+      })
     );
   });
 
@@ -467,7 +463,7 @@ describe("InvoiceService.createDebitNote", () => {
           companyId: COMPANY_ID,
           invoiceId: "nd-1",
         }),
-      }),
+      })
     );
   });
 
@@ -491,7 +487,7 @@ describe("InvoiceService.createDebitNote", () => {
         data: expect.objectContaining({
           paymentStatus: "PARTIAL",
         }),
-      }),
+      })
     );
   });
 
@@ -502,19 +498,17 @@ describe("InvoiceService.createDebitNote", () => {
       docType: "NOTA_DEBITO",
     } as never);
 
-    await expect(
-      createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY),
-    ).rejects.toThrow("Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)");
+    await expect(createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY)).rejects.toThrow(
+      "Solo se pueden emitir notas sobre Facturas (no sobre NC/ND)"
+    );
   });
 
   // ── Test 13: CRITICAL-1 — rejects if relatedInvoiceId belongs to different companyId ──
   it("rechaza si relatedInvoiceId no pertenece a este companyId [CRITICAL-1 ADR-004]", async () => {
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
 
-    await expect(
-      createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY),
-    ).rejects.toThrow(
-      "Factura original no encontrada o no pertenece a esta empresa",
+    await expect(createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY)).rejects.toThrow(
+      "Factura original no encontrada o no pertenece a esta empresa"
     );
   });
 
@@ -526,9 +520,9 @@ describe("InvoiceService.createDebitNote", () => {
       paymentStatus: "VOIDED",
     } as never);
 
-    await expect(
-      createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY),
-    ).rejects.toThrow("La factura original está anulada");
+    await expect(createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY)).rejects.toThrow(
+      "La factura original está anulada"
+    );
   });
 
   // ── Fix A2: período CLOSED bloquea ND (R-3) ───────────────────────────────
@@ -540,9 +534,7 @@ describe("InvoiceService.createDebitNote", () => {
       month: 4,
     });
 
-    await expect(
-      createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY)
-    ).rejects.toThrow("CERRADO");
+    await expect(createDebitNote(COMPANY_ID, ndNoteData, CREATED_BY)).rejects.toThrow("CERRADO");
   });
 
   // ── Fix A2: GL posting (postInvoice) llamado cuando canPost = true ────────
@@ -615,26 +607,39 @@ describe("InvoiceService.createCreditNote — factura de lujo (base contada UNA 
     vi.mocked(prisma.invoice.create).mockResolvedValue(mockNcInvoice as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
-    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockAccountingPeriodFindFirst.mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 4,
+    });
     mockCompanySettingsFindUnique.mockResolvedValue(null);
     mockGLCanPost.mockReturnValue(false);
   });
 
   it("NC de lujo base 1000 sobre factura con saldo 1310.00 se ACEPTA (hoy: se rechaza porque calcula 2310)", async () => {
     await expect(
-      createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY),
+      createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY)
     ).resolves.toBeDefined();
   });
 
   it("guarda la NC con totalAmountVes 1310.00 (no 2310.00) y pendingAmount 0.00", async () => {
-    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+    await createCreditNote(
+      COMPANY_ID,
+      { ...validNoteData, taxLines: LUXURY_NOTE_LINES },
+      CREATED_BY
+    );
 
     expect(new Decimal(noteRowCreated().totalAmountVes).toFixed(2)).toBe("1310.00");
     expect(new Decimal(noteRowCreated().pendingAmount).toFixed(2)).toBe("0.00");
   });
 
   it("deja el saldo de la factura original en 0.00 y la marca PAID", async () => {
-    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+    await createCreditNote(
+      COMPANY_ID,
+      { ...validNoteData, taxLines: LUXURY_NOTE_LINES },
+      CREATED_BY
+    );
 
     expect(new Decimal(originalUpdated().pendingAmount).toFixed(2)).toBe("0.00");
     expect(originalUpdated().paymentStatus).toBe("PAID");
@@ -650,7 +655,7 @@ describe("InvoiceService.createCreditNote — factura de lujo (base contada UNA 
           { taxType: "IVA_ADICIONAL" as const, base: "500.00", rate: "15", amount: "75.00" },
         ],
       },
-      CREATED_BY,
+      CREATED_BY
     );
 
     expect(new Decimal(noteRowCreated().totalAmountVes).toFixed(2)).toBe("655.00");
@@ -659,18 +664,31 @@ describe("InvoiceService.createCreditNote — factura de lujo (base contada UNA 
   });
 
   it("el AuditLog CREATE_NC registra totalAmountVes 1310.00", async () => {
-    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+    await createCreditNote(
+      COMPANY_ID,
+      { ...validNoteData, taxLines: LUXURY_NOTE_LINES },
+      CREATED_BY
+    );
 
-    expect(auditNewValue("CREATE_NC")).toEqual(expect.objectContaining({ totalAmountVes: "1310.00" }));
+    expect(auditNewValue("CREATE_NC")).toEqual(
+      expect.objectContaining({ totalAmountVes: "1310.00" })
+    );
   });
 
   it("el detalle de la NC conserva las DOS filas de InvoiceTaxLine", async () => {
-    await createCreditNote(COMPANY_ID, { ...validNoteData, taxLines: LUXURY_NOTE_LINES }, CREATED_BY);
+    await createCreditNote(
+      COMPANY_ID,
+      { ...validNoteData, taxLines: LUXURY_NOTE_LINES },
+      CREATED_BY
+    );
 
     const data = vi.mocked(prisma.invoice.create).mock.calls[0]?.[0] as {
       data: { taxLines: { create: Array<{ taxType: string }> } };
     };
-    expect(data.data.taxLines.create.map((tl) => tl.taxType)).toEqual(["IVA_GENERAL", "IVA_ADICIONAL"]);
+    expect(data.data.taxLines.create.map((tl) => tl.taxType)).toEqual([
+      "IVA_GENERAL",
+      "IVA_ADICIONAL",
+    ]);
   });
 
   // ── Guardas de sobrecorrección (pasan hoy y deben seguir pasando) ─────────
@@ -685,8 +703,8 @@ describe("InvoiceService.createCreditNote — factura de lujo (base contada UNA 
             { taxType: "IVA_ADICIONAL" as const, base: "1000.01", rate: "15", amount: "150.00" },
           ],
         },
-        CREATED_BY,
-      ),
+        CREATED_BY
+      )
     ).rejects.toThrow("El monto de la nota supera el saldo pendiente de la factura original");
     expect(prisma.invoice.create).not.toHaveBeenCalled();
   });
@@ -732,7 +750,12 @@ describe("InvoiceService.createDebitNote — factura de lujo (base contada UNA v
     vi.mocked(prisma.invoice.create).mockResolvedValue(luxuryNdInvoice as never);
     vi.mocked(prisma.invoice.update).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
-    mockAccountingPeriodFindFirst.mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 4 });
+    mockAccountingPeriodFindFirst.mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 4,
+    });
     mockCompanySettingsFindUnique.mockResolvedValue(null);
     mockGLCanPost.mockReturnValue(false);
   });
@@ -766,7 +789,9 @@ describe("InvoiceService.createDebitNote — factura de lujo (base contada UNA v
   it("el AuditLog CREATE_ND registra totalAmountVes 1310.00", async () => {
     await createDebitNote(COMPANY_ID, luxuryNdData, CREATED_BY);
 
-    expect(auditNewValue("CREATE_ND")).toEqual(expect.objectContaining({ totalAmountVes: "1310.00" }));
+    expect(auditNewValue("CREATE_ND")).toEqual(
+      expect.objectContaining({ totalAmountVes: "1310.00" })
+    );
   });
 
   it("GUARDA: el detalle de la ND conserva las DOS filas de InvoiceTaxLine", async () => {
@@ -775,7 +800,10 @@ describe("InvoiceService.createDebitNote — factura de lujo (base contada UNA v
     const data = vi.mocked(prisma.invoice.create).mock.calls[0]?.[0] as {
       data: { taxLines: { create: Array<{ taxType: string }> } };
     };
-    expect(data.data.taxLines.create.map((tl) => tl.taxType)).toEqual(["IVA_GENERAL", "IVA_ADICIONAL"]);
+    expect(data.data.taxLines.create.map((tl) => tl.taxType)).toEqual([
+      "IVA_GENERAL",
+      "IVA_ADICIONAL",
+    ]);
   });
 
   // ── Guarda de sobrecorrección (pasa hoy y debe seguir pasando) ────────────
@@ -784,9 +812,11 @@ describe("InvoiceService.createDebitNote — factura de lujo (base contada UNA v
       COMPANY_ID,
       {
         ...luxuryNdData,
-        taxLines: [{ taxType: "IVA_GENERAL" as const, base: "172.41", rate: "16", amount: "27.59" }],
+        taxLines: [
+          { taxType: "IVA_GENERAL" as const, base: "172.41", rate: "16", amount: "27.59" },
+        ],
       },
-      CREATED_BY,
+      CREATED_BY
     );
 
     expect(new Decimal(noteRowCreated().totalAmountVes).toFixed(2)).toBe("200.00");
@@ -816,10 +846,8 @@ describe("InvoiceService.getCreditDebitNotes", () => {
         where: expect.objectContaining({
           deletedAt: null,
         }),
-        orderBy: expect.arrayContaining([
-          expect.objectContaining({ date: "asc" }),
-        ]),
-      }),
+        orderBy: expect.arrayContaining([expect.objectContaining({ date: "asc" })]),
+      })
     );
   });
 
@@ -833,7 +861,7 @@ describe("InvoiceService.getCreditDebitNotes", () => {
           companyId: COMPANY_ID,
           relatedInvoiceId: "inv-original",
         }),
-      }),
+      })
     );
   });
 });

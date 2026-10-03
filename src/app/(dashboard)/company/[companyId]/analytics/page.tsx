@@ -27,7 +27,7 @@ export default async function AnalyticsPage({ params }: Props) {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Analítica</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-1 text-sm">
           Indicadores financieros clave — {currentYear}
         </p>
       </div>

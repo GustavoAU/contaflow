@@ -9,11 +9,7 @@ export const GenerarForma30Schema = z.object({
     .int()
     .min(2020, { error: "Año mínimo: 2020" })
     .max(2099, { error: "Año máximo: 2099" }),
-  month: z
-    .number()
-    .int()
-    .min(1, { error: "Mes mínimo: 1" })
-    .max(12, { error: "Mes máximo: 12" }),
+  month: z.number().int().min(1, { error: "Mes mínimo: 1" }).max(12, { error: "Mes máximo: 12" }),
   creditoFiscalPeriodoAnterior: z
     .number()
     .nonnegative({ error: "El crédito fiscal no puede ser negativo" })

@@ -16,15 +16,43 @@ import type {
 
 // ─── Categorías semilla — 9 categorías base (ADR-024 D-3.2) ──────────────────
 export const DEFAULT_EXPENSE_CATEGORIES = [
-  { name: "Servicios Básicos", description: "Electricidad, agua, internet, teléfono", isDefault: true },
+  {
+    name: "Servicios Básicos",
+    description: "Electricidad, agua, internet, teléfono",
+    isDefault: true,
+  },
   { name: "Alquiler", description: "Arrendamiento de local, oficina o galpón", isDefault: true },
-  { name: "Honorarios Profesionales", description: "Contabilidad, legal, consultoría", isDefault: true },
-  { name: "Publicidad y Propaganda", description: "Marketing, redes sociales, impresos", isDefault: true },
-  { name: "Transporte y Fletes", description: "Envíos, mensajería, transporte de mercancía", isDefault: true },
-  { name: "Sueldos y Salarios", description: "Pagos de nómina no procesados por módulo Nómina", isDefault: true },
+  {
+    name: "Honorarios Profesionales",
+    description: "Contabilidad, legal, consultoría",
+    isDefault: true,
+  },
+  {
+    name: "Publicidad y Propaganda",
+    description: "Marketing, redes sociales, impresos",
+    isDefault: true,
+  },
+  {
+    name: "Transporte y Fletes",
+    description: "Envíos, mensajería, transporte de mercancía",
+    isDefault: true,
+  },
+  {
+    name: "Sueldos y Salarios",
+    description: "Pagos de nómina no procesados por módulo Nómina",
+    isDefault: true,
+  },
   { name: "Gastos de Oficina", description: "Papelería, útiles, suministros", isDefault: true },
-  { name: "Mantenimiento y Reparaciones", description: "Equipos, vehículos, instalaciones", isDefault: true },
-  { name: "Otros Gastos Operativos", description: "Gastos no clasificados en otras categorías", isDefault: true },
+  {
+    name: "Mantenimiento y Reparaciones",
+    description: "Equipos, vehículos, instalaciones",
+    isDefault: true,
+  },
+  {
+    name: "Otros Gastos Operativos",
+    description: "Gastos no clasificados en otras categorías",
+    isDefault: true,
+  },
 ] as const;
 
 // ─── Tipos de retorno ─────────────────────────────────────────────────────────
@@ -135,9 +163,7 @@ export async function createExpenseCategory(
 }
 
 // ─── Listar categorías ────────────────────────────────────────────────────────
-export async function listExpenseCategories(
-  companyId: string
-): Promise<ExpenseCategorySummary[]> {
+export async function listExpenseCategories(companyId: string): Promise<ExpenseCategorySummary[]> {
   const cats = await prisma.expenseCategory.findMany({
     where: { companyId, deletedAt: null },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
@@ -197,57 +223,56 @@ export async function createExpense(
   // Calcular amountVes (R-5: todo Decimal.js)
   const amount = new Decimal(input.amount);
   const amountVes =
-    input.currency === "VES"
-      ? amount
-      : amount.mul(new Decimal(input.exchangeRate!));
+    input.currency === "VES" ? amount : amount.mul(new Decimal(input.exchangeRate!));
 
-  const runCreate = () => prisma.$transaction(async (tx) => {
-    const created = await tx.expense.create({
-      data: {
-        companyId: input.companyId,
-        vendorId: input.vendorId ?? null,
-        supplierName: input.supplierName ?? null,
-        concept: input.concept,
-        categoryId: input.categoryId,
-        amount,
-        currency: input.currency,
-        exchangeRate: input.exchangeRate ? new Decimal(input.exchangeRate) : null,
-        amountVes,
-        hasIva: input.hasIva,
-        ivaAmount: input.ivaAmount ? new Decimal(input.ivaAmount) : null,
-        isDeductible: input.isDeductible,
-        invoiceNumber: input.invoiceNumber ?? null,
-        invoiceDate: input.invoiceDate ?? null,
-        attachmentUrl: input.attachmentUrl ?? null,
-        expenseAccountId: input.expenseAccountId ?? null,
-        status: "DRAFT",
-        idempotencyKey: input.idempotencyKey,
-        createdBy: userId,
-      },
-      include: { category: { select: { name: true } } },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        companyId: input.companyId,
-        entityId: created.id,
-        entityName: "Expense",
-        action: "CREATE",
-        userId,
-        ipAddress,
-        userAgent,
-        newValue: {
+  const runCreate = () =>
+    prisma.$transaction(async (tx) => {
+      const created = await tx.expense.create({
+        data: {
+          companyId: input.companyId,
+          vendorId: input.vendorId ?? null,
+          supplierName: input.supplierName ?? null,
           concept: input.concept,
-          amount: amount.toFixed(4),
-          amountVes: amountVes.toFixed(4),
-          currency: input.currency,
           categoryId: input.categoryId,
+          amount,
+          currency: input.currency,
+          exchangeRate: input.exchangeRate ? new Decimal(input.exchangeRate) : null,
+          amountVes,
+          hasIva: input.hasIva,
+          ivaAmount: input.ivaAmount ? new Decimal(input.ivaAmount) : null,
+          isDeductible: input.isDeductible,
+          invoiceNumber: input.invoiceNumber ?? null,
+          invoiceDate: input.invoiceDate ?? null,
+          attachmentUrl: input.attachmentUrl ?? null,
+          expenseAccountId: input.expenseAccountId ?? null,
+          status: "DRAFT",
+          idempotencyKey: input.idempotencyKey,
+          createdBy: userId,
         },
-      },
-    });
+        include: { category: { select: { name: true } } },
+      });
 
-    return created;
-  });
+      await tx.auditLog.create({
+        data: {
+          companyId: input.companyId,
+          entityId: created.id,
+          entityName: "Expense",
+          action: "CREATE",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: {
+            concept: input.concept,
+            amount: amount.toFixed(4),
+            amountVes: amountVes.toFixed(4),
+            currency: input.currency,
+            categoryId: input.categoryId,
+          },
+        },
+      });
+
+      return created;
+    });
 
   // TOCTOU (auditoria LOW): el pre-check de idempotencia vive FUERA de la
   // transaccion, asi que dos submits con la misma clave lo pasan los dos. El
@@ -284,7 +309,8 @@ export async function confirmExpense(
     include: { category: { select: { name: true } } },
   });
   if (!expense) throw new Error("Gasto no encontrado o no pertenece a esta empresa");
-  if (expense.status !== "DRAFT") throw new Error("Solo se pueden confirmar gastos en estado DRAFT");
+  if (expense.status !== "DRAFT")
+    throw new Error("Solo se pueden confirmar gastos en estado DRAFT");
 
   const updated = await prisma.$transaction(async (tx) => {
     // Hallazgo MEDIUM del security-agent (2026-09-05): si el modal de
@@ -429,9 +455,7 @@ function serializeExpense(
       : null,
     amountVes: new Decimal(expense.amountVes.toString()).toFixed(4),
     hasIva: expense.hasIva,
-    ivaAmount: expense.ivaAmount
-      ? new Decimal(expense.ivaAmount.toString()).toFixed(4)
-      : null,
+    ivaAmount: expense.ivaAmount ? new Decimal(expense.ivaAmount.toString()).toFixed(4) : null,
     isDeductible: expense.isDeductible,
     invoiceNumber: expense.invoiceNumber,
     invoiceDate: expense.invoiceDate,

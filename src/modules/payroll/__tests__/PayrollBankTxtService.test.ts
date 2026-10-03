@@ -14,7 +14,7 @@ const COMPANY_ID = "company-1";
 const RUN_ID = "run-1";
 
 const PERIOD_START = new Date("2026-04-01");
-const PERIOD_END   = new Date("2026-04-15");
+const PERIOD_END = new Date("2026-04-15");
 
 function makeRun(lines: object[]) {
   return { periodStart: PERIOD_START, periodEnd: PERIOD_END, lines };
@@ -24,13 +24,34 @@ function makeLine(
   employeeId: string,
   conceptType: "EARNING" | "DEDUCTION",
   amount: string,
-  emp: { firstName: string; lastName: string; cedulaType: string; cedulaNumber: string; bankName: string | null; bankAccount: string | null },
+  emp: {
+    firstName: string;
+    lastName: string;
+    cedulaType: string;
+    cedulaNumber: string;
+    bankName: string | null;
+    bankAccount: string | null;
+  }
 ) {
   return { employeeId, conceptType, amount: { toString: () => amount }, employee: emp };
 }
 
-const EMP_A = { firstName: "JUAN", lastName: "PEREZ", cedulaType: "V", cedulaNumber: "12345678", bankName: "BANESCO", bankAccount: "01340100001234567890" };
-const EMP_B = { firstName: "MARIA", lastName: "GARCIA", cedulaType: "V", cedulaNumber: "87654321", bankName: null, bankAccount: null };
+const EMP_A = {
+  firstName: "JUAN",
+  lastName: "PEREZ",
+  cedulaType: "V",
+  cedulaNumber: "12345678",
+  bankName: "BANESCO",
+  bankAccount: "01340100001234567890",
+};
+const EMP_B = {
+  firstName: "MARIA",
+  lastName: "GARCIA",
+  cedulaType: "V",
+  cedulaNumber: "87654321",
+  bankName: null,
+  bankAccount: null,
+};
 
 describe("PayrollBankTxtService.generate", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -39,15 +60,17 @@ describe("PayrollBankTxtService.generate", () => {
     vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(null);
 
     await expect(PayrollBankTxtService.generate(COMPANY_ID, RUN_ID)).rejects.toThrow(
-      "Proceso de nómina no encontrado",
+      "Proceso de nómina no encontrado"
     );
   });
 
   it("calcula neto correctamente (asignaciones - deducciones)", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-1", "EARNING",   "1500.00", EMP_A),
-      makeLine("emp-1", "DEDUCTION",  "300.00", EMP_A),
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([
+        makeLine("emp-1", "EARNING", "1500.00", EMP_A),
+        makeLine("emp-1", "DEDUCTION", "300.00", EMP_A),
+      ]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
 
@@ -57,9 +80,9 @@ describe("PayrollBankTxtService.generate", () => {
   });
 
   it("genera fila correcta con datos bancarios completos", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-1", "EARNING", "2000.00", EMP_A),
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([makeLine("emp-1", "EARNING", "2000.00", EMP_A)]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
     const row = result.rows[0];
@@ -72,9 +95,9 @@ describe("PayrollBankTxtService.generate", () => {
   });
 
   it("marca missingBankInfo y usa placeholder cuando faltan datos bancarios", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-2", "EARNING", "1000.00", EMP_B),
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([makeLine("emp-2", "EARNING", "1000.00", EMP_B)]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
     const row = result.rows[0];
@@ -86,9 +109,9 @@ describe("PayrollBankTxtService.generate", () => {
   });
 
   it("incluye AVISO en el TXT cuando hay empleados sin datos bancarios", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-2", "EARNING", "1000.00", EMP_B),
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([makeLine("emp-2", "EARNING", "1000.00", EMP_B)]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
 
@@ -97,9 +120,9 @@ describe("PayrollBankTxtService.generate", () => {
   });
 
   it("NO incluye AVISO en el TXT cuando todos tienen datos bancarios", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-1", "EARNING", "2000.00", EMP_A),
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([makeLine("emp-1", "EARNING", "2000.00", EMP_A)]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
 
@@ -108,9 +131,9 @@ describe("PayrollBankTxtService.generate", () => {
   });
 
   it("genera encabezado y línea de datos correctamente", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-1", "EARNING", "1500.00", EMP_A),
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([makeLine("emp-1", "EARNING", "1500.00", EMP_A)]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
     const lines = result.txt.split("\n");
@@ -123,11 +146,13 @@ describe("PayrollBankTxtService.generate", () => {
   });
 
   it("acumula múltiples conceptos del mismo empleado correctamente", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-1", "EARNING",   "2000.00", EMP_A),
-      makeLine("emp-1", "EARNING",    "500.00", EMP_A), // bono
-      makeLine("emp-1", "DEDUCTION",  "200.00", EMP_A), // IVSS
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([
+        makeLine("emp-1", "EARNING", "2000.00", EMP_A),
+        makeLine("emp-1", "EARNING", "500.00", EMP_A), // bono
+        makeLine("emp-1", "DEDUCTION", "200.00", EMP_A), // IVSS
+      ]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
 
@@ -136,10 +161,12 @@ describe("PayrollBankTxtService.generate", () => {
   });
 
   it("calcula total correcto con múltiples empleados", async () => {
-    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(makeRun([
-      makeLine("emp-1", "EARNING", "1000.00", EMP_A),
-      makeLine("emp-2", "EARNING",  "800.00", EMP_B),
-    ]) as never);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(
+      makeRun([
+        makeLine("emp-1", "EARNING", "1000.00", EMP_A),
+        makeLine("emp-2", "EARNING", "800.00", EMP_B),
+      ]) as never
+    );
 
     const result = await PayrollBankTxtService.generate(COMPANY_ID, RUN_ID);
 

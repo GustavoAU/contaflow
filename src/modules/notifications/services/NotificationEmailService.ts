@@ -6,14 +6,17 @@
 
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
-import { PendingTasksService, type PendingTask } from "@/modules/dashboard/services/PendingTasksService";
+import {
+  PendingTasksService,
+  type PendingTask,
+} from "@/modules/dashboard/services/PendingTasksService";
 
 export interface NotificationResult {
   companyId: string;
   companyName: string;
   taskCount: number;
   emailsSent: number;
-  skipped: boolean;    // true si no hay tareas urgentes o no hay destinatarios
+  skipped: boolean; // true si no hay tareas urgentes o no hay destinatarios
   errors: string[];
 }
 
@@ -29,7 +32,7 @@ function buildDigestHtml(
   companyName: string,
   tasks: PendingTask[],
   appUrl: string,
-  companyId: string,
+  companyId: string
 ): string {
   const dashboardUrl = `${appUrl}/company/${companyId}`;
   const errors = tasks.filter((t) => t.severity === "error");
@@ -49,13 +52,19 @@ function buildDigestHtml(
       <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:14px;text-align:center;">
         <a href="${dashboardUrl}${t.href}" style="color:#2563eb;text-decoration:none;">Ver →</a>
       </td>
-    </tr>`,
+    </tr>`
     )
     .join("");
 
   const summaryParts: string[] = [];
-  if (errors.length > 0) summaryParts.push(`<strong style="color:#dc2626">${errors.length} crítico${errors.length !== 1 ? "s" : ""}</strong>`);
-  if (warnings.length > 0) summaryParts.push(`<strong style="color:#d97706">${warnings.length} advertencia${warnings.length !== 1 ? "s" : ""}</strong>`);
+  if (errors.length > 0)
+    summaryParts.push(
+      `<strong style="color:#dc2626">${errors.length} crítico${errors.length !== 1 ? "s" : ""}</strong>`
+    );
+  if (warnings.length > 0)
+    summaryParts.push(
+      `<strong style="color:#d97706">${warnings.length} advertencia${warnings.length !== 1 ? "s" : ""}</strong>`
+    );
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -235,7 +244,9 @@ async function getAdminEmails(userIds: string[]): Promise<string[]> {
 
   const clerkSecret = process.env.CLERK_SECRET_KEY;
   if (!clerkSecret) {
-    console.warn("[NotificationEmailService] CLERK_SECRET_KEY no configurado — no se pueden obtener emails");
+    console.warn(
+      "[NotificationEmailService] CLERK_SECRET_KEY no configurado — no se pueden obtener emails"
+    );
     return [];
   }
 
@@ -250,10 +261,12 @@ async function getAdminEmails(userIds: string[]): Promise<string[]> {
           headers: { Authorization: `Bearer ${clerkSecret}` },
         });
         if (!res.ok) return null;
-        const user = await res.json() as { email_addresses?: Array<{ email_address: string; verification?: { status: string } }> };
+        const user = (await res.json()) as {
+          email_addresses?: Array<{ email_address: string; verification?: { status: string } }>;
+        };
         const primary = user.email_addresses?.find((e) => e.verification?.status === "verified");
         return primary?.email_address ?? null;
-      }),
+      })
     );
     for (const r of results) {
       if (r.status === "fulfilled" && r.value) emails.push(r.value);

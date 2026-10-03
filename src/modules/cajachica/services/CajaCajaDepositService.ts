@@ -267,7 +267,10 @@ export async function voidDeposit(
   });
 }
 
-export async function listDeposits(cajaCajaId: string, companyId: string): Promise<DepositSummary[]> {
+export async function listDeposits(
+  cajaCajaId: string,
+  companyId: string
+): Promise<DepositSummary[]> {
   const deposits = await prisma.cajaCajaDeposit.findMany({
     where: { cajaCajaId, companyId },
     orderBy: { date: "desc" },

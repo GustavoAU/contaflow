@@ -21,7 +21,7 @@ function Dot({ status }: { status: TrafficLight }) {
     red: "bg-red-500",
     gray: "bg-gray-300",
   };
-  return <span className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${classes[status]}`} />;
+  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${classes[status]}`} />;
 }
 
 interface Props {

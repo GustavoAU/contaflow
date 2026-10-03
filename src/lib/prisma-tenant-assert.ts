@@ -47,14 +47,14 @@ export function resolveMode(raw: string | undefined): TenantAssertMode {
  * auditoría. Un `unscoped()` sin motivo válido no compila.
  */
 export type UnscopedReason =
-  | "auth-bootstrap"        // resolver a qué empresas pertenece el usuario
-  | "company-create"        // alta de empresa: aún no existe companyId
+  | "auth-bootstrap" // resolver a qué empresas pertenece el usuario
+  | "company-create" // alta de empresa: aún no existe companyId
   | "cron:billing-lifecycle" // barrido de todas las empresas (ADR-040 D-5)
-  | "cron:plan-change"      // ídem — aplicar cambios de plan vencidos
-  | "webhook:nowpayments"   // el pago llega identificado por su propio ID
-  | "webhook:qstash"        // reintentos SENIAT
-  | "health"                // /api/health
-  | "seed"                  // scripts de datos iniciales
+  | "cron:plan-change" // ídem — aplicar cambios de plan vencidos
+  | "webhook:nowpayments" // el pago llega identificado por su propio ID
+  | "webhook:qstash" // reintentos SENIAT
+  | "health" // /api/health
+  | "seed" // scripts de datos iniciales
   | "despacho:managed-clients"; // un despacho consulta sus RIFs gestionados
 
 const unscopedStore = new AsyncLocalStorage<UnscopedReason>();
@@ -181,7 +181,7 @@ export function buildScopeMap(models: readonly DmmfModel[]): Map<string, ScopeSp
   const ownsCompanyId = new Set(
     models
       .filter((m) => m.fields.some((f) => f.name === "companyId" && f.kind === "scalar"))
-      .map((m) => m.name),
+      .map((m) => m.name)
   );
 
   const map = new Map<string, ScopeSpec>();
@@ -202,9 +202,7 @@ export function buildScopeMap(models: readonly DmmfModel[]): Map<string, ScopeSp
 
     // Hijo: acotarlo por el padre equivale a acotarlo por empresa, porque el padre
     // sí tiene companyId y su FK es un CUID no adivinable.
-    const scalarNames = new Set(
-      model.fields.filter((f) => f.kind === "scalar").map((f) => f.name),
-    );
+    const scalarNames = new Set(model.fields.filter((f) => f.kind === "scalar").map((f) => f.name));
     const spec: ScopeSpec = { scalars: new Set(), relations: new Map() };
     for (const field of model.fields) {
       if (field.kind !== "object" || !ownsCompanyId.has(field.type)) continue;
@@ -229,7 +227,7 @@ export function buildScopeMap(models: readonly DmmfModel[]): Map<string, ScopeSp
  * `prisma-client-js`, cero rutas edge), pero el coste de blindarlo es una línea.
  */
 export const SCOPE_MAP: Map<string, ScopeSpec> = buildScopeMap(
-  (Prisma.dmmf?.datamodel?.models ?? []) as unknown as readonly DmmfModel[],
+  (Prisma.dmmf?.datamodel?.models ?? []) as unknown as readonly DmmfModel[]
 );
 
 if (SCOPE_MAP.size === 0) {
@@ -291,7 +289,7 @@ export function whereIsScoped(
   where: unknown,
   spec: ScopeSpec,
   lookup: (model: string) => ScopeSpec | undefined = (m) => SCOPE_MAP.get(m),
-  depth = 0,
+  depth = 0
 ): boolean {
   if (!where || typeof where !== "object" || depth > MAX_DEPTH) return false;
 
@@ -387,7 +385,7 @@ export function createDataIsScoped(data: unknown, spec: ScopeSpec): boolean {
 export function uniqueWhereIsScoped(
   where: unknown,
   spec: ScopeSpec,
-  lookup: (model: string) => ScopeSpec | undefined = (m) => SCOPE_MAP.get(m),
+  lookup: (model: string) => ScopeSpec | undefined = (m) => SCOPE_MAP.get(m)
 ): boolean {
   if (!where || typeof where !== "object" || Array.isArray(where)) return false;
   const obj = where as Record<string, unknown>;
@@ -419,7 +417,7 @@ export function uniqueWhereIsScoped(
 export function assertViolation(
   model: string | undefined,
   operation: string,
-  args: unknown,
+  args: unknown
 ): string | null {
   if (!model) return null;
 

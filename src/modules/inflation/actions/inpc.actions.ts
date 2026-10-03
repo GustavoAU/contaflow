@@ -14,7 +14,11 @@ import {
   RunInflationAdjustmentSchema,
   SetInflationBaseSchema,
 } from "../schemas/inpc.schema";
-import type { AdjustmentPreviewRow, RepomoPreview, InflationAdjustmentSummary } from "../services/INPCService";
+import type {
+  AdjustmentPreviewRow,
+  RepomoPreview,
+  InflationAdjustmentSummary,
+} from "../services/INPCService";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -111,15 +115,31 @@ export async function upsertINPCRateAction(input: unknown): Promise<ActionResult
 
 // ─── Listar índices INPC ───────────────────────────────────────────────────────
 
-export async function getINPCRatesAction(companyId: string): Promise<ActionResult<{ id: string; year: number; month: number; indexValue: string; source: string | null; createdAt: string }[]>> {
+export async function getINPCRatesAction(companyId: string): Promise<
+  ActionResult<
+    {
+      id: string;
+      year: number;
+      month: number;
+      indexValue: string;
+      source: string | null;
+      createdAt: string;
+    }[]
+  >
+> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
     if (!ctx.ok) return ctx.error;
 
-    const rates = await prisma.$transaction(async (tx) =>
-      INPCService.getRates(companyId, tx)
-    );
-    return { success: true, data: rates.map((r) => ({ ...r, indexValue: r.indexValue.toFixed(6), createdAt: r.createdAt.toISOString() })) };
+    const rates = await prisma.$transaction(async (tx) => INPCService.getRates(companyId, tx));
+    return {
+      success: true,
+      data: rates.map((r) => ({
+        ...r,
+        indexValue: r.indexValue.toFixed(6),
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
   } catch (error) {
     return toActionError(error);
   }
@@ -156,7 +176,7 @@ export async function setInflationBaseAction(input: unknown): Promise<ActionResu
 // ─── Preview del ajuste (sin escribir en BD) ───────────────────────────────────
 
 export async function previewInflationAdjustmentAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<SerializedPreviewResult>> {
   const parsed = RunInflationAdjustmentSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
@@ -174,7 +194,7 @@ export async function previewInflationAdjustmentAction(
         parsed.data.periodYear,
         parsed.data.periodMonth,
         parsed.data.adjustmentAccountId,
-        tx,
+        tx
       )
     );
 
@@ -193,7 +213,7 @@ export async function previewInflationAdjustmentAction(
 // ─── Ejecutar ajuste por inflación ────────────────────────────────────────────
 
 export async function runInflationAdjustmentAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<SerializedAdjustmentSummary>> {
   const parsed = RunInflationAdjustmentSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
@@ -210,7 +230,7 @@ export async function runInflationAdjustmentAction(
     // Guard: año fiscal cerrado (ADR-008 D-7)
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
       parsed.data.companyId,
-      parsed.data.periodYear,
+      parsed.data.periodYear
     );
     if (yearClosed) {
       return {
@@ -227,7 +247,8 @@ export async function runInflationAdjustmentAction(
     if (!company?.inflationBaseYear || !company?.inflationBaseMonth) {
       return {
         success: false,
-        error: "No se ha configurado el período base de inflación. Configúralo antes de ejecutar el ajuste.",
+        error:
+          "No se ha configurado el período base de inflación. Configúralo antes de ejecutar el ajuste.",
       };
     }
 
@@ -271,7 +292,7 @@ export async function runInflationAdjustmentAction(
         withCompanyContext(parsed.data.companyId, tx, async (tx) =>
           INPCService.runAdjustment(parsed.data, userId, tx, ipAddress, userAgent)
         ),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/inflation`);

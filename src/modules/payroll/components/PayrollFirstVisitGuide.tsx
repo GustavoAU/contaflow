@@ -55,15 +55,15 @@ function useSteps(companyId: string): Step[] {
       body: (
         <>
           <p>
-            Los topes de IVSS, INCES, FAOV y RPE son múltiplos del salario mínimo
-            vigente. La app te avisa si el valor registrado no coincide con la
-            referencia — pero un valor <strong>correcto que lleva años sin cambiar</strong> es
-            normal en Venezuela (el salario mínimo está congelado en Bs. 130 desde
-            marzo 2022), así que no debe tratarse como un error.
+            Los topes de IVSS, INCES, FAOV y RPE son múltiplos del salario mínimo vigente. La app te
+            avisa si el valor registrado no coincide con la referencia — pero un valor{" "}
+            <strong>correcto que lleva años sin cambiar</strong> es normal en Venezuela (el salario
+            mínimo está congelado en Bs. 130 desde marzo 2022), así que no debe tratarse como un
+            error.
           </p>
           <p className="mt-2">
-            Si el aviso de tu pantalla dice solo &laquo;confirma que sigue vigente&raquo;
-            (no &laquo;no coincide&raquo;), basta con entrar a Topes Legales y darle{" "}
+            Si el aviso de tu pantalla dice solo &laquo;confirma que sigue vigente&raquo; (no
+            &laquo;no coincide&raquo;), basta con entrar a Topes Legales y darle{" "}
             <strong>&laquo;Sigue vigente&raquo;</strong> — no hace falta cambiar el número.
           </p>
         </>
@@ -77,15 +77,14 @@ function useSteps(companyId: string): Step[] {
         <>
           <p>
             El widget &laquo;BCV&raquo; del encabezado solo trae la tasa de <strong>hoy</strong>.
-            Para completar un historial (ej. un trimestre de prestaciones atrasado),
-            usa la página de Tasas de Cambio, que sí permite elegir una fecha pasada.
+            Para completar un historial (ej. un trimestre de prestaciones atrasado), usa la página
+            de Tasas de Cambio, que sí permite elegir una fecha pasada.
           </p>
           <p className="mt-2">
             Al registrar la tasa para <strong>intereses sobre prestaciones</strong> (Art. 143
             LOTTT), el aviso oficial del BCV publica dos tasas distintas — usa{" "}
-            <strong>Promedio</strong> (Tercer Aparte), no Activa (esa es para mora/litigios,
-            Cuarto Aparte). La pantalla ya lo explica y lo trae seleccionado por
-            defecto.
+            <strong>Promedio</strong> (Tercer Aparte), no Activa (esa es para mora/litigios, Cuarto
+            Aparte). La pantalla ya lo explica y lo trae seleccionado por defecto.
           </p>
         </>
       ),
@@ -97,15 +96,14 @@ function useSteps(companyId: string): Step[] {
       body: (
         <>
           <p>
-            &laquo;Ejecutar acumulación&raquo; solo funciona para el trimestre en curso —
-            exige un período contable abierto. Si un trimestre pasado quedó sin
-            acumular (empresa nueva en ContaFlow, o el período ya cerró), ese botón
-            no puede corregirlo.
+            &laquo;Ejecutar acumulación&raquo; solo funciona para el trimestre en curso — exige un
+            período contable abierto. Si un trimestre pasado quedó sin acumular (empresa nueva en
+            ContaFlow, o el período ya cerró), ese botón no puede corregirlo.
           </p>
           <p className="mt-2">
             Para eso está <strong>&laquo;Poner al día trimestres atrasados&raquo;</strong>, un poco
-            más abajo en la misma pantalla: revisa a cada empleado desde su fecha de
-            contratación y acumula lo que falte, sin tocar lo que ya está registrado.
+            más abajo en la misma pantalla: revisa a cada empleado desde su fecha de contratación y
+            acumula lo que falte, sin tocar lo que ya está registrado.
           </p>
         </>
       ),
@@ -157,7 +155,11 @@ export function PayrollFirstVisitGuide({ companyId }: Props) {
   function close() {
     setVisibility("hidden");
     setStep(0);
-    try { localStorage.setItem(storageKey(companyId), "1"); } catch { /* noop */ }
+    try {
+      localStorage.setItem(storageKey(companyId), "1");
+    } catch {
+      /* noop */
+    }
   }
 
   function minimize() {
@@ -182,7 +184,7 @@ export function PayrollFirstVisitGuide({ companyId }: Props) {
       <button
         type="button"
         onClick={reopenFresh}
-        className="fixed bottom-24 right-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        className="fixed right-6 bottom-24 z-40 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <CircleHelpIcon className="size-3.5" />
         Ver guía de Nómina
@@ -197,7 +199,7 @@ export function PayrollFirstVisitGuide({ companyId }: Props) {
       <button
         type="button"
         onClick={resume}
-        className="fixed bottom-24 right-6 z-40 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70"
+        className="fixed right-6 bottom-24 z-40 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70"
       >
         <CircleHelpIcon className="size-3.5" />
         Continuar guía ({step + 1}/{steps.length})

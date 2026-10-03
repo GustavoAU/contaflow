@@ -40,7 +40,9 @@ describe("employee-portal-jwt", () => {
     const token = signEmployeeToken("emp-1", "co-1");
     const parts = token.split(".");
     // Replace payload with different employee
-    const newPayload = Buffer.from(JSON.stringify({ sub: "attacker", cid: "co-1", iat: 0, exp: 9999999999 })).toString("base64url");
+    const newPayload = Buffer.from(
+      JSON.stringify({ sub: "attacker", cid: "co-1", iat: 0, exp: 9999999999 })
+    ).toString("base64url");
     const tampered = `${parts[0]}.${newPayload}.${parts[2]}`;
     expect(verifyEmployeeToken(tampered)).toBeNull();
   });
@@ -50,7 +52,9 @@ describe("employee-portal-jwt", () => {
     // Build a token that expired 1 second ago
     const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
     const iat = Math.floor(Date.now() / 1000) - 100;
-    const payload = Buffer.from(JSON.stringify({ sub: "emp-1", cid: "co-1", iat, exp: iat - 1 })).toString("base64url");
+    const payload = Buffer.from(
+      JSON.stringify({ sub: "emp-1", cid: "co-1", iat, exp: iat - 1 })
+    ).toString("base64url");
     // We can't produce a valid sig without knowing the secret, so just assert null on invalid structure
     expect(verifyEmployeeToken(`${header}.${payload}.badsig`)).toBeNull();
   });

@@ -29,7 +29,10 @@
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { Loader2Icon, ChevronDownIcon, ChevronRightIcon, PackageSearchIcon } from "lucide-react";
-import { createFixedAssetAction, getExpensesForAssetImportAction } from "../actions/fixed-asset.actions";
+import {
+  createFixedAssetAction,
+  getExpensesForAssetImportAction,
+} from "../actions/fixed-asset.actions";
 import type { ExpenseForAssetImport } from "../actions/fixed-asset.actions";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
@@ -151,9 +154,23 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
       usefulLifeMonths: "",
       depreciationMethod: "LINEA_RECTA",
       totalUnits: "",
-      assetAccountId: findBestMatch(assetAccounts, ["propiedad", "planta", "equipo", "inmueble", "vehiculo", "vehículo", "maquinaria", "mobiliario", "activo fijo"]),
+      assetAccountId: findBestMatch(assetAccounts, [
+        "propiedad",
+        "planta",
+        "equipo",
+        "inmueble",
+        "vehiculo",
+        "vehículo",
+        "maquinaria",
+        "mobiliario",
+        "activo fijo",
+      ]),
       depreciationAccountId: findBestMatch(expenseAccounts, ["depreci", "amortiz"]),
-      accDepreciationAccountId: findBestMatch(contraAssetAccounts, ["acumul", "depreci", "amortiz"]),
+      accDepreciationAccountId: findBestMatch(contraAssetAccounts, [
+        "acumul",
+        "depreci",
+        "amortiz",
+      ]),
       acquisitionCounterpartAccountId: "",
       invoiceNumber: "",
       providerRif: "",
@@ -238,23 +255,22 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
       acquisitionDate: new Date(values.acquisitionDate),
       acquisitionCost: values.acquisitionCost,
       acquisitionCurrency: values.acquisitionCurrency,
-      bcvRateAtAcquisition: values.acquisitionCurrency !== "VES"
-        ? (values.bcvRateAtAcquisition || null)
-        : null,
+      bcvRateAtAcquisition:
+        values.acquisitionCurrency !== "VES" ? values.bcvRateAtAcquisition || null : null,
       residualValue: values.residualValue || "0",
       usefulLifeMonths: parseInt(values.usefulLifeMonths),
       depreciationMethod: values.depreciationMethod,
-      totalUnits: values.depreciationMethod === "UNIDADES_PRODUCCION"
-        ? parseInt(values.totalUnits)
-        : null,
-      location:    values.location || null,
+      totalUnits:
+        values.depreciationMethod === "UNIDADES_PRODUCCION" ? parseInt(values.totalUnits) : null,
+      location: values.location || null,
       responsible: values.responsible || null,
       // FC-02 campos legales
-      invoiceNumber:    showLegal ? (values.invoiceNumber || null) : null,
-      providerRif:      showLegal ? (values.providerRif || null) : null,
-      serialNumber:     showLegal ? (values.serialNumber || null) : null,
-      serviceStartDate: showLegal && values.serviceStartDate ? new Date(values.serviceStartDate) : null,
-      internalCode:     showLegal ? (values.internalCode || null) : null,
+      invoiceNumber: showLegal ? values.invoiceNumber || null : null,
+      providerRif: showLegal ? values.providerRif || null : null,
+      serialNumber: showLegal ? values.serialNumber || null : null,
+      serviceStartDate:
+        showLegal && values.serviceStartDate ? new Date(values.serviceStartDate) : null,
+      internalCode: showLegal ? values.internalCode || null : null,
       acquisitionCounterpartAccountId: values.acquisitionCounterpartAccountId || null,
     };
   }
@@ -275,13 +291,14 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
     doSubmit(input);
   }
 
-  const fieldClass = "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const fieldClass =
+    "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
   return (
     <form onSubmit={(e) => void handleSubmit(onValid)(e)} className="space-y-5">
       {error && (
-        <div className="rounded bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -300,13 +317,17 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
               <PackageSearchIcon className="h-4 w-4 shrink-0" />
             )}
             Importar desde Gasto confirmado
-            <span className="text-xs font-normal text-emerald-600">(pre-llena datos desde Compras)</span>
+            <span className="text-xs font-normal text-emerald-600">
+              (pre-llena datos desde Compras)
+            </span>
           </span>
-          {!showExpenseImport && <span className="text-xs font-normal text-emerald-500">clic para expandir</span>}
+          {!showExpenseImport && (
+            <span className="text-xs font-normal text-emerald-500">clic para expandir</span>
+          )}
         </button>
 
         {showExpenseImport && (
-          <div className="border-t border-emerald-100 px-4 pb-4 pt-3">
+          <div className="border-t border-emerald-100 px-4 pt-3 pb-4">
             {expenseLoading ? (
               <div className="flex items-center gap-2 text-sm text-emerald-700">
                 <Loader2Icon className="h-4 w-4 animate-spin" />
@@ -314,7 +335,8 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
               </div>
             ) : expenseList.length === 0 ? (
               <p className="text-sm text-emerald-700">
-                No hay gastos confirmados disponibles. Confirma un gasto en el módulo de Gastos primero.
+                No hay gastos confirmados disponibles. Confirma un gasto en el módulo de Gastos
+                primero.
               </p>
             ) : (
               <div className="space-y-2">
@@ -367,22 +389,27 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
 
         <div>
           <label className={labelClass}>Ubicación</label>
-          <input className={fieldClass} placeholder="Ej: Sede Caracas, Piso 3" maxLength={200} {...register("location")} />
+          <input
+            className={fieldClass}
+            placeholder="Ej: Sede Caracas, Piso 3"
+            maxLength={200}
+            {...register("location")}
+          />
         </div>
 
         <div>
           <label className={labelClass}>Responsable / Custodio</label>
-          <input className={fieldClass} placeholder="Nombre del custodio" maxLength={150} {...register("responsible")} />
+          <input
+            className={fieldClass}
+            placeholder="Nombre del custodio"
+            maxLength={150}
+            {...register("responsible")}
+          />
         </div>
 
         <div>
           <label className={labelClass}>Fecha de adquisición *</label>
-          <input
-            type="date"
-            required
-            className={fieldClass}
-            {...register("acquisitionDate")}
-          />
+          <input type="date" required className={fieldClass} {...register("acquisitionDate")} />
         </div>
 
         <div>
@@ -404,7 +431,8 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
 
         <div>
           <label className={labelClass}>
-            Costo de adquisición <span className="font-normal text-zinc-400">({acquisitionCurrency})</span> *
+            Costo de adquisición{" "}
+            <span className="font-normal text-zinc-400">({acquisitionCurrency})</span> *
           </label>
           <input
             type="number"
@@ -420,28 +448,47 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
         {acquisitionCurrency !== "VES" && (
           <div className="sm:col-span-2">
             <label className={labelClass}>
-              Tasa BCV a la fecha de adquisición <span className="font-normal text-zinc-400">(Bs./{acquisitionCurrency})</span>
+              Tasa BCV a la fecha de adquisición{" "}
+              <span className="font-normal text-zinc-400">(Bs./{acquisitionCurrency})</span>
             </label>
             <input
-              type="number" step="0.0001" min="0.0001"
+              type="number"
+              step="0.0001"
+              min="0.0001"
               className={fieldClass}
               placeholder="Ej: 36.50"
               {...register("bcvRateAtAcquisition")}
             />
             <p className="mt-1 text-xs text-zinc-400">
-              Tasa de cambio BCV vigente al día de la compra. Permite calcular el costo histórico en VES para el Libro de Activos Fijos SENIAT.
+              Tasa de cambio BCV vigente al día de la compra. Permite calcular el costo histórico en
+              VES para el Libro de Activos Fijos SENIAT.
             </p>
           </div>
         )}
 
         <div>
-          <label className={labelClass}>Valor residual <span className="font-normal text-zinc-400">(Bs.)</span></label>
-          <input type="number" step="0.01" min="0" className={fieldClass} {...register("residualValue")} />
+          <label className={labelClass}>
+            Valor residual <span className="font-normal text-zinc-400">(Bs.)</span>
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className={fieldClass}
+            {...register("residualValue")}
+          />
         </div>
 
         <div>
           <label className={labelClass}>Vida útil (meses) *</label>
-          <input type="number" min="1" required className={fieldClass} placeholder="Ej: 60" {...register("usefulLifeMonths")} />
+          <input
+            type="number"
+            min="1"
+            required
+            className={fieldClass}
+            placeholder="Ej: 60"
+            {...register("usefulLifeMonths")}
+          />
         </div>
       </div>
 
@@ -456,7 +503,9 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
           })}
         >
           {METHOD_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </select>
       </div>
@@ -464,14 +513,21 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
       {method === "UNIDADES_PRODUCCION" && (
         <div>
           <label className={labelClass}>Total de unidades a producir *</label>
-          <input type="number" min="1" required className={fieldClass} placeholder="Ej: 100000" {...register("totalUnits")} />
+          <input
+            type="number"
+            min="1"
+            required
+            className={fieldClass}
+            placeholder="Ej: 100000"
+            {...register("totalUnits")}
+          />
         </div>
       )}
 
       {/* Cuentas contables */}
       <fieldset className="rounded-lg border border-gray-200 p-4">
-        <legend className="text-sm font-semibold text-gray-700 px-1">Cuentas contables</legend>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mt-2">
+        <legend className="px-1 text-sm font-semibold text-gray-700">Cuentas contables</legend>
+        <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className={labelClass}>Cuenta del activo *</label>
             {assetAccounts.length === 0 ? (
@@ -479,18 +535,16 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                 Sin cuentas tipo Activo. Créalas en el Plan de Cuentas.
               </p>
             ) : (
-              <select
-                required
-                className={fieldClass}
-                {...register("assetAccountId")}
-              >
+              <select required className={fieldClass} {...register("assetAccountId")}>
                 <option value="">Seleccionar cuenta ASSET…</option>
                 {assetAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
                 ))}
               </select>
             )}
-            <p className="mt-1 text-11 text-zinc-400">Tipo ASSET — propiedad, planta y equipo</p>
+            <p className="text-11 mt-1 text-zinc-400">Tipo ASSET — propiedad, planta y equipo</p>
           </div>
           <div>
             <label className={labelClass}>Gasto depreciación *</label>
@@ -499,18 +553,16 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                 Sin cuentas tipo Gasto. Créalas en el Plan de Cuentas.
               </p>
             ) : (
-              <select
-                required
-                className={fieldClass}
-                {...register("depreciationAccountId")}
-              >
+              <select required className={fieldClass} {...register("depreciationAccountId")}>
                 <option value="">Seleccionar cuenta EXPENSE…</option>
                 {expenseAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
                 ))}
               </select>
             )}
-            <p className="mt-1 text-11 text-zinc-400">Tipo EXPENSE — gasto por depreciación</p>
+            <p className="text-11 mt-1 text-zinc-400">Tipo EXPENSE — gasto por depreciación</p>
           </div>
           <div>
             <label className={labelClass}>Dep. acumulada *</label>
@@ -519,33 +571,30 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                 Sin cuentas tipo CONTRA_ASSET. Créalas en el Plan de Cuentas.
               </p>
             ) : (
-              <select
-                required
-                className={fieldClass}
-                {...register("accDepreciationAccountId")}
-              >
+              <select required className={fieldClass} {...register("accDepreciationAccountId")}>
                 <option value="">Seleccionar cuenta CONTRA_ASSET…</option>
                 {contraAssetAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
                 ))}
               </select>
             )}
-            <p className="mt-1 text-11 text-zinc-400">Tipo CONTRA_ASSET — depreciación acumulada</p>
+            <p className="text-11 mt-1 text-zinc-400">Tipo CONTRA_ASSET — depreciación acumulada</p>
           </div>
           <div className="col-span-full">
             <label className={labelClass}>Cuenta origen adquisición (GL)</label>
-            <select
-              className={fieldClass}
-              {...register("acquisitionCounterpartAccountId")}
-            >
+            <select className={fieldClass} {...register("acquisitionCounterpartAccountId")}>
               <option value="">Sin asiento automático (registrar manualmente)</option>
               {accounts
                 .filter((a) => a.id !== assetAccountId)
                 .map((a) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
                 ))}
             </select>
-            <p className="mt-1 text-11 text-zinc-400">
+            <p className="text-11 mt-1 text-zinc-400">
               Opcional — genera Dr Activos Fijos / Cr cuenta seleccionada al guardar (hallazgo #8)
             </p>
           </div>
@@ -566,13 +615,17 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
               <ChevronRightIcon className="h-4 w-4 shrink-0" />
             )}
             Datos Legales / SENIAT
-            <span className="text-xs font-normal text-amber-600">(Art. 76 ISLR — requerido para Libro de Activos Fijos)</span>
+            <span className="text-xs font-normal text-amber-600">
+              (Art. 76 ISLR — requerido para Libro de Activos Fijos)
+            </span>
           </span>
-          {!showLegal && <span className="text-xs font-normal text-amber-500">clic para expandir</span>}
+          {!showLegal && (
+            <span className="text-xs font-normal text-amber-500">clic para expandir</span>
+          )}
         </button>
 
         {showLegal && (
-          <div className="border-t border-amber-100 px-4 pb-4 pt-3">
+          <div className="border-t border-amber-100 px-4 pt-3 pb-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>Nro. Factura de Compra</label>
@@ -582,7 +635,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                   maxLength={50}
                   {...register("invoiceNumber")}
                 />
-                <p className="mt-1 text-11 text-zinc-400">Cruce con Libro de Compras IVA</p>
+                <p className="text-11 mt-1 text-zinc-400">Cruce con Libro de Compras IVA</p>
               </div>
 
               <div>
@@ -593,7 +646,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                   maxLength={20}
                   {...register("providerRif")}
                 />
-                <p className="mt-1 text-11 text-zinc-400">Verificación retenciones ISLR/IVA</p>
+                <p className="text-11 mt-1 text-zinc-400">Verificación retenciones ISLR/IVA</p>
               </div>
 
               <div>
@@ -604,7 +657,9 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                   maxLength={100}
                   {...register("serialNumber")}
                 />
-                <p className="mt-1 text-11 text-zinc-400">Identificación unívoca del activo físico</p>
+                <p className="text-11 mt-1 text-zinc-400">
+                  Identificación unívoca del activo físico
+                </p>
               </div>
 
               <div>
@@ -619,12 +674,10 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
 
               <div>
                 <label className={labelClass}>Fecha de Puesta en Servicio</label>
-                <input
-                  type="date"
-                  className={fieldClass}
-                  {...register("serviceStartDate")}
-                />
-                <p className="mt-1 text-11 text-zinc-400">Puede diferir de la fecha de adquisición</p>
+                <input type="date" className={fieldClass} {...register("serviceStartDate")} />
+                <p className="text-11 mt-1 text-zinc-400">
+                  Puede diferir de la fecha de adquisición
+                </p>
               </div>
             </div>
           </div>
@@ -637,10 +690,10 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
           role="alert"
           className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm"
         >
-          <p className="font-semibold text-amber-900 mb-1">
+          <p className="mb-1 font-semibold text-amber-900">
             ⚠️ Datos SENIAT incompletos — riesgo de rechazo fiscal
           </p>
-          <p className="text-xs text-amber-800 mb-3">
+          <p className="mb-3 text-xs text-amber-800">
             Sin <strong>Nro. de Factura de Compra</strong> y <strong>RIF del Proveedor</strong>,
             este activo puede no ser deducible a efectos del ISLR (Art. 76 LISLR). El SENIAT puede
             objetar la deducción en una fiscalización.

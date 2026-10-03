@@ -27,7 +27,7 @@ export type BatchRow = {
   nombre: string;
   nro_factura: string;
   nro_control: string;
-  fecha: string;    // YYYY-MM-DD
+  fecha: string; // YYYY-MM-DD
   base_16: string;
   base_8: string;
   exento: string;
@@ -47,23 +47,34 @@ export async function importInvoiceBatchAction(
 ): Promise<ActionResult<BatchImportResult>> {
   try {
     // Import masivo (loop de creación) → rate-limit fiscal + captura R-6 (ADR-041)
-    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
     if (!ctx.ok) return ctx.error;
 
-    if (!await hasModuleAccess(companyId, ctx.role, "invoicing")) {
+    if (!(await hasModuleAccess(companyId, ctx.role, "invoicing"))) {
       return { success: false, error: "Sin acceso al módulo de facturación" };
     }
     // Importar facturas en lote requiere rol de escritura — un grant de módulo (ADR-025)
     // solo da visibilidad, nunca debe bastar por sí solo para mutar.
     if (!canAccess(ctx.role, ROLES.WRITERS)) {
-      return { success: false, error: "Importar facturas requiere rol Administrativo, Contador, Administrador o Propietario" };
+      return {
+        success: false,
+        error:
+          "Importar facturas requiere rol Administrativo, Contador, Administrador o Propietario",
+      };
     }
 
     // Auditoría de seguridad: el diálogo anuncia "Máximo 200 filas por archivo" pero nada lo
     // exigía server-side — la action es invocable directamente sin pasar por el diálogo. Mismo
     // patrón que importAccountsAction (src/modules/import/actions/import.actions.ts).
     if (rows.length > 200) {
-      return { success: false, error: "El archivo supera el límite de 200 facturas por importación." };
+      return {
+        success: false,
+        error: "El archivo supera el límite de 200 facturas por importación.",
+      };
     }
 
     // Corte por suscripción vencida (solo lectura) — mismo guard que createInvoiceAction.
@@ -90,31 +101,50 @@ export async function importInvoiceBatchAction(
         if (row.tipo_doc === "NOTA_CREDITO" || row.tipo_doc === "NOTA_DEBITO") {
           errors.push({
             row: i + 1,
-            message: "Las notas de crédito/débito no se pueden importar por CSV — usa el formulario de Notas de Crédito/Débito para vincularlas a la factura original.",
+            message:
+              "Las notas de crédito/débito no se pueden importar por CSV — usa el formulario de Notas de Crédito/Débito para vincularlas a la factura original.",
           });
           continue;
         }
 
         const type = row.tipo === "VENTA" ? "SALE" : "PURCHASE";
 
-        const taxLines: Array<{ taxType: "IVA_GENERAL" | "IVA_REDUCIDO" | "IVA_ADICIONAL" | "EXENTO"; base: string; rate: string; amount: string }> = [];
+        const taxLines: Array<{
+          taxType: "IVA_GENERAL" | "IVA_REDUCIDO" | "IVA_ADICIONAL" | "EXENTO";
+          base: string;
+          rate: string;
+          amount: string;
+        }> = [];
 
         const b16 = new Decimal(row.base_16 || "0");
         const b8 = new Decimal(row.base_8 || "0");
         const bEx = new Decimal(row.exento || "0");
 
         if (b16.greaterThan(0)) {
-          taxLines.push({ taxType: "IVA_GENERAL", base: b16.toFixed(2), rate: "16", amount: b16.mul("0.16").toFixed(2) });
+          taxLines.push({
+            taxType: "IVA_GENERAL",
+            base: b16.toFixed(2),
+            rate: "16",
+            amount: b16.mul("0.16").toFixed(2),
+          });
         }
         if (b8.greaterThan(0)) {
-          taxLines.push({ taxType: "IVA_REDUCIDO", base: b8.toFixed(2), rate: "8", amount: b8.mul("0.08").toFixed(2) });
+          taxLines.push({
+            taxType: "IVA_REDUCIDO",
+            base: b8.toFixed(2),
+            rate: "8",
+            amount: b8.mul("0.08").toFixed(2),
+          });
         }
         if (bEx.greaterThan(0)) {
           taxLines.push({ taxType: "EXENTO", base: bEx.toFixed(2), rate: "0", amount: "0.00" });
         }
 
         if (taxLines.length === 0) {
-          errors.push({ row: i + 1, message: "Se requiere base_16, base_8 o exento con valor > 0" });
+          errors.push({
+            row: i + 1,
+            message: "Se requiere base_16, base_8 o exento con valor > 0",
+          });
           continue;
         }
 
@@ -185,10 +215,20 @@ export async function importInvoiceBatchAction(
         if (isPrismaError(e, "P2002")) {
           // H-002 Z-1: la fila era una venta sin Nº de Control y chocó la secuencia
           // concurrente — transitorio y reintentable, no "número duplicado".
-          if (row.tipo === "VENTA" && !row.nro_control?.trim() && p2002TargetIncludes(e, "invoiceType")) {
-            errors.push({ row: i + 1, message: "Error transitorio al generar Nº Control — intenta de nuevo." });
+          if (
+            row.tipo === "VENTA" &&
+            !row.nro_control?.trim() &&
+            p2002TargetIncludes(e, "invoiceType")
+          ) {
+            errors.push({
+              row: i + 1,
+              message: "Error transitorio al generar Nº Control — intenta de nuevo.",
+            });
           } else {
-            errors.push({ row: i + 1, message: "Ya existe una factura con ese número para esta empresa" });
+            errors.push({
+              row: i + 1,
+              message: "Ya existe una factura con ese número para esta empresa",
+            });
           }
         } else if (isPrismaError(e, "P2003")) {
           errors.push({ row: i + 1, message: "Datos de referencia inválidos" });

@@ -11,45 +11,64 @@ import type { AuditLogRow } from "./AuditLogService";
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const S = StyleSheet.create({
-  page:          { padding: 36, fontSize: 8, fontFamily: "Helvetica" },
-  header:        { marginBottom: 16, borderBottom: "1.5pt solid #1f2937", paddingBottom: 10 },
-  title:         { fontSize: 13, fontWeight: "bold", color: "#111827" },
-  subtitle:      { fontSize: 9, color: "#374151", marginTop: 2 },
-  meta:          { fontSize: 7.5, color: "#6b7280", marginTop: 1 },
-  filterBlock:   { marginBottom: 10, padding: "6pt 8pt", backgroundColor: "#f9fafb", borderRadius: 3 },
-  filterTitle:   { fontSize: 7, fontWeight: "bold", color: "#6b7280", marginBottom: 2 },
-  filterRow:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  filterItem:    { fontSize: 7, color: "#374151" },
+  page: { padding: 36, fontSize: 8, fontFamily: "Helvetica" },
+  header: { marginBottom: 16, borderBottom: "1.5pt solid #1f2937", paddingBottom: 10 },
+  title: { fontSize: 13, fontWeight: "bold", color: "#111827" },
+  subtitle: { fontSize: 9, color: "#374151", marginTop: 2 },
+  meta: { fontSize: 7.5, color: "#6b7280", marginTop: 1 },
+  filterBlock: {
+    marginBottom: 10,
+    padding: "6pt 8pt",
+    backgroundColor: "#f9fafb",
+    borderRadius: 3,
+  },
+  filterTitle: { fontSize: 7, fontWeight: "bold", color: "#6b7280", marginBottom: 2 },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  filterItem: { fontSize: 7, color: "#374151" },
   // Tabla
-  tableHeader:   {
+  tableHeader: {
     flexDirection: "row",
     backgroundColor: "#1f2937",
     padding: "4pt 3pt",
     marginBottom: 0,
   },
-  tableRow:      { flexDirection: "row", borderBottom: "0.5pt solid #e5e7eb", padding: "3pt 3pt" },
-  tableRowAlt:   { flexDirection: "row", backgroundColor: "#f9fafb", borderBottom: "0.5pt solid #e5e7eb", padding: "3pt 3pt" },
+  tableRow: { flexDirection: "row", borderBottom: "0.5pt solid #e5e7eb", padding: "3pt 3pt" },
+  tableRowAlt: {
+    flexDirection: "row",
+    backgroundColor: "#f9fafb",
+    borderBottom: "0.5pt solid #e5e7eb",
+    padding: "3pt 3pt",
+  },
   // Columnas: fecha(90) | entidad(60) | acción(80) | id(90) | usuario(90) | cambios(rest)
-  colDate:    { width: 90, fontSize: 7, color: "#374151" },
-  colEntity:  { width: 65, fontSize: 7 },
-  colAction:  { width: 85, fontSize: 7 },
-  colId:      { width: 95, fontSize: 6.5, color: "#6b7280" },
-  colUser:    { width: 90, fontSize: 6.5, color: "#6b7280" },
+  colDate: { width: 90, fontSize: 7, color: "#374151" },
+  colEntity: { width: 65, fontSize: 7 },
+  colAction: { width: 85, fontSize: 7 },
+  colId: { width: 95, fontSize: 6.5, color: "#6b7280" },
+  colUser: { width: 90, fontSize: 6.5, color: "#6b7280" },
   colChanges: { flex: 1, fontSize: 6.5 },
-  thText:     { color: "#ffffff", fontWeight: "bold" },
+  thText: { color: "#ffffff", fontWeight: "bold" },
   // Footer
-  footer:     { marginTop: 14, borderTop: "1pt solid #e5e7eb", paddingTop: 6 },
+  footer: { marginTop: 14, borderTop: "1pt solid #e5e7eb", paddingTop: 6 },
   footerText: { fontSize: 7, color: "#9ca3af", textAlign: "center" },
-  hashBlock:  { marginTop: 4, fontSize: 6.5, color: "#9ca3af", textAlign: "center" },
-  signedBadge:{ marginTop: 4, fontSize: 7, color: "#059669", textAlign: "center", fontWeight: "bold" },
+  hashBlock: { marginTop: 4, fontSize: 6.5, color: "#9ca3af", textAlign: "center" },
+  signedBadge: {
+    marginTop: 4,
+    fontSize: 7,
+    color: "#059669",
+    textAlign: "center",
+    fontWeight: "bold",
+  },
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(d: Date | string): string {
   const dt = new Date(d);
-  return dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" })
-    + " " + dt.toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return (
+    dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" }) +
+    " " +
+    dt.toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  );
 }
 
 function summarizeChanges(row: AuditLogRow): string {
@@ -62,7 +81,9 @@ function summarizeChanges(row: AuditLogRow): string {
     const oldKeys = Object.keys(row.oldValue as Record<string, unknown>);
     const newKeys = Object.keys(row.newValue as Record<string, unknown>);
     const changed = newKeys.filter((k) => oldKeys.includes(k)).slice(0, 3);
-    return changed.length ? `Modificado: ${changed.join(", ")}` : `Campos: ${newKeys.slice(0, 3).join(", ")}`;
+    return changed.length
+      ? `Modificado: ${changed.join(", ")}`
+      : `Campos: ${newKeys.slice(0, 3).join(", ")}`;
   }
   return "Sin datos";
 }
@@ -87,7 +108,17 @@ export interface AuditLogPDFInput {
 }
 
 export async function generateAuditLogPDF(input: AuditLogPDFInput): Promise<Buffer> {
-  const { rows, companyName, companyRif, filters, exportedBy, contentHash, signed, thumbprint, signedAt } = input;
+  const {
+    rows,
+    companyName,
+    companyRif,
+    filters,
+    exportedBy,
+    contentHash,
+    signed,
+    thumbprint,
+    signedAt,
+  } = input;
 
   const doc = React.createElement(
     Document,
@@ -100,8 +131,16 @@ export async function generateAuditLogPDF(input: AuditLogPDFInput): Promise<Buff
         View,
         { style: S.header },
         React.createElement(Text, { style: S.title }, "Registro de Auditoría"),
-        React.createElement(Text, { style: S.subtitle }, `${companyName}${companyRif ? ` — ${companyRif}` : ""}`),
-        React.createElement(Text, { style: S.meta }, `Exportado: ${fmtDate(new Date())}   •   Por: ${exportedBy}   •   ${rows.length} registro(s)`),
+        React.createElement(
+          Text,
+          { style: S.subtitle },
+          `${companyName}${companyRif ? ` — ${companyRif}` : ""}`
+        ),
+        React.createElement(
+          Text,
+          { style: S.meta },
+          `Exportado: ${fmtDate(new Date())}   •   Por: ${exportedBy}   •   ${rows.length} registro(s)`
+        )
       ),
 
       // ── Filtros aplicados ─────────────────────────────────────────────────
@@ -112,11 +151,19 @@ export async function generateAuditLogPDF(input: AuditLogPDFInput): Promise<Buff
         React.createElement(
           View,
           { style: S.filterRow },
-          React.createElement(Text, { style: S.filterItem }, `Entidad: ${filters.entityName || "Todas"}`),
-          React.createElement(Text, { style: S.filterItem }, `Usuario: ${filters.userId || "Todos"}`),
+          React.createElement(
+            Text,
+            { style: S.filterItem },
+            `Entidad: ${filters.entityName || "Todas"}`
+          ),
+          React.createElement(
+            Text,
+            { style: S.filterItem },
+            `Usuario: ${filters.userId || "Todos"}`
+          ),
           React.createElement(Text, { style: S.filterItem }, `Desde: ${filters.dateFrom || "—"}`),
-          React.createElement(Text, { style: S.filterItem }, `Hasta: ${filters.dateTo || "—"}`),
-        ),
+          React.createElement(Text, { style: S.filterItem }, `Hasta: ${filters.dateTo || "—"}`)
+        )
       ),
 
       // ── Encabezado de tabla ───────────────────────────────────────────────
@@ -128,7 +175,7 @@ export async function generateAuditLogPDF(input: AuditLogPDFInput): Promise<Buff
         React.createElement(Text, { style: [S.colAction, S.thText] }, "Acción"),
         React.createElement(Text, { style: [S.colId, S.thText] }, "ID Entidad"),
         React.createElement(Text, { style: [S.colUser, S.thText] }, "Usuario"),
-        React.createElement(Text, { style: [S.colChanges, S.thText] }, "Cambios"),
+        React.createElement(Text, { style: [S.colChanges, S.thText] }, "Cambios")
       ),
 
       // ── Filas ─────────────────────────────────────────────────────────────
@@ -141,7 +188,7 @@ export async function generateAuditLogPDF(input: AuditLogPDFInput): Promise<Buff
           React.createElement(Text, { style: S.colAction }, row.action),
           React.createElement(Text, { style: S.colId }, row.entityId.slice(0, 20)),
           React.createElement(Text, { style: S.colUser }, row.userId.slice(-16)),
-          React.createElement(Text, { style: S.colChanges }, summarizeChanges(row)),
+          React.createElement(Text, { style: S.colChanges }, summarizeChanges(row))
         )
       ),
 
@@ -149,12 +196,24 @@ export async function generateAuditLogPDF(input: AuditLogPDFInput): Promise<Buff
       React.createElement(
         View,
         { style: S.footer },
-        React.createElement(Text, { style: S.footerText }, "Documento generado por ContaFlow — Registro de Auditoría Inmutable"),
+        React.createElement(
+          Text,
+          { style: S.footerText },
+          "Documento generado por ContaFlow — Registro de Auditoría Inmutable"
+        ),
         React.createElement(Text, { style: S.hashBlock }, `SHA-256: ${contentHash}`),
         signed && thumbprint
-          ? React.createElement(Text, { style: S.signedBadge }, `✓ Firmado digitalmente — Thumbprint: ${thumbprint}   SignedAt: ${signedAt}`)
-          : React.createElement(Text, { style: S.hashBlock }, "Sin firma digital (certificado no configurado)"),
-      ),
+          ? React.createElement(
+              Text,
+              { style: S.signedBadge },
+              `✓ Firmado digitalmente — Thumbprint: ${thumbprint}   SignedAt: ${signedAt}`
+            )
+          : React.createElement(
+              Text,
+              { style: S.hashBlock },
+              "Sin firma digital (certificado no configurado)"
+            )
+      )
     )
   );
 

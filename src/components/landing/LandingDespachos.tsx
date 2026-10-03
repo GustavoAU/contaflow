@@ -31,15 +31,16 @@ export function LandingDespachos() {
   return (
     <section id="para-despachos" className={styles.despachos}>
       <div className={`${styles.despInner} ${styles.wrap}`}>
-
         <div className={styles.despHead}>
           <p className={styles.despEyebrow}>Para despachos contables</p>
           <h2 className={styles.despH2}>
-            Un solo login.<br />Todos tus clientes.
+            Un solo login.
+            <br />
+            Todos tus clientes.
           </h2>
           <p className={styles.despSubtitle}>
-            ContaFlow está diseñado para despachos. Gestiona los RIFs de tus clientes
-            desde una sola cuenta, con roles diferenciados para cada miembro de tu equipo.
+            ContaFlow está diseñado para despachos. Gestiona los RIFs de tus clientes desde una sola
+            cuenta, con roles diferenciados para cada miembro de tu equipo.
           </p>
         </div>
 
@@ -104,9 +105,10 @@ export function LandingDespachos() {
           >
             Consultar plan despacho →
           </a>
-          <p className={styles.despCtaSub}>Sin tarjeta de crédito · Descuento por volumen para despachos</p>
+          <p className={styles.despCtaSub}>
+            Sin tarjeta de crédito · Descuento por volumen para despachos
+          </p>
         </div>
-
       </div>
     </section>
   );

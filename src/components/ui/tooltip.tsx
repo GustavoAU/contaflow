@@ -33,9 +33,7 @@ function TooltipProvider({
  * más barato que obligar a cada página a envolver su árbol. Si algún día hay un
  * provider global, este se anida sin romper nada.
  */
-function Tooltip({
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+function Tooltip({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
   return (
     <TooltipProvider>
       <TooltipPrimitive.Root data-slot="tooltip" {...props} />
@@ -43,9 +41,7 @@ function Tooltip({
   );
 }
 
-function TooltipTrigger({
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+function TooltipTrigger({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
@@ -62,7 +58,7 @@ function TooltipContent({
         sideOffset={sideOffset}
         collisionPadding={8}
         className={cn(
-          "z-50 w-max max-w-70 rounded-lg bg-zinc-900 px-3 py-2 text-11 leading-snug text-white shadow-xl",
+          "text-11 z-50 w-max max-w-70 rounded-lg bg-zinc-900 px-3 py-2 leading-snug text-white shadow-xl",
           "animate-in fade-in-0 zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",

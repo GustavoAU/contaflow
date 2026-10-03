@@ -50,27 +50,29 @@ export type PostBenefitInterestInput = z.infer<typeof PostBenefitInterestSchema>
 
 // ─── Vacaciones ───────────────────────────────────────────────────────────────
 
-export const CreateVacationSchema = z.object({
-  periodYear: z.number().int().min(2000).max(2100),
-  vacationDays: z
-    .number()
-    .positive({ message: "Los días de vacaciones deben ser positivos" })
-    .max(90, { message: "Los días de vacaciones no pueden exceder 90" }),
-  bonusDays: z
-    .number()
-    .min(0)
-    .max(90, { message: "El bono vacacional no puede exceder 90 días" }),
-  startDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de inicio inválida (YYYY-MM-DD)" }),
-  endDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de fin inválida (YYYY-MM-DD)" }),
-  isFractional: z.boolean().optional(),
-}).refine((d) => new Date(d.endDate) >= new Date(d.startDate), {
-  message: "La fecha de fin debe ser igual o posterior a la fecha de inicio",
-  path: ["endDate"],
-});
+export const CreateVacationSchema = z
+  .object({
+    periodYear: z.number().int().min(2000).max(2100),
+    vacationDays: z
+      .number()
+      .positive({ message: "Los días de vacaciones deben ser positivos" })
+      .max(90, { message: "Los días de vacaciones no pueden exceder 90" }),
+    bonusDays: z
+      .number()
+      .min(0)
+      .max(90, { message: "El bono vacacional no puede exceder 90 días" }),
+    startDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de inicio inválida (YYYY-MM-DD)" }),
+    endDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Fecha de fin inválida (YYYY-MM-DD)" }),
+    isFractional: z.boolean().optional(),
+  })
+  .refine((d) => new Date(d.endDate) >= new Date(d.startDate), {
+    message: "La fecha de fin debe ser igual o posterior a la fecha de inicio",
+    path: ["endDate"],
+  });
 
 export type CreateVacationInput = z.infer<typeof CreateVacationSchema>;
 
@@ -104,15 +106,18 @@ export type CalculateProfitSharingInput = z.infer<typeof CalculateProfitSharingS
 
 // ─── Liquidación Final ────────────────────────────────────────────────────────
 
-const TerminationReasonEnum = z.enum([
-  "RESIGNATION",
-  "DISMISSAL_JUSTIFIED",
-  "DISMISSAL_UNJUSTIFIED",
-  "MUTUAL_AGREEMENT",
-  "CONTRACT_EXPIRY",
-  "DEATH",
-  "DISABILITY",
-], { error: "Selecciona el motivo de egreso" });
+const TerminationReasonEnum = z.enum(
+  [
+    "RESIGNATION",
+    "DISMISSAL_JUSTIFIED",
+    "DISMISSAL_UNJUSTIFIED",
+    "MUTUAL_AGREEMENT",
+    "CONTRACT_EXPIRY",
+    "DEATH",
+    "DISABILITY",
+  ],
+  { error: "Selecciona el motivo de egreso" }
+);
 
 // UUID v4 pattern para idempotencyKey
 const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -156,7 +161,11 @@ export const RegisterBenefitAdvanceSchema = z.object({
   reason: z.enum(["HOUSING", "HEALTH", "EDUCATION"], {
     error: "Selecciona un motivo válido (Vivienda, Salud o Educación)",
   }),
-  notes: z.string().max(500, { message: "Las notas no pueden exceder 500 caracteres" }).optional().nullable(),
+  notes: z
+    .string()
+    .max(500, { message: "Las notas no pueden exceder 500 caracteres" })
+    .optional()
+    .nullable(),
 });
 
 export type RegisterBenefitAdvanceInput = z.infer<typeof RegisterBenefitAdvanceSchema>;

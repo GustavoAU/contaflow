@@ -1,5 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/reports/balance-sheet/page.tsx
-import { getBalanceSheetAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
+import {
+  getBalanceSheetAction,
+  getCompanyHeaderAction,
+} from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
 import { BalanceSheetFilter } from "@/components/reports/BalanceSheetFilter";
 import { currentUser } from "@clerk/nextjs/server";
@@ -52,12 +55,19 @@ function Section({
             rows.map((row, i) => {
               const { display, negative } = fmtAccounting(row.balance);
               return (
-                <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
+                <tr
+                  key={row.id}
+                  className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}
+                >
                   <td className="px-4 py-2 text-zinc-600">
-                    <span className="mr-2 font-mono text-xs text-zinc-400">{row.code === "—" ? "" : row.code}</span>
+                    <span className="mr-2 font-mono text-xs text-zinc-400">
+                      {row.code === "—" ? "" : row.code}
+                    </span>
                     {row.name}
                   </td>
-                  <td className={`tabular-nums px-4 py-2 text-right font-mono ${negative ? "text-red-600" : ""}`}>
+                  <td
+                    className={`px-4 py-2 text-right font-mono tabular-nums ${negative ? "text-red-600" : ""}`}
+                  >
                     {display}
                   </td>
                 </tr>
@@ -71,7 +81,9 @@ function Section({
             return (
               <tr className={`border-t ${colorClass}`}>
                 <td className="px-4 py-2 font-semibold">Total {title}</td>
-                <td className={`tabular-nums px-4 py-2 text-right font-mono font-semibold ${negative ? "text-red-600" : ""}`}>
+                <td
+                  className={`px-4 py-2 text-right font-mono font-semibold tabular-nums ${negative ? "text-red-600" : ""}`}
+                >
                   {display} Bs.
                 </td>
               </tr>
@@ -182,20 +194,26 @@ export default async function BalanceSheetPage({ params, searchParams }: Props) 
           <div
             className={`rounded-lg border-2 p-4 ${result.data.isBalanced ? "border-green-400 bg-green-50" : "border-red-400 bg-red-50"}`}
           >
-            <p className={`font-bold ${result.data.isBalanced ? "text-green-800" : "text-red-800"}`}>
+            <p
+              className={`font-bold ${result.data.isBalanced ? "text-green-800" : "text-red-800"}`}
+            >
               {result.data.isBalanced ? "✅ Balance cuadrado" : "⚠️ Balance descuadrado"}
             </p>
             <div className="mt-2 flex items-center gap-3 text-sm">
               <div className="text-center">
                 <p className="text-xs text-zinc-500">Activos</p>
-                <p className={`tabular-nums font-mono font-bold ${fmtAccounting(result.data.totalAssets).negative ? "text-red-600" : ""}`}>
+                <p
+                  className={`font-mono font-bold tabular-nums ${fmtAccounting(result.data.totalAssets).negative ? "text-red-600" : ""}`}
+                >
                   {fmtAccounting(result.data.totalAssets).display} Bs.
                 </p>
               </div>
-              <span className="text-zinc-400 font-bold">=</span>
+              <span className="font-bold text-zinc-400">=</span>
               <div className="text-center">
                 <p className="text-xs text-zinc-500">Pasivos + Patrimonio</p>
-                <p className={`tabular-nums font-mono font-bold ${fmtAccounting(result.data.totalLiabilitiesAndEquity).negative ? "text-red-600" : ""}`}>
+                <p
+                  className={`font-mono font-bold tabular-nums ${fmtAccounting(result.data.totalLiabilitiesAndEquity).negative ? "text-red-600" : ""}`}
+                >
                   {fmtAccounting(result.data.totalLiabilitiesAndEquity).display} Bs.
                 </p>
               </div>

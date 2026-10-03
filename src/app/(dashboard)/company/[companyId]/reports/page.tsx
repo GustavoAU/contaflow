@@ -1,6 +1,13 @@
 // src/app/(dashboard)/company/[companyId]/reports/page.tsx
 import Link from "next/link";
-import { BookOpenIcon, ScaleIcon, TrendingUpIcon, LayoutIcon, ClipboardListIcon, ChevronLeftIcon } from "lucide-react";
+import {
+  BookOpenIcon,
+  ScaleIcon,
+  TrendingUpIcon,
+  LayoutIcon,
+  ClipboardListIcon,
+  ChevronLeftIcon,
+} from "lucide-react";
 import { ModuleTabs } from "@/components/ui/ModuleTabs";
 import { NavigationCard } from "@/components/ui/NavigationCard";
 
@@ -45,9 +52,9 @@ export default async function ReportsPage({ params }: Props) {
   ];
 
   const contaTabs = [
-    { label: "Asientos",        href: `/company/${companyId}/transactions` },
+    { label: "Asientos", href: `/company/${companyId}/transactions` },
     { label: "Plan de Cuentas", href: `/company/${companyId}/accounts` },
-    { label: "Reportes",        href: `/company/${companyId}/reports` },
+    { label: "Reportes", href: `/company/${companyId}/reports` },
   ];
 
   return (

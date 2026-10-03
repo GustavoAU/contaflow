@@ -1,5 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/reports/journal/page.tsx
-import { getJournalAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
+import {
+  getJournalAction,
+  getCompanyHeaderAction,
+} from "@/modules/accounting/actions/report.actions";
 import { getPeriodsAction } from "@/modules/accounting/actions/period.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { JournalExportButton } from "@/components/reports/JournalExportButton";
@@ -25,13 +28,21 @@ function fmt(v: string): string {
   return fmtVen(v);
 }
 
-function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; companyId: string; folio?: number }) {
+function TransactionBlock({
+  tx,
+  companyId,
+  folio,
+}: {
+  tx: JournalTransaction;
+  companyId: string;
+  folio?: number;
+}) {
   return (
     <div className="overflow-hidden rounded-lg border bg-white">
       {/* Encabezado del asiento */}
       <div className="flex flex-wrap items-center gap-3 border-b bg-zinc-50 px-4 py-2">
         {folio !== undefined && (
-          <span className="font-mono text-xs text-zinc-400 w-12" title="Número de folio">
+          <span className="w-12 font-mono text-xs text-zinc-400" title="Número de folio">
             f.{String(folio).padStart(3, "0")}
           </span>
         )}
@@ -45,9 +56,7 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
           {tx.number}
         </Link>
         <span className="flex-1 text-sm text-zinc-700">{tx.description}</span>
-        {tx.reference && (
-          <span className="font-mono text-xs text-zinc-400">{tx.reference}</span>
-        )}
+        {tx.reference && <span className="font-mono text-xs text-zinc-400">{tx.reference}</span>}
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">
           {TYPE_LABELS[tx.type] ?? tx.type}
         </span>
@@ -55,39 +64,43 @@ function TransactionBlock({ tx, companyId, folio }: { tx: JournalTransaction; co
 
       {/* Partidas */}
       <div className="overflow-x-auto">
-      <table className="w-full min-w-120 text-sm">
-        <thead className="border-b">
-          <tr className="text-xs text-zinc-400">
-            <th className="w-20 px-4 py-1.5 text-left font-normal">Código</th>
-            <th className="px-4 py-1.5 text-left font-normal">Cuenta</th>
-            <th className="w-40 px-4 py-1.5 text-right font-normal">Débito (Bs.)</th>
-            <th className="w-40 px-4 py-1.5 text-right font-normal">Crédito (Bs.)</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {tx.lines.map((line, i) => (
-            <tr key={i} className="hover:bg-zinc-50/60">
-              <td className="px-4 py-2 font-mono text-xs text-zinc-500">{line.accountCode}</td>
-              <td className={`px-4 py-2 text-zinc-900 dark:text-zinc-100 ${line.credit ? "pl-10" : ""}`}>{line.accountName}</td>
-              <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-900 dark:text-zinc-100">
-                {line.debit ? fmt(line.debit) : "—"}
-              </td>
-              <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-900 dark:text-zinc-100">
-                {line.credit ? fmt(line.credit) : "—"}
-              </td>
+        <table className="w-full min-w-120 text-sm">
+          <thead className="border-b">
+            <tr className="text-xs text-zinc-400">
+              <th className="w-20 px-4 py-1.5 text-left font-normal">Código</th>
+              <th className="px-4 py-1.5 text-left font-normal">Cuenta</th>
+              <th className="w-40 px-4 py-1.5 text-right font-normal">Débito (Bs.)</th>
+              <th className="w-40 px-4 py-1.5 text-right font-normal">Crédito (Bs.)</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t bg-zinc-50 text-sm font-semibold">
-            <td colSpan={2} className="px-4 py-2 text-right text-zinc-500">
-              Sumas iguales
-            </td>
-            <td className="tabular-nums px-4 py-2 text-right font-mono">{fmt(tx.totalDebit)}</td>
-            <td className="tabular-nums px-4 py-2 text-right font-mono">{fmt(tx.totalCredit)}</td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody className="divide-y">
+            {tx.lines.map((line, i) => (
+              <tr key={i} className="hover:bg-zinc-50/60">
+                <td className="px-4 py-2 font-mono text-xs text-zinc-500">{line.accountCode}</td>
+                <td
+                  className={`px-4 py-2 text-zinc-900 dark:text-zinc-100 ${line.credit ? "pl-10" : ""}`}
+                >
+                  {line.accountName}
+                </td>
+                <td className="px-4 py-2 text-right font-mono text-zinc-900 tabular-nums dark:text-zinc-100">
+                  {line.debit ? fmt(line.debit) : "—"}
+                </td>
+                <td className="px-4 py-2 text-right font-mono text-zinc-900 tabular-nums dark:text-zinc-100">
+                  {line.credit ? fmt(line.credit) : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t bg-zinc-50 text-sm font-semibold">
+              <td colSpan={2} className="px-4 py-2 text-right text-zinc-500">
+                Sumas iguales
+              </td>
+              <td className="px-4 py-2 text-right font-mono tabular-nums">{fmt(tx.totalDebit)}</td>
+              <td className="px-4 py-2 text-right font-mono tabular-nums">{fmt(tx.totalCredit)}</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </div>
   );
@@ -119,7 +132,10 @@ export default async function JournalPage({ params, searchParams }: Props) {
       success: false as const,
       error: err instanceof Error ? err.message : "Error al cargar el libro diario",
     })),
-    getPeriodsAction(companyId).catch(() => ({ success: false as const, error: "Error al cargar períodos" })),
+    getPeriodsAction(companyId).catch(() => ({
+      success: false as const,
+      error: "Error al cargar períodos",
+    })),
     getCompanyHeaderAction(companyId).catch(() => ({ success: false as const, error: "" })),
   ]);
   const transactions = result.success ? result.data.transactions : [];
@@ -174,7 +190,7 @@ export default async function JournalPage({ params, searchParams }: Props) {
           name="q"
           defaultValue={q ?? ""}
           placeholder="Buscar por descripción, número o referencia…"
-          className="w-72 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+          className="w-72 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
         />
         <button
           type="submit"

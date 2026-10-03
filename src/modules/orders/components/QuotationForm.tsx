@@ -70,7 +70,8 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
     });
   }
 
-  const inputCls = "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const inputCls =
+    "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const labelCls = "block text-xs font-medium text-gray-600 mb-1";
 
   return (
@@ -78,7 +79,7 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
       {/* Tipo */}
       <div className="flex gap-4">
         {(["PURCHASE", "SALE"] as const).map((t) => (
-          <label key={t} className="flex items-center gap-2 cursor-pointer text-sm">
+          <label key={t} className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="radio"
               name="type"
@@ -129,7 +130,11 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
         </div>
         <div>
           <label className={labelCls}>Divisa</label>
-          <select className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          <select
+            className={inputCls}
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+          >
             <option value="VES">VES — Bolívares</option>
             <option value="USD">USD — Dólares</option>
             <option value="EUR">EUR — Euros</option>
@@ -139,20 +144,16 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
 
       {/* Ítems */}
       <div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700">Ítems</span>
-          <button
-            type="button"
-            onClick={addItem}
-            className="text-xs text-blue-600 hover:underline"
-          >
+          <button type="button" onClick={addItem} className="text-xs text-blue-600 hover:underline">
             + Agregar ítem
           </button>
         </div>
 
         <div className="space-y-2">
           {items.map((item, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+            <div key={idx} className="grid grid-cols-12 items-end gap-2">
               <div className="col-span-4">
                 {idx === 0 && <label className={labelCls}>Descripción</label>}
                 <input
@@ -206,7 +207,9 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
                   onChange={(e) => updateItem(idx, "taxRate", e.target.value)}
                 >
                   {TAX_RATES.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -246,7 +249,8 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
         aria-busy={isPending}
         className="inline-flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Guardando…" : "Crear cotización"}
+        {isPending && <Loader2Icon className="size-4 animate-spin" />}
+        {isPending ? "Guardando…" : "Crear cotización"}
       </button>
     </form>
   );

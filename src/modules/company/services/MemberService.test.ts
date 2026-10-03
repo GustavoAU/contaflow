@@ -1,12 +1,7 @@
 // src/modules/company/services/MemberService.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import prisma from "@/lib/prisma";
-import {
-  listMembers,
-  addMember,
-  updateMemberRole,
-  removeMember,
-} from "./MemberService";
+import { listMembers, addMember, updateMemberRole, removeMember } from "./MemberService";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -70,13 +65,11 @@ describe("listMembers", () => {
 
 describe("addMember", () => {
   beforeEach(() => {
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          companyMember: prisma.companyMember,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        companyMember: prisma.companyMember,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("crea miembro correctamente", async () => {
@@ -111,9 +104,9 @@ describe("addMember", () => {
   });
 
   it("lanza error si se intenta asignar rol OWNER", async () => {
-    await expect(
-      addMember(COMPANY_ID, "juan@example.com", "OWNER", ACTOR_USER_ID)
-    ).rejects.toThrow("Propietario");
+    await expect(addMember(COMPANY_ID, "juan@example.com", "OWNER", ACTOR_USER_ID)).rejects.toThrow(
+      "Propietario"
+    );
   });
 
   it("normaliza el email a minúsculas", async () => {
@@ -134,13 +127,11 @@ describe("addMember", () => {
 
 describe("updateMemberRole", () => {
   beforeEach(() => {
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          companyMember: prisma.companyMember,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        companyMember: prisma.companyMember,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("actualiza rol correctamente", async () => {
@@ -195,13 +186,11 @@ describe("updateMemberRole", () => {
 
 describe("removeMember", () => {
   beforeEach(() => {
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          companyMember: prisma.companyMember,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        companyMember: prisma.companyMember,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("elimina miembro correctamente", async () => {
@@ -209,9 +198,7 @@ describe("removeMember", () => {
     vi.mocked(prisma.companyMember.delete).mockResolvedValue(MEMBER_ROW as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
-    await expect(
-      removeMember(COMPANY_ID, TARGET_USER_ID, ACTOR_USER_ID)
-    ).resolves.toBeUndefined();
+    await expect(removeMember(COMPANY_ID, TARGET_USER_ID, ACTOR_USER_ID)).resolves.toBeUndefined();
 
     expect(prisma.companyMember.delete).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -221,17 +208,17 @@ describe("removeMember", () => {
   });
 
   it("lanza error si el actor intenta eliminarse a sí mismo", async () => {
-    await expect(
-      removeMember(COMPANY_ID, ACTOR_USER_ID, ACTOR_USER_ID)
-    ).rejects.toThrow("eliminarte a ti mismo");
+    await expect(removeMember(COMPANY_ID, ACTOR_USER_ID, ACTOR_USER_ID)).rejects.toThrow(
+      "eliminarte a ti mismo"
+    );
   });
 
   it("lanza error si el miembro no existe (ADR-004)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
 
-    await expect(
-      removeMember(COMPANY_ID, TARGET_USER_ID, ACTOR_USER_ID)
-    ).rejects.toThrow("Miembro no encontrado");
+    await expect(removeMember(COMPANY_ID, TARGET_USER_ID, ACTOR_USER_ID)).rejects.toThrow(
+      "Miembro no encontrado"
+    );
   });
 
   it("lanza error si el miembro es OWNER", async () => {
@@ -241,8 +228,8 @@ describe("removeMember", () => {
       user: { email: "owner@example.com" },
     } as never);
 
-    await expect(
-      removeMember(COMPANY_ID, TARGET_USER_ID, ACTOR_USER_ID)
-    ).rejects.toThrow("Propietario");
+    await expect(removeMember(COMPANY_ID, TARGET_USER_ID, ACTOR_USER_ID)).rejects.toThrow(
+      "Propietario"
+    );
   });
 });

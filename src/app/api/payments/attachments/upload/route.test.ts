@@ -16,12 +16,21 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: h.auth }));
-vi.mock("@sentry/nextjs", () => ({ captureException: h.captureException, captureMessage: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({
+  captureException: h.captureException,
+  captureMessage: vi.fn(),
+}));
 vi.mock("@/lib/prisma", () => ({
-  default: { paymentRecord: { findFirst: h.paymentFind }, paymentAttachment: { findFirst: h.attachmentFind } },
+  default: {
+    paymentRecord: { findFirst: h.paymentFind },
+    paymentAttachment: { findFirst: h.attachmentFind },
+  },
 }));
 vi.mock("@/lib/action-guard", () => ({ requireCompanyAction: h.guard }));
-vi.mock("@/lib/ratelimit", () => ({ limiters: { fiscal: {}, read: {} }, checkRateLimit: h.rateLimit }));
+vi.mock("@/lib/ratelimit", () => ({
+  limiters: { fiscal: {}, read: {} },
+  checkRateLimit: h.rateLimit,
+}));
 vi.mock("@/lib/private-blob", () => ({
   isPrivateBlobConfigured: h.configured,
   putPrivateBlob: h.put,
@@ -44,7 +53,7 @@ function request(
     contentLength?: string;
     fileName?: string;
     headers?: Record<string, string>;
-  } = {},
+  } = {}
 ) {
   const form = new FormData();
   const fields = opts.fields ?? { companyId: "co-1", paymentRecordId: "pay-1" };
@@ -52,7 +61,9 @@ function request(
   if (opts.file !== null) {
     form.set(
       "file",
-      new File([(opts.file ?? PDF) as BlobPart], opts.fileName ?? "comprobante.pdf", { type: "application/pdf" }),
+      new File([(opts.file ?? PDF) as BlobPart], opts.fileName ?? "comprobante.pdf", {
+        type: "application/pdf",
+      })
     );
   }
   const headers: Record<string, string> = { ...(opts.headers ?? {}) };
@@ -69,7 +80,13 @@ beforeEach(() => {
   h.configured.mockReturnValue(true);
   h.auth.mockResolvedValue({ userId: "user-1" });
   h.rateLimit.mockResolvedValue({ allowed: true });
-  h.guard.mockResolvedValue({ ok: true, userId: "user-1", role: "ACCOUNTANT", ipAddress: "1.2.3.4", userAgent: "UA" });
+  h.guard.mockResolvedValue({
+    ok: true,
+    userId: "user-1",
+    role: "ACCOUNTANT",
+    ipAddress: "1.2.3.4",
+    userAgent: "UA",
+  });
   h.paymentFind.mockResolvedValue({ deletedAt: null });
   h.attachmentFind.mockResolvedValue(null);
   h.put.mockResolvedValue({
@@ -131,7 +148,9 @@ describe("POST /api/payments/attachments/upload — subida por el servidor al Bl
 
   it("400 si falta el archivo o los ids no son válidos (un objeto no se cuela como filtro)", async () => {
     expect((await POST(request({ file: null }))).status).toBe(400);
-    expect((await POST(request({ fields: { companyId: "co 1;", paymentRecordId: "pay-1" } }))).status).toBe(400);
+    expect(
+      (await POST(request({ fields: { companyId: "co 1;", paymentRecordId: "pay-1" } }))).status
+    ).toBe(400);
     expect(h.guard).not.toHaveBeenCalled();
   });
 
@@ -185,7 +204,7 @@ describe("POST /api/payments/attachments/upload — subida por el servidor al Bl
         uploadedBy: "user-1",
         ipAddress: "1.2.3.4",
         userAgent: "UA",
-      }),
+      })
     );
   });
 
@@ -201,6 +220,8 @@ describe("POST /api/payments/attachments/upload — subida por el servidor al Bl
     h.persist.mockRejectedValue(new Error("Este pago ya tiene un comprobante adjunto"));
     const res = await POST(request());
     expect(res.status).toBe(409);
-    expect(h.del).toHaveBeenCalledWith("https://store.private.blob.vercel-storage.com/co-1/payments/pay-1/x.pdf");
+    expect(h.del).toHaveBeenCalledWith(
+      "https://store.private.blob.vercel-storage.com/co-1/payments/pay-1/x.pdf"
+    );
   });
 });

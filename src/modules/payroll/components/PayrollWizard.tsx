@@ -104,7 +104,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
     paymentCurrency: initial?.paymentCurrency ?? "VES",
     frequency: initial?.frequency ?? "BIWEEKLY",
     fideicomiso: initial?.fideicomiso ?? "INTERNAL",
-    workSchedule: (initial?.workSchedule ?? "LUNES_VIERNES") as "LUNES_VIERNES" | "LUNES_SABADO" | "LUNES_SABADO_MEDIO",
+    workSchedule: (initial?.workSchedule ?? "LUNES_VIERNES") as
+      | "LUNES_VIERNES"
+      | "LUNES_SABADO"
+      | "LUNES_SABADO_MEDIO",
     ivssRiskClass: (initial?.ivssRiskClass ?? "MEDIO") as "MINIMO" | "MEDIO" | "MAXIMO",
     salaryMinimumVes: initial?.salaryMinimumVes ?? "",
     // Cuentas nómina principal (requeridas para aprobar proceso)
@@ -153,7 +156,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
       );
       if (!ok) return;
     }
-    set(key, !current as typeof form[typeof key]);
+    set(key, !current as (typeof form)[typeof key]);
   }
 
   // Riesgo inverso al de arriba: aquí lo delicado es ACTIVAR, no desactivar.
@@ -226,8 +229,8 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               s === step
                 ? "bg-blue-600 text-white"
                 : s < step
-                ? "bg-green-500 text-white"
-                : "bg-gray-200 text-gray-500"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 text-gray-500"
             }`}
           >
             {s}
@@ -269,8 +272,8 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               Régimen LOTTT aplicable
             </label>
             <p className="mb-2 text-xs text-gray-500">
-              Decide cómo se calculan las prestaciones sociales. Depende de la
-              fecha de ingreso más antigua de tu plantilla.
+              Decide cómo se calculan las prestaciones sociales. Depende de la fecha de ingreso más
+              antigua de tu plantilla.
             </p>
             {Object.entries(LOTT_LABELS).map(([val, label]) => (
               <label key={val} className="flex cursor-pointer items-start gap-2 py-1.5">
@@ -292,7 +295,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
 
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
-              Jornada laboral <span className="text-xs text-gray-400 font-normal">(días hábiles para vacaciones)</span>
+              Jornada laboral{" "}
+              <span className="text-xs font-normal text-gray-400">
+                (días hábiles para vacaciones)
+              </span>
             </label>
             {Object.entries(WORK_SCHEDULE_LABELS).map(([val, label]) => (
               <label key={val} className="flex cursor-pointer items-center gap-2 py-1">
@@ -333,10 +339,19 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             </p>
             {(
               [
-                { key: "ivssEnabled", label: "IVSS (Seg. Social — 9%/10%/11% patronal según riesgo + 4% obrero)" },
-                { key: "incesEnabled", label: "INCES (2% patronal sobre sueldos + 0,5% al trabajador sobre utilidades)" },
+                {
+                  key: "ivssEnabled",
+                  label: "IVSS (Seg. Social — 9%/10%/11% patronal según riesgo + 4% obrero)",
+                },
+                {
+                  key: "incesEnabled",
+                  label: "INCES (2% patronal sobre sueldos + 0,5% al trabajador sobre utilidades)",
+                },
                 { key: "banavihEnabled", label: "Banavih / FAOV (2% patronal + 1% trabajador)" },
-                { key: "rpeEnabled", label: "Paro Forzoso RPE (2% patronal + 0,5% obrero — LRPE Art. 46)" },
+                {
+                  key: "rpeEnabled",
+                  label: "Paro Forzoso RPE (2% patronal + 0,5% obrero — LRPE Art. 46)",
+                },
               ] as const
             ).map(({ key, label }) => (
               <label key={key} className="flex cursor-pointer items-center gap-3 py-1">
@@ -364,47 +379,52 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               </span>
             </label>
 
-          <div className="mt-4">
-            <label htmlFor="ivssRiskClass" className="block text-sm font-medium text-gray-700 mb-1">
-              Clase de riesgo ante el IVSS
-            </label>
-            <p className="text-xs text-gray-500 mb-1">
-              Determina la cotización patronal (LSS Art. 59). La fija la actividad
-              económica de la empresa, no es una preferencia: use la clase que
-              tiene declarada ante el IVSS.
-            </p>
-            <select
-              id="ivssRiskClass"
-              value={form.ivssRiskClass}
-              onChange={(e) => set("ivssRiskClass", e.target.value as "MINIMO" | "MEDIO" | "MAXIMO")}
-              disabled={!form.ivssEnabled}
-              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="MINIMO">Riesgo mínimo — 9% (oficinas, comercio, servicios)</option>
-              <option value="MEDIO">Riesgo medio — 10% (industria liviana, transporte)</option>
-              <option value="MAXIMO">Riesgo máximo — 11% (construcción, minería, químicos)</option>
-            </select>
-          </div>
+            <div className="mt-4">
+              <label
+                htmlFor="ivssRiskClass"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Clase de riesgo ante el IVSS
+              </label>
+              <p className="mb-1 text-xs text-gray-500">
+                Determina la cotización patronal (LSS Art. 59). La fija la actividad económica de la
+                empresa, no es una preferencia: use la clase que tiene declarada ante el IVSS.
+              </p>
+              <select
+                id="ivssRiskClass"
+                value={form.ivssRiskClass}
+                onChange={(e) =>
+                  set("ivssRiskClass", e.target.value as "MINIMO" | "MEDIO" | "MAXIMO")
+                }
+                disabled={!form.ivssEnabled}
+                className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
+              >
+                <option value="MINIMO">Riesgo mínimo — 9% (oficinas, comercio, servicios)</option>
+                <option value="MEDIO">Riesgo medio — 10% (industria liviana, transporte)</option>
+                <option value="MAXIMO">
+                  Riesgo máximo — 11% (construcción, minería, químicos)
+                </option>
+              </select>
+            </div>
 
-          <div className="mt-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Salario mínimo nacional vigente (Bs/mes)
-            </label>
-            <p className="text-xs text-gray-500 mb-1">
-              Requerido para aplicar los topes de cotización: IVSS hasta 5 salarios
-              mínimos (Reglamento LSS Art. 98) y RPE entre 1 y 10 (LRPE Art. 46).
-              El FAOV no tiene tope.
-            </p>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="ej. 130.00"
-              value={form.salaryMinimumVes}
-              onChange={(e) => set("salaryMinimumVes", e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
+            <div className="mt-3">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Salario mínimo nacional vigente (Bs/mes)
+              </label>
+              <p className="mb-1 text-xs text-gray-500">
+                Requerido para aplicar los topes de cotización: IVSS hasta 5 salarios mínimos
+                (Reglamento LSS Art. 98) y RPE entre 1 y 10 (LRPE Art. 46). El FAOV no tiene tope.
+              </p>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="ej. 130.00"
+                value={form.salaryMinimumVes}
+                onChange={(e) => set("salaryMinimumVes", e.target.value)}
+                className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           <div>
@@ -507,33 +527,46 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               {/* Sección 1: Nómina principal — requeridas para aprobar procesos */}
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-700">Cuentas contables — Nómina (sueldos)</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Requeridas para aprobar procesos de nómina. El asiento de causación debita Gastos de Personal y acredita los pasivos por pagar.
+                  <p className="text-sm font-medium text-gray-700">
+                    Cuentas contables — Nómina (sueldos)
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Requeridas para aprobar procesos de nómina. El asiento de causación debita
+                    Gastos de Personal y acredita los pasivos por pagar.
                   </p>
                 </div>
                 {(
                   [
-                    { key: "expenseAccountId",      label: "Gasto Sueldos y Salarios",     req: true  },
-                    { key: "payableAccountId",      label: "Sueldos y Salarios por Pagar (neto)", req: true  },
-                    { key: "ivssPayableAccountId",  label: "IVSS Obrero por Pagar",        req: false },
-                    { key: "incesPayableAccountId", label: "INCES Obrero por Pagar",       req: false },
-                    { key: "faovPayableAccountId",  label: "FAOV / Banavih Obrero por Pagar",     req: false },
+                    { key: "expenseAccountId", label: "Gasto Sueldos y Salarios", req: true },
+                    {
+                      key: "payableAccountId",
+                      label: "Sueldos y Salarios por Pagar (neto)",
+                      req: true,
+                    },
+                    { key: "ivssPayableAccountId", label: "IVSS Obrero por Pagar", req: false },
+                    { key: "incesPayableAccountId", label: "INCES Obrero por Pagar", req: false },
+                    {
+                      key: "faovPayableAccountId",
+                      label: "FAOV / Banavih Obrero por Pagar",
+                      req: false,
+                    },
                   ] as const
                 ).map(({ key, label, req }) => (
                   <div key={key}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
                       {label}
                       {req && <span className="ml-1 text-red-500">*</span>}
                     </label>
                     <select
                       value={form[key]}
                       onChange={(e) => set(key, e.target.value)}
-                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
                     >
                       <option value="">— Sin asignar —</option>
                       {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                        <option key={a.id} value={a.id}>
+                          {a.code} — {a.name}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -543,30 +576,38 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               {/* Sección 2: Aportes patronales */}
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-700">Cuentas contables — Aportes patronales</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Para causación de las contribuciones del patrono (IVSS 9%, INCES 2%, FAOV 2%, RPE 2%, Pensiones 9%).
+                  <p className="text-sm font-medium text-gray-700">
+                    Cuentas contables — Aportes patronales
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Para causación de las contribuciones del patrono (IVSS 9%, INCES 2%, FAOV 2%,
+                    RPE 2%, Pensiones 9%).
                   </p>
                 </div>
                 {(
                   [
-                    { key: "ivssPatronalAccountId",  label: "IVSS Patronal por Pagar" },
+                    { key: "ivssPatronalAccountId", label: "IVSS Patronal por Pagar" },
                     { key: "incesPatronalAccountId", label: "INCES Patronal por Pagar" },
-                    { key: "faovPatronalAccountId",  label: "FAOV Patronal por Pagar" },
-                    { key: "rpePatronalAccountId",   label: "RPE Patronal por Pagar" },
-                    { key: "pensionesPatronalAccountId", label: "Protección de Pensiones por Pagar" },
+                    { key: "faovPatronalAccountId", label: "FAOV Patronal por Pagar" },
+                    { key: "rpePatronalAccountId", label: "RPE Patronal por Pagar" },
+                    {
+                      key: "pensionesPatronalAccountId",
+                      label: "Protección de Pensiones por Pagar",
+                    },
                   ] as const
                 ).map(({ key, label }) => (
                   <div key={key}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
                     <select
                       value={form[key]}
                       onChange={(e) => set(key, e.target.value)}
-                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
                     >
                       <option value="">— Sin asignar —</option>
                       {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                        <option key={a.id} value={a.id}>
+                          {a.code} — {a.name}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -576,32 +617,43 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               {/* Sección 3: Beneficios legales (NOM-D) */}
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-700">Cuentas contables — Beneficios legales</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Para prestaciones sociales, vacaciones y utilidades. Cada concepto debe usar una cuenta GL diferente.
+                  <p className="text-sm font-medium text-gray-700">
+                    Cuentas contables — Beneficios legales
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Para prestaciones sociales, vacaciones y utilidades. Cada concepto debe usar una
+                    cuenta GL diferente.
                   </p>
                 </div>
                 {(
                   [
-                    { key: "benefitsExpenseAccountId",      label: "Gasto Prestaciones Sociales" },
-                    { key: "benefitsPayableAccountId",      label: "Prestaciones Sociales por Pagar" },
-                    { key: "vacationPayableAccountId",      label: "Vacaciones por Pagar" },
+                    { key: "benefitsExpenseAccountId", label: "Gasto Prestaciones Sociales" },
+                    { key: "benefitsPayableAccountId", label: "Prestaciones Sociales por Pagar" },
+                    { key: "vacationPayableAccountId", label: "Vacaciones por Pagar" },
                     { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
-                    { key: "rpePayableAccountId",           label: "RPE Obrero por Pagar" },
-                    { key: "loanReceivableAccountId",       label: "Préstamos a Empleados (Activo 1315)" },
-                    { key: "disbursementBankAccountId",     label: "Banco de Desembolso (para préstamos)" },
+                    { key: "rpePayableAccountId", label: "RPE Obrero por Pagar" },
+                    {
+                      key: "loanReceivableAccountId",
+                      label: "Préstamos a Empleados (Activo 1315)",
+                    },
+                    {
+                      key: "disbursementBankAccountId",
+                      label: "Banco de Desembolso (para préstamos)",
+                    },
                   ] as const
                 ).map(({ key, label }) => (
                   <div key={key}>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
                     <select
                       value={form[key]}
                       onChange={(e) => set(key, e.target.value)}
-                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
                     >
                       <option value="">— Sin asignar —</option>
                       {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                        <option key={a.id} value={a.id}>
+                          {a.code} — {a.name}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -611,11 +663,22 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               {/* Alerta en tiempo real si dos conceptos comparten la misma cuenta GL */}
               {accountConflict && (
                 <div className="flex items-start gap-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
-                  <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  <svg
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                    />
                   </svg>
                   <span>
-                    <strong>Cuenta GL duplicada:</strong> {accountConflict}. Asigna una cuenta diferente para evitar descuadres contables.
+                    <strong>Cuenta GL duplicada:</strong> {accountConflict}. Asigna una cuenta
+                    diferente para evitar descuadres contables.
                   </span>
                 </div>
               )}
@@ -623,12 +686,13 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
           )}
 
           {/* Resumen */}
-          <div className="rounded bg-gray-50 p-4 text-xs text-gray-600 space-y-1">
-            <p className="font-medium text-gray-800 mb-2">Resumen de configuración</p>
+          <div className="space-y-1 rounded bg-gray-50 p-4 text-xs text-gray-600">
+            <p className="mb-2 font-medium text-gray-800">Resumen de configuración</p>
             <p>Tamaño: {SIZE_LABELS[form.sizeRange]}</p>
             <p>Régimen: {LOTT_LABELS[form.lottRegime]}</p>
             <p>
-              Organismos: {[
+              Organismos:{" "}
+              {[
                 form.ivssEnabled && "IVSS",
                 form.incesEnabled && "INCES",
                 form.banavihEnabled && "Banavih",
@@ -638,11 +702,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 .filter(Boolean)
                 .join(" · ") || "Ninguno"}
             </p>
-            {form.ivssEnabled && (
-              <p>
-                Riesgo IVSS: {IVSS_RISK_LABELS[form.ivssRiskClass]}
-              </p>
-            )}
+            {form.ivssEnabled && <p>Riesgo IVSS: {IVSS_RISK_LABELS[form.ivssRiskClass]}</p>}
             {form.salaryMinimumVes && (
               <p>Salario mínimo: Bs {form.salaryMinimumVes} (topes activos)</p>
             )}
@@ -672,7 +732,9 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
               onClick={handleSubmit}
               disabled={isPending || !!accountConflict}
               className="rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              title={accountConflict ? "Resuelve el conflicto de cuentas GL antes de guardar" : undefined}
+              title={
+                accountConflict ? "Resuelve el conflicto de cuentas GL antes de guardar" : undefined
+              }
             >
               {isPending ? "Guardando..." : "Guardar configuración"}
             </button>

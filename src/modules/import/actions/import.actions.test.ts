@@ -28,7 +28,11 @@ vi.mock("../services/ImportService", () => ({
 
 import prisma from "@/lib/prisma";
 import { ImportService } from "../services/ImportService";
-import { importAccountsAction, parseAccountsFileAction, downloadTemplateAction } from "./import.actions";
+import {
+  importAccountsAction,
+  parseAccountsFileAction,
+  downloadTemplateAction,
+} from "./import.actions";
 import type { ImportAccountRow } from "../schemas/import.schema";
 
 const COMPANY_ID = "company-1";
@@ -36,7 +40,14 @@ const USER_ID = "user-1";
 const ADMIN_MEMBER = { role: "ADMIN" };
 
 const SAMPLE_ROWS: ImportAccountRow[] = [
-  { codigo: "1.1.01", nombre: "Caja", tipo: "ASSET", isPostable: true, isBudgetable: false, requiresThirdParty: false },
+  {
+    codigo: "1.1.01",
+    nombre: "Caja",
+    tipo: "ASSET",
+    isPostable: true,
+    isBudgetable: false,
+    requiresThirdParty: false,
+  },
 ];
 
 beforeEach(() => {
@@ -81,7 +92,9 @@ describe("importAccountsAction", () => {
   });
 
   it("ADMINISTRATIVE no puede importar cuentas (fuera de ROLES.ACCOUNTING)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await importAccountsAction(COMPANY_ID, USER_ID, SAMPLE_ROWS);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("autorizado");
@@ -102,7 +115,11 @@ describe("importAccountsAction", () => {
   });
 
   it("happy path — retorna resultado de importación", async () => {
-    vi.mocked(ImportService.importAccounts).mockResolvedValue({ created: 5, skipped: 2, errors: [] });
+    vi.mocked(ImportService.importAccounts).mockResolvedValue({
+      created: 5,
+      skipped: 2,
+      errors: [],
+    });
     const r = await importAccountsAction(COMPANY_ID, USER_ID, SAMPLE_ROWS);
     expect(r.success).toBe(true);
     if (r.success) {
@@ -138,7 +155,9 @@ describe("parseAccountsFileAction", () => {
   });
 
   it("ADMINISTRATIVE no puede parsear (fuera de ROLES.ACCOUNTING)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await parseAccountsFileAction(COMPANY_ID, BASE64, "xlsx");
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("autorizado");
@@ -188,7 +207,9 @@ describe("downloadTemplateAction", () => {
   });
 
   it("happy path — retorna base64 del template", async () => {
-    vi.mocked(ImportService.generateAccountsTemplate).mockResolvedValue(Buffer.from("xlsx") as never);
+    vi.mocked(ImportService.generateAccountsTemplate).mockResolvedValue(
+      Buffer.from("xlsx") as never
+    );
     const r = await downloadTemplateAction();
     expect(r.success).toBe(true);
     if (r.success) {
@@ -198,7 +219,9 @@ describe("downloadTemplateAction", () => {
   });
 
   it("retorna error estructurado si el service lanza", async () => {
-    vi.mocked(ImportService.generateAccountsTemplate).mockRejectedValue(new Error("Template error"));
+    vi.mocked(ImportService.generateAccountsTemplate).mockRejectedValue(
+      new Error("Template error")
+    );
     const r = await downloadTemplateAction();
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toBeTruthy();

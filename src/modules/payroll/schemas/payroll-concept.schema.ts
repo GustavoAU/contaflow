@@ -5,10 +5,9 @@ import { z } from "zod";
 
 // ADR-045 D-1/D-2: la naturaleza salarial decide si el concepto entra en la base
 // de cotizaciones parafiscales. La declara la empresa, no la adivina el sistema.
-const salaryNatureSchema = z.enum(
-  ["NO_SALARIAL", "SALARIO_NORMAL", "SALARIAL_ACCIDENTAL"],
-  { error: "Indica si el concepto tiene incidencia salarial" },
-);
+const salaryNatureSchema = z.enum(["NO_SALARIAL", "SALARIO_NORMAL", "SALARIAL_ACCIDENTAL"], {
+  error: "Indica si el concepto tiene incidencia salarial",
+});
 
 // Código de concepto: solo letras mayúsculas, dígitos y guión bajo, 2–20 chars
 const codeSchema = z

@@ -16,9 +16,9 @@ import { decryptCertificate } from "./CertificateService";
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface SignedDocument {
-  pdf: Buffer;         // PDF original con bloque de firma al final
-  thumbprint: string;  // SHA-256 del certificado usado
-  signedAt: string;    // ISO timestamp
+  pdf: Buffer; // PDF original con bloque de firma al final
+  thumbprint: string; // SHA-256 del certificado usado
+  signedAt: string; // ISO timestamp
 }
 
 // ─── Utilidades de firma ──────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ export class DocumentSigningService {
    */
   static verifySignature(
     signedPdfBuffer: Buffer,
-    certificatePem: string,
+    certificatePem: string
   ): { valid: boolean; thumbprint?: string; signedAt?: string } {
     const content = signedPdfBuffer.toString("ascii");
 
@@ -130,9 +130,8 @@ export class DocumentSigningService {
 
       // Reconstruir el PDF original (antes del bloque de firma)
       const sigBlockStart = signedPdfBuffer.indexOf(Buffer.from("\n%ContaFlow-Signature-Version:"));
-      const originalPdf = sigBlockStart > 0
-        ? signedPdfBuffer.subarray(0, sigBlockStart)
-        : signedPdfBuffer;
+      const originalPdf =
+        sigBlockStart > 0 ? signedPdfBuffer.subarray(0, sigBlockStart) : signedPdfBuffer;
 
       md.update(originalPdf.toString("binary"));
 

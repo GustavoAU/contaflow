@@ -37,7 +37,11 @@ export type ActiveFiscalPeriodInfo = {
 const MAX_CONCURRENT_OPEN_FISCAL_YEARS = 2;
 
 /** Índice cronológico mes-a-mes desde el inicio del ejercicio (D-8 / fix H-2). */
-function chronologicalKey(startYear: number, startMonth: number, p: { year: number; month: number }): number {
+function chronologicalKey(
+  startYear: number,
+  startMonth: number,
+  p: { year: number; month: number }
+): number {
   return (p.year - startYear) * 12 + (p.month - startMonth);
 }
 
@@ -88,14 +92,14 @@ export class FiscalYearService {
     userId: string,
     bootstrapYear?: number,
     ipAddress: string | null = null,
-    userAgent: string | null = null,
+    userAgent: string | null = null
   ): Promise<FiscalYearWithPeriods> {
     return withSerializableRetry((tx) =>
       withCompanyContext(companyId, tx, async (tx) => {
         const openCount = await tx.fiscalYear.count({ where: { companyId, status: "OPEN" } });
         if (openCount >= MAX_CONCURRENT_OPEN_FISCAL_YEARS) {
           throw new Error(
-            `Ya hay ${openCount} ejercicios fiscales abiertos (el máximo permitido). Cierra el ejercicio más antiguo antes de abrir uno nuevo.`,
+            `Ya hay ${openCount} ejercicios fiscales abiertos (el máximo permitido). Cierra el ejercicio más antiguo antes de abrir uno nuevo.`
           );
         }
 
@@ -152,7 +156,7 @@ export class FiscalYearService {
               openedBy: userId,
               fiscalYearId: created.id,
             };
-          },
+          }
         );
 
         await tx.accountingPeriod.createMany({ data: periodsData });

@@ -42,9 +42,8 @@ const USER = "user-1";
 const EMP_ID = "emp-1";
 
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 const BASE_CONFIG = {
@@ -142,9 +141,9 @@ describe("VacationService.create", () => {
   it("IDOR: throws if employee not in company", async () => {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(null);
 
-    await expect(
-      VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)
-    ).rejects.toThrow("Empleado no encontrado");
+    await expect(VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)).rejects.toThrow(
+      "Empleado no encontrado"
+    );
   });
 
   it("throws if no salary history", async () => {
@@ -153,17 +152,17 @@ describe("VacationService.create", () => {
       salaryHistory: [],
     } as never);
 
-    await expect(
-      VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)
-    ).rejects.toThrow("no tiene salario registrado");
+    await expect(VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)).rejects.toThrow(
+      "no tiene salario registrado"
+    );
   });
 
   it("throws if accounting period closed", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
 
-    await expect(
-      VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)
-    ).rejects.toThrow("está cerrado o no existe");
+    await expect(VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)).rejects.toThrow(
+      "está cerrado o no existe"
+    );
   });
 
   it("throws if vacation accounts not configured", async () => {
@@ -172,9 +171,9 @@ describe("VacationService.create", () => {
       vacationPayableAccountId: null,
     } as never);
 
-    await expect(
-      VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)
-    ).rejects.toThrow("Configure las cuentas contables de vacaciones");
+    await expect(VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)).rejects.toThrow(
+      "Configure las cuentas contables de vacaciones"
+    );
   });
 
   it("dailyNormalWage computed server-side — never from client", async () => {
@@ -204,9 +203,9 @@ describe("VacationService.create", () => {
       });
     });
 
-    await expect(
-      VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)
-    ).rejects.toThrow("Ya existe un registro de vacaciones");
+    await expect(VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT)).rejects.toThrow(
+      "Ya existe un registro de vacaciones"
+    );
   });
 });
 
@@ -323,8 +322,10 @@ describe("VacationService.getEmployeesOnVacation (F-06)", () => {
 
   it("returns employees whose vacation period includes today", async () => {
     const today = new Date();
-    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
 
     vi.mocked(prisma.vacationRecord.findMany).mockResolvedValue([
       {
@@ -351,8 +352,10 @@ describe("VacationService.getEmployeesOnVacation (F-06)", () => {
 
   it("excludes inactive employees from on-vacation list", async () => {
     const today = new Date();
-    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
 
     vi.mocked(prisma.vacationRecord.findMany).mockResolvedValue([
       {
@@ -367,28 +370,36 @@ describe("VacationService.getEmployeesOnVacation (F-06)", () => {
     const result = await VacationService.getEmployeesOnVacation(COMPANY);
     expect(result).toHaveLength(0);
   });
-
 });
 
 // ── Moneda del sueldo (auditoría 2026-08-28) ────────────────────────────────
 describe("VacationService — moneda del sueldo", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   describe("VacationService.create — sueldo en divisas", () => {
     function setupUsdSalary(rate: string | null) {
       vi.mocked(prisma.employee.findFirst).mockResolvedValue({
-        id: EMP_ID, firstName: "Ana", lastName: "García",
-        salaryHistory: [{
-          id: "sal-1", amount: new Decimal("2500"), currency: "USD",
-          effectiveFrom: new Date("2024-01-01"),
-        }],
+        id: EMP_ID,
+        firstName: "Ana",
+        lastName: "García",
+        salaryHistory: [
+          {
+            id: "sal-1",
+            amount: new Decimal("2500"),
+            currency: "USD",
+            effectiveFrom: new Date("2024-01-01"),
+          },
+        ],
       } as never);
       vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "per-1" } as never);
       vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
-        vacationPayableAccountId: "acc-vac", benefitsExpenseAccountId: "acc-exp",
+        vacationPayableAccountId: "acc-vac",
+        benefitsExpenseAccountId: "acc-exp",
       } as never);
       vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
-        rate ? ({ rate: new Decimal(rate) } as never) : null,
+        rate ? ({ rate: new Decimal(rate) } as never) : null
       );
       vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
       vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -396,8 +407,11 @@ describe("VacationService — moneda del sueldo", () => {
     }
 
     const INPUT = {
-      periodYear: 2026, vacationDays: 15, bonusDays: 15,
-      startDate: "2026-03-01", endDate: "2026-03-15",
+      periodYear: 2026,
+      vacationDays: 15,
+      bonusDays: 15,
+      startDate: "2026-03-01",
+      endDate: "2026-03-15",
     };
 
     it("convierte el sueldo en USD a bolívares antes de prorratearlo", async () => {
@@ -405,28 +419,36 @@ describe("VacationService — moneda del sueldo", () => {
       // generaba un pasivo de "2.500" en el Libro Diario, dividido por la tasa.
       setupUsdSalary("780");
       vi.mocked(prisma.vacationRecord.create).mockResolvedValue({
-        id: "vac-1", companyId: COMPANY, employeeId: EMP_ID, periodYear: 2026,
-        vacationDays: new Decimal(15), bonusDays: new Decimal(15),
-        dailyNormalWage: new Decimal(0), vacationAmount: new Decimal(0),
-        bonusAmount: new Decimal(0), startDate: new Date("2026-03-01"),
-        endDate: new Date("2026-03-15"), isFractional: false,
-        transactionId: "tx-1", createdAt: new Date(),
+        id: "vac-1",
+        companyId: COMPANY,
+        employeeId: EMP_ID,
+        periodYear: 2026,
+        vacationDays: new Decimal(15),
+        bonusDays: new Decimal(15),
+        dailyNormalWage: new Decimal(0),
+        vacationAmount: new Decimal(0),
+        bonusAmount: new Decimal(0),
+        startDate: new Date("2026-03-01"),
+        endDate: new Date("2026-03-15"),
+        isFractional: false,
+        transactionId: "tx-1",
+        createdAt: new Date(),
       } as never);
 
       await VacationService.create(COMPANY, USER, EMP_ID, INPUT);
 
       // 2500 USD × 780 = 1.950.000 Bs. → diario 65.000 → 30 días = 1.950.000
-      const entries = vi.mocked(prisma.transaction.create).mock.calls.at(-1)![0]
-        .data.entries!.create as { amount: Decimal }[];
+      const entries = vi.mocked(prisma.transaction.create).mock.calls.at(-1)![0].data.entries!
+        .create as { amount: Decimal }[];
       expect(entries[0].amount.toFixed(2)).toBe("1950000.00");
       expect(entries[1].amount.toFixed(2)).toBe("-1950000.00");
     });
 
     it("sin tasa BCV registrada no calcula — bloquea en vez de inventar el monto", async () => {
       setupUsdSalary(null);
-      await expect(
-        VacationService.create(COMPANY, USER, EMP_ID, INPUT),
-      ).rejects.toThrow("tasa BCV");
+      await expect(VacationService.create(COMPANY, USER, EMP_ID, INPUT)).rejects.toThrow(
+        "tasa BCV"
+      );
     });
   });
 });

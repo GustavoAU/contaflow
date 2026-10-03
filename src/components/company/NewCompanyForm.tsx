@@ -25,7 +25,8 @@ const PROFILES: {
   {
     value: "SOLO",
     label: "Empresa Individual",
-    description: "Un solo RIF. Ideal para autónomos, pequeñas empresas o contadores que gestionan sus propias cuentas.",
+    description:
+      "Un solo RIF. Ideal para autónomos, pequeñas empresas o contadores que gestionan sus propias cuentas.",
     Icon: UserIcon,
   },
   {
@@ -57,7 +58,9 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
   const [address, setAddress] = useState("");
   const [country, setCountry] = useState<CountryCode>("VEN");
   const [profile, setProfile] = useState<ScopeProfile | undefined>(
-    (["SOLO", "EMPRESA", "DESPACHO"].includes(initialProfile ?? "") ? initialProfile as ScopeProfile : undefined)
+    ["SOLO", "EMPRESA", "DESPACHO"].includes(initialProfile ?? "")
+      ? (initialProfile as ScopeProfile)
+      : undefined
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -120,7 +123,9 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
         <div>
           <p className="mb-2 text-sm font-medium text-zinc-700">
             ¿Cómo describes tu operación?
-            <span className="ml-1 font-normal text-zinc-400">(opcional — puedes cambiarlo después)</span>
+            <span className="ml-1 font-normal text-zinc-400">
+              (opcional — puedes cambiarlo después)
+            </span>
           </p>
           <div className="grid gap-2">
             {PROFILES.map(({ value, label, description, Icon }) => {
@@ -131,21 +136,33 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
                   type="button"
                   onClick={() => setProfile(isSelected ? undefined : value)}
                   className={cn(
-                    "flex items-start gap-3 w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    "flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
                     "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
                     isSelected
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
                       : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800/50"
                   )}
                 >
-                  <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", isSelected ? "text-blue-600" : "text-zinc-400")} />
+                  <Icon
+                    className={cn(
+                      "mt-0.5 h-4 w-4 shrink-0",
+                      isSelected ? "text-blue-600" : "text-zinc-400"
+                    )}
+                  />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={cn("text-sm font-medium", isSelected ? "text-blue-700 dark:text-blue-400" : "text-zinc-800 dark:text-zinc-100")}>
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          isSelected
+                            ? "text-blue-700 dark:text-blue-400"
+                            : "text-zinc-800 dark:text-zinc-100"
+                        )}
+                      >
                         {label}
                       </span>
                     </div>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</p>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>
                   </div>
                 </button>
               );
@@ -159,7 +176,10 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
             Con un solo país soportado el select tiene una opción; cuando exista un
             segundo país basta registrarlo en SUPPORTED_COUNTRIES. */}
         <div>
-          <label htmlFor="new-company-country" className="mb-1 block text-sm font-medium text-zinc-700">
+          <label
+            htmlFor="new-company-country"
+            className="mb-1 block text-sm font-medium text-zinc-700"
+          >
             País <span className="text-red-500">*</span>
           </label>
           <select
@@ -174,7 +194,7 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
                 return rest;
               });
             }}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm transition-colors outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm transition-colors outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           >
             {SUPPORTED_COUNTRIES.map((c) => (
               <option key={c.code} value={c.code}>
@@ -236,7 +256,9 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
           {errors.phone ? (
             <p className="mt-1 text-xs text-red-500">{errors.phone}</p>
           ) : (
-            <p className="mt-1 text-xs text-zinc-400">Te avisaremos por aquí antes de que venza tu suscripción.</p>
+            <p className="mt-1 text-xs text-zinc-400">
+              Te avisaremos por aquí antes de que venza tu suscripción.
+            </p>
           )}
         </div>
 
@@ -256,7 +278,12 @@ export function NewCompanyForm({ userId, initialProfile }: Props) {
         </div>
 
         {/* Botón */}
-        <Button onClick={handleSubmit} disabled={isPending} aria-busy={isPending} className="w-full gap-2">
+        <Button
+          onClick={handleSubmit}
+          disabled={isPending}
+          aria-busy={isPending}
+          className="w-full gap-2"
+        >
           {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
           {isPending ? "Creando empresa..." : "Crear Empresa"}
         </Button>

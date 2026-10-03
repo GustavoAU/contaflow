@@ -19,7 +19,7 @@ type Props = {
 export function BcvRateChart({ data, currency = "USD" }: Props) {
   if (data.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex h-64 items-center justify-center text-sm">
         Sin tasas BCV registradas
       </div>
     );
@@ -42,7 +42,7 @@ export function BcvRateChart({ data, currency = "USD" }: Props) {
         <span className="text-2xl font-bold tabular-nums">
           {lastRate.toLocaleString("es-VE", { minimumFractionDigits: 2 })} Bs.
         </span>
-        <span className="text-sm text-muted-foreground">
+        <span className="text-muted-foreground text-sm">
           1 {currency} —{" "}
           <span className={delta >= 0 ? "text-destructive" : "text-green-600"}>
             {deltaSign}
@@ -55,11 +55,7 @@ export function BcvRateChart({ data, currency = "USD" }: Props) {
       <ResponsiveContainer width="100%" height={200}>
         <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-700" />
-          <XAxis
-            dataKey="fecha"
-            tick={{ fontSize: 11 }}
-            interval="preserveStartEnd"
-          />
+          <XAxis dataKey="fecha" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
           <YAxis
             tick={{ fontSize: 11 }}
             domain={["auto", "auto"]}

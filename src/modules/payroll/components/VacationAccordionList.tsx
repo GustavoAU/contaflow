@@ -38,10 +38,10 @@ export default function VacationAccordionList({
         const records = recordsByEmployee[emp.id] ?? [];
         const isOpen = openId === emp.id;
         return (
-          <div key={emp.id} className="rounded-lg border overflow-hidden">
+          <div key={emp.id} className="overflow-hidden rounded-lg border">
             <button
               type="button"
-              className="w-full flex items-center justify-between cursor-pointer px-4 py-3 hover:bg-gray-50 select-none"
+              className="flex w-full cursor-pointer items-center justify-between px-4 py-3 select-none hover:bg-gray-50"
               onClick={() => setOpenId(isOpen ? null : emp.id)}
             >
               <div className="flex items-center gap-3">
@@ -52,14 +52,15 @@ export default function VacationAccordionList({
                 {/* VAC-2: balance derecho vs usados */}
                 {(() => {
                   const remaining = emp.vacationEntitlement - emp.vacationUsedThisYear;
-                  const colorClass = remaining <= 0
-                    ? "bg-red-50 text-red-700"
-                    : remaining <= 5
-                    ? "bg-amber-50 text-amber-700"
-                    : "bg-green-50 text-green-700";
+                  const colorClass =
+                    remaining <= 0
+                      ? "bg-red-50 text-red-700"
+                      : remaining <= 5
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-green-50 text-green-700";
                   return (
                     <span
-                      className={`hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}
+                      className={`hidden items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium sm:inline-flex ${colorClass}`}
                       title={`${emp.yearsOfService} año(s) de servicio — Derecho: ${emp.vacationEntitlement} días`}
                     >
                       {emp.vacationUsedThisYear}/{emp.vacationEntitlement} días
@@ -71,15 +72,22 @@ export default function VacationAccordionList({
                 </span>
                 <svg
                   className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </div>
             </button>
 
             {isOpen && (
-              <div className="px-4 py-4 border-t bg-white">
+              <div className="border-t bg-white px-4 py-4">
                 <VacationPanel
                   key={emp.id}
                   companyId={companyId}

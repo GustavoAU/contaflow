@@ -8,14 +8,11 @@ import { toGrantSet } from "@/lib/app-modules";
  * Se invalida cuando permission.actions usa revalidatePath(`/company/${companyId}`).
  */
 export function getCompanyGrants(companyId: string): Promise<Set<string>> {
-  return unstable_cache(
-    async () => {
-      const rows = await prisma.rolePermission.findMany({
-        where: { companyId },
-        select: { role: true, module: true },
-      });
-      return toGrantSet(rows);
-    },
-    [`grants`, companyId]
-  )();
+  return unstable_cache(async () => {
+    const rows = await prisma.rolePermission.findMany({
+      where: { companyId },
+      select: { role: true, module: true },
+    });
+    return toGrantSet(rows);
+  }, [`grants`, companyId])();
 }

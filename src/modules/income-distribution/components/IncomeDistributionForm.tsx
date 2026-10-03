@@ -34,7 +34,13 @@ const emptyLine = (): LineInput => ({
   lineDescription: "",
 });
 
-export function IncomeDistributionForm({ companyId, accounts, companies, onSuccess, onCancel }: Props) {
+export function IncomeDistributionForm({
+  companyId,
+  accounts,
+  companies,
+  onSuccess,
+  onCancel,
+}: Props) {
   const [date, setDate] = useState(todayLocalISO());
   const [description, setDescription] = useState("");
   const [currencyCode, setCurrencyCode] = useState("VES");
@@ -69,7 +75,9 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
     setError(null);
 
     if (!isBalanced) {
-      setError(`Los porcentajes suman ${percentageSum.toFixed(2)}% — deben sumar exactamente 100%.`);
+      setError(
+        `Los porcentajes suman ${percentageSum.toFixed(2)}% — deben sumar exactamente 100%.`
+      );
       return;
     }
 
@@ -104,14 +112,23 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Fecha *</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={isPending} />
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            disabled={isPending}
+          />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Moneda *</Label>
           <select
             value={currencyCode}
-            onChange={(e) => { setCurrencyCode(e.target.value); if (e.target.value === "VES") setExchangeRate("1"); }}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            onChange={(e) => {
+              setCurrencyCode(e.target.value);
+              if (e.target.value === "VES") setExchangeRate("1");
+            }}
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             disabled={isPending}
           >
             <option value="VES">VES (Bolívares)</option>
@@ -120,7 +137,9 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Monto {currencyCode !== "VES" ? `(${currencyCode})` : "Bs.D"} *</Label>
+          <Label className="text-xs">
+            Monto {currencyCode !== "VES" ? `(${currencyCode})` : "Bs.D"} *
+          </Label>
           <Input
             type="number"
             step="0.01"
@@ -152,13 +171,15 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
           <select
             value={originAccountId}
             onChange={(e) => setOriginAccountId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             required
             disabled={isPending}
           >
             <option value="">Seleccionar cuenta...</option>
             {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+              <option key={a.id} value={a.id}>
+                {a.code} — {a.name}
+              </option>
             ))}
           </select>
         </div>
@@ -177,28 +198,32 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
       {/* Líneas de distribución */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <Label className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
             Destinatarios
           </Label>
-          <span className={`text-xs font-medium ${isBalanced ? "text-green-600" : "text-amber-600"}`}>
+          <span
+            className={`text-xs font-medium ${isBalanced ? "text-green-600" : "text-amber-600"}`}
+          >
             Σ = {percentageSum.toFixed(2)}% {isBalanced ? "✓" : "(debe ser 100%)"}
           </span>
         </div>
 
         {lines.map((line, idx) => (
-          <div key={idx} className="grid grid-cols-12 gap-2 items-start rounded-lg border p-3">
+          <div key={idx} className="grid grid-cols-12 items-start gap-2 rounded-lg border p-3">
             <div className="col-span-4 space-y-1">
               <Label className="text-xs">Empresa destinataria *</Label>
               <select
                 value={line.recipientCompanyId}
                 onChange={(e) => updateLine(idx, "recipientCompanyId", e.target.value)}
-                className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
+                className="border-input bg-background h-8 w-full rounded-md border px-2 py-1 text-xs"
                 required
                 disabled={isPending}
               >
                 <option value="">Seleccionar...</option>
                 {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -207,13 +232,15 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
               <select
                 value={line.accountId}
                 onChange={(e) => updateLine(idx, "accountId", e.target.value)}
-                className="h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
+                className="border-input bg-background h-8 w-full rounded-md border px-2 py-1 text-xs"
                 required
                 disabled={isPending}
               >
                 <option value="">Seleccionar...</option>
                 {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -233,7 +260,7 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
               />
             </div>
             <div className="col-span-1 space-y-1">
-              <Label className="text-xs invisible">Del</Label>
+              <Label className="invisible text-xs">Del</Label>
               <button
                 type="button"
                 onClick={() => removeLine(idx)}
@@ -266,7 +293,7 @@ export function IncomeDistributionForm({ companyId, accounts, companies, onSucce
         </div>
       )}
 
-      <div className="flex gap-2 pt-1 border-t">
+      <div className="flex gap-2 border-t pt-1">
         <Button type="submit" size="sm" disabled={isPending || !isBalanced} aria-busy={isPending}>
           Guardar borrador
         </Button>

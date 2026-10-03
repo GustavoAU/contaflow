@@ -48,7 +48,7 @@ describe("syncUserAction", () => {
         where: { id: "user-clerk-1" },
         update: { name: "Ana García", email: "ana@empresa.com" },
         create: { id: "user-clerk-1", name: "Ana García", email: "ana@empresa.com" },
-      }),
+      })
     );
     expect(result).toEqual(dbUser);
   });
@@ -77,9 +77,7 @@ describe("getUserCompaniesAction", () => {
 
   it("retorna empresas ACTIVE con su rol", async () => {
     vi.mocked(currentUser).mockResolvedValue(clerkUser as never);
-    vi.mocked(prisma.companyMember.findMany).mockResolvedValue([
-      makeMembership("ACTIVE"),
-    ] as never);
+    vi.mocked(prisma.companyMember.findMany).mockResolvedValue([makeMembership("ACTIVE")] as never);
 
     const result = await getUserCompaniesAction();
 
@@ -96,7 +94,7 @@ describe("getUserCompaniesAction", () => {
     expect(prisma.companyMember.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ company: { status: "ACTIVE" } }),
-      }),
+      })
     );
   });
 
@@ -142,7 +140,7 @@ describe("getArchivedCompaniesAction", () => {
     expect(prisma.companyMember.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ company: { status: "ARCHIVED" } }),
-      }),
+      })
     );
   });
 

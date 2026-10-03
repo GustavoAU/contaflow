@@ -15,7 +15,8 @@ function isRunningAsPWA() {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
     // Safari iOS
-    ("standalone" in window.navigator && (window.navigator as { standalone?: boolean }).standalone === true)
+    ("standalone" in window.navigator &&
+      (window.navigator as { standalone?: boolean }).standalone === true)
   );
 }
 
@@ -66,10 +67,9 @@ export function PWAInstallBanner() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4 animate-in slide-in-from-bottom-4 fade-in duration-300">
-      <div className="rounded-xl border border-slate-700 bg-slate-800 shadow-2xl px-4 py-3 flex items-start gap-3">
-
-        <div className="rounded-lg bg-slate-700 p-2 shrink-0 mt-0.5">
+    <div className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-4 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4 duration-300">
+      <div className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 shadow-2xl">
+        <div className="mt-0.5 shrink-0 rounded-lg bg-slate-700 p-2">
           {showIOS ? (
             <Share className="h-5 w-5 text-slate-300" />
           ) : (
@@ -77,40 +77,35 @@ export function PWAInstallBanner() {
           )}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white leading-tight">
-            Instala ContaFlow
-          </p>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm leading-tight font-semibold text-white">Instala ContaFlow</p>
           {showIOS ? (
-            <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
               Toca <strong className="text-slate-300">Compartir</strong> →{" "}
               <strong className="text-slate-300">Añadir a pantalla de inicio</strong>
             </p>
           ) : (
-            <p className="text-xs text-slate-400 mt-0.5">
-              Acceso rápido desde tu escritorio
-            </p>
+            <p className="mt-0.5 text-xs text-slate-400">Acceso rápido desde tu escritorio</p>
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           {!showIOS && (
             <button
               onClick={handleInstall}
-              className="rounded-md bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+              className="rounded-md bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-400 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none"
             >
               Instalar
             </button>
           )}
           <button
             onClick={handleDismiss}
-            className="rounded-md p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-700 hover:text-slate-200 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:outline-none"
             aria-label="Cerrar"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-
       </div>
     </div>
   );

@@ -9,7 +9,9 @@ export const createLoanSchema = z.object({
   totalAmount: z
     .string()
     .min(1, { error: "Ingrese el monto total." })
-    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, { error: "El monto debe ser mayor que cero." }),
+    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, {
+      error: "El monto debe ser mayor que cero.",
+    }),
   amountUsd: z.string().optional().nullable(),
   installments: z
     .number({ error: "Ingrese el número de cuotas." })

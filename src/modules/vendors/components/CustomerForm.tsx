@@ -56,7 +56,7 @@ type CustomerFormProps = {
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <p id={id} className="text-xs text-red-600 mt-0.5">
+    <p id={id} className="mt-0.5 text-xs text-red-600">
       {message}
     </p>
   );
@@ -95,7 +95,7 @@ export function CustomerForm({
         <td className="px-3 py-2">
           <div className="flex flex-col gap-1">
             <input
-              className="rounded border px-2 py-1 text-sm w-full min-w-35"
+              className="w-full min-w-35 rounded border px-2 py-1 text-sm"
               placeholder="Nombre *"
               aria-invalid={!!errors.name}
               aria-describedby={errors.name ? errId("name") : undefined}
@@ -108,8 +108,10 @@ export function CustomerForm({
                 {...register("groupId")}
               >
                 <option value="">Sin grupo</option>
-                {groups.map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
                 ))}
               </select>
               <select
@@ -122,7 +124,7 @@ export function CustomerForm({
               </select>
             </div>
             <textarea
-              className="rounded border px-2 py-1 text-xs resize-none"
+              className="resize-none rounded border px-2 py-1 text-xs"
               placeholder="Notas…"
               rows={2}
               maxLength={2000}
@@ -133,7 +135,7 @@ export function CustomerForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-20"
+            className="w-full min-w-20 rounded border px-2 py-1 text-sm"
             placeholder="C-001"
             aria-invalid={!!errors.code}
             aria-describedby={errors.code ? errId("code") : undefined}
@@ -143,7 +145,7 @@ export function CustomerForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-30"
+            className="w-full min-w-30 rounded border px-2 py-1 text-sm"
             placeholder="J-12345678-9"
             aria-invalid={!!errors.rif}
             aria-describedby={errors.rif ? errId("rif") : undefined}
@@ -153,7 +155,7 @@ export function CustomerForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-35"
+            className="w-full min-w-35 rounded border px-2 py-1 text-sm"
             placeholder="email@ejemplo.com"
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? errId("email") : undefined}
@@ -163,7 +165,7 @@ export function CustomerForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-25"
+            className="w-full min-w-25 rounded border px-2 py-1 text-sm"
             placeholder="+58 412…"
             aria-invalid={!!errors.phone}
             aria-describedby={errors.phone ? errId("phone") : undefined}
@@ -197,7 +199,7 @@ export function CustomerForm({
 
   // ── Variant "create": tarjeta esmeralda ─────────────────────────────────────
   return (
-    <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
       <p className="text-sm font-medium text-emerald-800">Nuevo cliente</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
@@ -256,8 +258,10 @@ export function CustomerForm({
             {...register("groupId")}
           >
             <option value="">Sin grupo</option>
-            {groups.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
             ))}
           </select>
           <select
@@ -272,7 +276,7 @@ export function CustomerForm({
       </div>
       <div>
         <textarea
-          className="w-full rounded border px-2 py-1.5 text-sm resize-none"
+          className="w-full resize-none rounded border px-2 py-1.5 text-sm"
           placeholder="Notas (ej: requiere factura con retención ISLR)"
           rows={2}
           maxLength={2000}
@@ -289,10 +293,7 @@ export function CustomerForm({
         >
           {isPending ? "Guardando…" : submitLabel}
         </button>
-        <button
-          onClick={onCancel}
-          className="rounded border px-3 py-1 text-sm text-gray-600"
-        >
+        <button onClick={onCancel} className="rounded border px-3 py-1 text-sm text-gray-600">
           Cancelar
         </button>
       </div>

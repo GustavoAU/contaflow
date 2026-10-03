@@ -35,10 +35,7 @@ function makeBalancedTx(id = "tx-1") {
     id,
     number: `DIARIO-${id}`,
     description: "Asiento cuadrado",
-    entries: [
-      { amount: new Decimal("1000.00") },
-      { amount: new Decimal("-1000.00") },
-    ],
+    entries: [{ amount: new Decimal("1000.00") }, { amount: new Decimal("-1000.00") }],
   };
 }
 
@@ -238,10 +235,22 @@ describe("FiscalAnomalyDetectorService.detect", () => {
     const pastDate = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000);
     mockFindManyTransaction.mockResolvedValue([makeImbalancedTx()]); // CRITICAL
     mockFindManyRetencion.mockResolvedValue([
-      { id: "r1", providerName: "X", providerRif: "J-1", invoiceNumber: "1", totalRetention: new Decimal("100"), status: "PENDING" },
+      {
+        id: "r1",
+        providerName: "X",
+        providerRif: "J-1",
+        invoiceNumber: "1",
+        totalRetention: new Decimal("100"),
+        status: "PENDING",
+      },
     ]); // HIGH
     mockFindManyInvoice.mockResolvedValue([
-      { controlNumber: "F1", counterpartName: "Y", pendingAmount: new Decimal("100"), dueDate: pastDate },
+      {
+        controlNumber: "F1",
+        counterpartName: "Y",
+        pendingAmount: new Decimal("100"),
+        dueDate: pastDate,
+      },
     ]); // HIGH
     mockFindManyAccount.mockResolvedValue([
       {

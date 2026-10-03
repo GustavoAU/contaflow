@@ -3,26 +3,20 @@ import { z } from "zod";
 
 export const CloseFiscalYearSchema = z.object({
   companyId: z.string().min(1, { error: "companyId es requerido" }),
-  year: z
-    .number()
-    .int()
-    .min(2000, { error: "Año inválido" })
-    .max(2100, { error: "Año inválido" }),
+  year: z.number().int().min(2000, { error: "Año inválido" }).max(2100, { error: "Año inválido" }),
 });
 
 export const AppropriateResultSchema = z.object({
   companyId: z.string().min(1, { error: "companyId es requerido" }),
-  year: z
-    .number()
-    .int()
-    .min(2000, { error: "Año inválido" })
-    .max(2100, { error: "Año inválido" }),
+  year: z.number().int().min(2000, { error: "Año inválido" }).max(2100, { error: "Año inválido" }),
 });
 
 export const UpdateFiscalConfigSchema = z.object({
   companyId: z.string().min(1, { error: "companyId es requerido" }),
   resultAccountId: z.string().min(1, { error: "Cuenta Resultado del Ejercicio es requerida" }),
-  retainedEarningsAccountId: z.string().min(1, { error: "Cuenta Utilidades Retenidas es requerida" }),
+  retainedEarningsAccountId: z
+    .string()
+    .min(1, { error: "Cuenta Utilidades Retenidas es requerida" }),
 });
 
 export type CloseFiscalYearInput = z.infer<typeof CloseFiscalYearSchema>;

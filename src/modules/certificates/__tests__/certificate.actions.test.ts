@@ -71,9 +71,8 @@ describe("generateDemoCertificateAction", () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue(MOCK_COMPANY as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) => fn({})) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({})) as never);
     vi.mocked(CertificateService.generateSelfSigned).mockResolvedValue(MOCK_CERT_RESULT);
   });
 
@@ -108,7 +107,7 @@ describe("generateDemoCertificateAction", () => {
 
   it("rechaza si ya existe certificado (propagado desde el servicio)", async () => {
     vi.mocked(CertificateService.generateSelfSigned).mockRejectedValue(
-      new Error("La empresa ya tiene un certificado activo."),
+      new Error("La empresa ya tiene un certificado activo.")
     );
 
     const result = await generateDemoCertificateAction({ companyId: COMPANY_ID });
@@ -155,9 +154,8 @@ describe("uploadOfficialCertificateAction", () => {
     mockAuth.mockResolvedValue({ userId: USER_ID });
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) => fn({})) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({})) as never);
     vi.mocked(CertificateService.loadOfficialCertificate).mockResolvedValue(MOCK_OFFICIAL_RESULT);
   });
 
@@ -188,7 +186,7 @@ describe("uploadOfficialCertificateAction", () => {
 
   it("rechaza base64 que no es PKCS#12 válido (propagado desde servicio)", async () => {
     vi.mocked(CertificateService.loadOfficialCertificate).mockRejectedValue(
-      new Error("El archivo .p12 no es válido"),
+      new Error("El archivo .p12 no es válido")
     );
 
     const result = await uploadOfficialCertificateAction({

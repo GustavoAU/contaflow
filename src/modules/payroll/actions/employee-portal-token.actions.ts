@@ -15,7 +15,7 @@ export type GeneratePortalTokenResult =
 
 export async function generatePortalTokenAction(
   companyId: string,
-  employeeId: string,
+  employeeId: string
 ): Promise<GeneratePortalTokenResult> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
   if (!ctx.ok) return ctx.error;

@@ -61,9 +61,7 @@ export function EmployeePortalTokenButton({ companyId, employeeId, employeeName 
           )}
           {isPending ? "Generando…" : "Portal del empleado"}
         </Button>
-        {error && (
-          <p className="text-xs text-red-600">{error}</p>
-        )}
+        {error && <p className="text-xs text-red-600">{error}</p>}
       </div>
     );
   }
@@ -71,8 +69,8 @@ export function EmployeePortalTokenButton({ companyId, employeeId, employeeName 
   return (
     <div className="space-y-2">
       <p className="text-xs text-gray-500">
-        Enlace del portal para{" "}
-        <span className="font-medium text-gray-700">{employeeName}</span> (válido 30 días):
+        Enlace del portal para <span className="font-medium text-gray-700">{employeeName}</span>{" "}
+        (válido 30 días):
       </p>
       <div className="flex items-center gap-2">
         <input
@@ -106,7 +104,10 @@ export function EmployeePortalTokenButton({ companyId, employeeId, employeeName 
       </div>
       <button
         type="button"
-        onClick={() => { setUrl(null); setError(null); }}
+        onClick={() => {
+          setUrl(null);
+          setError(null);
+        }}
         className="text-xs text-gray-400 hover:underline"
       >
         Regenerar enlace

@@ -53,13 +53,13 @@ function DiffBadge({ diff }: { diff: string }) {
   const val = parseFloat(diff);
   if (val > 0)
     return (
-      <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+      <span className="inline-flex items-center gap-1 font-medium text-green-700">
         <TrendingUpIcon className="h-3.5 w-3.5" />+{fmt(diff)}
       </span>
     );
   if (val < 0)
     return (
-      <span className="inline-flex items-center gap-1 text-red-600 font-medium">
+      <span className="inline-flex items-center gap-1 font-medium text-red-600">
         <TrendingDownIcon className="h-3.5 w-3.5" />
         {fmt(diff)}
       </span>
@@ -67,12 +67,7 @@ function DiffBadge({ diff }: { diff: string }) {
   return <span className="text-zinc-400">—</span>;
 }
 
-export function FxRevaluationClient({
-  companyId,
-  latestRates,
-  hasGLConfig,
-  openPeriodId,
-}: Props) {
+export function FxRevaluationClient({ companyId, latestRates, hasGLConfig, openPeriodId }: Props) {
   const today = todayLocalISO();
 
   const [currency, setCurrency] = useState<"USD" | "EUR">("USD");
@@ -118,9 +113,7 @@ export function FxRevaluationClient({
         periodId: openPeriodId ?? undefined,
       });
       if (result.success) {
-        toast.success(
-          `Asiento de revaluación registrado: ${result.data.transactionNumber}`
-        );
+        toast.success(`Asiento de revaluación registrado: ${result.data.transactionNumber}`);
         setPreview(null);
       } else {
         toast.error(result.error);
@@ -177,9 +170,7 @@ export function FxRevaluationClient({
               }}
               placeholder="Ej: 45.5000"
             />
-            <p className="text-xs text-muted-foreground">
-              Tasa de cierre del período (BCV)
-            </p>
+            <p className="text-muted-foreground text-xs">Tasa de cierre del período (BCV)</p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="revaluationDate">Fecha de revaluación</Label>
@@ -219,16 +210,27 @@ export function FxRevaluationClient({
               {/* Resumen */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
-                  { label: "Facturas analizadas", value: String(preview.lines.length), mono: false },
+                  {
+                    label: "Facturas analizadas",
+                    value: String(preview.lines.length),
+                    mono: false,
+                  },
                   { label: "Mov. neto CxC", value: fmt(preview.netCxCMovement), mono: true },
-                  { label: "Ganancia cambiaria", value: fmt(preview.totalFxGain), mono: true, green: true },
-                  { label: "Pérdida cambiaria", value: fmt(preview.totalFxLoss), mono: true, red: true },
+                  {
+                    label: "Ganancia cambiaria",
+                    value: fmt(preview.totalFxGain),
+                    mono: true,
+                    green: true,
+                  },
+                  {
+                    label: "Pérdida cambiaria",
+                    value: fmt(preview.totalFxLoss),
+                    mono: true,
+                    red: true,
+                  },
                 ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="rounded-lg border bg-white p-3 space-y-0.5"
-                  >
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                  <div key={item.label} className="space-y-0.5 rounded-lg border bg-white p-3">
+                    <p className="text-muted-foreground text-xs">{item.label}</p>
                     <p
                       className={`text-sm font-semibold ${item.mono ? "font-mono" : ""} ${
                         item.green ? "text-green-700" : item.red ? "text-red-600" : "text-zinc-800"
@@ -281,8 +283,8 @@ export function FxRevaluationClient({
               </div>
 
               {/* Asiento resultante */}
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-2">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+              <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                <p className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
                   Asiento contable generado
                 </p>
                 <div className="space-y-1 text-sm">
@@ -341,9 +343,9 @@ export function FxRevaluationClient({
       )}
 
       <p className="text-xs text-zinc-400">
-        Revaluación según NIC 21 / VEN-NIF BA-5. Solo se consideran facturas en moneda
-        extranjera con saldo pendiente (UNPAID / PARTIAL). Verifique la tasa oficial BCV
-        antes de registrar el asiento.
+        Revaluación según NIC 21 / VEN-NIF BA-5. Solo se consideran facturas en moneda extranjera
+        con saldo pendiente (UNPAID / PARTIAL). Verifique la tasa oficial BCV antes de registrar el
+        asiento.
       </p>
     </div>
   );

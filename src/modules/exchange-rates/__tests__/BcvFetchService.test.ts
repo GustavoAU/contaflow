@@ -89,7 +89,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "https://custom-bcv.example.com/rate",
-      expect.any(Object),
+      expect.any(Object)
     );
   });
 
@@ -106,7 +106,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
     mockFetch.mockRejectedValue(new Error("ECONNREFUSED"));
 
     await expect(BcvFetchService.fetchUsdVes()).rejects.toThrow(
-      "BcvFetchService: no se pudo contactar el endpoint BCV",
+      "BcvFetchService: no se pudo contactar el endpoint BCV"
     );
   });
 
@@ -114,7 +114,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
     mockFetch.mockResolvedValue(makeErrorResponse(500));
 
     await expect(BcvFetchService.fetchUsdVes()).rejects.toThrow(
-      "BcvFetchService: el endpoint BCV USD respondió con HTTP 500",
+      "BcvFetchService: el endpoint BCV USD respondió con HTTP 500"
     );
   });
 
@@ -122,7 +122,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
     mockFetch.mockResolvedValue(makeErrorResponse(429));
 
     await expect(BcvFetchService.fetchUsdVes()).rejects.toThrow(
-      "BcvFetchService: el endpoint BCV USD respondió con HTTP 429",
+      "BcvFetchService: el endpoint BCV USD respondió con HTTP 429"
     );
   });
 
@@ -135,7 +135,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
     mockFetch.mockResolvedValue(badResponse);
 
     await expect(BcvFetchService.fetchUsdVes()).rejects.toThrow(
-      "BcvFetchService: la respuesta del endpoint BCV USD no es JSON válido",
+      "BcvFetchService: la respuesta del endpoint BCV USD no es JSON válido"
     );
   });
 
@@ -144,7 +144,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
     mockFetch.mockResolvedValue(makeOkResponse(badPayload));
 
     await expect(BcvFetchService.fetchUsdVes()).rejects.toThrow(
-      "BcvFetchService: respuesta inesperada del endpoint BCV",
+      "BcvFetchService: respuesta inesperada del endpoint BCV"
     );
   });
 
@@ -153,7 +153,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
     mockFetch.mockResolvedValue(makeOkResponse(badPayload));
 
     await expect(BcvFetchService.fetchUsdVes()).rejects.toThrow(
-      "BcvFetchService: respuesta inesperada del endpoint BCV",
+      "BcvFetchService: respuesta inesperada del endpoint BCV"
     );
   });
 
@@ -162,7 +162,7 @@ describe("BcvFetchService.fetchUsdVes", () => {
     mockFetch.mockResolvedValue(makeOkResponse(badPayload));
 
     await expect(BcvFetchService.fetchUsdVes()).rejects.toThrow(
-      "BcvFetchService: respuesta inesperada del endpoint BCV",
+      "BcvFetchService: respuesta inesperada del endpoint BCV"
     );
   });
 });
@@ -200,7 +200,7 @@ describe("BcvFetchService.fetchEurVes", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "https://custom-eur.example.com/rate",
-      expect.any(Object),
+      expect.any(Object)
     );
   });
 
@@ -208,7 +208,7 @@ describe("BcvFetchService.fetchEurVes", () => {
     mockFetch.mockRejectedValue(new Error("ETIMEDOUT"));
 
     await expect(BcvFetchService.fetchEurVes()).rejects.toThrow(
-      "BcvFetchService: no se pudo contactar el endpoint BCV EUR",
+      "BcvFetchService: no se pudo contactar el endpoint BCV EUR"
     );
   });
 
@@ -216,7 +216,7 @@ describe("BcvFetchService.fetchEurVes", () => {
     mockFetch.mockResolvedValue(makeErrorResponse(404));
 
     await expect(BcvFetchService.fetchEurVes()).rejects.toThrow(
-      "BcvFetchService: el endpoint BCV EUR respondió con HTTP 404",
+      "BcvFetchService: el endpoint BCV EUR respondió con HTTP 404"
     );
   });
 
@@ -225,7 +225,7 @@ describe("BcvFetchService.fetchEurVes", () => {
     mockFetch.mockResolvedValue(makeOkResponse(badPayload));
 
     await expect(BcvFetchService.fetchEurVes()).rejects.toThrow(
-      "BcvFetchService: respuesta inesperada del endpoint BCV EUR",
+      "BcvFetchService: respuesta inesperada del endpoint BCV EUR"
     );
   });
 
@@ -234,7 +234,7 @@ describe("BcvFetchService.fetchEurVes", () => {
     mockFetch.mockResolvedValue(makeOkResponse(badPayload));
 
     await expect(BcvFetchService.fetchEurVes()).rejects.toThrow(
-      "BcvFetchService: respuesta inesperada del endpoint BCV EUR",
+      "BcvFetchService: respuesta inesperada del endpoint BCV EUR"
     );
   });
 });

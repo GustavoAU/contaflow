@@ -24,14 +24,21 @@ interface Props {
     description: string,
     unit?: string,
     stockQuantity?: string,
-    inventoryItemId?: string | null,
+    inventoryItemId?: string | null
   ) => void;
   inputCls: string;
   placeholder?: string;
   required?: boolean;
 }
 
-export function ProductCombobox({ companyId, value, onChange, inputCls, placeholder, required }: Props) {
+export function ProductCombobox({
+  companyId,
+  value,
+  onChange,
+  inputCls,
+  placeholder,
+  required,
+}: Props) {
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<InventoryHit[]>([]);
   const [open, setOpen] = useState(false);
@@ -57,7 +64,11 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
   const search = useCallback(
     (q: string) => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (q.length < 2) { setResults([]); setOpen(false); return; }
+      if (q.length < 2) {
+        setResults([]);
+        setOpen(false);
+        return;
+      }
       timerRef.current = setTimeout(async () => {
         const r = await searchInventoryItemsAction(companyId, q);
         if (r.success && r.data.length > 0) {
@@ -93,7 +104,8 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
   const stockBadge = (qty: string): { cls: string; Icon: React.ElementType; label: string } => {
     const n = new Decimal(qty);
     if (n.lte(0)) return { cls: "bg-red-100 text-red-700", Icon: XCircleIcon, label: "Sin stock" };
-    if (n.lte(5)) return { cls: "bg-amber-100 text-amber-700", Icon: AlertTriangleIcon, label: "Stock bajo" };
+    if (n.lte(5))
+      return { cls: "bg-amber-100 text-amber-700", Icon: AlertTriangleIcon, label: "Stock bajo" };
     return { cls: "bg-green-100 text-green-700", Icon: CheckCircleIcon, label: "Disponible" };
   };
 
@@ -109,12 +121,15 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
         autoComplete="off"
       />
       {open && results.length > 0 && (
-        <ul className="absolute z-50 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg text-xs max-h-52 overflow-y-auto">
+        <ul className="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded border border-gray-200 bg-white text-xs shadow-lg">
           {results.map((hit) => (
             <li
               key={hit.id}
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(hit); }}
-              className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(hit);
+              }}
+              className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 hover:bg-blue-50"
             >
               <span className="truncate">
                 <span className="font-medium text-gray-900">{hit.name}</span>
@@ -123,7 +138,9 @@ export function ProductCombobox({ companyId, value, onChange, inputCls, placehol
               {(() => {
                 const { cls, Icon, label } = stockBadge(hit.stockQuantity);
                 return (
-                  <span className={`shrink-0 flex items-center gap-1 rounded-full px-2 py-0.5 font-mono ${cls}`}>
+                  <span
+                    className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono ${cls}`}
+                  >
                     <Icon className="h-3 w-3 shrink-0" aria-label={label} />
                     {new Decimal(hit.stockQuantity).toFixed(2)} {hit.baseUnitAbbr}
                   </span>

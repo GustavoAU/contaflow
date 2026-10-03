@@ -42,13 +42,13 @@ describe("ExchangeRateService.upsert", () => {
       DATE,
       new Decimal("46.50"),
       "BCV",
-      "user-1",
+      "user-1"
     );
 
     expect(prisma.exchangeRate.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { companyId_currency_date: { companyId: "company-1", currency: "USD", date: DATE } },
-      }),
+      })
     );
     expect(result.rate).toBe("46.5");
   });
@@ -69,9 +69,9 @@ describe("ExchangeRateService.getRateForDate", () => {
   it("lanza error si no existe tasa para la fecha", async () => {
     vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
 
-    await expect(
-      ExchangeRateService.getRateForDate("company-1", "USD", DATE),
-    ).rejects.toThrow("No hay tasa BCV registrada para USD el 2026-03-30");
+    await expect(ExchangeRateService.getRateForDate("company-1", "USD", DATE)).rejects.toThrow(
+      "No hay tasa BCV registrada para USD el 2026-03-30"
+    );
   });
 });
 

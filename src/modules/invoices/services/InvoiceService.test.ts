@@ -33,9 +33,9 @@ vi.mock("@/lib/prisma", () => {
     seniatSubmission: {
       create: vi.fn(),
     },
-    $transaction: vi.fn().mockImplementation(
-      (fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)
-    ),
+    $transaction: vi
+      .fn()
+      .mockImplementation((fn: (tx: typeof mockPrisma) => unknown) => fn(mockPrisma)),
   };
   return { prisma: mockPrisma };
 });
@@ -172,9 +172,10 @@ describe("InvoiceService.create", () => {
   // ── ADR-019 D-1: outbox PA-121 — SeniatSubmission en el mismo $transaction ──
   it("crea SeniatSubmission para factura de VENTA en la misma transacción (PA-121)", async () => {
     vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
-    vi.mocked(prisma.company.findUnique).mockResolvedValue(
-      { paymentTermDays: 30, rif: "J-99999999-9" } as never
-    );
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      paymentTermDays: 30,
+      rif: "J-99999999-9",
+    } as never);
 
     await InvoiceService.create(BASE_INPUT);
 
@@ -187,9 +188,7 @@ describe("InvoiceService.create", () => {
           payload: expect.objectContaining({
             companyRif: "J-99999999-9",
             // El payload serializa taxType (no `type`) — fix auditoría 2026-06-10
-            taxLines: expect.arrayContaining([
-              expect.objectContaining({ taxType: "IVA_GENERAL" }),
-            ]),
+            taxLines: expect.arrayContaining([expect.objectContaining({ taxType: "IVA_GENERAL" })]),
           }),
         }),
       })
@@ -208,9 +207,12 @@ describe("InvoiceService.create", () => {
 
   it("OM-05: rechaza factura en período contable CERRADO", async () => {
     // El período 2026-03 está cerrado
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
-      { id: "period-closed", status: "CLOSED", year: 2026, month: 3 } as never
-    );
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-closed",
+      status: "CLOSED",
+      year: 2026,
+      month: 3,
+    } as never);
 
     await expect(InvoiceService.create(BASE_INPUT)).rejects.toThrow(
       "período 03/2026 porque está CERRADO"
@@ -226,9 +228,12 @@ describe("InvoiceService.create", () => {
   });
 
   it("hallazgo #9: auto-asigna periodId desde el período OPEN del mes de la factura", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
-      { id: "period-open", status: "OPEN", year: 2026, month: 3 } as never
-    );
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-open",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+    } as never);
     vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
 
     await InvoiceService.create({ ...BASE_INPUT, periodId: undefined });
@@ -241,9 +246,12 @@ describe("InvoiceService.create", () => {
   });
 
   it("hallazgo #9: respeta periodId explícito del caller (no lo sobreescribe)", async () => {
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
-      { id: "period-open", status: "OPEN", year: 2026, month: 3 } as never
-    );
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-open",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+    } as never);
     vi.mocked(prisma.invoice.create).mockResolvedValue(makeInvoiceRow() as never);
 
     await InvoiceService.create({ ...BASE_INPUT, periodId: "explicit-period-id" });
@@ -391,7 +399,9 @@ describe("InvoiceService.create — factura de lujo (ruta legacy con taxLines)",
   it("GUARDA: IVA_ADICIONAL manual SIN IVA_GENERAL conserva su base (1000 + 150 = 1150.00)", async () => {
     await InvoiceService.create({
       ...BASE_INPUT,
-      taxLines: [{ taxType: "IVA_ADICIONAL" as const, base: "1000.00", rate: "15", amount: "150.00" }],
+      taxLines: [
+        { taxType: "IVA_ADICIONAL" as const, base: "1000.00", rate: "15", amount: "150.00" },
+      ],
     });
 
     expect(created().totalAmountVes).toBe("1150.00");
@@ -459,9 +469,7 @@ describe("InvoiceService.getBook", () => {
     vi.mocked(prisma.invoice.findMany).mockResolvedValue([
       makeInvoiceRow({
         ivaRetentionAmount: new Decimal("0"), // campo Invoice en 0
-        retenciones: [
-          { type: "IVA", ivaRetention: new Decimal("120.00"), islrAmount: null },
-        ],
+        retenciones: [{ type: "IVA", ivaRetention: new Decimal("120.00"), islrAmount: null }],
       }),
     ] as never);
 
@@ -540,9 +548,7 @@ describe("InvoiceService.getInvoicesPaginated", () => {
 
   it("retorna hasNextPage=true cuando hay más", async () => {
     // limit=2, se piden take=3, mock devuelve 3 => hay más
-    const rows = Array.from({ length: 3 }, (_, i) =>
-      makePaginatedRow({ id: `inv-${i + 1}` })
-    );
+    const rows = Array.from({ length: 3 }, (_, i) => makePaginatedRow({ id: `inv-${i + 1}` }));
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(rows as never);
 
     const result = await InvoiceService.getInvoicesPaginated("company-1", {}, undefined, 2);
@@ -725,9 +731,7 @@ describe("InvoiceService.getInvoiceBookPaginated", () => {
     await InvoiceService.getInvoiceBookPaginated({ ...BASE_PARAMS, limit: 200 });
 
     // take debe ser min(200, 50) + 1 = 51
-    expect(prisma.invoice.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 51 })
-    );
+    expect(prisma.invoice.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 51 }));
   });
 
   it("serializa taxLines a string con 2 decimales en items", async () => {
@@ -817,7 +821,9 @@ describe("InvoiceService.getBook — totales de columna (Base / IVA / Total)", (
   });
 
   it("factura con solo IVA_ADICIONAL (sin línea general): conserva su base", async () => {
-    const { summary } = await book([inv("solo-adicional", [makeTaxLine("IVA_ADICIONAL", "1000.00", "15", "150.00")])]);
+    const { summary } = await book([
+      inv("solo-adicional", [makeTaxLine("IVA_ADICIONAL", "1000.00", "15", "150.00")]),
+    ]);
 
     expect(summary.totalBase).toBe("1000.00");
     expect(summary.totalAmount).toBe("1150.00");

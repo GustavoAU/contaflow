@@ -58,7 +58,7 @@ type VendorFormProps = {
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
-    <p id={id} className="text-xs text-red-600 mt-0.5">
+    <p id={id} className="mt-0.5 text-xs text-red-600">
       {message}
     </p>
   );
@@ -97,7 +97,7 @@ export function VendorForm({
         <td className="px-3 py-2">
           <div className="flex flex-col gap-1">
             <input
-              className="rounded border px-2 py-1 text-sm w-full min-w-35"
+              className="w-full min-w-35 rounded border px-2 py-1 text-sm"
               placeholder="Nombre *"
               aria-invalid={!!errors.name}
               aria-describedby={errors.name ? errId("name") : undefined}
@@ -110,8 +110,10 @@ export function VendorForm({
                 {...register("groupId")}
               >
                 <option value="">Sin grupo</option>
-                {groups.map(g => (
-                  <option key={g.id} value={g.id}>{g.name}</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
                 ))}
               </select>
               <select
@@ -124,7 +126,7 @@ export function VendorForm({
               </select>
             </div>
             <textarea
-              className="rounded border px-2 py-1 text-xs resize-none"
+              className="resize-none rounded border px-2 py-1 text-xs"
               placeholder="Notas…"
               rows={2}
               maxLength={2000}
@@ -135,7 +137,7 @@ export function VendorForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-20"
+            className="w-full min-w-20 rounded border px-2 py-1 text-sm"
             placeholder="P-001"
             aria-invalid={!!errors.code}
             aria-describedby={errors.code ? errId("code") : undefined}
@@ -145,7 +147,7 @@ export function VendorForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-30"
+            className="w-full min-w-30 rounded border px-2 py-1 text-sm"
             placeholder="J-12345678-9"
             aria-invalid={!!errors.rif}
             aria-describedby={errors.rif ? errId("rif") : undefined}
@@ -155,7 +157,7 @@ export function VendorForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-35"
+            className="w-full min-w-35 rounded border px-2 py-1 text-sm"
             placeholder="email@ejemplo.com"
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? errId("email") : undefined}
@@ -165,7 +167,7 @@ export function VendorForm({
         </td>
         <td className="px-3 py-2">
           <input
-            className="rounded border px-2 py-1 text-sm w-full min-w-25"
+            className="w-full min-w-25 rounded border px-2 py-1 text-sm"
             placeholder="+58 412…"
             aria-invalid={!!errors.phone}
             aria-describedby={errors.phone ? errId("phone") : undefined}
@@ -176,7 +178,7 @@ export function VendorForm({
         <td className="px-3 py-2 text-center">
           <input
             type="checkbox"
-            className="rounded border-gray-300 cursor-pointer"
+            className="cursor-pointer rounded border-gray-300"
             title="Contribuyente Especial"
             {...register("isSpecialContributor")}
           />
@@ -207,7 +209,7 @@ export function VendorForm({
 
   // ── Variant "create": tarjeta índigo ────────────────────────────────────────
   return (
-    <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border border-indigo-100 bg-indigo-50 p-4">
       <p className="text-sm font-medium text-indigo-800">Nuevo proveedor</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
@@ -266,8 +268,10 @@ export function VendorForm({
             {...register("groupId")}
           >
             <option value="">Sin grupo</option>
-            {groups.map(g => (
-              <option key={g.id} value={g.id}>{g.name}</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
             ))}
           </select>
           <select
@@ -282,7 +286,7 @@ export function VendorForm({
       </div>
       <div>
         <textarea
-          className="w-full rounded border px-2 py-1.5 text-sm resize-none"
+          className="w-full resize-none rounded border px-2 py-1.5 text-sm"
           placeholder="Notas (ej: requiere orden de compra firmada)"
           rows={2}
           maxLength={2000}
@@ -290,7 +294,7 @@ export function VendorForm({
         />
         <FieldError id={errId("notes")} message={errors.notes?.message} />
       </div>
-      <label className="flex items-center gap-2 text-sm text-indigo-900 cursor-pointer">
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-indigo-900">
         <input
           type="checkbox"
           className="rounded border-gray-300"
@@ -307,10 +311,7 @@ export function VendorForm({
         >
           {isPending ? "Guardando…" : submitLabel}
         </button>
-        <button
-          onClick={onCancel}
-          className="rounded border px-3 py-1 text-sm text-gray-600"
-        >
+        <button onClick={onCancel} className="rounded border px-3 py-1 text-sm text-gray-600">
           Cancelar
         </button>
       </div>

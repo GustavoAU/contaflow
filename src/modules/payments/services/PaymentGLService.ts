@@ -31,9 +31,9 @@ export type PaymentRecordGLInput = {
   amountVes: Decimal;
   igtfAmount: Decimal | null;
   // NIC 21 / VEN-NIF BA-5 — diferencial cambiario al cobro (Fix auditoría ADR-030)
-  invoiceId?: string;        // para leer la tasa de la factura original
-  amountOriginal?: Decimal;  // monto en divisa (USD/EUR)
-  currency?: string;         // "USD" | "EUR" | "VES"
+  invoiceId?: string; // para leer la tasa de la factura original
+  amountOriginal?: Decimal; // monto en divisa (USD/EUR)
+  currency?: string; // "USD" | "EUR" | "VES"
   // Riesgo-6 auditoría: IVA retenido por el cliente CE (Prov. 0049 75%/100%)
   // Dr. IVA Ret. x Cobrar = ivaRetentionAmount | Cr. CxC = amountVes + ivaRetentionAmount
   ivaRetentionAmount?: Decimal;
@@ -56,9 +56,9 @@ type BatchLineEnriched = {
   invoiceId: string;
   amountVes: Decimal;
   igtfAmount: Decimal | null;
-  invoiceNumber: string | null;   // Fix 4: descripción enriquecida en asiento
+  invoiceNumber: string | null; // Fix 4: descripción enriquecida en asiento
   counterpartName: string | null;
-  vendorId?: string;              // ADR-054: tercero de la línea CxP
+  vendorId?: string; // ADR-054: tercero de la línea CxP
 };
 
 export type GLPostingResult = {
@@ -76,7 +76,7 @@ export type GLPostingResult = {
 async function generateTxNumber(
   tx: Prisma.TransactionClient,
   companyId: string,
-  date: Date,
+  date: Date
 ): Promise<string> {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -111,7 +111,7 @@ export class PaymentGLService {
     tx: Prisma.TransactionClient,
     companyId: string,
     invoiceId: string | undefined,
-    kind: "customer" | "vendor",
+    kind: "customer" | "vendor"
   ): Promise<string | undefined> {
     if (!invoiceId) return undefined;
     const inv = await tx.invoice.findFirst({
@@ -152,10 +152,9 @@ export class PaymentGLService {
       fxGainAccountId: string | null; // NIC 21
       fxLossAccountId: string | null; // NIC 21
       ivaRetentionReceivableAccountId: string | null; // Riesgo-6: IVA retenido x cobrar
-    },
+    }
   ): Promise<GLPostingResult> {
-    const { companyId, date, createdBy, description, ipAddress, userAgent } =
-      input.context;
+    const { companyId, date, createdBy, description, ipAddress, userAgent } = input.context;
 
     // Resolver cuenta GL del banco (accountId en BankAccount)
     const bankAcc = await tx.bankAccount.findFirst({
@@ -178,9 +177,7 @@ export class PaymentGLService {
 
     // Construir líneas de asiento (Débito = positivo, Crédito = negativo — convención R-1)
     const amountVes = new Decimal(input.amountVes.toString());
-    const igtfAmount = input.igtfAmount
-      ? new Decimal(input.igtfAmount.toString())
-      : null;
+    const igtfAmount = input.igtfAmount ? new Decimal(input.igtfAmount.toString()) : null;
 
     // Descripción enriquecida para asientos en divisa (Rec 2 auditoría ADR-030)
     let richDescription = description;
@@ -192,8 +189,12 @@ export class PaymentGLService {
       }
     }
 
-    const entries: { accountId: string; amount: Decimal; description: string; customerId?: string }[] =
-      [];
+    const entries: {
+      accountId: string;
+      amount: Decimal;
+      description: string;
+      customerId?: string;
+    }[] = [];
 
     // ── IVA Retenido por Cobrar (Riesgo-6 / Prov. 0049) ─────────────────────
     // Si el cliente CE retiene el IVA (75%/100%), el cobro neto es menor al total.
@@ -202,9 +203,7 @@ export class PaymentGLService {
     const ivaRet = input.ivaRetentionAmount
       ? new Decimal(input.ivaRetentionAmount.toString())
       : new Decimal(0);
-    const hasIvaRetention =
-      ivaRet.greaterThan(0) &&
-      !!settings.ivaRetentionReceivableAccountId;
+    const hasIvaRetention = ivaRet.greaterThan(0) && !!settings.ivaRetentionReceivableAccountId;
 
     // ── Diferencial cambiario NIC 21 / VEN-NIF BA-5 ──────────────────────────
     // La CxC fue causada a la tasa del día de la factura.
@@ -398,10 +397,9 @@ export class PaymentGLService {
   static async postVendorPaymentRecordGL(
     tx: Prisma.TransactionClient,
     input: PaymentRecordGLInput,
-    settings: { apAccountId: string; igtfPayableAccountId: string | null },
+    settings: { apAccountId: string; igtfPayableAccountId: string | null }
   ): Promise<GLPostingResult> {
-    const { companyId, date, createdBy, description, ipAddress, userAgent } =
-      input.context;
+    const { companyId, date, createdBy, description, ipAddress, userAgent } = input.context;
 
     const bankAcc = await tx.bankAccount.findFirst({
       where: { id: input.bankAccountId, companyId },
@@ -418,14 +416,17 @@ export class PaymentGLService {
 
     const number = await generateTxNumber(tx, companyId, date);
     const amountVes = new Decimal(input.amountVes.toString());
-    const igtfAmount = input.igtfAmount
-      ? new Decimal(input.igtfAmount.toString())
-      : null;
+    const igtfAmount = input.igtfAmount ? new Decimal(input.igtfAmount.toString()) : null;
 
     // ADR-054: tercero de la línea CxP (Vendor) — resuelto desde la factura vinculada.
     const vendorId = await this.resolveInvoicePartyId(tx, companyId, input.invoiceId, "vendor");
 
-    const entries: { accountId: string; amount: Decimal; description: string; vendorId?: string }[] = [
+    const entries: {
+      accountId: string;
+      amount: Decimal;
+      description: string;
+      vendorId?: string;
+    }[] = [
       // Dr. CxP (cancela la deuda con el proveedor)
       { accountId: settings.apAccountId, amount: amountVes, description, vendorId },
       // Cr. Banco (salida de fondos)
@@ -537,10 +538,9 @@ export class PaymentGLService {
   static async postPaymentBatchGL(
     tx: Prisma.TransactionClient,
     input: PaymentBatchGLInput,
-    settings: { apAccountId: string; igtfPayableAccountId: string | null },
+    settings: { apAccountId: string; igtfPayableAccountId: string | null }
   ): Promise<GLPostingResult> {
-    const { companyId, date, createdBy, description, ipAddress, userAgent } =
-      input.context;
+    const { companyId, date, createdBy, description, ipAddress, userAgent } = input.context;
 
     // Resolver cuenta GL del banco
     const bankAcc = await tx.bankAccount.findFirst({
@@ -562,11 +562,25 @@ export class PaymentGLService {
     // ADR-054: mismo query también trae vendorId/counterpartRif — casi gratis, sin round-trip
     // extra — para derivar el tercero de cada línea CxP (un batch puede pagar a VARIOS
     // proveedores distintos en sus distintas líneas, ver comentario en postPaymentBatchGL).
-    const invoiceDataMap = new Map<string, { invoiceNumber: string | null; counterpartName: string | null; vendorId: string | null; counterpartRif: string | null }>();
+    const invoiceDataMap = new Map<
+      string,
+      {
+        invoiceNumber: string | null;
+        counterpartName: string | null;
+        vendorId: string | null;
+        counterpartRif: string | null;
+      }
+    >();
     const invoiceIds = input.lines.map((l) => l.invoiceId);
     const invoiceRows = await tx.invoice.findMany({
       where: { id: { in: invoiceIds }, companyId },
-      select: { id: true, invoiceNumber: true, counterpartName: true, vendorId: true, counterpartRif: true },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        counterpartName: true,
+        vendorId: true,
+        counterpartRif: true,
+      },
     });
     for (const row of invoiceRows) {
       invoiceDataMap.set(row.id, {
@@ -583,12 +597,18 @@ export class PaymentGLService {
       .filter((row) => !row.vendorId)
       .map((row) => normalizeRifOrNull(row.counterpartRif))
       .filter((rif): rif is string => !!rif);
-    const vendorIdByRif = await batchResolvePartyIdsByRif(tx, companyId, "vendor", rifsNeedingLookup);
+    const vendorIdByRif = await batchResolvePartyIdsByRif(
+      tx,
+      companyId,
+      "vendor",
+      rifsNeedingLookup
+    );
 
     const enrichedLines: BatchLineEnriched[] = input.lines.map((l) => {
       const invData = invoiceDataMap.get(l.invoiceId);
       const normalizedRif = normalizeRifOrNull(invData?.counterpartRif);
-      const vendorId = invData?.vendorId ?? (normalizedRif ? vendorIdByRif.get(normalizedRif) : undefined);
+      const vendorId =
+        invData?.vendorId ?? (normalizedRif ? vendorIdByRif.get(normalizedRif) : undefined);
       return {
         ...l,
         invoiceNumber: invData?.invoiceNumber ?? null,
@@ -598,22 +618,25 @@ export class PaymentGLService {
     });
 
     // Construir todas las JournalEntries del batch (un asiento por batch, no por línea)
-    const entries: { accountId: string; amount: Decimal; description: string; vendorId?: string }[] =
-      [];
+    const entries: {
+      accountId: string;
+      amount: Decimal;
+      description: string;
+      vendorId?: string;
+    }[] = [];
     let igtfSkipped = false;
 
     for (const line of enrichedLines) {
       const amountVes = new Decimal(line.amountVes.toString());
-      const igtfAmount = line.igtfAmount
-        ? new Decimal(line.igtfAmount.toString())
-        : null;
+      const igtfAmount = line.igtfAmount ? new Decimal(line.igtfAmount.toString()) : null;
 
       // Descripción enriquecida por línea: Proveedor — Factura Nro. (Art. 91 COT)
-      const lineDesc = line.counterpartName && line.invoiceNumber
-        ? `${description} | ${line.counterpartName} — ${line.invoiceNumber}`
-        : line.counterpartName
-          ? `${description} | ${line.counterpartName}`
-          : description;
+      const lineDesc =
+        line.counterpartName && line.invoiceNumber
+          ? `${description} | ${line.counterpartName} — ${line.invoiceNumber}`
+          : line.counterpartName
+            ? `${description} | ${line.counterpartName}`
+            : description;
 
       // Dr. CxP (apAccountId)
       entries.push({
@@ -739,7 +762,7 @@ export class PaymentGLService {
     paymentRecordId: string,
     companyId: string,
     voidedBy: string,
-    context: GLPostingContext,
+    context: GLPostingContext
   ): Promise<void> {
     // Verificar que el PaymentRecord tiene un asiento GL
     const record = await tx.paymentRecord.findFirst({
@@ -827,7 +850,7 @@ export class PaymentGLService {
     paymentBatchId: string,
     companyId: string,
     voidedBy: string,
-    context: GLPostingContext,
+    context: GLPostingContext
   ): Promise<void> {
     const batch = await tx.paymentBatch.findFirst({
       where: { id: paymentBatchId, companyId },

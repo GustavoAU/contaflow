@@ -29,7 +29,10 @@ export async function importAccountsAction(
     if (!ctx.ok) return ctx.error;
 
     if (rows.length > 1000) {
-      return { success: false, error: "El archivo supera el límite de 1000 cuentas por importación." };
+      return {
+        success: false,
+        error: "El archivo supera el límite de 1000 cuentas por importación.",
+      };
     }
 
     const result = await ImportService.importAccounts(companyId, ctx.userId, rows);

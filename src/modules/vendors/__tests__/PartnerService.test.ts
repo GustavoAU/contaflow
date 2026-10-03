@@ -40,7 +40,7 @@ describe("PartnerService.list", () => {
     vi.mocked(prisma.partner.findMany).mockResolvedValue([base] as never);
     await PartnerService.list("c1");
     expect(prisma.partner.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { companyId: "c1", deletedAt: null } }),
+      expect.objectContaining({ where: { companyId: "c1", deletedAt: null } })
     );
   });
 
@@ -48,7 +48,7 @@ describe("PartnerService.list", () => {
     vi.mocked(prisma.partner.findMany).mockResolvedValue([base] as never);
     await PartnerService.list("c1");
     expect(prisma.partner.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { name: "asc" } }),
+      expect.objectContaining({ orderBy: { name: "asc" } })
     );
   });
 
@@ -86,7 +86,7 @@ describe("PartnerService.create", () => {
     expect(prisma.partner.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ companyId: "c1", name: "Juan Pérez" }),
-      }),
+      })
     );
     expect(result).toEqual(base);
   });
@@ -97,7 +97,7 @@ describe("PartnerService.create", () => {
     expect(prisma.partner.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ rif: null }),
-      }),
+      })
     );
   });
 
@@ -107,7 +107,7 @@ describe("PartnerService.create", () => {
     expect(prisma.partner.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ rif: "J-12345678-9" }),
-      }),
+      })
     );
   });
 });
@@ -118,7 +118,7 @@ describe("PartnerService.update", () => {
     vi.mocked(prisma.partner.update).mockResolvedValue({ ...base, name: "Nuevo Nombre" } as never);
     const result = await PartnerService.update("c1", "pa1", { name: "Nuevo Nombre" });
     expect(prisma.partner.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "pa1" } }),
+      expect.objectContaining({ where: { id: "pa1" } })
     );
     expect(result).toEqual({ ...base, name: "Nuevo Nombre" });
   });

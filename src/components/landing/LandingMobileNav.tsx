@@ -30,7 +30,7 @@ export function LandingMobileNav({ isAuthenticated }: { isAuthenticated: boolean
     <>
       <button
         ref={triggerRef}
-        className="rounded-md p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 md:hidden"
+        className="rounded-md p-2 text-zinc-600 hover:bg-zinc-100 md:hidden dark:text-zinc-400 dark:hover:bg-zinc-800"
         aria-label={open ? "Cerrar menú" : "Abrir menú de navegación"}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -45,16 +45,12 @@ export function LandingMobileNav({ isAuthenticated }: { isAuthenticated: boolean
           role="dialog"
           aria-modal="true"
           aria-label="Menú de navegación"
-          className="fixed inset-0 z-50 flex flex-col bg-background md:hidden"
+          className="bg-background fixed inset-0 z-50 flex flex-col md:hidden"
         >
           {/* Header del drawer */}
-          <div className="flex h-14 items-center justify-between border-b border-border/40 px-4">
-            <Link
-              href="/"
-              className="flex items-center gap-2"
-              onClick={() => setOpen(false)}
-            >
-              <ZapIcon className="h-5 w-5 text-primary" aria-hidden />
+          <div className="border-border/40 flex h-14 items-center justify-between border-b px-4">
+            <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
+              <ZapIcon className="text-primary h-5 w-5" aria-hidden />
               <span className="text-lg font-semibold tracking-tight">ContaFlow</span>
             </Link>
             <button
@@ -81,7 +77,7 @@ export function LandingMobileNav({ isAuthenticated }: { isAuthenticated: boolean
             ))}
           </nav>
 
-          <div className="border-t border-border/40" />
+          <div className="border-border/40 border-t" />
 
           {/* CTAs */}
           <div className="flex flex-col gap-3 p-4">

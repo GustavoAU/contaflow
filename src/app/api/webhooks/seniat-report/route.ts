@@ -24,7 +24,9 @@ export async function POST(request: NextRequest) {
 
   if (process.env.NODE_ENV !== "development") {
     if (!signingKey || !nextSigningKey) {
-      console.error("[seniat-report] QSTASH_CURRENT_SIGNING_KEY o QSTASH_NEXT_SIGNING_KEY no configurados");
+      console.error(
+        "[seniat-report] QSTASH_CURRENT_SIGNING_KEY o QSTASH_NEXT_SIGNING_KEY no configurados"
+      );
       return NextResponse.json({ error: "Configuración de firma ausente" }, { status: 500 });
     }
 

@@ -22,16 +22,18 @@ export default async function AccountsPage({ params }: Props) {
   const canImport = role ? canAccess(role, ROLES.ACCOUNTING) : false;
 
   const contaTabs = [
-    { label: "Asientos",        href: `/company/${companyId}/transactions` },
+    { label: "Asientos", href: `/company/${companyId}/transactions` },
     { label: "Plan de Cuentas", href: `/company/${companyId}/accounts` },
-    { label: "Reportes",        href: `/company/${companyId}/reports` },
+    { label: "Reportes", href: `/company/${companyId}/reports` },
   ];
 
   return (
     <main className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Plan de Cuentas</h1>
-        <p className="text-muted-foreground mt-1 text-sm">Catálogo de cuentas contables de tu empresa</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Catálogo de cuentas contables de tu empresa
+        </p>
       </div>
       <ModuleTabs tabs={contaTabs} />
       <AccountsTable initialAccounts={accounts} companyId={companyId} canImport={canImport} />

@@ -20,13 +20,13 @@ import type { ActionResult } from "../types/action-result";
 // ─── Schema ────────────────────────────────────────────────────────────────────
 
 const OnboardingCompanyProfileSchema = z.object({
-  companyId:             z.string().min(1),
-  address:               z.string().max(300).optional(),
-  telefono:              z.string().max(30).optional(),
-  email:                 z.email("Email inválido").optional().or(z.literal("")),
-  ciiu:                  z.string().max(10).optional(),
-  actividad:             z.string().max(200).optional(),
-  isSpecialContributor:  z.boolean(),
+  companyId: z.string().min(1),
+  address: z.string().max(300).optional(),
+  telefono: z.string().max(30).optional(),
+  email: z.email("Email inválido").optional().or(z.literal("")),
+  ciiu: z.string().max(10).optional(),
+  actividad: z.string().max(200).optional(),
+  isSpecialContributor: z.boolean(),
 });
 
 // ─── Actualizar perfil de empresa durante setup inicial ───────────────────────
@@ -51,7 +51,8 @@ export async function onboardingUpdateCompanyProfileAction(
     if (accountCount > 0) {
       return {
         success: false,
-        error: "La empresa ya tiene cuentas configuradas. Usa Configuración → Empresa para actualizar los datos fiscales.",
+        error:
+          "La empresa ya tiene cuentas configuradas. Usa Configuración → Empresa para actualizar los datos fiscales.",
       };
     }
 
@@ -59,11 +60,11 @@ export async function onboardingUpdateCompanyProfileAction(
       const updated = await tx.company.update({
         where: { id: validated.companyId },
         data: {
-          address:              validated.address   || null,
-          telefono:             validated.telefono  || null,
-          email:                validated.email     || null,
-          ciiu:                 validated.ciiu      || null,
-          actividad:            validated.actividad || null,
+          address: validated.address || null,
+          telefono: validated.telefono || null,
+          email: validated.email || null,
+          ciiu: validated.ciiu || null,
+          actividad: validated.actividad || null,
           isSpecialContributor: validated.isSpecialContributor,
         },
         select: { id: true },
@@ -71,17 +72,17 @@ export async function onboardingUpdateCompanyProfileAction(
 
       await tx.auditLog.create({
         data: {
-          companyId:  validated.companyId,
-          entityId:   validated.companyId,
+          companyId: validated.companyId,
+          entityId: validated.companyId,
           entityName: "Company",
-          action:     "UPDATE",
+          action: "UPDATE",
           userId,
           newValue: {
-            address:              validated.address,
-            telefono:             validated.telefono,
-            email:                validated.email,
-            ciiu:                 validated.ciiu,
-            actividad:            validated.actividad,
+            address: validated.address,
+            telefono: validated.telefono,
+            email: validated.email,
+            ciiu: validated.ciiu,
+            actividad: validated.actividad,
             isSpecialContributor: validated.isSpecialContributor,
             _source: "onboarding_wizard",
           },

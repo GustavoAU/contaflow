@@ -9,7 +9,7 @@ const { emptyKpi } = vi.hoisted(() => ({
   emptyKpi: {
     summary: { cxcTotal: "0.00", cxpTotal: "0.00", workingCapital: "0.00", dso: null },
     cashFlow: [
-      { label: "0-30d"  as const, collections: "0.00", payments: "0.00", net: "0.00" },
+      { label: "0-30d" as const, collections: "0.00", payments: "0.00", net: "0.00" },
       { label: "31-60d" as const, collections: "0.00", payments: "0.00", net: "0.00" },
       { label: "61-90d" as const, collections: "0.00", payments: "0.00", net: "0.00" },
     ],
@@ -28,7 +28,8 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
-  limiters: { fiscal: {}, ocr: {}, read: {} },  fiscalKey: (c: string, u: string) => `${c}:${u}`,
+  limiters: { fiscal: {}, ocr: {}, read: {} },
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
 }));
 
 vi.mock("../services/KpiDashboardService", () => ({
@@ -69,7 +70,9 @@ describe("getKpiDashboardAction", () => {
   });
 
   it("ADMINISTRATIVE es rechazado (no es ACCOUNTING)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await getKpiDashboardAction(COMPANY_ID);
     expect(r.success).toBe(false);
   });

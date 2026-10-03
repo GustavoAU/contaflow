@@ -31,13 +31,16 @@ export async function createTransactionAction(
     });
     if (!ctx.ok) return ctx.error;
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(input.companyId, ctx.role, "accounting")) {
+    if (!(await hasModuleAccess(input.companyId, ctx.role, "accounting"))) {
       return { success: false, error: moduleAccessError("accounting") };
     }
     // Crear asientos requiere rol de escritura contable — un grant de módulo (ADR-025)
     // solo da visibilidad, nunca debe bastar por sí solo para mutar (invariante de seguridad).
     if (!canAccess(ctx.role, ROLES.ACCOUNTING)) {
-      return { success: false, error: "Crear asientos contables requiere rol Contador, Administrador o Propietario" };
+      return {
+        success: false,
+        error: "Crear asientos contables requiere rol Contador, Administrador o Propietario",
+      };
     }
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(input.companyId);
@@ -45,7 +48,7 @@ export async function createTransactionAction(
     const transaction = await TransactionService.createBalancedTransaction(
       { ...input, userId: ctx.userId },
       ctx.ipAddress,
-      ctx.userAgent,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${input.companyId}/transactions`);
@@ -79,11 +82,12 @@ export async function voidTransactionAction(
     });
     if (!ctx.ok) return ctx.error;
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(existing.companyId, ctx.role, "accounting")) {
+    if (!(await hasModuleAccess(existing.companyId, ctx.role, "accounting"))) {
       return { success: false, error: moduleAccessError("accounting") };
     }
     // Anular asiento requiere ADMIN_ONLY (más estricto que acceso al módulo)
-    if (!canAccess(ctx.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Anular asientos requiere rol Administrador o Propietario" };
+    if (!canAccess(ctx.role, ROLES.ADMIN_ONLY))
+      return { success: false, error: "Anular asientos requiere rol Administrador o Propietario" };
 
     const transaction = await TransactionService.voidTransaction(
       { ...input, userId: ctx.userId },
@@ -180,12 +184,8 @@ export async function getTransactionsByPeriodAction(
     // Cache key incluye cursor y limit para manejar correctamente la paginación
     const reportType = `transactions:cursor=${cursor ?? ""}:limit=${limit}`;
 
-    const page = await withPeriodCache(
-      companyId,
-      periodId,
-      period.status,
-      reportType,
-      () => TransactionService.listTransactions({ companyId, periodId, cursor, limit })
+    const page = await withPeriodCache(companyId, periodId, period.status, reportType, () =>
+      TransactionService.listTransactions({ companyId, periodId, cursor, limit })
     );
 
     return { success: true, data: page };
@@ -211,17 +211,23 @@ export async function invalidatePeriodCache(companyId: string, periodId: string)
 export async function getTransactionByIdAction(
   companyId: string,
   transactionId: string
-): Promise<ActionResult<{
-  id: string;
-  number: string;
-  date: string;
-  description: string;
-  reference: string | null;
-  notes: string | null;
-  type: string;
-  status: string;
-  entries: { id: string; amount: string; account: { id: string; code: string; name: string; type: string } }[];
-}>> {
+): Promise<
+  ActionResult<{
+    id: string;
+    number: string;
+    date: string;
+    description: string;
+    reference: string | null;
+    notes: string | null;
+    type: string;
+    status: string;
+    entries: {
+      id: string;
+      amount: string;
+      account: { id: string; code: string; name: string; type: string };
+    }[];
+  }>
+> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
     if (!ctx.ok) return ctx.error;

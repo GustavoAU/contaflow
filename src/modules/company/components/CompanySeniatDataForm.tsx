@@ -8,7 +8,13 @@ import { isReverificationCancelledError } from "@clerk/nextjs/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { updateCompanySeniatDataAction } from "../actions/company.actions";
 
 type Props = {
@@ -157,7 +163,7 @@ export function CompanySeniatDataForm({ companyId, initialData }: Props) {
       </div>
 
       {/* Fila 5: Tipo de Contribuyente */}
-      <div className="grid gap-1.5 w-64">
+      <div className="grid w-64 gap-1.5">
         <Label htmlFor="seniat-taxpayer-type">Tipo de Contribuyente</Label>
         <Select
           value={form.isSpecialContributor ? "especial" : "ordinario"}

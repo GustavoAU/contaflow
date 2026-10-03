@@ -44,7 +44,7 @@ function RejectModal({
   const [reason, setReason] = useState("");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl space-y-3">
+      <div className="w-full max-w-sm space-y-3 rounded-xl bg-white p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-zinc-800">Rechazar solicitud</h3>
           <button onClick={onClose} aria-label="Cerrar">
@@ -57,9 +57,9 @@ function RejectModal({
           placeholder="Motivo del rechazo…"
           rows={3}
           maxLength={500}
-          className="w-full rounded border px-3 py-2 text-sm resize-none"
+          className="w-full resize-none rounded border px-3 py-2 text-sm"
         />
-        <div className="flex gap-2 justify-end">
+        <div className="flex justify-end gap-2">
           <button
             onClick={onClose}
             className="rounded border px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
@@ -136,19 +136,14 @@ export function VacationRequestList({ companyId, requests, canApprove, canCancel
 
       <div className="space-y-3">
         {requests.map((req) => (
-          <div
-            key={req.id}
-            className="rounded-xl border bg-white p-4 space-y-2"
-          >
+          <div key={req.id} className="space-y-2 rounded-xl border bg-white p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-zinc-400 shrink-0" />
+                <CalendarIcon className="h-4 w-4 shrink-0 text-zinc-400" />
                 <span className="text-sm font-medium text-zinc-800">
                   {req.startDate} — {req.endDate}
                 </span>
-                <span className="text-xs text-zinc-500">
-                  ({req.daysRequested} días)
-                </span>
+                <span className="text-xs text-zinc-500">({req.daysRequested} días)</span>
               </div>
               <span
                 className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[req.status] ?? ""}`}
@@ -157,14 +152,10 @@ export function VacationRequestList({ companyId, requests, canApprove, canCancel
               </span>
             </div>
 
-            {req.notes && (
-              <p className="text-xs text-zinc-500">{req.notes}</p>
-            )}
+            {req.notes && <p className="text-xs text-zinc-500">{req.notes}</p>}
 
             {req.status === "REJECTED" && req.rejectionReason && (
-              <p className="text-xs text-red-600">
-                Motivo: {req.rejectionReason}
-              </p>
+              <p className="text-xs text-red-600">Motivo: {req.rejectionReason}</p>
             )}
 
             {req.status === "PENDING" && (

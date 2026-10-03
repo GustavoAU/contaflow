@@ -17,7 +17,11 @@ import { hasModuleAccess, moduleAccessError } from "@/lib/module-access";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { p2002TargetIncludes, isExclusionViolation } from "@/lib/prisma-errors";
-import { PayrollRunService, type PayrollRunRow, type PayrollRunDetailRow } from "../services/PayrollRunService";
+import {
+  PayrollRunService,
+  type PayrollRunRow,
+  type PayrollRunDetailRow,
+} from "../services/PayrollRunService";
 import { PayrollBankTxtService, type BankPaymentFile } from "../services/PayrollBankTxtService";
 import {
   CreatePayrollRunSchema,
@@ -83,7 +87,7 @@ export async function createPayrollRunAction(
   });
   if (!ctx.ok) return ctx.error;
   // ADR-025: verifica acceso base + grants granulares al módulo Nómina (check extra tras el guard)
-  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+  if (!(await hasModuleAccess(companyId, ctx.role, "payroll")))
     return { success: false, error: moduleAccessError("payroll") };
 
   const parsed = CreatePayrollRunSchema.safeParse(rawInput);
@@ -91,7 +95,13 @@ export async function createPayrollRunAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const run = await PayrollRunService.create(companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const run = await PayrollRunService.create(
+      companyId,
+      ctx.userId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
@@ -125,13 +135,15 @@ export async function createPayrollRunAction(
     ) {
       return {
         success: false,
-        error: "Ya existe un proceso de nómina vigente para este período y esta moneda. Revisa los borradores existentes.",
+        error:
+          "Ya existe un proceso de nómina vigente para este período y esta moneda. Revisa los borradores existentes.",
       };
     }
     if (p2002TargetIncludes(err, "idempotencyKey")) {
       return {
         success: false,
-        error: "Esta solicitud ya se envió. Revisa si el proceso de nómina se creó antes de reintentar.",
+        error:
+          "Esta solicitud ya se envió. Revisa si el proceso de nómina se creó antes de reintentar.",
       };
     }
     // P2002 sin `meta.target`: no se puede saber CUÁL de los dos uniques chocó.
@@ -141,7 +153,8 @@ export async function createPayrollRunAction(
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return {
         success: false,
-        error: "Ya existe un proceso de nómina con esos datos. Revisa los borradores existentes antes de reintentar.",
+        error:
+          "Ya existe un proceso de nómina con esos datos. Revisa los borradores existentes antes de reintentar.",
       };
     }
     return toActionError(err);
@@ -163,7 +176,7 @@ export async function approvePayrollRunAction(
   });
   if (!ctx.ok) return ctx.error;
   // ADR-025: verifica acceso base + grants granulares al módulo Nómina (check extra tras el guard)
-  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+  if (!(await hasModuleAccess(companyId, ctx.role, "payroll")))
     return { success: false, error: moduleAccessError("payroll") };
 
   const parsed = ApprovePayrollRunSchema.safeParse(rawInput);
@@ -171,7 +184,13 @@ export async function approvePayrollRunAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const run = await PayrollRunService.approve(companyId, ctx.userId, parsed.data.runId, ctx.ipAddress, ctx.userAgent);
+    const run = await PayrollRunService.approve(
+      companyId,
+      ctx.userId,
+      parsed.data.runId,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: run };
   } catch (err) {
@@ -194,7 +213,7 @@ export async function cancelPayrollRunAction(
   });
   if (!ctx.ok) return ctx.error;
   // ADR-025: verifica acceso base + grants granulares al módulo Nómina (check extra tras el guard)
-  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+  if (!(await hasModuleAccess(companyId, ctx.role, "payroll")))
     return { success: false, error: moduleAccessError("payroll") };
 
   const parsed = CancelPayrollRunSchema.safeParse(rawInput);
@@ -223,7 +242,7 @@ export async function cancelPayrollRunAction(
 // a pagar de un trabajador.
 export async function addManualPayrollLineAction(
   companyId: string,
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<{ id: string; conceptCode: string; amount: string }>> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ADMIN_ONLY,
@@ -231,7 +250,7 @@ export async function addManualPayrollLineAction(
     captureNet: true,
   });
   if (!ctx.ok) return ctx.error;
-  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+  if (!(await hasModuleAccess(companyId, ctx.role, "payroll")))
     return { success: false, error: moduleAccessError("payroll") };
 
   const parsed = AddManualLineSchema.safeParse(rawInput);
@@ -240,7 +259,11 @@ export async function addManualPayrollLineAction(
 
   try {
     const line = await PayrollRunService.addManualLine(
-      companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent,
+      companyId,
+      ctx.userId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidate(companyId);
     return { success: true, data: line };
@@ -255,10 +278,13 @@ export async function addManualPayrollLineAction(
 // generar el archivo de pago. El contenido lo descarga el cliente, no se persiste.
 export async function exportPayrollBankTxtAction(
   companyId: string,
-  runId: string,
+  runId: string
 ): Promise<ActionResult<BankPaymentFile>> {
   // HIGH-06: rate limit en exportación de datos bancarios sensibles
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.export });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.export,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {

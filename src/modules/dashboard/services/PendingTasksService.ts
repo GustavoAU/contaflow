@@ -24,28 +24,28 @@ export type PendingTaskType =
   | "RETENCIONES_SIN_VINCULAR"
   | "EXTRACTO_SIN_CONCILIAR"
   | "STOCK_BAJO"
-  | "ORDENES_VENCIDAS"             // GAP-02: órdenes con fecha comprometida vencida
-  | "RETENCIONES_POR_ENTERAR"      // OM-06: retenciones emitidas no enteradas ante SENIAT
-  | "INVENTARIO_SIN_CUENTAS_GL"    // PC-03: ítems físicos sin cuenta Inventario o COGS → autoPost silencioso
-  | "IGTF_PAGOS_SIN_REGISTRAR"     // ADR-030 audit: CE con pagos en divisa sin IGTF registrado (Ley IGTF Art. 4)
-  | "CLIENTES_INACTIVOS"           // Q3-2: clientes con historial de facturas pero sin actividad en 90+ días
+  | "ORDENES_VENCIDAS" // GAP-02: órdenes con fecha comprometida vencida
+  | "RETENCIONES_POR_ENTERAR" // OM-06: retenciones emitidas no enteradas ante SENIAT
+  | "INVENTARIO_SIN_CUENTAS_GL" // PC-03: ítems físicos sin cuenta Inventario o COGS → autoPost silencioso
+  | "IGTF_PAGOS_SIN_REGISTRAR" // ADR-030 audit: CE con pagos en divisa sin IGTF registrado (Ley IGTF Art. 4)
+  | "CLIENTES_INACTIVOS" // Q3-2: clientes con historial de facturas pero sin actividad en 90+ días
   // Parte VII: automatizaciones de nómina
-  | "NOM_SALARIO_MINIMO_VENCIDO"    // SALARY_MIN_VES sin actualizar > 30 días
+  | "NOM_SALARIO_MINIMO_VENCIDO" // SALARY_MIN_VES sin actualizar > 30 días
   | "NOM_PRESTACIONES_POR_ACUMULAR" // Trimestre actual sin acumular prestaciones (Art. 142 LOTTT)
-  | "NOM_INTERESES_BCV_PENDIENTES"  // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
-  | "NOM_PRUEBA_POR_VENCER"         // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
+  | "NOM_INTERESES_BCV_PENDIENTES" // Mes anterior tiene tasa BCV pero sin intereses registrados (Art. 143 LOTTT)
+  | "NOM_PRUEBA_POR_VENCER" // Empleados con período de prueba que vence en ≤30 días (Art. 45 LOTTT)
   | "NOM_VIGENCIA_DENTRO_DEL_PERIODO" // Sueldo o asignación que entra en vigor A MITAD del período en curso
-  | "NOM_PERIODO_SIN_PROCESAR"       // Trabajadores activos que no cobraron el último período cerrado
-  | "NOM_BORRADOR_AUTO_SIN_REVISAR"  // El cron dejó un borrador y todavía nadie lo aprobó ni lo miró
-  | "IGTF_SIN_CUENTA_GL"           // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
-  | "IGTF_GL_INCOMPLETO"           // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
-  | "PAGOS_SIN_ASIENTO_GL"         // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
-  | "RETENCIONES_SIN_ASIENTO_GL"   // Hallazgo #1: retenciones (RIVA/RISLR) emitidas sin asiento en Libro Diario
-  | "CXC_GL_DESCUADRE"             // ADR-032 F3: subledger CxC ≠ saldo GL cuenta CxC (Art. 32-35 Cód. Comercio)
+  | "NOM_PERIODO_SIN_PROCESAR" // Trabajadores activos que no cobraron el último período cerrado
+  | "NOM_BORRADOR_AUTO_SIN_REVISAR" // El cron dejó un borrador y todavía nadie lo aprobó ni lo miró
+  | "IGTF_SIN_CUENTA_GL" // Hallazgo #5: facturas con igtfAmount > 0 pero igtfPayableAccountId no configurado
+  | "IGTF_GL_INCOMPLETO" // Hallazgo #5 legacy: facturas con IGTF ya causdas pero sin línea IGTF en asiento
+  | "PAGOS_SIN_ASIENTO_GL" // Hallazgo #12: lotes A/P aplicados sin asiento GL (apAccountId no configurado)
+  | "RETENCIONES_SIN_ASIENTO_GL" // Hallazgo #1: retenciones (RIVA/RISLR) emitidas sin asiento en Libro Diario
+  | "CXC_GL_DESCUADRE" // ADR-032 F3: subledger CxC ≠ saldo GL cuenta CxC (Art. 32-35 Cód. Comercio)
   // Fase 4 Caja Chica (HC-12): tareas accionables de caja chica en el dashboard
   | "CAJA_CHICA_GASTOS_POR_APROBAR" // gastos PENDING por aprobar en cajas ACTIVE
   | "CAJA_CHICA_REEMBOLSO_BORRADOR" // reembolsos DRAFT sin contabilizar (gastos aún fuera del Mayor)
-  | "CAJA_CHICA_SIN_CUSTODIO";      // cajas ACTIVE sin custodio asignado (control interno COSO)
+  | "CAJA_CHICA_SIN_CUSTODIO"; // cajas ACTIVE sin custodio asignado (control interno COSO)
 
 export type PendingTask = {
   type: PendingTaskType;
@@ -314,7 +314,8 @@ export const PendingTasksService = {
           employee: { status: "ACTIVE" },
         },
         select: {
-          effectiveFrom: true, currency: true,
+          effectiveFrom: true,
+          currency: true,
           employee: { select: { firstName: true, lastName: true } },
         },
       }),
@@ -341,7 +342,13 @@ export const PendingTasksService = {
       // cubre a todos podía aprobarse a ciegas sin que nadie recibiera un aviso.
       prisma.payrollRun.findMany({
         where: { companyId, status: "DRAFT", createdByUserId: AUTO_DRAFT_ACTOR },
-        select: { id: true, periodStart: true, periodEnd: true, currencySegment: true, createdAt: true },
+        select: {
+          id: true,
+          periodStart: true,
+          periodEnd: true,
+          currencySegment: true,
+          createdAt: true,
+        },
         orderBy: { createdAt: "asc" },
       }),
 
@@ -677,7 +684,8 @@ export const PendingTasksService = {
     // incorrecto es peor que una confirmación vieja de uno correcto, así que el
     // desajuste manda sobre la antigüedad: dispara siempre que exista, aunque
     // alguien lo haya "confirmado" ayer.
-    const salMinNoCoincide = nomLastSalMin != null && !new Decimal(nomLastSalMin.value).eq(SALARY_MIN_VES_REFERENCE);
+    const salMinNoCoincide =
+      nomLastSalMin != null && !new Decimal(nomLastSalMin.value).eq(SALARY_MIN_VES_REFERENCE);
 
     if (nomActiveEmployeesCount > 0 && salMinNoCoincide) {
       const registrado = new Decimal(nomLastSalMin!.value);
@@ -693,7 +701,10 @@ export const PendingTasksService = {
         count: 1,
         href: "/payroll/legal-thresholds",
       });
-    } else if (nomActiveEmployeesCount > 0 && (!nomLastSalMin || salMinRevisadoEl < thirtyDaysAgo.getTime())) {
+    } else if (
+      nomActiveEmployeesCount > 0 &&
+      (!nomLastSalMin || salMinRevisadoEl < thirtyDaysAgo.getTime())
+    ) {
       tasks.push({
         type: "NOM_SALARIO_MINIMO_VENCIDO",
         // Sin registro es un error real: se cotiza sobre Bs. 0. Con registro sin
@@ -737,12 +748,15 @@ export const PendingTasksService = {
       const diasHistoricos = [...new Set(nomInicios.map((r) => r.periodStart.getUTCDate()))];
       const freq = nomFrequency?.frequency ?? "BIWEEKLY";
       const diasAlineados =
-        diasHistoricos.length > 0 ? diasHistoricos
-        : freq === "MONTHLY" ? [1]
-        : freq === "BIWEEKLY" ? [1, 16]
-        // En semanal cualquier lunes es inicio de período: no se marca nada,
-        // el ruido sería peor que el aviso.
-        : null;
+        diasHistoricos.length > 0
+          ? diasHistoricos
+          : freq === "MONTHLY"
+            ? [1]
+            : freq === "BIWEEKLY"
+              ? [1, 16]
+              : // En semanal cualquier lunes es inicio de período: no se marca nada,
+                // el ruido sería peor que el aviso.
+                null;
 
       if (diasAlineados) {
         const desalineadas = [
@@ -769,7 +783,9 @@ export const PendingTasksService = {
             description:
               `${ejemplo.quien} tiene ${ejemplo.que} con vigencia el día ${ejemplo.dia}, ` +
               `que cae dentro de un período ya empezado` +
-              (pl ? ` (y ${desalineadas.length - 1} caso${desalineadas.length > 2 ? "s" : ""} más)` : "") +
+              (pl
+                ? ` (y ${desalineadas.length - 1} caso${desalineadas.length > 2 ? "s" : ""} más)`
+                : "") +
               `. La nómina toma la vigencia del INICIO del período, así que el cambio ` +
               `no se cobrará hasta el siguiente; y si cambia de moneda, el proceso se ` +
               `rechazará por monedas mixtas. Alinea la vigencia al día ${corte}.`,
@@ -874,7 +890,9 @@ export const PendingTasksService = {
     // dashboard — es el punto de esta alerta.
     if (nomBorradoresAuto.length > 0) {
       const masViejo = nomBorradoresAuto[0];
-      const diasDesdeCreacion = Math.floor((Date.now() - masViejo.createdAt.getTime()) / 86_400_000);
+      const diasDesdeCreacion = Math.floor(
+        (Date.now() - masViejo.createdAt.getTime()) / 86_400_000
+      );
       const pl = nomBorradoresAuto.length !== 1;
       const rango = `${isoDia(masViejo.periodStart)} → ${isoDia(masViejo.periodEnd)}`;
       tasks.push({
@@ -889,7 +907,9 @@ export const PendingTasksService = {
         description:
           `El sistema calculó solo el proceso del período ${rango} (${masViejo.currencySegment}) ` +
           `hace ${diasDesdeCreacion} día${diasDesdeCreacion !== 1 ? "s" : ""}` +
-          (pl ? ` (y ${nomBorradoresAuto.length - 1} borrador${nomBorradoresAuto.length > 2 ? "es" : ""} más)` : "") +
+          (pl
+            ? ` (y ${nomBorradoresAuto.length - 1} borrador${nomBorradoresAuto.length > 2 ? "es" : ""} más)`
+            : "") +
           `. Nadie lo aprueba en tu lugar: revisa que no haya cambios posteriores al cálculo ` +
           `(la ficha del proceso te lo señala) y apruébalo tú.`,
         count: nomBorradoresAuto.length,
@@ -911,7 +931,20 @@ export const PendingTasksService = {
 
     // NOM_INTERESES_BCV_PENDIENTES: mes anterior tiene tasa BCV registrada pero sin intereses (Art. 143 LOTTT)
     if (nomActiveEmployeesCount > 0 && nomBcvRatePrevMonth && nomBcvInterestPrevMonthCount === 0) {
-      const MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+      const MONTH_NAMES = [
+        "enero",
+        "febrero",
+        "marzo",
+        "abril",
+        "mayo",
+        "junio",
+        "julio",
+        "agosto",
+        "septiembre",
+        "octubre",
+        "noviembre",
+        "diciembre",
+      ];
       tasks.push({
         type: "NOM_INTERESES_BCV_PENDIENTES",
         severity: "info",

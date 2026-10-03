@@ -17,7 +17,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const sdk = vi.hoisted(() => ({ put: vi.fn(), get: vi.fn(), del: vi.fn() }));
 vi.mock("@vercel/blob", () => sdk);
 
-import { deletePrivateBlob, getPrivateBlob, isPrivateBlobConfigured, putPrivateBlob } from "./private-blob";
+import {
+  deletePrivateBlob,
+  getPrivateBlob,
+  isPrivateBlobConfigured,
+  putPrivateBlob,
+} from "./private-blob";
 
 type BlobEnv = { VERCEL?: string; BLOB_STORE_ID?: string; BLOB_READ_WRITE_TOKEN?: string };
 
@@ -28,7 +33,11 @@ const BLOB_URL = `https://${STORE_ID}.private.blob.vercel-storage.com/${PATHNAME
 const PDF = Buffer.from("%PDF-fake");
 
 // En Vercel el token estático sigue definido A PROPÓSITO: es el caso que debe perder contra OIDC.
-const VERCEL_ENV: BlobEnv = { VERCEL: "1", BLOB_STORE_ID: STORE_ID, BLOB_READ_WRITE_TOKEN: STATIC_TOKEN };
+const VERCEL_ENV: BlobEnv = {
+  VERCEL: "1",
+  BLOB_STORE_ID: STORE_ID,
+  BLOB_READ_WRITE_TOKEN: STATIC_TOKEN,
+};
 // Fuera de Vercel BLOB_STORE_ID también está definido: solo el token debe importar.
 const LOCAL_ENV: BlobEnv = { BLOB_STORE_ID: STORE_ID, BLOB_READ_WRITE_TOKEN: STATIC_TOKEN };
 
@@ -39,7 +48,10 @@ function setEnv(env: BlobEnv) {
 }
 
 /** Opciones que el módulo pasó al SDK en la única llamada del test (posición del argumento `options`). */
-function optionsOf(fn: typeof sdk.put | typeof sdk.get | typeof sdk.del, argIndex: number): Record<string, unknown> {
+function optionsOf(
+  fn: typeof sdk.put | typeof sdk.get | typeof sdk.del,
+  argIndex: number
+): Record<string, unknown> {
   expect(fn).toHaveBeenCalledOnce();
   return fn.mock.calls[0][argIndex] as Record<string, unknown>;
 }
@@ -169,24 +181,27 @@ describe("putPrivateBlob: opciones fijas hacia el SDK (iguales en ambos entornos
   it.each([
     ["en Vercel (OIDC)", VERCEL_ENV, {}],
     ["fuera de Vercel (token)", LOCAL_ENV, { token: STATIC_TOKEN }],
-  ] as const)("%s: access private, contentType, allowOverwrite false y addRandomSuffix false por defecto", async (_label, env, creds) => {
-    setEnv(env);
+  ] as const)(
+    "%s: access private, contentType, allowOverwrite false y addRandomSuffix false por defecto",
+    async (_label, env, creds) => {
+      setEnv(env);
 
-    await putPrivateBlob(PATHNAME, PDF, "application/pdf");
+      await putPrivateBlob(PATHNAME, PDF, "application/pdf");
 
-    expect(sdk.put).toHaveBeenCalledOnce();
-    const [pathname, body, options] = sdk.put.mock.calls[0];
-    expect(pathname).toBe(PATHNAME);
-    expect(body).toBe(PDF);
-    // toStrictEqual: una clave extra (o `token: undefined` en Vercel) rompe el test.
-    expect(options).toStrictEqual({
-      access: "private",
-      contentType: "application/pdf",
-      addRandomSuffix: false,
-      allowOverwrite: false,
-      ...creds,
-    });
-  });
+      expect(sdk.put).toHaveBeenCalledOnce();
+      const [pathname, body, options] = sdk.put.mock.calls[0];
+      expect(pathname).toBe(PATHNAME);
+      expect(body).toBe(PDF);
+      // toStrictEqual: una clave extra (o `token: undefined` en Vercel) rompe el test.
+      expect(options).toStrictEqual({
+        access: "private",
+        contentType: "application/pdf",
+        addRandomSuffix: false,
+        allowOverwrite: false,
+        ...creds,
+      });
+    }
+  );
 
   it("reenvía el contentType recibido (no lo fija a application/pdf)", async () => {
     setEnv(LOCAL_ENV);
@@ -231,7 +246,9 @@ describe("putPrivateBlob: opciones fijas hacia el SDK (iguales en ambos entornos
     setEnv(LOCAL_ENV);
     sdk.put.mockRejectedValue(new Error("blob store unavailable"));
 
-    await expect(putPrivateBlob(PATHNAME, PDF, "application/pdf")).rejects.toThrow("blob store unavailable");
+    await expect(putPrivateBlob(PATHNAME, PDF, "application/pdf")).rejects.toThrow(
+      "blob store unavailable"
+    );
   });
 });
 
@@ -271,7 +288,10 @@ describe("getPrivateBlob", () => {
 
     await getPrivateBlob(PATHNAME, controller.signal);
 
-    expect(optionsOf(sdk.get, 1)).toStrictEqual({ access: "private", abortSignal: controller.signal });
+    expect(optionsOf(sdk.get, 1)).toStrictEqual({
+      access: "private",
+      abortSignal: controller.signal,
+    });
   });
 
   it("devuelve lo que devuelve el SDK, incluido null cuando el blob no existe", async () => {
@@ -319,7 +339,10 @@ describe("arquitectura: solo src/lib/private-blob.ts importa @vercel/blob", () =
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) collectSources(full, out);
-      else if (/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(entry.name) && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)) {
+      else if (
+        /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(entry.name) &&
+        !/\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
+      ) {
         out.push(full);
       }
     }

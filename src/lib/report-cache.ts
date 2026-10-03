@@ -28,11 +28,7 @@ const cache = new Map<string, CacheEntry<unknown>>();
  * Genera una cache key consistente para un reporte.
  * Formato: `{companyId}:{periodId}:{reportType}`
  */
-export function makeCacheKey(
-  companyId: string,
-  periodId: string,
-  reportType: string
-): string {
+export function makeCacheKey(companyId: string, periodId: string, reportType: string): string {
   return `${companyId}:${periodId}:${reportType}`;
 }
 
@@ -58,11 +54,7 @@ export function getCached<T>(key: string): T | null {
  * @param data   - dato a cachear
  * @param ttlMs  - TTL en ms (default: CLOSED_PERIOD_TTL_MS = 5 min)
  */
-export function setCached<T>(
-  key: string,
-  data: T,
-  ttlMs: number = CLOSED_PERIOD_TTL_MS
-): void {
+export function setCached<T>(key: string, data: T, ttlMs: number = CLOSED_PERIOD_TTL_MS): void {
   cache.set(key, {
     data,
     expiresAt: Date.now() + ttlMs,

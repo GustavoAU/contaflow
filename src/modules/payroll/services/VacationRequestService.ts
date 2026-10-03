@@ -13,9 +13,9 @@ export interface VacationRequestRow {
   companyId: string;
   employeeId: string;
   employeeName: string;
-  startDate: string;       // YYYY-MM-DD
-  endDate: string;         // YYYY-MM-DD
-  daysRequested: string;   // Decimal serializado
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  daysRequested: string; // Decimal serializado
   status: VacationRequestStatus;
   notes: string | null;
   rejectionReason: string | null;
@@ -28,11 +28,11 @@ export interface VacationRequestRow {
 export interface VacationBalanceRow {
   employeeId: string;
   yearsOfService: number;
-  daysAccrued: number;        // LOTTT accrual
-  initialBalance: number;     // saldo del sistema anterior
-  daysUsed: number;           // VacationRecord procesados
-  daysPending: number;        // PENDING + APPROVED requests
-  daysAvailable: number;      // accrued + initial - used - pending
+  daysAccrued: number; // LOTTT accrual
+  initialBalance: number; // saldo del sistema anterior
+  daysUsed: number; // VacationRecord procesados
+  daysPending: number; // PENDING + APPROVED requests
+  daysAvailable: number; // accrued + initial - used - pending
 }
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
@@ -173,7 +173,8 @@ export const VacationRequestService = {
       where: { id: requestId, companyId },
     });
     if (!req) throw new Error("Solicitud de vacaciones no encontrada");
-    if (req.status !== "PENDING") throw new Error("Solo se pueden aprobar solicitudes en estado PENDIENTE");
+    if (req.status !== "PENDING")
+      throw new Error("Solo se pueden aprobar solicitudes en estado PENDIENTE");
 
     const row = await prisma.$transaction(async (tx) => {
       const updated = await tx.vacationRequest.update({
@@ -214,7 +215,8 @@ export const VacationRequestService = {
       where: { id: requestId, companyId },
     });
     if (!req) throw new Error("Solicitud de vacaciones no encontrada");
-    if (req.status !== "PENDING") throw new Error("Solo se pueden rechazar solicitudes en estado PENDIENTE");
+    if (req.status !== "PENDING")
+      throw new Error("Solo se pueden rechazar solicitudes en estado PENDIENTE");
 
     const row = await prisma.$transaction(async (tx) => {
       const updated = await tx.vacationRequest.update({
@@ -323,15 +325,9 @@ export const VacationRequestService = {
       ? Number(employee.initialVacationDays.toString())
       : 0;
 
-    const daysUsed = vacationRecords.reduce(
-      (s, r) => s + Number(r.vacationDays.toString()),
-      0
-    );
+    const daysUsed = vacationRecords.reduce((s, r) => s + Number(r.vacationDays.toString()), 0);
 
-    const daysPending = pendingRequests.reduce(
-      (s, r) => s + Number(r.daysRequested.toString()),
-      0
-    );
+    const daysPending = pendingRequests.reduce((s, r) => s + Number(r.daysRequested.toString()), 0);
 
     const daysAvailable = Math.max(0, daysAccrued + initialBalance - daysUsed - daysPending);
 

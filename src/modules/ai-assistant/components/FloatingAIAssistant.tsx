@@ -52,7 +52,9 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
         if (!data || data.success === false) return;
         setAnomaly(deriveAnomaly({ critical: data.critical ?? 0, high: data.high ?? 0 }));
       })
-      .catch(() => { /* badge no-crítico: silencioso (incluye AbortError) */ });
+      .catch(() => {
+        /* badge no-crítico: silencioso (incluye AbortError) */
+      });
     return () => ctrl.abort();
   }, [companyId]);
 
@@ -68,7 +70,11 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
     }
     const show = setTimeout(() => {
       setShowTip(true);
-      try { localStorage.setItem("cf-ai-tip-shown", "1"); } catch { /* noop */ }
+      try {
+        localStorage.setItem("cf-ai-tip-shown", "1");
+      } catch {
+        /* noop */
+      }
     }, 1800);
     return () => clearTimeout(show);
   }, [anomaly.status]);
@@ -104,18 +110,10 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
 
   // ─── Derivados ────────────────────────────────────────────────────────────────
   const badgeCount =
-    anomaly.status === "critical"
-      ? anomaly.count
-      : anomaly.status === "high"
-        ? anomaly.count
-        : 0;
+    anomaly.status === "critical" ? anomaly.count : anomaly.status === "high" ? anomaly.count : 0;
 
   const badgeColor =
-    anomaly.status === "critical"
-      ? "bg-red-500"
-      : anomaly.status === "high"
-        ? "bg-amber-500"
-        : "";
+    anomaly.status === "critical" ? "bg-red-500" : anomaly.status === "high" ? "bg-amber-500" : "";
 
   const contextualChip =
     anomaly.status === "critical"
@@ -196,14 +194,13 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
       </div>
 
       {/* ── Botón flotante ──────────────────────────────────────────────────── */}
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
-
+      <div className="fixed right-6 bottom-6 z-40 flex flex-col items-end gap-2">
         {/* Callout de primera visita */}
         {showTip && !isOpen && (
           <div
             role="status"
             aria-live="polite"
-            className="relative animate-in slide-in-from-bottom-2 fade-in duration-300 flex items-center gap-2 rounded-xl bg-zinc-900 px-3 py-2 text-xs text-white shadow-xl dark:bg-zinc-800"
+            className="animate-in slide-in-from-bottom-2 fade-in relative flex items-center gap-2 rounded-xl bg-zinc-900 px-3 py-2 text-xs text-white shadow-xl duration-300 dark:bg-zinc-800"
           >
             <SparklesIcon className="h-3.5 w-3.5 shrink-0 text-violet-400" aria-hidden />
             <span>
@@ -212,13 +209,19 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
                 : "Anomalías detectadas — pregúntame"}
             </span>
             {/* flecha apuntando abajo */}
-            <span className="absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 bg-zinc-900 dark:bg-zinc-800" aria-hidden />
+            <span
+              className="absolute right-6 -bottom-1.5 h-3 w-3 rotate-45 bg-zinc-900 dark:bg-zinc-800"
+              aria-hidden
+            />
           </div>
         )}
 
         <button
           ref={triggerRef}
-          onClick={() => { setIsOpen((v) => !v); setShowTip(false); }}
+          onClick={() => {
+            setIsOpen((v) => !v);
+            setShowTip(false);
+          }}
           aria-expanded={isOpen}
           aria-haspopup="dialog"
           aria-label="Abrir asistente ContaFlow IA"
@@ -227,7 +230,7 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
             "rounded-full bg-violet-600 text-white shadow-lg",
             "transition-all duration-200",
             "hover:scale-110 hover:bg-violet-700 hover:shadow-xl",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2",
+            "focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:outline-none",
             "active:scale-95",
             isOpen && "scale-90 bg-violet-700",
           ]
@@ -240,7 +243,7 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
           {anomaly.status === "critical" && !isOpen && (
             <span
               aria-hidden
-              className="absolute inset-0 rounded-full bg-violet-600 opacity-75 animate-ping"
+              className="absolute inset-0 animate-ping rounded-full bg-violet-600 opacity-75"
             />
           )}
 
@@ -249,7 +252,7 @@ export function FloatingAIAssistant({ companyId, companyName, initialAnomaly }: 
             <span
               aria-label={`${badgeCount} anomalía${badgeCount > 1 ? "s" : ""} detectada${badgeCount > 1 ? "s" : ""}`}
               className={[
-                "absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center",
+                "absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center",
                 "rounded-full text-xs font-bold text-white ring-2 ring-white",
                 badgeColor,
               ].join(" ")}

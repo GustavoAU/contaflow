@@ -22,10 +22,9 @@ import { toActionError } from "../utils/action-errors";
 const DecimalStringSchema = z
   .string()
   .regex(/^-?\d+(\.\d{1,4})?$/, { error: "Monto inválido" })
-  .refine(
-    (v) => new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT)),
-    { message: "Monto excede el límite permitido" }
-  );
+  .refine((v) => new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT)), {
+    message: "Monto excede el límite permitido",
+  });
 
 const ColumnMapSchema = z
   .object({
@@ -128,7 +127,8 @@ export async function importStatementAction(
       return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
     }
 
-    const { bankAccountId, companyId, csvContent, openingBalance, closingBalance, columnMap } = parsed.data;
+    const { bankAccountId, companyId, csvContent, openingBalance, closingBalance, columnMap } =
+      parsed.data;
 
     const ctx = await requireCompanyAction(companyId, {
       roles: ROLES.ACCOUNTING,
@@ -210,7 +210,11 @@ export async function unreconcileTransactionAction(
     });
     if (!ctx.ok) return ctx.error;
 
-    const updated = await BankingService.unreconcileTransaction(bankTransactionId, companyId, ctx.userId);
+    const updated = await BankingService.unreconcileTransaction(
+      bankTransactionId,
+      companyId,
+      ctx.userId
+    );
 
     revalidatePath(`/company/${companyId}/bank-reconciliation`);
 
@@ -342,9 +346,7 @@ export async function searchJournalEntriesAction(
  * Busca registros de pago (PaymentRecord) para conciliación bancaria tipo PAYMENT_RECORD.
  * Filtra por companyId y método opcional.
  */
-export async function searchPaymentRecordsAction(
-  input: unknown
-): Promise<
+export async function searchPaymentRecordsAction(input: unknown): Promise<
   ActionResult<
     Array<{
       id: string;
@@ -391,9 +393,7 @@ export async function searchPaymentRecordsAction(
       method: r.method,
       amountVes: new Decimal(r.amountVes.toString()).toFixed(2),
       currency: r.currency,
-      amountOriginal: r.amountOriginal
-        ? new Decimal(r.amountOriginal.toString()).toFixed(2)
-        : null,
+      amountOriginal: r.amountOriginal ? new Decimal(r.amountOriginal.toString()).toFixed(2) : null,
       referenceNumber: r.referenceNumber,
       date: r.date.toISOString(),
     }));

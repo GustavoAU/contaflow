@@ -9,7 +9,11 @@ import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { limiters } from "@/lib/ratelimit";
 import { createHash } from "crypto";
-import { AuditLogService, type AuditLogFilters, type AuditLogPage } from "../services/AuditLogService";
+import {
+  AuditLogService,
+  type AuditLogFilters,
+  type AuditLogPage,
+} from "../services/AuditLogService";
 import { generateAuditLogPDF } from "../services/AuditLogPDFService";
 import { DocumentSigningService } from "@/modules/certificates/services/DocumentSigningService";
 import type { ActionResult } from "../types/action-result";
@@ -76,7 +80,7 @@ export type AuditLogPDFFilters = {
 };
 
 type PDFExportResult = {
-  pdf: string;        // base64
+  pdf: string; // base64
   filename: string;
   contentHash: string;
   signed: boolean;
@@ -191,7 +195,7 @@ export async function exportAuditLogPDFAction(
 // ─── F-09: Exportar Audit Log como CSV ───────────────────────────────────────
 
 type CSVExportResult = {
-  csv: string;    // UTF-8 text
+  csv: string; // UTF-8 text
   filename: string;
   rowCount: number;
 };
@@ -209,7 +213,9 @@ export async function exportAuditLogCSVAction(
 
     // Generar CSV (RFC 4180)
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-    const header = ["id", "fecha", "entidad", "accion", "entityId", "usuario", "cambios"].map(escape).join(",");
+    const header = ["id", "fecha", "entidad", "accion", "entityId", "usuario", "cambios"]
+      .map(escape)
+      .join(",");
     const lines = rows.map((r) =>
       [
         r.id,

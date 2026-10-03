@@ -116,7 +116,7 @@ describe("calculateFxDifferentialAction", () => {
 
   it("devuelve error estructurado si ExchangeDifferentialService.calculate lanza", async () => {
     vi.mocked(ExchangeDifferentialService.calculate).mockRejectedValueOnce(
-      new Error("DB no disponible"),
+      new Error("DB no disponible")
     );
     const r = await calculateFxDifferentialAction(VALID_CALCULATE_INPUT);
     expect(r.success).toBe(false);
@@ -135,9 +135,8 @@ describe("postFxDifferentialAction", () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
     vi.mocked(ExchangeDifferentialService.calculate).mockResolvedValue(EMPTY_SUMMARY as never);
     vi.mocked(ExchangeDifferentialService.post).mockResolvedValue("tx-1" as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (db: typeof prisma) => unknown) => fn(prisma)) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (db: typeof prisma) => unknown) =>
+      fn(prisma)) as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 

@@ -193,7 +193,13 @@ describe("BankStatementService.getWithTransactions", () => {
   it("retorna null si el extracto pertenece a otra companyId (aislamiento ADR-004)", async () => {
     vi.mocked(prisma.bankStatement.findUnique).mockResolvedValue({
       id: STATEMENT_ID,
-      bankAccount: { companyId: "other-company", id: "ba-2", name: "Otro", bankName: "BNC", currency: "VES" },
+      bankAccount: {
+        companyId: "other-company",
+        id: "ba-2",
+        name: "Otro",
+        bankName: "BNC",
+        currency: "VES",
+      },
       transactions: [],
       openingBalance: new Decimal("0"),
       closingBalance: new Decimal("0"),
@@ -216,8 +222,22 @@ describe("BankStatementService.getWithTransactions", () => {
       openingBalance: new Decimal("500"),
       closingBalance: new Decimal("1300"),
       transactions: [
-        { id: "t1", amount: new Decimal("1000"), type: "CREDIT", isReconciled: true, matchedPaymentId: PAYMENT_ID, matchedPayment: null },
-        { id: "t2", amount: new Decimal("200"),  type: "DEBIT",  isReconciled: false, matchedPaymentId: null, matchedPayment: null },
+        {
+          id: "t1",
+          amount: new Decimal("1000"),
+          type: "CREDIT",
+          isReconciled: true,
+          matchedPaymentId: PAYMENT_ID,
+          matchedPayment: null,
+        },
+        {
+          id: "t2",
+          amount: new Decimal("200"),
+          type: "DEBIT",
+          isReconciled: false,
+          matchedPaymentId: null,
+          matchedPayment: null,
+        },
       ],
     } as never);
 

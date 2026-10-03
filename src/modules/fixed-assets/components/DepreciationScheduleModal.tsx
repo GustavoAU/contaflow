@@ -28,12 +28,25 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
   // Bloquear scroll del body mientras el modal está abierto
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, []);
 
   const MONTHS = [
-    "", "Ene","Feb","Mar","Abr","May","Jun",
-    "Jul","Ago","Sep","Oct","Nov","Dic",
+    "",
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
   ];
 
   const schedule = data?.success ? data.data : null;
@@ -43,9 +56,9 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">
             Tabla de Depreciación
             {schedule?.asset && (
@@ -56,25 +69,35 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-xl leading-none text-gray-400 hover:text-gray-600"
           >
             ×
           </button>
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 px-6 py-4">
-          {isPending && <p className="text-sm text-gray-500 text-center py-8">Cargando...</p>}
-          {error && <p className="text-sm text-red-600 text-center py-8">{error}</p>}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {isPending && <p className="py-8 text-center text-sm text-gray-500">Cargando...</p>}
+          {error && <p className="py-8 text-center text-sm text-red-600">{error}</p>}
           {schedule && (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-white text-xs font-semibold text-gray-500 uppercase border-b">
+              <thead className="sticky top-0 z-10 border-b bg-white text-xs font-semibold text-gray-500 uppercase">
                 <tr>
-                  <th scope="col" className="py-2 text-left">Período</th>
-                  <th scope="col" className="py-2 text-right">Cuota</th>
-                  <th scope="col" className="py-2 text-right">Acumulado</th>
-                  <th scope="col" className="py-2 text-right">Valor Libros</th>
-                  <th scope="col" className="py-2 text-center">Estado</th>
+                  <th scope="col" className="py-2 text-left">
+                    Período
+                  </th>
+                  <th scope="col" className="py-2 text-right">
+                    Cuota
+                  </th>
+                  <th scope="col" className="py-2 text-right">
+                    Acumulado
+                  </th>
+                  <th scope="col" className="py-2 text-right">
+                    Valor Libros
+                  </th>
+                  <th scope="col" className="py-2 text-center">
+                    Estado
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -97,7 +120,7 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
                       </td>
                       <td className="py-1.5 text-center">
                         {posted ? (
-                          <span className="text-xs text-green-700 font-medium">Registrado</span>
+                          <span className="text-xs font-medium text-green-700">Registrado</span>
                         ) : (
                           <span className="text-xs text-gray-400">Pendiente</span>
                         )}
@@ -110,7 +133,7 @@ export function DepreciationScheduleModal({ assetId, companyId, onClose }: Props
           )}
         </div>
 
-        <div className="px-6 py-3 border-t flex justify-end">
+        <div className="flex justify-end border-t px-6 py-3">
           <button
             onClick={onClose}
             className="rounded bg-gray-100 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-200"

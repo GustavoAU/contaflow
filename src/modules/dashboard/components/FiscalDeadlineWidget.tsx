@@ -22,17 +22,21 @@ function SeverityIcon({ severity }: { severity: FiscalDeadline["severity"] }) {
 
 function severityBadge(d: FiscalDeadline): string {
   if (d.severity === "overdue") return "Vencido";
-  if (d.daysUntil === 0)        return "Hoy";
-  if (d.daysUntil === 1)        return "Mañana";
+  if (d.daysUntil === 0) return "Hoy";
+  if (d.daysUntil === 1) return "Mañana";
   return `${d.daysUntil} días`;
 }
 
 function badgeClass(severity: FiscalDeadline["severity"]): string {
   switch (severity) {
-    case "overdue": return "bg-red-100 text-red-700";
-    case "urgent":  return "bg-red-50 text-red-600";
-    case "warning": return "bg-amber-50 text-amber-700";
-    default:        return "bg-green-50 text-green-700";
+    case "overdue":
+      return "bg-red-100 text-red-700";
+    case "urgent":
+      return "bg-red-50 text-red-600";
+    case "warning":
+      return "bg-amber-50 text-amber-700";
+    default:
+      return "bg-green-50 text-green-700";
   }
 }
 
@@ -40,7 +44,7 @@ export function FiscalDeadlineWidget({ companyId, rif, isSpecialContributor }: P
   const lastDigit = getLastRifDigit(rif);
   if (lastDigit === null) return null;
 
-  const all      = generateFiscalDeadlines({ lastDigit, isSpecialContributor, monthsAhead: 3 });
+  const all = generateFiscalDeadlines({ lastDigit, isSpecialContributor, monthsAhead: 3 });
   // Show the 3 most relevant: overdue first, then upcoming
   const upcoming = all.filter((d) => d.daysUntil >= -30).slice(0, 4);
   if (upcoming.length === 0) return null;
@@ -48,14 +52,16 @@ export function FiscalDeadlineWidget({ companyId, rif, isSpecialContributor }: P
   const hasAlert = upcoming.some((d) => d.severity === "overdue" || d.severity === "urgent");
 
   return (
-    <div className={`rounded-lg border px-4 py-3 space-y-2 ${hasAlert ? "border-red-200 bg-red-50" : "border-zinc-200 bg-white"}`}>
+    <div
+      className={`space-y-2 rounded-lg border px-4 py-3 ${hasAlert ? "border-red-200 bg-red-50" : "border-zinc-200 bg-white"}`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarDaysIcon className={`h-4 w-4 ${hasAlert ? "text-red-500" : "text-zinc-500"}`} />
           <span className={`text-sm font-semibold ${hasAlert ? "text-red-800" : "text-zinc-700"}`}>
             Vencimientos SENIAT
           </span>
-          <span className="text-xs text-zinc-500 font-mono">dígito {lastDigit}</span>
+          <span className="font-mono text-xs text-zinc-500">dígito {lastDigit}</span>
         </div>
         <Link
           href={`/company/${companyId}/fiscal-calendar`}
@@ -70,10 +76,11 @@ export function FiscalDeadlineWidget({ companyId, rif, isSpecialContributor }: P
           <li key={i} className="flex items-center gap-2 text-sm">
             <SeverityIcon severity={d.severity} />
             <span className="flex-1 text-zinc-700">
-              {d.label}{" "}
-              <span className="text-zinc-500 text-xs">({d.period})</span>
+              {d.label} <span className="text-xs text-zinc-500">({d.period})</span>
             </span>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass(d.severity)}`}>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass(d.severity)}`}
+            >
               {severityBadge(d)}
             </span>
           </li>

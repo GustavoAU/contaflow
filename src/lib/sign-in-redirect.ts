@@ -18,11 +18,7 @@
  * @param pathname   ruta solicitada (ej. "/dashboard")
  * @param search     query string con "?" incluido, o "" si no hay
  */
-export function buildSignInUrl(
-  requestUrl: string | URL,
-  pathname: string,
-  search: string,
-): string {
+export function buildSignInUrl(requestUrl: string | URL, pathname: string, search: string): string {
   const url = new URL("/sign-in", requestUrl);
   url.searchParams.set("redirect_url", `${pathname}${search}`);
   return url.toString();

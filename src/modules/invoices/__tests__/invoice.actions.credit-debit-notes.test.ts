@@ -32,9 +32,11 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx),
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 vi.mock("@/modules/invoices/services/InvoiceService", () => ({
   InvoiceService: {
@@ -74,9 +76,7 @@ const VALID_NC_INPUT = {
   counterpartName: "Cliente ABC",
   counterpartRif: "J-12345678-9",
   currency: "VES" as const,
-  taxLines: [
-    { taxType: "IVA_GENERAL" as const, base: "862.07", rate: "16", amount: "137.93" },
-  ],
+  taxLines: [{ taxType: "IVA_GENERAL" as const, base: "862.07", rate: "16", amount: "137.93" }],
   ivaRetentionAmount: "0",
   islrRetentionAmount: "0",
   igtfBase: "0",
@@ -94,9 +94,7 @@ const VALID_ND_INPUT = {
   counterpartName: "Cliente ABC",
   counterpartRif: "J-12345678-9",
   currency: "VES" as const,
-  taxLines: [
-    { taxType: "IVA_GENERAL" as const, base: "172.41", rate: "16", amount: "27.59" },
-  ],
+  taxLines: [{ taxType: "IVA_GENERAL" as const, base: "172.41", rate: "16", amount: "27.59" }],
   ivaRetentionAmount: "0",
   islrRetentionAmount: "0",
   igtfBase: "0",
@@ -125,23 +123,17 @@ describe("createCreditNoteAction", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue({ userId: USER_ID });
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      MEMBER_ACCOUNTANT as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_ACCOUNTANT as never);
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
-    vi.mocked(InvoiceService.createCreditNote).mockResolvedValue(
-      mockNcResult as never,
-    );
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          invoice: prisma.invoice,
-          auditLog: prisma.auditLog,
-          transaction: { create: vi.fn() },
-          journalEntry: { create: vi.fn() },
-          transactionLine: { createMany: vi.fn() },
-        })) as never,
-    );
+    vi.mocked(InvoiceService.createCreditNote).mockResolvedValue(mockNcResult as never);
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        invoice: prisma.invoice,
+        auditLog: prisma.auditLog,
+        transaction: { create: vi.fn() },
+        journalEntry: { create: vi.fn() },
+        transactionLine: { createMany: vi.fn() },
+      })) as never);
   });
 
   // ── Test 1: rejects unauthenticated ──────────────────────────────────────
@@ -173,15 +165,12 @@ describe("createCreditNoteAction", () => {
     const result = await createCreditNoteAction(invalidInput);
 
     expect(result.success).toBe(false);
-    if (!result.success)
-      expect(result.error).toMatch(/relatedInvoiceId|factura original/i);
+    if (!result.success) expect(result.error).toMatch(/relatedInvoiceId|factura original/i);
   });
 
   // ── Test 4: rejects VIEWER role ──────────────────────────────────────────
   it("rechaza usuario con rol VIEWER", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      MEMBER_VIEWER as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_VIEWER as never);
     // VIEWER sin grant explícito → hasModuleAccess retorna false (ADR-025)
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
 
@@ -202,9 +191,7 @@ describe("createCreditNoteAction", () => {
   // nunca deben bastar para saltarse un check de operación más restrictivo. El
   // fix agrega `canAccess(ctx.role, ROLES.WRITERS)` después de `hasModuleAccess`.
   it("REGRESIÓN (bypass cerrado): VIEWER CON grant explícito a 'invoicing' sigue sin poder crear notas de crédito", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      MEMBER_VIEWER as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_VIEWER as never);
     // El grant SÍ existe — antes del fix esto hacía que hasModuleAccess retornara
     // true y la mutación se ejecutara igual (el bug real y confirmado).
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue({
@@ -219,7 +206,7 @@ describe("createCreditNoteAction", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toBe(
-        "Crear notas de crédito requiere rol Administrativo, Contador, Administrador o Propietario",
+        "Crear notas de crédito requiere rol Administrativo, Contador, Administrador o Propietario"
       );
     }
     expect(InvoiceService.createCreditNote).not.toHaveBeenCalled();
@@ -239,7 +226,7 @@ describe("createCreditNoteAction", () => {
       expect.objectContaining({ relatedInvoiceId: "inv-original" }),
       USER_ID,
       null,
-      null,
+      null
     );
   });
 
@@ -258,7 +245,7 @@ describe("createCreditNoteAction", () => {
       expect.not.objectContaining({ relatedDocNumber: "INJECTED-DOC-NUMBER" }),
       USER_ID,
       null,
-      null,
+      null
     );
   });
 });
@@ -269,30 +256,22 @@ describe("createDebitNoteAction", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue({ userId: USER_ID });
     mockCheckRateLimit.mockResolvedValue({ allowed: true });
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      MEMBER_ACCOUNTANT as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_ACCOUNTANT as never);
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
-    vi.mocked(InvoiceService.createDebitNote).mockResolvedValue(
-      mockNdResult as never,
-    );
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          invoice: prisma.invoice,
-          auditLog: prisma.auditLog,
-          transaction: { create: vi.fn() },
-          journalEntry: { create: vi.fn() },
-          transactionLine: { createMany: vi.fn() },
-        })) as never,
-    );
+    vi.mocked(InvoiceService.createDebitNote).mockResolvedValue(mockNdResult as never);
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        invoice: prisma.invoice,
+        auditLog: prisma.auditLog,
+        transaction: { create: vi.fn() },
+        journalEntry: { create: vi.fn() },
+        transactionLine: { createMany: vi.fn() },
+      })) as never);
   });
 
   // ── Test 7: rejects VIEWER role ──────────────────────────────────────────
   it("rechaza usuario con rol VIEWER", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      MEMBER_VIEWER as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_VIEWER as never);
     // VIEWER sin grant explícito → hasModuleAccess retorna false (ADR-025)
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
 
@@ -310,9 +289,7 @@ describe("createDebitNoteAction", () => {
   // crear notas de débito. El fix agrega `canAccess(ctx.role, ROLES.WRITERS)`
   // después de `hasModuleAccess`.
   it("REGRESIÓN (bypass cerrado): VIEWER CON grant explícito a 'invoicing' sigue sin poder crear notas de débito", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      MEMBER_VIEWER as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(MEMBER_VIEWER as never);
     // El grant SÍ existe — antes del fix esto hacía que hasModuleAccess retornara
     // true y la mutación se ejecutara igual (el bug real y confirmado).
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue({
@@ -327,7 +304,7 @@ describe("createDebitNoteAction", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toBe(
-        "Crear notas de débito requiere rol Administrativo, Contador, Administrador o Propietario",
+        "Crear notas de débito requiere rol Administrativo, Contador, Administrador o Propietario"
       );
     }
     expect(InvoiceService.createDebitNote).not.toHaveBeenCalled();
@@ -347,7 +324,7 @@ describe("createDebitNoteAction", () => {
       expect.objectContaining({ relatedInvoiceId: "inv-original" }),
       USER_ID,
       null,
-      null,
+      null
     );
   });
 });

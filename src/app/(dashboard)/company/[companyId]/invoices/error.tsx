@@ -37,7 +37,10 @@ export default function InvoicesError({ error, reset }: Props) {
     setCountdown(4);
     const tick = setInterval(() => setCountdown((n) => Math.max(0, n - 1)), 1000);
     const retry = setTimeout(() => reset(), 4000);
-    return () => { clearInterval(tick); clearTimeout(retry); };
+    return () => {
+      clearInterval(tick);
+      clearTimeout(retry);
+    };
   }, [isColdStart, reset]);
 
   return (
@@ -59,15 +62,13 @@ export default function InvoicesError({ error, reset }: Props) {
             : "Ocurrió un error al obtener las facturas. Puedes reintentar o volver al módulo."}
         </p>
 
-        {error.digest && (
-          <p className="font-mono text-xs text-zinc-300">ref: {error.digest}</p>
-        )}
+        {error.digest && <p className="font-mono text-xs text-zinc-300">ref: {error.digest}</p>}
 
         <div className="flex justify-center gap-3 pt-2">
           <button
             type="button"
             onClick={reset}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
           >
             <RefreshCwIcon className="h-4 w-4" />
             {isColdStart ? "Reintentar ahora" : "Reintentar"}

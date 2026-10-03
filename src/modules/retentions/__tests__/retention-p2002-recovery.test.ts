@@ -44,9 +44,9 @@ vi.mock("@/lib/ratelimit", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, tx: unknown, fn: (tx: unknown) => unknown) => fn(tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, tx: unknown, fn: (tx: unknown) => unknown) => fn(tx)),
 }));
 
 vi.mock("@/modules/billing/services/SubscriptionService", () => ({
@@ -179,7 +179,11 @@ describe("createRetentionAction — recuperación P2002 con el dato VALIDADO", (
     // ADR-055: período OPEN que coincide con VALID_INPUT.invoiceDate (2026-03-10) —
     // ya no hay bypass de "sin período = permitir" (ver ALERTA 20 en retention.actions.test.ts).
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
-      id: "period-mar-2026", year: 2026, month: 3, status: "OPEN", fiscalYear: { status: "OPEN" },
+      id: "period-mar-2026",
+      year: 2026,
+      month: 3,
+      status: "OPEN",
+      fiscalYear: { status: "OPEN" },
     } as never);
     vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.retencion.findFirst).mockImplementation(fakeFindFirst(db) as never);

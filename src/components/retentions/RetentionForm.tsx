@@ -52,10 +52,13 @@ export function RetentionForm({ companyId, userId }: Props) {
   // ALERTA 20: códigos ISLR que implican servicios con mano de obra propia → INCES obligatorio
   // Ley INCES Art. 14: aplica a contratantes que contratan servicios con personal del contratista
   const INCES_AUTO_CODES = new Set([
-    "SERVICIOS_PJ", "SERVICIOS_PN",
-    "CONSTRUCCION_PJ", "CONSTRUCCION_PN",
+    "SERVICIOS_PJ",
+    "SERVICIOS_PN",
+    "CONSTRUCCION_PJ",
+    "CONSTRUCCION_PN",
     "HONORARIOS_PN",
-    "COMISIONES_PJ", "COMISIONES_PN",
+    "COMISIONES_PJ",
+    "COMISIONES_PN",
   ]);
 
   // ALERTA 20: cargar período activo al montar
@@ -73,7 +76,7 @@ export function RetentionForm({ companyId, userId }: Props) {
     } else {
       setIncesAutoActivated(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [islrCode, retentionType]);
 
   // Debounce 400ms para sugerencia ISLR al escribir el concepto
@@ -147,15 +150,21 @@ export function RetentionForm({ companyId, userId }: Props) {
         )
       : null;
 
-  const invoiceDateDisplay = invoiceDate ? (() => {
-    const [year, month, day] = invoiceDate.split("-").map(Number);
-    const d = new Date(Date.UTC(year!, month! - 1, day!));
-    return d.toLocaleDateString("es-VE", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-  })() : null;
+  const invoiceDateDisplay = invoiceDate
+    ? (() => {
+        const [year, month, day] = invoiceDate.split("-").map(Number);
+        const d = new Date(Date.UTC(year!, month! - 1, day!));
+        return d.toLocaleDateString("es-VE", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          timeZone: "UTC",
+        });
+      })()
+    : null;
 
   const baseExceedsTotal =
-    taxBase && invoiceAmount &&
-    parseFloat(taxBase) > parseFloat(invoiceAmount);
+    taxBase && invoiceAmount && parseFloat(taxBase) > parseFloat(invoiceAmount);
 
   // ALERTA 20: calcular si la fecha de factura está fuera del período activo
   const invoiceDateOutsidePeriod = (() => {
@@ -278,8 +287,8 @@ export function RetentionForm({ companyId, userId }: Props) {
                 Fecha de Factura
                 {activePeriod && (
                   <span className="ml-1.5 font-normal text-zinc-400">
-                    — Período activo:{" "}
-                    {String(activePeriod.month).padStart(2, "0")}/{activePeriod.year}
+                    — Período activo: {String(activePeriod.month).padStart(2, "0")}/
+                    {activePeriod.year}
                   </span>
                 )}
               </label>
@@ -300,14 +309,11 @@ export function RetentionForm({ companyId, userId }: Props) {
               {invoiceDateOutsidePeriod && activePeriod && (
                 <p className="mt-0.5 flex items-center gap-1 text-xs text-amber-700">
                   <AlertTriangleIcon className="h-3 w-3 shrink-0" aria-hidden />
-                  Fecha fuera del período activo (
-                  {String(activePeriod.month).padStart(2, "0")}/{activePeriod.year}
-                  ) — la retención será rechazada por el servidor.
+                  Fecha fuera del período activo ({String(activePeriod.month).padStart(2, "0")}/
+                  {activePeriod.year}) — la retención será rechazada por el servidor.
                 </p>
               )}
-              {!invoiceDate && (
-                <p className="mt-0.5 text-xs text-zinc-400">Selecciona una fecha</p>
-              )}
+              {!invoiceDate && <p className="mt-0.5 text-xs text-zinc-400">Selecciona una fecha</p>}
             </div>
           </div>
 
@@ -315,8 +321,7 @@ export function RetentionForm({ companyId, userId }: Props) {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Monto Total Factura{" "}
-                <span className="font-normal text-zinc-400">(Bs.)</span>
+                Monto Total Factura <span className="font-normal text-zinc-400">(Bs.)</span>
               </label>
               <input
                 name="invoiceAmount"
@@ -331,8 +336,7 @@ export function RetentionForm({ companyId, userId }: Props) {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Base Imponible{" "}
-                <span className="font-normal text-zinc-400">(Bs.)</span>
+                Base Imponible <span className="font-normal text-zinc-400">(Bs.)</span>
               </label>
               <input
                 type="number"
@@ -387,8 +391,8 @@ export function RetentionForm({ companyId, userId }: Props) {
               <p className="mt-0.5 flex items-start gap-1 text-xs text-zinc-500">
                 <InfoIcon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
                 <span>
-                  <strong>75%</strong> para compras con insumos materiales ·{" "}
-                  <strong>100%</strong> para servicios sin insumos (Prov. 0049 Art. 1)
+                  <strong>75%</strong> para compras con insumos materiales · <strong>100%</strong>{" "}
+                  para servicios sin insumos (Prov. 0049 Art. 1)
                 </span>
               </p>
             </div>
@@ -414,8 +418,8 @@ export function RetentionForm({ companyId, userId }: Props) {
                 {islrSuggestion && (
                   <div className="mt-1.5 flex items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
                     <div className="text-xs text-blue-800">
-                      <span className="font-medium">Sugerido:</span>{" "}
-                      {islrSuggestion.label} — {islrSuggestion.rate}%{" "}
+                      <span className="font-medium">Sugerido:</span> {islrSuggestion.label} —{" "}
+                      {islrSuggestion.rate}%{" "}
                       <span className="text-blue-500">({islrSuggestion.legalRef})</span>
                     </div>
                     <button
@@ -461,11 +465,11 @@ export function RetentionForm({ companyId, userId }: Props) {
                 }}
                 className="h-4 w-4 rounded border-zinc-300"
               />
-              <span className="text-sm flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 text-sm">
                 INCES 2% — Ley INCES Art. 14
                 {/* ALERTA 20: badge cuando fue activado automáticamente */}
                 {incesAutoActivated && (
-                  <span className="rounded px-1.5 py-0.5 text-10 font-medium bg-blue-100 text-blue-700">
+                  <span className="text-10 rounded bg-blue-100 px-1.5 py-0.5 font-medium text-blue-700">
                     Auto
                   </span>
                 )}
@@ -473,8 +477,8 @@ export function RetentionForm({ companyId, userId }: Props) {
             </label>
             {/* ALERTA 20: nota explicativa cuando INCES se activa automáticamente */}
             {incesAutoActivated && (
-              <p className="ml-6 text-xs text-blue-700 flex items-start gap-1">
-                <InfoIcon className="h-3 w-3 shrink-0 mt-0.5" aria-hidden />
+              <p className="ml-6 flex items-start gap-1 text-xs text-blue-700">
+                <InfoIcon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
                 <span>
                   Activado automáticamente — el código ISLR seleccionado corresponde a servicios con
                   personal del contratista, sujetos a Ley INCES Art. 14.
@@ -518,23 +522,21 @@ export function RetentionForm({ companyId, userId }: Props) {
               )}
               {preview.incesAmount && (
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">
-                    INCES ({preview.incesRetentionPct}%):
-                  </span>
+                  <span className="text-zinc-600">INCES ({preview.incesRetentionPct}%):</span>
                   <span className="font-mono">{fmtVen(preview.incesAmount)}</span>
                 </div>
               )}
               {preview.fatAmount && (
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">
-                    FAT ({preview.fatRetentionPct}%):
-                  </span>
+                  <span className="text-zinc-600">FAT ({preview.fatRetentionPct}%):</span>
                   <span className="font-mono">{fmtVen(preview.fatAmount)}</span>
                 </div>
               )}
               <div className="mt-1 flex justify-between border-t pt-1">
                 <span className="font-semibold text-blue-800">Total a retener:</span>
-                <span className="font-mono font-bold text-blue-800">{fmtVen(preview.totalRetention)}</span>
+                <span className="font-mono font-bold text-blue-800">
+                  {fmtVen(preview.totalRetention)}
+                </span>
               </div>
             </div>
           )}
@@ -562,7 +564,10 @@ export function RetentionForm({ companyId, userId }: Props) {
             <p className="text-sm font-semibold text-green-800">
               Retención guardada
               {savedVoucherNumber && (
-                <> — Comprobante <span className="font-mono">{savedVoucherNumber}</span></>
+                <>
+                  {" "}
+                  — Comprobante <span className="font-mono">{savedVoucherNumber}</span>
+                </>
               )}
             </p>
 
@@ -581,8 +586,8 @@ export function RetentionForm({ companyId, userId }: Props) {
             {selectedInvoice ? (
               <p className="text-sm text-green-700">
                 Vinculada a factura{" "}
-                <span className="font-mono font-semibold">{selectedInvoice.invoiceNumber}</span>
-                {" "}— {selectedInvoice.counterpartName}
+                <span className="font-mono font-semibold">{selectedInvoice.invoiceNumber}</span> —{" "}
+                {selectedInvoice.counterpartName}
               </p>
             ) : (
               <div className="space-y-2">
@@ -611,7 +616,7 @@ export function RetentionForm({ companyId, userId }: Props) {
                 {/* ALERTA 17: proveedor es Contribuyente Especial */}
                 {selectedMatchIsSpecialContributor && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden />
+                    <AlertTriangleIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                     <span>
                       <strong>Contribuyente Especial</strong> — Este proveedor requiere comprobante
                       de retención de IVA (75% estándar o 100% si servicios sin insumos) según
@@ -627,21 +632,21 @@ export function RetentionForm({ companyId, userId }: Props) {
                         className="flex items-center justify-between px-3 py-2 hover:bg-zinc-50"
                       >
                         <span className="min-w-0 flex-1">
-                          <span className="font-mono font-medium">{inv.invoiceNumber}</span>
-                          {" "}— {inv.counterpartName}
+                          <span className="font-mono font-medium">{inv.invoiceNumber}</span> —{" "}
+                          {inv.counterpartName}
                           <span className="ml-2 text-xs text-zinc-400">
                             {new Date(inv.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                           </span>
                           {/* ALERTA 19: ya tiene retención vinculada */}
                           {inv.hasLinkedRetention && (
-                            <span className="ml-2 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-10 font-medium bg-amber-100 text-amber-700">
+                            <span className="text-10 ml-2 inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700">
                               <AlertTriangleIcon className="h-2.5 w-2.5" aria-hidden />
                               Ya tiene retención
                             </span>
                           )}
                           {/* ALERTA 17: CE badge por factura */}
                           {inv.isVendorSpecialContributor && (
-                            <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-10 font-medium bg-blue-100 text-blue-700">
+                            <span className="text-10 ml-1 inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 font-medium text-blue-700">
                               CE
                             </span>
                           )}

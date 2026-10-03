@@ -55,40 +55,36 @@ function isValidMoney(v: string, positive = false): boolean {
  * Acepta string o number; valida que sea ≥ 0, máximo 2 decimales, máximo 999,999,999.99.
  * Evita que NaN, Infinity o valores con más de 2 decimales lleguen a Prisma Decimal(20,2).
  */
-export const zMoneyAmount = z.coerce
-  .string()
-  .refine((v) => isValidMoney(v), {
-    error: "Monto inválido: debe ser ≥ 0 con máximo 2 decimales",
-  });
+export const zMoneyAmount = z.coerce.string().refine((v) => isValidMoney(v), {
+  error: "Monto inválido: debe ser ≥ 0 con máximo 2 decimales",
+});
 
 /**
  * Igual que zMoneyAmount pero exige valor > 0.
  */
-export const zMoneyPositive = z.coerce
-  .string()
-  .refine((v) => isValidMoney(v, true), {
-    error: "El monto debe ser mayor a cero con máximo 2 decimales",
-  });
+export const zMoneyPositive = z.coerce.string().refine((v) => isValidMoney(v, true), {
+  error: "El monto debe ser mayor a cero con máximo 2 decimales",
+});
 
 /**
  * Schema para tasas de cambio (BCV, etc.).
  * Acepta hasta 4 decimales — las tasas BCV se publican con 4 dígitos significativos.
  * Ej: 549.3716 es válido; zMoneyAmount lo rechazaría por superar 2 decimales.
  */
-export const zExchangeRate = z.coerce
-  .string()
-  .refine(
-    (v) => {
-      try {
-        if (!PLAIN_DECIMAL.test(v)) return false; // mismo motivo que en isValidMoney
-        const d = new Decimal(v);
-        return d.isFinite() && d.gt(0) && d.decimalPlaces() <= 4 && d.lte(new Decimal("9999999.9999"));
-      } catch {
-        return false;
-      }
-    },
-    { error: "Tasa de cambio inválida: debe ser > 0 con máximo 4 decimales" }
-  );
+export const zExchangeRate = z.coerce.string().refine(
+  (v) => {
+    try {
+      if (!PLAIN_DECIMAL.test(v)) return false; // mismo motivo que en isValidMoney
+      const d = new Decimal(v);
+      return (
+        d.isFinite() && d.gt(0) && d.decimalPlaces() <= 4 && d.lte(new Decimal("9999999.9999"))
+      );
+    } catch {
+      return false;
+    }
+  },
+  { error: "Tasa de cambio inválida: debe ser > 0 con máximo 4 decimales" }
+);
 
 /**
  * Texto opcional de formulario: "" (campo vacío) → null — Prisma LIMPIA la columna;
@@ -152,11 +148,9 @@ export function zBusinessDate(opts?: { error?: string }) {
  * Rechaza "" — para campos opcionales que aceptan vacío, componer con
  * `.or(z.literal("")).optional()` en el call site.
  */
-export const zBusinessDateString = z
-  .string()
-  .refine((v) => inBusinessRange(new Date(v)), {
-    error: "Fecha inválida o fuera del rango permitido (1900–2100)",
-  });
+export const zBusinessDateString = z.string().refine((v) => inBusinessRange(new Date(v)), {
+  error: "Fecha inválida o fuera del rango permitido (1900–2100)",
+});
 
 // ─── Campos fiscales por país (ADR-042 D-1) ───────────────────────────────────
 // El formato del ID tributario y del Nº de control lo decide el país, no el

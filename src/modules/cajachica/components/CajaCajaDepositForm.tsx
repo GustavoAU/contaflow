@@ -69,7 +69,13 @@ export function CajaCajaDepositForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Fecha *</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={isPending} />
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            disabled={isPending}
+          />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Monto {currency} *</Label>
@@ -89,7 +95,7 @@ export function CajaCajaDepositForm({
           <select
             value={sourceAccountId}
             onChange={(e) => setSourceAccountId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             required
             disabled={isPending}
           >
@@ -132,7 +138,7 @@ export function CajaCajaDepositForm({
         </div>
       )}
 
-      <div className="flex gap-2 pt-1 border-t">
+      <div className="flex gap-2 border-t pt-1">
         <Button type="submit" size="sm" disabled={isPending} aria-busy={isPending}>
           Registrar depósito
         </Button>

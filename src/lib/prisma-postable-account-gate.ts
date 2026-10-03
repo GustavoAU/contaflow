@@ -29,7 +29,11 @@ type EntriesNode = {
 };
 
 function pushAccountId(row: unknown, ids: Set<string>): void {
-  if (row && typeof row === "object" && typeof (row as { accountId?: unknown }).accountId === "string") {
+  if (
+    row &&
+    typeof row === "object" &&
+    typeof (row as { accountId?: unknown }).accountId === "string"
+  ) {
     ids.add((row as { accountId: string }).accountId);
   }
 }
@@ -41,11 +45,13 @@ function collectFromEntriesNode(entriesNode: unknown, ids: Set<string>): void {
   if (Array.isArray(node.create)) node.create.forEach((row) => pushAccountId(row, ids));
   else if (node.create) pushAccountId(node.create, ids);
 
-  if (Array.isArray(node.createMany?.data)) node.createMany.data.forEach((row) => pushAccountId(row, ids));
+  if (Array.isArray(node.createMany?.data))
+    node.createMany.data.forEach((row) => pushAccountId(row, ids));
 
   if (Array.isArray(node.upsert)) {
     node.upsert.forEach((u) => {
-      if (u && typeof u === "object" && "create" in u) pushAccountId((u as { create?: unknown }).create, ids);
+      if (u && typeof u === "object" && "create" in u)
+        pushAccountId((u as { create?: unknown }).create, ids);
     });
   }
 }
@@ -91,11 +97,16 @@ export function createPostableAccountGateExtension(base: PrismaClient) {
                   select: { code: true, name: true },
                 });
                 if (blocked.length > 0) {
-                  throw new NotPostableAccountError(notPostableMessage(blocked[0].code, blocked[0].name));
+                  throw new NotPostableAccountError(
+                    notPostableMessage(blocked[0].code, blocked[0].name)
+                  );
                 }
               } catch (err) {
                 if (err instanceof NotPostableAccountError) throw err;
-                console.error("[postable-account-gate] verificación falló — permitiendo (fail-open):", err);
+                console.error(
+                  "[postable-account-gate] verificación falló — permitiendo (fail-open):",
+                  err
+                );
               }
             }
           }

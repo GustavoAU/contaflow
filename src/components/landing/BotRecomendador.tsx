@@ -116,81 +116,102 @@ export function BotRecomendador({ isAuthenticated = false }: { isAuthenticated?:
   return (
     <section id="recomiendame" className={styles.botSection}>
       <div className={styles.wrap}>
-
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className={`${styles.secHead} ${styles.botHead} reveal`} data-reveal>
           <p className={styles.eyebrow}>Encuentra tu punto de partida</p>
           <h2>¿Cuál describe mejor tu empresa?</h2>
-          <p>Selecciona un perfil y te mostramos exactamente qué módulos activas desde el primer día.</p>
+          <p>
+            Selecciona un perfil y te mostramos exactamente qué módulos activas desde el primer día.
+          </p>
         </div>
 
         {/* ── Cards ───────────────────────────────────────────────────────── */}
         <div className={styles.botCards}>
-          {PROFILES.map(({ id, Icon, iconBg, label, tagline, description, includes, excluded, popular, comingSoon, accentColor, accentDim }) => {
-            const isSelected = selected === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                disabled={comingSoon}
-                onClick={() => !comingSoon && setSelected(isSelected ? null : id)}
-                className={`${styles.botCard} ${isSelected ? styles.botCardSelected : ""} ${comingSoon ? styles.botCardDisabled : ""}`}
-                style={isSelected ? { borderColor: accentColor, boxShadow: `0 0 0 4px ${accentDim}, 0 8px 32px oklch(0.1 0.04 258 / 0.08)` } : undefined}
-                aria-pressed={isSelected}
-              >
-                {popular && !comingSoon && (
-                  <span className={styles.botCardPopular}>⭐ Más popular</span>
-                )}
-                {comingSoon && (
-                  <span className={styles.botCardSoon}>Próximamente</span>
-                )}
+          {PROFILES.map(
+            ({
+              id,
+              Icon,
+              iconBg,
+              label,
+              tagline,
+              description,
+              includes,
+              excluded,
+              popular,
+              comingSoon,
+              accentColor,
+              accentDim,
+            }) => {
+              const isSelected = selected === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={comingSoon}
+                  onClick={() => !comingSoon && setSelected(isSelected ? null : id)}
+                  className={`${styles.botCard} ${isSelected ? styles.botCardSelected : ""} ${comingSoon ? styles.botCardDisabled : ""}`}
+                  style={
+                    isSelected
+                      ? {
+                          borderColor: accentColor,
+                          boxShadow: `0 0 0 4px ${accentDim}, 0 8px 32px oklch(0.1 0.04 258 / 0.08)`,
+                        }
+                      : undefined
+                  }
+                  aria-pressed={isSelected}
+                >
+                  {popular && !comingSoon && (
+                    <span className={styles.botCardPopular}>⭐ Más popular</span>
+                  )}
+                  {comingSoon && <span className={styles.botCardSoon}>Próximamente</span>}
 
-                {/* Icon */}
-                <div className={styles.botCardIconWrap} style={{ background: iconBg }}>
-                  <Icon className={styles.botCardIconSvg} aria-hidden />
-                </div>
-
-                <div className={styles.botCardLabel}>{label}</div>
-                <div className={styles.botCardTagline}>{tagline}</div>
-                <p className={styles.botCardDesc}>{description}</p>
-
-                <ul className={styles.botCardList}>
-                  {includes.map((f) => (
-                    <li key={f} className={styles.botCardListItem}>
-                      <CheckCircle2Icon
-                        className={styles.botCardCheckIcon}
-                        style={{ color: accentColor }}
-                        aria-hidden
-                      />
-                      {f}
-                    </li>
-                  ))}
-                  {excluded.map((f) => (
-                    <li key={f} className={`${styles.botCardListItem} ${styles.botCardExcluded}`}>
-                      <XCircleIcon className={styles.botCardCheckIcon} aria-hidden />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                {isSelected && (
-                  <div
-                    className={styles.botCardConfirm}
-                    style={{ background: accentColor }}
-                  >
-                    ✓ Seleccionado — ver recomendación ↓
+                  {/* Icon */}
+                  <div className={styles.botCardIconWrap} style={{ background: iconBg }}>
+                    <Icon className={styles.botCardIconSvg} aria-hidden />
                   </div>
-                )}
-              </button>
-            );
-          })}
+
+                  <div className={styles.botCardLabel}>{label}</div>
+                  <div className={styles.botCardTagline}>{tagline}</div>
+                  <p className={styles.botCardDesc}>{description}</p>
+
+                  <ul className={styles.botCardList}>
+                    {includes.map((f) => (
+                      <li key={f} className={styles.botCardListItem}>
+                        <CheckCircle2Icon
+                          className={styles.botCardCheckIcon}
+                          style={{ color: accentColor }}
+                          aria-hidden
+                        />
+                        {f}
+                      </li>
+                    ))}
+                    {excluded.map((f) => (
+                      <li key={f} className={`${styles.botCardListItem} ${styles.botCardExcluded}`}>
+                        <XCircleIcon className={styles.botCardCheckIcon} aria-hidden />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {isSelected && (
+                    <div className={styles.botCardConfirm} style={{ background: accentColor }}>
+                      ✓ Seleccionado — ver recomendación ↓
+                    </div>
+                  )}
+                </button>
+              );
+            }
+          )}
         </div>
 
         {/* ── Panel de recomendación ──────────────────────────────────────── */}
         {selected && profile && (
-          <div ref={recoRef} className={styles.botReco} style={{ borderColor: profile.accentColor }}>
+          <div
+            ref={recoRef}
+            className={styles.botReco}
+            style={{ borderColor: profile.accentColor }}
+          >
             <div className={styles.botRecoInner}>
-
               {/* Left: feature list */}
               <div className={styles.botRecoLeft}>
                 <div
@@ -202,7 +223,11 @@ export function BotRecomendador({ isAuthenticated = false }: { isAuthenticated?:
                 </div>
 
                 <h3 className={styles.botRecoTitle}>
-                  Perfil <em style={{ color: profile.accentColor, fontStyle: "normal" }}>{profile.label}</em> — lo que activas hoy
+                  Perfil{" "}
+                  <em style={{ color: profile.accentColor, fontStyle: "normal" }}>
+                    {profile.label}
+                  </em>{" "}
+                  — lo que activas hoy
                 </h3>
 
                 <ul className={styles.botRecoList}>
@@ -219,13 +244,17 @@ export function BotRecomendador({ isAuthenticated = false }: { isAuthenticated?:
                 </ul>
 
                 <div className={styles.botRecoRoi}>
-                  ⏱ Ahorro estimado: <strong>{profile.roiHours}h/mes</strong> en trabajo administrativo (según operaciones similares)
+                  ⏱ Ahorro estimado: <strong>{profile.roiHours}h/mes</strong> en trabajo
+                  administrativo (según operaciones similares)
                 </div>
               </div>
 
               {/* Right: price + CTA */}
               <div className={styles.botRecoRight}>
-                <div className={styles.botRecoPriceCard} style={{ borderColor: profile.accentColor }}>
+                <div
+                  className={styles.botRecoPriceCard}
+                  style={{ borderColor: profile.accentColor }}
+                >
                   {profile.comingSoon ? (
                     <>
                       <p className={styles.botRecoPriceLabel}>Disponibilidad</p>
@@ -257,7 +286,7 @@ export function BotRecomendador({ isAuthenticated = false }: { isAuthenticated?:
                             profile.id,
                             isAuthenticated
                               ? `/company/new?profile=${profile.id}`
-                              : `/sign-up?profile=${profile.id}`,
+                              : `/sign-up?profile=${profile.id}`
                           )
                         }
                       >
@@ -282,7 +311,6 @@ export function BotRecomendador({ isAuthenticated = false }: { isAuthenticated?:
             </div>
           </div>
         )}
-
       </div>
     </section>
   );

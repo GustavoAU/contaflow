@@ -8,7 +8,8 @@ const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
-  limiters: { fiscal: {}, ocr: {}, read: {} },  fiscalKey: (c: string, u: string) => `${c}:${u}`,
+  limiters: { fiscal: {}, ocr: {}, read: {} },
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -31,7 +32,13 @@ import { getDashboardMetricsAction } from "../actions/dashboard.actions";
 const COMPANY_ID = "company-1";
 const USER_ID = "user-1";
 
-const mockActivePeriod = { id: "period-1", year: 2026, month: 3, openedAt: new Date("2026-01-01"), fiscalYear: 2026 };
+const mockActivePeriod = {
+  id: "period-1",
+  year: 2026,
+  month: 3,
+  openedAt: new Date("2026-01-01"),
+  fiscalYear: 2026,
+};
 const mockLastTransaction = {
   number: "2026-03-000001",
   description: "Venta de mercancia",
@@ -104,7 +111,7 @@ describe("getDashboardMetricsAction — lógica", () => {
     vi.mocked(FiscalYearService.getActivePeriodInfo).mockResolvedValue(mockActivePeriod);
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(mockLastTransaction as never);
     vi.mocked(prisma.account.findMany).mockResolvedValue([
-      { type: "ASSET",   journalEntries: [{ amount: 1000 }] },
+      { type: "ASSET", journalEntries: [{ amount: 1000 }] },
       { type: "REVENUE", journalEntries: [{ amount: -1000 }] },
     ] as never);
 
@@ -139,7 +146,7 @@ describe("getDashboardMetricsAction — lógica", () => {
     expect(prisma.companyMember.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ companyId: COMPANY_ID, userId: USER_ID }),
-      }),
+      })
     );
   });
 

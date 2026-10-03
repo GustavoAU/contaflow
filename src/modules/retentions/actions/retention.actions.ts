@@ -87,7 +87,7 @@ export async function createRetentionAction(
     const { userId, ipAddress, userAgent } = ctx;
 
     // ADR-025: verifica acceso base + grants granulares al módulo Facturación
-    if (!await hasModuleAccess(data.companyId, ctx.role, "invoicing"))
+    if (!(await hasModuleAccess(data.companyId, ctx.role, "invoicing")))
       return { success: false, error: moduleAccessError("invoicing") };
     // Corte por suscripción vencida (solo lectura)
     await assertWriteAllowed(data.companyId);
@@ -144,7 +144,10 @@ export async function createRetentionAction(
     } catch (periodError) {
       return {
         success: false,
-        error: periodError instanceof Error ? periodError.message : "Período contable inválido para esta factura.",
+        error:
+          periodError instanceof Error
+            ? periodError.message
+            : "Período contable inválido para esta factura.",
       };
     }
 
@@ -185,12 +188,14 @@ export async function createRetentionAction(
             withCompanyContext(data.companyId, tx, async (tx) => {
               // ADR-052: correlativos INDEPENDIENTES — IVA continuo, ISLR con reinicio
               // mensual. Cada uno se genera solo si el tipo de retención lo requiere.
-              const voucherNumber = data.type !== "ISLR"
-                ? await getNextIvaVoucherNumber(tx, data.companyId, new Date())
-                : null;
-              const islrVoucherNumber = data.type !== "IVA"
-                ? await getNextIslrVoucherNumber(tx, data.companyId, new Date())
-                : null;
+              const voucherNumber =
+                data.type !== "ISLR"
+                  ? await getNextIvaVoucherNumber(tx, data.companyId, new Date())
+                  : null;
+              const islrVoucherNumber =
+                data.type !== "IVA"
+                  ? await getNextIslrVoucherNumber(tx, data.companyId, new Date())
+                  : null;
 
               const ret = await tx.retencion.create({
                 data: {
@@ -213,9 +218,7 @@ export async function createRetentionAction(
                     ? new Decimal(calc.incesRetentionPct)
                     : null,
                   fatAmount: calc.fatAmount ? new Decimal(calc.fatAmount) : null,
-                  fatRetentionPct: calc.fatRetentionPct
-                    ? new Decimal(calc.fatRetentionPct)
-                    : null,
+                  fatRetentionPct: calc.fatRetentionPct ? new Decimal(calc.fatRetentionPct) : null,
                   totalRetention: new Decimal(calc.totalRetention),
                   voucherNumber,
                   islrVoucherNumber,
@@ -281,14 +284,12 @@ export async function createRetentionAction(
                 ) {
                   const ivaRet = new Decimal(calc.ivaRetention);
                   totalGlRetention = totalGlRetention.plus(ivaRet);
-                  glEntries.push(
-                    {
-                      accountId: glSettings.ivaRetentionPayableAccountId,
-                      // Cr Ret.IVA: obligación por enterar al SENIAT
-                      amount: ivaRet.negated(),
-                      description: `Retención IVA ${voucherNumber} — Ret. por enterar`,
-                    },
-                  );
+                  glEntries.push({
+                    accountId: glSettings.ivaRetentionPayableAccountId,
+                    // Cr Ret.IVA: obligación por enterar al SENIAT
+                    amount: ivaRet.negated(),
+                    description: `Retención IVA ${voucherNumber} — Ret. por enterar`,
+                  });
                 }
 
                 // ISLR: Dr CxP / Cr Ret.ISLR por Enterar (Decreto 1808)
@@ -300,14 +301,12 @@ export async function createRetentionAction(
                 ) {
                   const islrRet = new Decimal(calc.islrAmount);
                   totalGlRetention = totalGlRetention.plus(islrRet);
-                  glEntries.push(
-                    {
-                      accountId: glSettings.islrRetentionPayableAccountId,
-                      // Cr Ret.ISLR: obligación por enterar al SENIAT
-                      amount: islrRet.negated(),
-                      description: `Retención ISLR ${islrVoucherNumber} — Ret. por enterar`,
-                    },
-                  );
+                  glEntries.push({
+                    accountId: glSettings.islrRetentionPayableAccountId,
+                    // Cr Ret.ISLR: obligación por enterar al SENIAT
+                    amount: islrRet.negated(),
+                    description: `Retención ISLR ${islrVoucherNumber} — Ret. por enterar`,
+                  });
                 }
 
                 if (glEntries.length > 0 && totalGlRetention.greaterThan(0)) {
@@ -319,7 +318,9 @@ export async function createRetentionAction(
                   const retNumbersLabel = [
                     voucherNumber ? `IVA-${voucherNumber}` : null,
                     islrVoucherNumber ? `ISLR-${islrVoucherNumber}` : null,
-                  ].filter(Boolean).join("_");
+                  ]
+                    .filter(Boolean)
+                    .join("_");
 
                   // Dr CxP por el total retenido (IVA + ISLR combinados en un solo débito)
                   glEntries.unshift({
@@ -396,7 +397,10 @@ export async function createRetentionAction(
     // generico "Ya existe un registro con esos datos" — cuando una colision de
     // correlativo debe comunicarse como transitoria y REINTENTABLE, que es lo
     // contrario de lo que ese texto sugiere (quick-reference Z-1).
-    if (p2002TargetIncludes(error, "voucherNumber") || p2002TargetIncludes(error, "islrVoucherNumber")) {
+    if (
+      p2002TargetIncludes(error, "voucherNumber") ||
+      p2002TargetIncludes(error, "islrVoucherNumber")
+    ) {
       return { success: false, error: "Error transitorio — intenta de nuevo." };
     }
     if (p2002TargetIncludes(error, "idempotencyKey") && validated?.idempotencyKey) {
@@ -432,7 +436,7 @@ export async function enterRetentionAction(
     const { userId, ipAddress, userAgent } = ctx;
 
     // ADR-025: verifica acceso base + grants granulares al módulo Facturación
-    if (!await hasModuleAccess(data.companyId, ctx.role, "invoicing"))
+    if (!(await hasModuleAccess(data.companyId, ctx.role, "invoicing")))
       return { success: false, error: moduleAccessError("invoicing") };
 
     await enterRetention(data, userId, ipAddress, userAgent);
@@ -464,9 +468,9 @@ export async function exportRetentionVoucherPDFAction(
     const monthLabel = issueDate.toLocaleString("es-VE", { month: "long", year: "numeric" });
 
     const retentionType = retention.type as "IVA" | "ISLR" | "AMBAS";
-    let retentionRate: number | undefined
-    if (retentionType === "ISLR") retentionRate = Number(retention.islrRetentionPct ?? 0)
-    else if (retentionType === "IVA") retentionRate = Number(retention.ivaRetentionPct)
+    let retentionRate: number | undefined;
+    if (retentionType === "ISLR") retentionRate = Number(retention.islrRetentionPct ?? 0);
+    else if (retentionType === "IVA") retentionRate = Number(retention.ivaRetentionPct);
 
     // ADR-052: voucherNumber (IVA) e islrVoucherNumber son correlativos independientes.
     // Un tipo simple (IVA o ISLR) imprime UN número en el slot genérico del PDF —
@@ -479,7 +483,8 @@ export async function exportRetentionVoucherPDFAction(
       companyRif: retention.company.rif ?? "",
       companyAddress: retention.company.address ?? undefined,
       voucherNumber: primaryVoucherNumber ?? retention.id,
-      islrVoucherNumber: retentionType === "AMBAS" ? (retention.islrVoucherNumber ?? undefined) : undefined,
+      islrVoucherNumber:
+        retentionType === "AMBAS" ? (retention.islrVoucherNumber ?? undefined) : undefined,
       issueDate,
       providerName: retention.providerName,
       providerRif: retention.providerRif,
@@ -496,7 +501,9 @@ export async function exportRetentionVoucherPDFAction(
       islrAmount: retention.islrAmount ?? undefined,
       islrRetentionPct: retention.islrRetentionPct ? Number(retention.islrRetentionPct) : undefined,
       incesAmount: retention.incesAmount ?? undefined,
-      incesRetentionPct: retention.incesRetentionPct ? Number(retention.incesRetentionPct) : undefined,
+      incesRetentionPct: retention.incesRetentionPct
+        ? Number(retention.incesRetentionPct)
+        : undefined,
       fatAmount: retention.fatAmount ?? undefined,
       fatRetentionPct: retention.fatRetentionPct ? Number(retention.fatRetentionPct) : undefined,
     });
@@ -544,7 +551,7 @@ export type InvoiceMatch = {
   counterpartRif: string;
   type: string;
   isVendorSpecialContributor: boolean; // ALERTA 17 — proveedor es Contribuyente Especial
-  hasLinkedRetention: boolean;          // ALERTA 19 — ya tiene retención vinculada
+  hasLinkedRetention: boolean; // ALERTA 19 — ya tiene retención vinculada
 };
 
 export async function findInvoiceByNumberAction(
@@ -760,7 +767,9 @@ export async function getRetentionReconciliationAction(
     for (const ret of retenciones) {
       const matchedInvoice = ret.invoiceId
         ? invoices.find((i) => i.id === ret.invoiceId)
-        : invoices.find((i) => i.invoiceNumber === ret.invoiceNumber && i.counterpartRif === ret.providerRif);
+        : invoices.find(
+            (i) => i.invoiceNumber === ret.invoiceNumber && i.counterpartRif === ret.providerRif
+          );
 
       if (matchedInvoice) {
         matchedInvoiceIds.add(matchedInvoice.id);
@@ -803,7 +812,10 @@ export async function getRetentionReconciliationAction(
 
     // Facturas con retención registrada pero sin comprobante vinculado
     for (const inv of invoices) {
-      if (!matchedInvoiceIds.has(inv.id) && new Decimal(inv.ivaRetentionAmount.toString()).greaterThan(0)) {
+      if (
+        !matchedInvoiceIds.has(inv.id) &&
+        new Decimal(inv.ivaRetentionAmount.toString()).greaterThan(0)
+      ) {
         rows.push({
           retentionId: null,
           voucherNumber: null,

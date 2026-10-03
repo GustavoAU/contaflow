@@ -14,8 +14,8 @@ export function SIVITExportForm({ companyId }: Props) {
   const firstOfMonth = today.slice(0, 8) + "01";
 
   const [dateFrom, setDateFrom] = useState(firstOfMonth);
-  const [dateTo,   setDateTo]   = useState(today);
-  const [error,    setError]    = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState(today);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent) {
@@ -31,14 +31,14 @@ export function SIVITExportForm({ companyId }: Props) {
 
       // Decode base64 → Blob → download
       const binary = atob(result.data.base64Zip);
-      const bytes  = new Uint8Array(binary.length);
+      const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
       }
       const blob = new Blob([bytes], { type: "application/zip" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
       a.download = result.data.filename;
       a.click();
       URL.revokeObjectURL(url);
@@ -46,13 +46,13 @@ export function SIVITExportForm({ companyId }: Props) {
   }
 
   return (
-    <div className="rounded-lg border p-6 space-y-4">
+    <div className="space-y-4 rounded-lg border p-6">
       <div>
-        <h2 className="font-semibold text-lg">Exportar SIVIT</h2>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h2 className="text-lg font-semibold">Exportar SIVIT</h2>
+        <p className="text-muted-foreground mt-1 text-sm">
           Genera <span className="font-mono">LV.txt</span> (Libro de Ventas) y{" "}
-          <span className="font-mono">LC.txt</span> (Libro de Compras) en formato
-          pipe-delimitado para cargar en el sistema SIVIT del SENIAT.
+          <span className="font-mono">LC.txt</span> (Libro de Compras) en formato pipe-delimitado
+          para cargar en el sistema SIVIT del SENIAT.
         </p>
       </div>
 
@@ -67,7 +67,7 @@ export function SIVITExportForm({ companyId }: Props) {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               required
             />
           </div>
@@ -80,18 +80,18 @@ export function SIVITExportForm({ companyId }: Props) {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               required
             />
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           Rango máximo: 366 días. Los archivos TXT se descargan en un ZIP.
         </p>
 
         {error && (
-          <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">
             {error}
           </div>
         )}

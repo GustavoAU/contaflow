@@ -31,7 +31,11 @@ describe("sendEmail", () => {
     } as Response);
 
     const { sendEmail } = await import("@/lib/email");
-    const result = await sendEmail({ to: "admin@empresa.com", subject: "Asunto", html: "<p>body</p>" });
+    const result = await sendEmail({
+      to: "admin@empresa.com",
+      subject: "Asunto",
+      html: "<p>body</p>",
+    });
 
     expect(result.ok).toBe(true);
     expect(result.id).toBe("msg-123");

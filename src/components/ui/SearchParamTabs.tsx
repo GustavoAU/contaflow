@@ -8,8 +8,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  TAB_ACTIVE, TAB_ACTIVE_BADGE, TAB_INACTIVE, TAB_INACTIVE_BADGE,
-  DEFAULT_TAB_COLOR, type TabColor,
+  TAB_ACTIVE,
+  TAB_ACTIVE_BADGE,
+  TAB_INACTIVE,
+  TAB_INACTIVE_BADGE,
+  DEFAULT_TAB_COLOR,
+  type TabColor,
 } from "./tab-colors";
 import { usePageTransition } from "@/components/layout/PageTransitionProvider";
 
@@ -38,7 +42,7 @@ export function SearchParamTabs({
   color = DEFAULT_TAB_COLOR,
   className,
 }: Props) {
-  const pathname    = usePathname();
+  const pathname = usePathname();
   const { navigate } = usePageTransition();
   const activeStyle = TAB_ACTIVE[color] ?? TAB_ACTIVE[DEFAULT_TAB_COLOR];
   const activeBadge = TAB_ACTIVE_BADGE[color] ?? TAB_ACTIVE_BADGE[DEFAULT_TAB_COLOR];
@@ -46,10 +50,7 @@ export function SearchParamTabs({
   const visibleTabs = tabs.filter((t) => t.show !== false);
 
   return (
-    <nav
-      aria-label="Sección"
-      className={cn("flex border-b border-zinc-200", className)}
-    >
+    <nav aria-label="Sección" className={cn("flex border-b border-zinc-200", className)}>
       {visibleTabs.map((tab) => {
         const isActive = tab.value === currentValue;
         const href = `${pathname}?${paramKey}=${tab.value}`;
@@ -66,16 +67,18 @@ export function SearchParamTabs({
               }
             }}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              "-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors",
               isActive ? activeStyle : TAB_INACTIVE
             )}
           >
             {tab.label}
             {tab.badge !== undefined && tab.badge > 0 && (
-              <span className={cn(
-                "rounded-full px-1.5 py-0.5 text-10 font-bold leading-none",
-                isActive ? activeBadge : TAB_INACTIVE_BADGE
-              )}>
+              <span
+                className={cn(
+                  "text-10 rounded-full px-1.5 py-0.5 leading-none font-bold",
+                  isActive ? activeBadge : TAB_INACTIVE_BADGE
+                )}
+              >
                 {tab.badge}
               </span>
             )}

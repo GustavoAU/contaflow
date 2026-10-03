@@ -16,9 +16,9 @@ vi.mock("@/lib/ratelimit", () => ({
   redis: null,
 }));
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_c: unknown, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_c: unknown, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)),
 }));
 vi.mock("@/lib/module-access", () => ({
   hasModuleAccess: vi.fn().mockResolvedValue(true),

@@ -16,20 +16,20 @@ import type { ManagedClient } from "@prisma/client";
 function StatusBadge({ status }: { status: ManagedClient["status"] }) {
   if (status === "ACTIVE")
     return (
-      <Badge variant="outline" className="text-emerald-700 border-emerald-300 gap-1">
+      <Badge variant="outline" className="gap-1 border-emerald-300 text-emerald-700">
         <CheckCircle2Icon className="h-3 w-3" aria-hidden="true" />
         Activo
       </Badge>
     );
   if (status === "SUSPENDED")
     return (
-      <Badge variant="outline" className="text-amber-700 border-amber-300 gap-1">
+      <Badge variant="outline" className="gap-1 border-amber-300 text-amber-700">
         <PauseCircleIcon className="h-3 w-3" aria-hidden="true" />
         Suspendido
       </Badge>
     );
   return (
-    <Badge variant="outline" className="text-gray-500 border-gray-300 gap-1">
+    <Badge variant="outline" className="gap-1 border-gray-300 text-gray-500">
       <XCircleIcon className="h-3 w-3" aria-hidden="true" />
       Archivado
     </Badge>
@@ -38,7 +38,13 @@ function StatusBadge({ status }: { status: ManagedClient["status"] }) {
 
 // ─── Archive button ───────────────────────────────────────────────────────────
 
-function ArchiveButton({ companyId, managedClientId }: { companyId: string; managedClientId: string }) {
+function ArchiveButton({
+  companyId,
+  managedClientId,
+}: {
+  companyId: string;
+  managedClientId: string;
+}) {
   const [isPending, startTransition] = useTransition();
 
   function handleArchive() {
@@ -84,9 +90,7 @@ export function DespachoRifList({ companyId, clients, currentCount, limit }: Pro
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            RIFs gestionados
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">RIFs gestionados</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {limit === null
               ? `${currentCount} clientes registrados`
@@ -107,33 +111,57 @@ export function DespachoRifList({ companyId, clients, currentCount, limit }: Pro
           <table className="stack-card-table min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase dark:text-gray-400"
+                >
                   RIF
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase dark:text-gray-400"
+                >
                   Razón Social
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase dark:text-gray-400"
+                >
                   CIIU
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase dark:text-gray-400"
+                >
                   Estado
                 </th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-gray-600 uppercase dark:text-gray-400"
+                >
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+            <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
               {clients.map((client) => (
                 <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td data-label="RIF" className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-white">
+                  <td
+                    data-label="RIF"
+                    className="px-4 py-3 font-mono text-sm text-gray-900 dark:text-white"
+                  >
                     {client.rif}
                   </td>
-                  <td data-label="Razón Social" className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                  <td
+                    data-label="Razón Social"
+                    className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300"
+                  >
                     {client.clientName}
                   </td>
-                  <td data-label="CIIU" className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                  <td
+                    data-label="CIIU"
+                    className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400"
+                  >
                     {client.ciiu ?? "—"}
                   </td>
                   <td data-label="Estado" className="px-4 py-3">

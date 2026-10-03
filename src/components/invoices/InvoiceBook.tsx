@@ -47,7 +47,13 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
-export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", activePeriodMonth, activePeriodYear }: Props) {
+export function InvoiceBook({
+  companyId,
+  companyName,
+  defaultType = "PURCHASE",
+  activePeriodMonth,
+  activePeriodYear,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isPendingPDF, startTransitionPDF] = useTransition();
@@ -59,7 +65,8 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
   // H-004: modo rango de fechas para fiscalizaciones multimensuales
   const [filterMode, setFilterMode] = useState<"period" | "range">("period");
   const [rangeStart, setRangeStart] = useState(() => {
-    const d = new Date(); d.setDate(1);
+    const d = new Date();
+    d.setDate(1);
     return toLocalISODate(d);
   });
   const [rangeEnd, setRangeEnd] = useState(() => todayLocalISO());
@@ -69,9 +76,10 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
 
   useEffect(() => {
     startTransition(async () => {
-      const filter = filterMode === "range"
-        ? { companyId, type, startDate: rangeStart, endDate: rangeEnd }
-        : { companyId, type, year, month };
+      const filter =
+        filterMode === "range"
+          ? { companyId, type, startDate: rangeStart, endDate: rangeEnd }
+          : { companyId, type, year, month };
       const res = await getInvoiceBookAction(filter);
       if (res.success) setResult(res.data);
       else toast.error(res.error);
@@ -95,7 +103,7 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
             rate: tl.rate,
             amount: tl.amount,
           })),
-        }),
+        })
       );
       router.push(`/company/${companyId}/invoices/new`);
     } catch {
@@ -164,7 +172,10 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                   <button
                     key={t}
                     type="button"
-                    onClick={() => { setType(t); setResult(null); }}
+                    onClick={() => {
+                      setType(t);
+                      setResult(null);
+                    }}
                     className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                       type === t ? "bg-blue-600 text-white" : "text-zinc-600 hover:bg-zinc-100"
                     }`}
@@ -183,9 +194,14 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                   <button
                     key={m}
                     type="button"
-                    onClick={() => { setFilterMode(m); setResult(null); }}
+                    onClick={() => {
+                      setFilterMode(m);
+                      setResult(null);
+                    }}
                     className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                      filterMode === m ? "bg-zinc-800 text-white" : "text-zinc-600 hover:bg-zinc-100"
+                      filterMode === m
+                        ? "bg-zinc-800 text-white"
+                        : "text-zinc-600 hover:bg-zinc-100"
                     }`}
                   >
                     {m === "period" ? "Período" : "Rango"}
@@ -204,7 +220,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                     className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     {MONTHS.map((m, i) => (
-                      <option key={i + 1} value={i + 1}>{m}</option>
+                      <option key={i + 1} value={i + 1}>
+                        {m}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -218,7 +236,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
                   >
                     {/* COT Art. 55-56: fiscalizaciones hasta 4 años retroactivos */}
                     {Array.from({ length: 6 }, (_, i) => currentYear - 4 + i).map((y) => (
-                      <option key={y} value={y}>{y}</option>
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -249,8 +269,14 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
             )}
 
             {/* Loading indicator */}
-            <div className="flex h-9 w-9 items-center justify-center" aria-live="polite" aria-label={isPending ? "Cargando datos…" : undefined}>
-              {isPending && <Loader2Icon className="h-4 w-4 animate-spin text-zinc-400" aria-hidden />}
+            <div
+              className="flex h-9 w-9 items-center justify-center"
+              aria-live="polite"
+              aria-label={isPending ? "Cargando datos…" : undefined}
+            >
+              {isPending && (
+                <Loader2Icon className="h-4 w-4 animate-spin text-zinc-400" aria-hidden />
+              )}
             </div>
 
             <Button
@@ -325,7 +351,9 @@ export function InvoiceBook({ companyId, companyName, defaultType = "PURCHASE", 
 
         {/* Tabla */}
         {result && (
-          <div className={`rounded-lg border bg-white transition-opacity ${isPending ? "pointer-events-none opacity-60" : ""}`}>
+          <div
+            className={`rounded-lg border bg-white transition-opacity ${isPending ? "pointer-events-none opacity-60" : ""}`}
+          >
             <div className="border-b px-6 py-4">
               <h2 className="font-semibold">{bookTitle}</h2>
               <p className="text-sm text-zinc-500">

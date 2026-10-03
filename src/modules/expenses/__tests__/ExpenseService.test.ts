@@ -21,7 +21,8 @@ vi.mock("@/lib/prisma", () => ({
         // cuentas pedidas existen y son de esta empresa.
         account: {
           findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-            where.id.in.map((id) => ({ id }))),
+            where.id.in.map((id) => ({ id }))
+          ),
         },
       })
     ),
@@ -107,12 +108,8 @@ const makeCreateInput = (overrides = {}) => ({
 function fakeFindFirst(rows: Array<Record<string, unknown>>) {
   return vi.fn(async (args?: { where?: Record<string, unknown> }) => {
     const where = args?.where ?? {};
-    const scalar = Object.entries(where).filter(
-      ([, v]) => v === null || typeof v !== "object"
-    );
-    return (
-      rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null
-    );
+    const scalar = Object.entries(where).filter(([, v]) => v === null || typeof v !== "object");
+    return rows.find((row) => scalar.every(([k, v]) => row[k] === v)) ?? null;
   });
 }
 
@@ -123,7 +120,10 @@ describe("seedExpenseCategories", () => {
       expenseCategory: { createMany: vi.fn().mockResolvedValue({ count: 9 }) },
     };
 
-    await seedExpenseCategories("company-1", txMock as unknown as Parameters<typeof seedExpenseCategories>[1]);
+    await seedExpenseCategories(
+      "company-1",
+      txMock as unknown as Parameters<typeof seedExpenseCategories>[1]
+    );
 
     expect(txMock.expenseCategory.createMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
@@ -236,10 +236,8 @@ describe("createExpense — idempotencia acotada a companyId (regresión IDOR)",
       idempotencyKey: SHARED_KEY,
     });
     const txCreate = vi.fn().mockResolvedValue(ownExpense);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      (async (fn: (tx: unknown) => unknown) =>
-        fn({ expense: { create: txCreate }, auditLog: { create: vi.fn() } })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation((async (fn: (tx: unknown) => unknown) =>
+      fn({ expense: { create: txCreate }, auditLog: { create: vi.fn() } })) as never);
 
     const result = await createExpense(
       makeCreateInput({ companyId: ATTACKER_COMPANY, idempotencyKey: SHARED_KEY }),
@@ -259,13 +257,13 @@ describe("createExpense — idempotencia acotada a companyId (regresión IDOR)",
   });
 
   it("el where del lookup de idempotencia lleva companyId además de la clave", async () => {
-    vi.mocked(prisma.$transaction).mockImplementation(
-      (async (fn: (tx: unknown) => unknown) =>
-        fn({
-          expense: { create: vi.fn().mockResolvedValue(makeDbExpense({ companyId: ATTACKER_COMPANY })) },
-          auditLog: { create: vi.fn() },
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation((async (fn: (tx: unknown) => unknown) =>
+      fn({
+        expense: {
+          create: vi.fn().mockResolvedValue(makeDbExpense({ companyId: ATTACKER_COMPANY })),
+        },
+        auditLog: { create: vi.fn() },
+      })) as never);
 
     await createExpense(
       makeCreateInput({ companyId: ATTACKER_COMPANY, idempotencyKey: SHARED_KEY }),
@@ -301,9 +299,7 @@ describe("confirmExpense", () => {
     const txFn = vi.fn(async (fn: (tx: unknown) => unknown) => {
       const tx = {
         expense: {
-          update: vi.fn().mockResolvedValue(
-            makeDbExpense({ status: "CONFIRMED" })
-          ),
+          update: vi.fn().mockResolvedValue(makeDbExpense({ status: "CONFIRMED" })),
         },
         auditLog: { create: vi.fn() },
       };
@@ -333,8 +329,8 @@ describe("confirmExpense", () => {
     await expect(
       confirmExpense(
         { expenseId: "expense-1", companyId: "company-1", expenseAccountId: "acc-ajena" },
-        "user-1",
-      ),
+        "user-1"
+      )
     ).rejects.toThrow(/no existe o no pertenece/);
   });
 
@@ -389,10 +385,7 @@ describe("voidExpense", () => {
     );
 
     await expect(
-      voidExpense(
-        { expenseId: "expense-1", companyId: "company-1", reason: "test" },
-        "user-1"
-      )
+      voidExpense({ expenseId: "expense-1", companyId: "company-1", reason: "test" }, "user-1")
     ).rejects.toThrow("ya está anulado");
   });
 });
@@ -506,7 +499,10 @@ describe("createExpense — recuperación TOCTOU del P2002 de idempotencia", () 
   it("el findFirst de recuperación va acotado por companyId (ADR-004)", async () => {
     raceThenThrow(winner, p2002(IDEMPOTENCY_TARGET));
 
-    await createExpense(makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }), "user-perdedor");
+    await createExpense(
+      makeCreateInput({ companyId: COMPANY, idempotencyKey: KEY }),
+      "user-perdedor"
+    );
 
     const recoveryWhere = vi.mocked(prisma.expense.findFirst).mock.calls[1]![0]!.where!;
     expect(recoveryWhere).toEqual({ idempotencyKey: KEY, companyId: COMPANY });

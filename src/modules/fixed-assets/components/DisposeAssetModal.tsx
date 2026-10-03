@@ -27,23 +27,23 @@ export type AccountOption = { id: string; code: string; name: string; type: stri
 
 /** Versión serializada de FixedAssetSummary (Decimal → string) */
 export type AssetInfo = {
-  id:                     string;
-  name:                   string;
-  acquisitionDate:        string;  // ISO string — necesario para Art. 66 LIVA
-  acquisitionCost:        string;
+  id: string;
+  name: string;
+  acquisitionDate: string; // ISO string — necesario para Art. 66 LIVA
+  acquisitionCost: string;
   accumulatedDepreciation: string;
-  bookValue:              string;
+  bookValue: string;
 };
 
 type Props = {
-  asset:          AssetInfo;
-  companyId:      string;
-  accounts:       AccountOption[];
+  asset: AssetInfo;
+  companyId: string;
+  accounts: AccountOption[];
   /** FA-3: Cuenta IVA Débito Fiscal configurada en CompanySettings (Art. 3 LIVA — venta) */
   ivaDFAccountId: string | null;
   /** Art. 66: Cuenta IVA Crédito Fiscal (ASSET) — HABER del reintegro por baja anticipada */
   ivaCFAccountId: string | null;
-  onClose:        () => void;
+  onClose: () => void;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,54 +63,61 @@ const REASON_OPTS = Object.entries(DISPOSAL_REASONS).map(([value, label]) => ({
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, ivaCFAccountId, onClose }: Props) {
-  const [reason,         setReason]   = useState<DisposalReason>("OBSOLETE");
-  const [disposalDate,   setDate]     = useState(todayISO);
-  const [proceeds,       setProceeds] = useState("0");
-  const [proceedsAccId,  setProAcc]   = useState("");
-  const [glAccId,        setGlAccId]  = useState("");
-  const [notes,          setNotes]    = useState("");
-  const [applyIva,       setApplyIva] = useState(false);
-  const [applyArt66,     setApplyArt66] = useState(true);   // opt-in por defecto cuando aplica
-  const [art66ExpAccId,  setArt66ExpAccId] = useState("");
-  const [formError,      setFormError] = useState<string | null>(null);
-  const [isPending,      startT]      = useTransition();
+export function DisposeAssetModal({
+  asset,
+  companyId,
+  accounts,
+  ivaDFAccountId,
+  ivaCFAccountId,
+  onClose,
+}: Props) {
+  const [reason, setReason] = useState<DisposalReason>("OBSOLETE");
+  const [disposalDate, setDate] = useState(todayISO);
+  const [proceeds, setProceeds] = useState("0");
+  const [proceedsAccId, setProAcc] = useState("");
+  const [glAccId, setGlAccId] = useState("");
+  const [notes, setNotes] = useState("");
+  const [applyIva, setApplyIva] = useState(false);
+  const [applyArt66, setApplyArt66] = useState(true); // opt-in por defecto cuando aplica
+  const [art66ExpAccId, setArt66ExpAccId] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isPending, startT] = useTransition();
 
   // ── Filtros de cuentas ────────────────────────────────────────────────────
-  const assetAccounts  = accounts.filter((a) => a.type === "ASSET");
-  const glAccounts     = accounts.filter((a) => a.type === "EXPENSE" || a.type === "REVENUE");
+  const assetAccounts = accounts.filter((a) => a.type === "ASSET");
+  const glAccounts = accounts.filter((a) => a.type === "EXPENSE" || a.type === "REVENUE");
 
   // ── Cálculo en tiempo real ────────────────────────────────────────────────
   // R-5: Decimal.js — mismas fórmulas y redondeo que el server (disposal-preview.ts)
-  const cost       = parseMoney(asset.acquisitionCost);
-  const accDep     = parseMoney(asset.accumulatedDepreciation);
-  const bookVal    = parseMoney(asset.bookValue);
-  const procNum    = reason === "SALE" ? parseMoney(proceeds) : ZERO;
-  const gainLoss   = procNum.minus(bookVal);     // + ganancia, − pérdida (sobre precio neto s/IVA)
-  const isGain     = gainLoss.greaterThan("0.01");
-  const isLoss     = gainLoss.lessThan("-0.01");
+  const cost = parseMoney(asset.acquisitionCost);
+  const accDep = parseMoney(asset.accumulatedDepreciation);
+  const bookVal = parseMoney(asset.bookValue);
+  const procNum = reason === "SALE" ? parseMoney(proceeds) : ZERO;
+  const gainLoss = procNum.minus(bookVal); // + ganancia, − pérdida (sobre precio neto s/IVA)
+  const isGain = gainLoss.greaterThan("0.01");
+  const isLoss = gainLoss.lessThan("-0.01");
   const hasGainLoss = isGain || isLoss;
 
   // FA-3: IVA en venta de activo (Art. 3 LIVA) — solo si hay precio y cuenta DF configurada
-  const canApplyIva     = reason === "SALE" && procNum.greaterThan("0.001") && ivaDFAccountId !== null;
-  const effectiveIva    = applyIva && canApplyIva;
-  const ivaAmount       = effectiveIva ? calcSaleIva(procNum) : ZERO;
+  const canApplyIva = reason === "SALE" && procNum.greaterThan("0.001") && ivaDFAccountId !== null;
+  const effectiveIva = applyIva && canApplyIva;
+  const ivaAmount = effectiveIva ? calcSaleIva(procNum) : ZERO;
   const totalReceivable = procNum.plus(ivaAmount);
 
   // Art. 66 LIVA — Reintegro IVA Crédito Fiscal por baja anticipada (< 36 meses)
   // Aplica a CUALQUIER tipo de baja (incluyendo venta) si el activo tiene < 36 meses de uso
-  const acqDate     = new Date(asset.acquisitionDate);
-  const dispDate    = new Date(disposalDate + "T12:00:00");
-  const monthsUsed  = monthsBetween(acqDate, dispDate);
-  const canApplyArt66      = monthsUsed < ART66_MONTHS && ivaCFAccountId !== null;
-  const art66FractionPct   = canApplyArt66
-    ? ((ART66_MONTHS - monthsUsed) / ART66_MONTHS * 100).toFixed(1)
+  const acqDate = new Date(asset.acquisitionDate);
+  const dispDate = new Date(disposalDate + "T12:00:00");
+  const monthsUsed = monthsBetween(acqDate, dispDate);
+  const canApplyArt66 = monthsUsed < ART66_MONTHS && ivaCFAccountId !== null;
+  const art66FractionPct = canApplyArt66
+    ? (((ART66_MONTHS - monthsUsed) / ART66_MONTHS) * 100).toFixed(1)
     : "0.0";
-  const art66ReintegroAmt  = canApplyArt66 ? calcArt66Reintegro(cost, monthsUsed) : ZERO;
-  const effectiveArt66     = applyArt66 && canApplyArt66 && art66ReintegroAmt.greaterThan("0.001");
+  const art66ReintegroAmt = canApplyArt66 ? calcArt66Reintegro(cost, monthsUsed) : ZERO;
+  const effectiveArt66 = applyArt66 && canApplyArt66 && art66ReintegroAmt.greaterThan("0.001");
 
   // DEBE/HABER totales para el preview (con IVA: banco recibe proceeds+iva; HABER incluye IVA DF)
-  const debeTotal  = (accDep.greaterThan("0.001") ? accDep : ZERO)
+  const debeTotal = (accDep.greaterThan("0.001") ? accDep : ZERO)
     .plus(totalReceivable.greaterThan("0.001") ? totalReceivable : ZERO)
     .plus(isLoss ? gainLoss.abs() : ZERO)
     .plus(effectiveArt66 ? art66ReintegroAmt : ZERO);
@@ -147,24 +154,27 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
   function handleSubmit(e: React.FormEvent | React.MouseEvent) {
     e.preventDefault();
     const err = validate();
-    if (err) { setFormError(err); return; }
+    if (err) {
+      setFormError(err);
+      return;
+    }
     setFormError(null);
 
     startT(async () => {
       const r = await disposeFixedAssetAction({
-        assetId:           asset.id,
+        assetId: asset.id,
         companyId,
         reason,
-        disposalDate:      new Date(disposalDate + "T12:00:00"),
-        saleProceeds:      procNum.toFixed(2),
+        disposalDate: new Date(disposalDate + "T12:00:00"),
+        saleProceeds: procNum.toFixed(2),
         proceedsAccountId: proceedsAccId || null,
         gainLossAccountId: glAccId || null,
-        notes:             notes || null,
-        applyIva:          effectiveIva,
-        ivaDFAccountId:    effectiveIva ? ivaDFAccountId : null,
-        applyArt66:            effectiveArt66,
+        notes: notes || null,
+        applyIva: effectiveIva,
+        ivaDFAccountId: effectiveIva ? ivaDFAccountId : null,
+        applyArt66: effectiveArt66,
         art66ExpenseAccountId: effectiveArt66 ? art66ExpAccId : null,
-        ivaCFAccountId:        effectiveArt66 ? ivaCFAccountId : null,
+        ivaCFAccountId: effectiveArt66 ? ivaCFAccountId : null,
       });
       if (r.success) {
         toast.success(`"${asset.name}" dado de baja correctamente.`);
@@ -176,26 +186,26 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
   }
 
   // ── Estilos ────────────────────────────────────────────────────────────────
-  const fc = "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400";
+  const fc =
+    "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400";
   const lc = "block text-xs font-medium text-gray-600 mb-1";
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
-
+      <div className="flex max-h-[92vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-2xl">
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between px-6 py-4 border-b shrink-0">
+        <div className="flex shrink-0 items-start justify-between border-b px-6 py-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Dar de baja activo</h2>
-            <p className="text-sm text-gray-500 mt-0.5 truncate max-w-xs" title={asset.name}>
+            <p className="mt-0.5 max-w-xs truncate text-sm text-gray-500" title={asset.name}>
               {asset.name}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none ml-4 shrink-0"
+            className="ml-4 shrink-0 text-2xl leading-none text-gray-400 hover:text-gray-600"
             aria-label="Cerrar"
           >
             ×
@@ -203,24 +213,27 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
         </div>
 
         {/* ── Cuerpo (scrollable) ─────────────────────────────────────────── */}
-        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
-
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
           {/* Resumen del activo */}
           <div className="grid grid-cols-3 gap-2 rounded-lg border bg-gray-50 p-3 text-center">
             <div>
-              <p className="text-10 font-medium text-gray-400 uppercase tracking-wide">Costo Bs.</p>
+              <p className="text-10 font-medium tracking-wide text-gray-400 uppercase">Costo Bs.</p>
               <p className="font-mono text-sm font-semibold text-gray-800 tabular-nums">
                 {formatAmount(asset.acquisitionCost)}
               </p>
             </div>
             <div>
-              <p className="text-10 font-medium text-gray-400 uppercase tracking-wide">Dep. Acum.</p>
+              <p className="text-10 font-medium tracking-wide text-gray-400 uppercase">
+                Dep. Acum.
+              </p>
               <p className="font-mono text-sm font-semibold text-orange-700 tabular-nums">
                 {formatAmount(asset.accumulatedDepreciation)}
               </p>
             </div>
             <div>
-              <p className="text-10 font-medium text-gray-400 uppercase tracking-wide">Valor Libros</p>
+              <p className="text-10 font-medium tracking-wide text-gray-400 uppercase">
+                Valor Libros
+              </p>
               <p className="font-mono text-sm font-bold text-gray-900 tabular-nums">
                 {formatAmount(asset.bookValue)}
               </p>
@@ -229,7 +242,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
 
           {/* Error */}
           {formError && (
-            <p className="rounded bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {formError}
             </p>
           )}
@@ -239,11 +252,16 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
             <label className={lc}>Motivo de baja *</label>
             <select
               value={reason}
-              onChange={(e) => { setReason(e.target.value as DisposalReason); setProceeds("0"); }}
+              onChange={(e) => {
+                setReason(e.target.value as DisposalReason);
+                setProceeds("0");
+              }}
               className={fc}
             >
               {REASON_OPTS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -265,7 +283,9 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
             <div>
               <label className={lc}>Precio de venta (Bs.)</label>
               <input
-                type="number" step="0.01" min="0"
+                type="number"
+                step="0.01"
+                min="0"
                 value={proceeds}
                 onChange={(e) => setProceeds(e.target.value)}
                 className={fc}
@@ -285,12 +305,16 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                 className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-emerald-600"
               />
               <div>
-                <label htmlFor="apply-iva-fa3" className="text-sm font-medium text-gray-800 cursor-pointer">
+                <label
+                  htmlFor="apply-iva-fa3"
+                  className="cursor-pointer text-sm font-medium text-gray-800"
+                >
                   Aplicar IVA 16% sobre precio de venta (Art. 3 LIVA)
                 </label>
                 {effectiveIva && (
-                  <p className="text-xs text-emerald-700 mt-0.5">
-                    IVA Débito Fiscal: Bs. {fmt(ivaAmount)} · Total a cobrar: Bs. {fmt(totalReceivable)}
+                  <p className="mt-0.5 text-xs text-emerald-700">
+                    IVA Débito Fiscal: Bs. {fmt(ivaAmount)} · Total a cobrar: Bs.{" "}
+                    {fmt(totalReceivable)}
                   </p>
                 )}
               </div>
@@ -299,7 +323,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
 
           {/* Art. 66 LIVA — Reintegro IVA Crédito Fiscal (baja anticipada < 36 meses) */}
           {canApplyArt66 && (
-            <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 space-y-2">
+            <div className="space-y-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3">
               <div className="flex items-start gap-2">
                 <input
                   type="checkbox"
@@ -309,16 +333,21 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                   className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-violet-600"
                 />
                 <div className="flex-1">
-                  <label htmlFor="apply-art66" className="text-sm font-medium text-gray-900 cursor-pointer">
+                  <label
+                    htmlFor="apply-art66"
+                    className="cursor-pointer text-sm font-medium text-gray-900"
+                  >
                     Reintegrar IVA Crédito Fiscal (Art. 66 LIVA)
                   </label>
-                  <p className="text-xs text-violet-700 mt-0.5">
-                    El activo tiene <strong>{monthsUsed}</strong> mes{monthsUsed !== 1 ? "es" : ""} de uso (menos de 36).
-                    Se debe reintegrar {art66FractionPct}% del IVA crédito original:
-                    {" "}<strong>Bs. {fmt(art66ReintegroAmt)}</strong>
+                  <p className="mt-0.5 text-xs text-violet-700">
+                    El activo tiene <strong>{monthsUsed}</strong> mes{monthsUsed !== 1 ? "es" : ""}{" "}
+                    de uso (menos de 36). Se debe reintegrar {art66FractionPct}% del IVA crédito
+                    original: <strong>Bs. {fmt(art66ReintegroAmt)}</strong>
                   </p>
-                  <p className="text-xs text-violet-500 mt-0.5">
-                    Cálculo: {"{"}costo Bs. {fmt(cost)} × 16% × ({ART66_MONTHS} − {monthsUsed})/{ART66_MONTHS}{"}"}
+                  <p className="mt-0.5 text-xs text-violet-500">
+                    Cálculo: {"{"}costo Bs. {fmt(cost)} × 16% × ({ART66_MONTHS} − {monthsUsed})/
+                    {ART66_MONTHS}
+                    {"}"}
                   </p>
                 </div>
               </div>
@@ -331,11 +360,15 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                     className={fc}
                   >
                     <option value="">Seleccionar cuenta EXPENSE…</option>
-                    {glAccounts.filter((a) => a.type === "EXPENSE").map((a) => (
-                      <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-                    ))}
+                    {glAccounts
+                      .filter((a) => a.type === "EXPENSE")
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.code} — {a.name}
+                        </option>
+                      ))}
                   </select>
-                  <p className="mt-1 text-11 text-zinc-400">
+                  <p className="text-11 mt-1 text-zinc-400">
                     Tipo EXPENSE — el monto reintegrado se cargará como gasto del período.
                   </p>
                 </div>
@@ -354,10 +387,12 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
               >
                 <option value="">Seleccionar cuenta ASSET…</option>
                 {assetAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
                 ))}
               </select>
-              <p className="mt-1 text-11 text-zinc-400">
+              <p className="text-11 mt-1 text-zinc-400">
                 Cuenta donde se recibirá el dinero o se registra la CxC del comprador.
               </p>
             </div>
@@ -377,7 +412,7 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-11 text-zinc-400">
+              <p className="text-11 mt-1 text-zinc-400">
                 {isGain
                   ? "Tipo REVENUE — ingreso por venta sobre el valor en libros."
                   : "Tipo EXPENSE — pérdida por baja o venta bajo valor en libros."}
@@ -386,16 +421,22 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
           )}
 
           {/* ── Vista previa del asiento ──────────────────────────────────── */}
-          <div className={`rounded-lg border p-3 ${isBalanced ? "border-blue-100 bg-blue-50" : "border-amber-200 bg-amber-50"}`}>
-            <p className={`text-10 font-bold uppercase tracking-wide mb-2 ${isBalanced ? "text-blue-600" : "text-amber-700"}`}>
+          <div
+            className={`rounded-lg border p-3 ${isBalanced ? "border-blue-100 bg-blue-50" : "border-amber-200 bg-amber-50"}`}
+          >
+            <p
+              className={`text-10 mb-2 font-bold tracking-wide uppercase ${isBalanced ? "text-blue-600" : "text-amber-700"}`}
+            >
               Vista previa del asiento
             </p>
-            <table className="w-full text-xs font-mono">
+            <table className="w-full font-mono text-xs">
               <thead>
-                <tr className={`text-10 uppercase ${isBalanced ? "text-blue-500" : "text-amber-600"}`}>
-                  <th className="text-left font-medium py-0.5">Concepto</th>
-                  <th className="text-right font-medium py-0.5 w-28">Debe</th>
-                  <th className="text-right font-medium py-0.5 w-28">Haber</th>
+                <tr
+                  className={`text-10 uppercase ${isBalanced ? "text-blue-500" : "text-amber-600"}`}
+                >
+                  <th className="py-0.5 text-left font-medium">Concepto</th>
+                  <th className="w-28 py-0.5 text-right font-medium">Debe</th>
+                  <th className="w-28 py-0.5 text-right font-medium">Haber</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-blue-100">
@@ -411,7 +452,9 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                     <td className="py-1 text-gray-600">
                       Banco / CxC (cobro){effectiveIva ? " + IVA" : ""}
                     </td>
-                    <td className="py-1 text-right text-gray-900 tabular-nums">{fmt(totalReceivable)}</td>
+                    <td className="py-1 text-right text-gray-900 tabular-nums">
+                      {fmt(totalReceivable)}
+                    </td>
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
@@ -419,20 +462,26 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                   <tr>
                     <td className="py-1 text-emerald-700">IVA Débito Fiscal (16%)</td>
                     <td className="py-1 text-right text-gray-400">—</td>
-                    <td className="py-1 text-right text-emerald-700 tabular-nums">{fmt(ivaAmount)}</td>
+                    <td className="py-1 text-right text-emerald-700 tabular-nums">
+                      {fmt(ivaAmount)}
+                    </td>
                   </tr>
                 )}
                 {isLoss && (
                   <tr>
                     <td className="py-1 text-red-600">Pérdida en baja</td>
-                    <td className="py-1 text-right text-red-700 tabular-nums">{fmt(gainLoss.abs())}</td>
+                    <td className="py-1 text-right text-red-700 tabular-nums">
+                      {fmt(gainLoss.abs())}
+                    </td>
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
                 {effectiveArt66 && (
                   <tr>
                     <td className="py-1 text-violet-700">Gasto IVA reintegrado (Art. 66)</td>
-                    <td className="py-1 text-right text-violet-800 tabular-nums">{fmt(art66ReintegroAmt)}</td>
+                    <td className="py-1 text-right text-violet-800 tabular-nums">
+                      {fmt(art66ReintegroAmt)}
+                    </td>
                     <td className="py-1 text-right text-gray-400">—</td>
                   </tr>
                 )}
@@ -445,26 +494,34 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
                   <tr>
                     <td className="py-1 text-emerald-600">Ganancia en venta</td>
                     <td className="py-1 text-right text-gray-400">—</td>
-                    <td className="py-1 text-right text-emerald-700 tabular-nums">{fmt(gainLoss)}</td>
+                    <td className="py-1 text-right text-emerald-700 tabular-nums">
+                      {fmt(gainLoss)}
+                    </td>
                   </tr>
                 )}
                 {effectiveArt66 && (
                   <tr>
-                    <td className="py-1 text-violet-700">IVA Crédito Fiscal reintegrado (Art. 66)</td>
+                    <td className="py-1 text-violet-700">
+                      IVA Crédito Fiscal reintegrado (Art. 66)
+                    </td>
                     <td className="py-1 text-right text-gray-400">—</td>
-                    <td className="py-1 text-right text-violet-800 tabular-nums">{fmt(art66ReintegroAmt)}</td>
+                    <td className="py-1 text-right text-violet-800 tabular-nums">
+                      {fmt(art66ReintegroAmt)}
+                    </td>
                   </tr>
                 )}
               </tbody>
               <tfoot>
-                <tr className={`border-t-2 font-bold text-10 ${isBalanced ? "border-blue-200 text-blue-800" : "border-amber-300 text-amber-800"}`}>
+                <tr
+                  className={`text-10 border-t-2 font-bold ${isBalanced ? "border-blue-200 text-blue-800" : "border-amber-300 text-amber-800"}`}
+                >
                   <td className="pt-1.5">Total</td>
                   <td className="pt-1.5 text-right tabular-nums">{fmt(debeTotal)}</td>
                   <td className="pt-1.5 text-right tabular-nums">{fmt(haberTotal)}</td>
                 </tr>
                 {!isBalanced && (
                   <tr>
-                    <td colSpan={3} className="pt-1 text-xs text-amber-700 font-normal">
+                    <td colSpan={3} className="pt-1 text-xs font-normal text-amber-700">
                       ⚠ Asiento descuadrado — completa los campos requeridos arriba.
                     </td>
                   </tr>
@@ -476,16 +533,18 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
           {/* FA-3: Advertencia Libro de Ventas */}
           {effectiveIva && (
             <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              ⚠ Esta venta generará IVA Débito Fiscal que <strong>debe aparecer en el Libro de Ventas</strong>{" "}
-              del período. Verifíquelo en el módulo de Declaraciones antes de cerrar el mes.
+              ⚠ Esta venta generará IVA Débito Fiscal que{" "}
+              <strong>debe aparecer en el Libro de Ventas</strong> del período. Verifíquelo en el
+              módulo de Declaraciones antes de cerrar el mes.
             </div>
           )}
 
           {/* Art. 66 LIVA — Nota declaración */}
           {effectiveArt66 && (
             <div className="rounded border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
-              ⚠ El reintegro de IVA Crédito Fiscal (Art. 66 LIVA) <strong>debe reflejarse en la declaración de IVA</strong>{" "}
-              del período como ajuste a los créditos fiscales del mes.
+              ⚠ El reintegro de IVA Crédito Fiscal (Art. 66 LIVA){" "}
+              <strong>debe reflejarse en la declaración de IVA</strong> del período como ajuste a
+              los créditos fiscales del mes.
             </div>
           )}
 
@@ -504,11 +563,11 @@ export function DisposeAssetModal({ asset, companyId, accounts, ivaDFAccountId, 
         </div>
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <div className="px-6 py-3 border-t shrink-0 flex items-center justify-between gap-3">
-          <p className="text-11 text-zinc-400 leading-snug">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t px-6 py-3">
+          <p className="text-11 leading-snug text-zinc-400">
             Esta acción genera un asiento irreversible en el Libro Diario.
           </p>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex shrink-0 gap-2">
             <button
               type="button"
               onClick={onClose}

@@ -19,10 +19,19 @@ interface Props {
 }
 
 const MONTHS_ES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
-
 
 function periodToRange(year: number, month: number) {
   const mm = String(month).padStart(2, "0");
@@ -141,19 +150,18 @@ export function DateRangeFilter({ defaultFrom = "", defaultTo = "", periods = []
       {/* Selector de período contable */}
       {periods.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 border-b pb-3">
-          <label className="whitespace-nowrap text-xs font-medium text-zinc-500">
+          <label className="text-xs font-medium whitespace-nowrap text-zinc-500">
             Período contable
           </label>
           <select
             value={activePeriodValue}
             onChange={(e) => applyPeriod(e.target.value)}
-            className="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
           >
             <option value="">— Todos los períodos —</option>
             {periods.map((p) => (
               <option key={`${p.year}-${p.month}`} value={`${p.year}-${p.month}`}>
-                {MONTHS_ES[p.month - 1]} {p.year}{" "}
-                ({p.status === "OPEN" ? "Abierto" : "Cerrado"})
+                {MONTHS_ES[p.month - 1]} {p.year} ({p.status === "OPEN" ? "Abierto" : "Cerrado"})
               </option>
             ))}
           </select>
@@ -185,7 +193,7 @@ export function DateRangeFilter({ defaultFrom = "", defaultTo = "", periods = []
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
           />
         </div>
         <div className="space-y-1">
@@ -194,7 +202,7 @@ export function DateRangeFilter({ defaultFrom = "", defaultTo = "", periods = []
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
           />
         </div>
         <button
@@ -204,10 +212,7 @@ export function DateRangeFilter({ defaultFrom = "", defaultTo = "", periods = []
           Filtrar
         </button>
         {hasFilter && (
-          <button
-            onClick={clear}
-            className="text-sm text-zinc-500 underline hover:text-zinc-800"
-          >
+          <button onClick={clear} className="text-sm text-zinc-500 underline hover:text-zinc-800">
             Limpiar filtro
           </button>
         )}

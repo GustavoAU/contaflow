@@ -13,7 +13,6 @@ interface Props {
   defaultPreset?: string;
 }
 
-
 type Preset = { label: string; key: string; range: () => { from: string; to: string } };
 
 const PRESETS: Preset[] = [
@@ -64,7 +63,11 @@ const PRESETS: Preset[] = [
   },
 ];
 
-export function TrialBalanceFilter({ defaultFrom = "", defaultTo = "", defaultPreset = "" }: Props) {
+export function TrialBalanceFilter({
+  defaultFrom = "",
+  defaultTo = "",
+  defaultPreset = "",
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [from, setFrom] = useState(defaultFrom);
@@ -127,7 +130,7 @@ export function TrialBalanceFilter({ defaultFrom = "", defaultTo = "", defaultPr
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
           />
         </div>
         <div className="space-y-1">
@@ -136,7 +139,7 @@ export function TrialBalanceFilter({ defaultFrom = "", defaultTo = "", defaultPr
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
           />
         </div>
         <button

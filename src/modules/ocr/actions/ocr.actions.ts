@@ -22,10 +22,11 @@ import { toActionError } from "../utils/action-errors";
 const Schema = z.object({
   companyId: z.string().min(1, { error: "companyId requerido" }),
   // 14 MB cap (10 MB image + ~33% base64 overhead) — client enforces 10 MB but server must too
-  base64: z.string().min(1, { error: "Imagen requerida" }).max(14_000_000, { error: "La imagen no puede superar 10 MB" }),
-  mimeType: z
-    .enum(["image/jpeg", "image/png", "image/webp"])
-    .catch("image/jpeg"),
+  base64: z
+    .string()
+    .min(1, { error: "Imagen requerida" })
+    .max(14_000_000, { error: "La imagen no puede superar 10 MB" }),
+  mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]).catch("image/jpeg"),
 });
 
 // ─── Server Action ────────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ const Schema = z.object({
 export async function extractInvoiceAction(
   companyId: string,
   base64: string,
-  mimeType: string = "image/jpeg",
+  mimeType: string = "image/jpeg"
 ): Promise<ActionResult<ExtractedInvoice>> {
   // 1. Autenticación + membresía (cualquier rol puede usar OCR) + rate limit
   //    (12/min — margen sobre límite gratuito Gemini 15 RPM) + IP/UA para AuditLog (R-6)
@@ -67,31 +68,32 @@ export async function extractInvoiceAction(
   }
 
   try {
-    const data = await GeminiOCRService.extractFromImage(
-      parsed.data.base64,
-      parsed.data.mimeType,
-    );
+    const data = await GeminiOCRService.extractFromImage(parsed.data.base64, parsed.data.mimeType);
 
     // R-6: Registrar cada escaneo OCR como evento de trazabilidad fiscal.
     // El operador asumió la responsabilidad de confidencialidad (COT Art. 126)
     // al confirmar el aviso de privacidad en la UI antes de enviar la imagen.
-    await prisma.auditLog.create({
-      data: {
-        companyId: parsed.data.companyId,
-        entityName: "OCR",
-        entityId: parsed.data.companyId,
-        action: "OCR_SCAN",
-        userId,
-        ipAddress,
-        userAgent,
-        newValue: {
-          mimeType: parsed.data.mimeType,
-          hasCriticalRisks: (data._fieldRisks ?? []).some(r => r.severity === "critical"),
-          extractedRif: data.rif ?? null,
-          extractedNumeroControl: data.numeroControl ?? null,
+    await prisma.auditLog
+      .create({
+        data: {
+          companyId: parsed.data.companyId,
+          entityName: "OCR",
+          entityId: parsed.data.companyId,
+          action: "OCR_SCAN",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: {
+            mimeType: parsed.data.mimeType,
+            hasCriticalRisks: (data._fieldRisks ?? []).some((r) => r.severity === "critical"),
+            extractedRif: data.rif ?? null,
+            extractedNumeroControl: data.numeroControl ?? null,
+          },
         },
-      },
-    }).catch(() => { /* audit no bloquea si falla */ });
+      })
+      .catch(() => {
+        /* audit no bloquea si falla */
+      });
 
     return { success: true, data };
   } catch (error) {
@@ -112,7 +114,7 @@ const ExportPDFSchema = z.object({
  */
 export async function exportOcrDraftPDFAction(
   companyId: string,
-  extracted: ExtractedInvoice,
+  extracted: ExtractedInvoice
 ): Promise<ActionResult<{ pdf: string; filename: string }>> {
   const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
   if (!ctx.ok) return ctx.error;
@@ -136,13 +138,13 @@ export async function exportOcrDraftPDFAction(
       extractedAt: new Date(),
     });
 
-    const invoiceNum = parsed.data.extracted.numeroFactura
-    const filename = `OCR-Borrador${invoiceNum ? `-${invoiceNum}` : ""}.pdf`
+    const invoiceNum = parsed.data.extracted.numeroFactura;
+    const filename = `OCR-Borrador${invoiceNum ? `-${invoiceNum}` : ""}.pdf`;
 
     return {
       success: true,
       data: { pdf: buffer.toString("base64"), filename },
-    }
+    };
   } catch (error) {
     // No filtrar errores técnicos crudos al cliente (sanitización central).
     return toActionError(error);

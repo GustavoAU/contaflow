@@ -13,7 +13,11 @@ import {
   XIcon,
   Loader2Icon,
 } from "lucide-react";
-import { parseBankStatementAction, runAutoReconciliationAction, confirmSuggestedAction } from "../actions/auto-reconciliation.actions";
+import {
+  parseBankStatementAction,
+  runAutoReconciliationAction,
+  confirmSuggestedAction,
+} from "../actions/auto-reconciliation.actions";
 import type {
   ExtractedBankStatement,
   AutoReconciliationResult,
@@ -27,7 +31,11 @@ type PanelState =
   | { step: "UPLOAD"; error: string | null }
   | { step: "PREVIEW"; extracted: ExtractedBankStatement; balanceError: string | null }
   | { step: "RUNNING" }
-  | { step: "RESULTS"; results: AutoReconciliationResult; pending: Map<string, { matchType: string; matchId: string }> }
+  | {
+      step: "RESULTS";
+      results: AutoReconciliationResult;
+      pending: Map<string, { matchType: string; matchId: string }>;
+    }
   | { step: "CONFIRMED"; confirmed: number };
 
 type PanelAction =
@@ -119,12 +127,17 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
         }
         // Validar balance (openingBalance + credits - debits = closingBalance)
         let balanceError: string | null = null;
-        const ob = parseFloat((result.data.openingBalance ?? "0").replace(/\./g, "").replace(",", "."));
-        const cb = parseFloat((result.data.closingBalance ?? "0").replace(/\./g, "").replace(",", "."));
+        const ob = parseFloat(
+          (result.data.openingBalance ?? "0").replace(/\./g, "").replace(",", ".")
+        );
+        const cb = parseFloat(
+          (result.data.closingBalance ?? "0").replace(/\./g, "").replace(",", ".")
+        );
         if (!isNaN(ob) && !isNaN(cb) && result.data.rows.length > 0) {
           let computed = ob;
           for (const r of result.data.rows) {
-            if (r.credit) computed += parseFloat(r.credit.replace(/\./g, "").replace(",", ".")) || 0;
+            if (r.credit)
+              computed += parseFloat(r.credit.replace(/\./g, "").replace(",", ".")) || 0;
             if (r.debit) computed -= parseFloat(r.debit.replace(/\./g, "").replace(",", ".")) || 0;
           }
           const diff = Math.abs(computed - cb);
@@ -183,7 +196,8 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
         <CheckCircleIcon className="mx-auto mb-3 h-8 w-8 text-green-500" />
         <h3 className="font-semibold text-green-900">Conciliación completada</h3>
         <p className="mt-1 text-sm text-green-700">
-          {state.confirmed} movimiento{state.confirmed !== 1 ? "s" : ""} confirmado{state.confirmed !== 1 ? "s" : ""} correctamente.
+          {state.confirmed} movimiento{state.confirmed !== 1 ? "s" : ""} confirmado
+          {state.confirmed !== 1 ? "s" : ""} correctamente.
         </p>
         <button
           onClick={() => dispatch({ type: "RESET" })}
@@ -216,8 +230,8 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
             <div>
               <h3 className="font-semibold text-amber-900">Conciliación no disponible</h3>
               <p className="mt-1 text-sm text-amber-800">
-                El período seleccionado no tiene transacciones registradas en ContaFlow.
-                Registra los pagos o facturas del período antes de iniciar la conciliación.
+                El período seleccionado no tiene transacciones registradas en ContaFlow. Registra
+                los pagos o facturas del período antes de iniciar la conciliación.
               </p>
               <button
                 onClick={() => dispatch({ type: "RESET" })}
@@ -231,10 +245,11 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
       );
     }
 
-    const filteredSuggested = results.suggested.filter((r) =>
-      searchVal === "" ||
-      r.description.toLowerCase().includes(searchVal.toLowerCase()) ||
-      (r.reference ?? "").toLowerCase().includes(searchVal.toLowerCase())
+    const filteredSuggested = results.suggested.filter(
+      (r) =>
+        searchVal === "" ||
+        r.description.toLowerCase().includes(searchVal.toLowerCase()) ||
+        (r.reference ?? "").toLowerCase().includes(searchVal.toLowerCase())
     );
 
     return (
@@ -246,7 +261,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
             value={searchVal}
             onChange={(e) => setSearchVal(e.target.value)}
             placeholder="Buscar por descripción o referencia..."
-            className="w-full max-w-sm rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full max-w-sm rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
           <span className="text-sm text-zinc-500">{results.totalRows} movimientos analizados</span>
         </div>
@@ -290,14 +305,16 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
         {state.pending.size > 0 && (
           <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
             <p className="text-sm font-medium text-blue-800">
-              {state.pending.size} coincidencia{state.pending.size !== 1 ? "s" : ""} seleccionada{state.pending.size !== 1 ? "s" : ""}
+              {state.pending.size} coincidencia{state.pending.size !== 1 ? "s" : ""} seleccionada
+              {state.pending.size !== 1 ? "s" : ""}
             </p>
             <button
               onClick={handleConfirmAll}
               disabled={isPending}
               className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Confirmando..." : "Confirmar seleccionadas"}
+              {isPending && <Loader2Icon className="size-4 animate-spin" />}
+              {isPending ? "Confirmando..." : "Confirmar seleccionadas"}
             </button>
           </div>
         )}
@@ -337,12 +354,24 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
             <table className="w-full text-xs">
               <thead className="border-b bg-zinc-50 text-left text-zinc-500">
                 <tr>
-                  <th scope="col" className="px-3 py-2">Fecha</th>
-                  <th scope="col" className="px-3 py-2">Descripción</th>
-                  <th scope="col" className="px-3 py-2">Referencia</th>
-                  <th scope="col" className="px-3 py-2 text-right">Débito</th>
-                  <th scope="col" className="px-3 py-2 text-right">Crédito</th>
-                  <th scope="col" className="px-3 py-2 text-right">Saldo</th>
+                  <th scope="col" className="px-3 py-2">
+                    Fecha
+                  </th>
+                  <th scope="col" className="px-3 py-2">
+                    Descripción
+                  </th>
+                  <th scope="col" className="px-3 py-2">
+                    Referencia
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Débito
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Crédito
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Saldo
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -380,7 +409,8 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
               className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
               <CheckCircleIcon className="h-4 w-4" />
-              {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}{isPending ? "Procesando..." : "Iniciar conciliación automática"}
+              {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
+              {isPending ? "Procesando..." : "Iniciar conciliación automática"}
             </button>
             <button
               onClick={() => dispatch({ type: "RESET" })}
@@ -400,7 +430,9 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
     <div className="rounded-lg border bg-white p-6">
       <div className="mb-4 flex items-center gap-2">
         <FileTextIcon className="h-5 w-5 text-zinc-400" />
-        <h3 className="font-medium text-zinc-900">Importar extracto bancario — {bankAccountName}</h3>
+        <h3 className="font-medium text-zinc-900">
+          Importar extracto bancario — {bankAccountName}
+        </h3>
       </div>
 
       <div
@@ -421,7 +453,8 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
           disabled={isPending}
           className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Analizando PDF..." : "Seleccionar PDF"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}
+          {isPending ? "Analizando PDF..." : "Seleccionar PDF"}
         </button>
       </div>
 
@@ -482,9 +515,7 @@ function ResultSection({
           {icon}
           {title}
         </div>
-        <span className="rounded-full bg-white/60 px-2 py-0.5 text-xs font-semibold">
-          {count}
-        </span>
+        <span className="rounded-full bg-white/60 px-2 py-0.5 text-xs font-semibold">{count}</span>
       </button>
 
       {open && (
@@ -509,7 +540,9 @@ function ResultSection({
                       </span>
                       <span className="font-mono text-xs text-zinc-500">{row.date}</span>
                       {row.reference && (
-                        <span className="font-mono text-xs text-zinc-400">ref: {row.reference}</span>
+                        <span className="font-mono text-xs text-zinc-400">
+                          ref: {row.reference}
+                        </span>
                       )}
                     </div>
                     <p className="mt-0.5 truncate text-sm text-zinc-800">{row.description}</p>

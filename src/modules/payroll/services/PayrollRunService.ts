@@ -18,10 +18,7 @@ import * as Sentry from "@sentry/nextjs";
 import { sendEmail } from "@/lib/email";
 import { signEmployeeToken } from "@/lib/employee-portal-jwt";
 import { planLoanInstallments, type SalaryCurrency } from "./EmployeeLoanService";
-import type {
-  PayrollRunStatus,
-  ConceptType,
-} from "@prisma/client";
+import type { PayrollRunStatus, ConceptType } from "@prisma/client";
 import {
   PayrollCalculatorService,
   type EmployeeCalculationInput,
@@ -214,9 +211,7 @@ export const PayrollRunService = {
       },
     });
     if (!openPeriod) {
-      throw new Error(
-        "No existe un período contable abierto que cubra las fechas de nómina"
-      );
+      throw new Error("No existe un período contable abierto que cubra las fechas de nómina");
     }
 
     // (El guard de períodos solapados vive más abajo: necesita saber QUÉ
@@ -260,9 +255,7 @@ export const PayrollRunService = {
     //
     // Sigue cubriendo lo que motivó el guard: 01–15 y 01–31 son pares de fechas
     // distintos que el único no ve, y con la MISMA gente son doble pago.
-    const candidatos = employees
-      .filter((e) => e.salaryHistory.length > 0)
-      .map((e) => e.id);
+    const candidatos = employees.filter((e) => e.salaryHistory.length > 0).map((e) => e.id);
 
     const solapados = await prisma.payrollRun.findMany({
       where: {
@@ -277,13 +270,9 @@ export const PayrollRunService = {
     // Moneda que tendría este proceso. Si la selección mezcla, el calculador lo
     // bloquea más adelante con su propio mensaje; aquí no se adivina.
     const monedasCandidatas = new Set(
-      employees
-        .filter((e) => e.salaryHistory.length > 0)
-        .map((e) => e.salaryHistory[0].currency),
+      employees.filter((e) => e.salaryHistory.length > 0).map((e) => e.salaryHistory[0].currency)
     );
-    const segmentoCandidato = monedasCandidatas.size === 1
-      ? [...monedasCandidatas][0]
-      : null;
+    const segmentoCandidato = monedasCandidatas.size === 1 ? [...monedasCandidatas][0] : null;
 
     // Un proceso vigente del mismo período Y la misma moneda: la ranura está
     // ocupada. Se dice ASÍ en vez de dejar que reviente contra la restricción de
@@ -297,10 +286,10 @@ export const PayrollRunService = {
       const hasta = mismaRanura.periodEnd.toISOString().split("T")[0];
       throw new Error(
         `Ya existe un proceso de nómina ${mismaRanura.status === "DRAFT" ? "en borrador" : "aprobado"} ` +
-        `en ${segmentoCandidato} que cubre del ${desde} al ${hasta}. Sólo puede haber UNO vigente por ` +
-        "período y moneda: dos asientos por el mismo período dejarían el Libro Diario ilegible. " +
-        "Si olvidaste a alguien, págale un RETROACTIVO en el proceso siguiente, que es como se " +
-        "resuelve en nómina; si el proceso está en borrador, cancélalo o usa Recalcular."
+          `en ${segmentoCandidato} que cubre del ${desde} al ${hasta}. Sólo puede haber UNO vigente por ` +
+          "período y moneda: dos asientos por el mismo período dejarían el Libro Diario ilegible. " +
+          "Si olvidaste a alguien, págale un RETROACTIVO en el proceso siguiente, que es como se " +
+          "resuelve en nómina; si el proceso está en borrador, cancélalo o usa Recalcular."
       );
     }
 
@@ -324,9 +313,9 @@ export const PayrollRunService = {
         const hasta = run.periodEnd.toISOString().split("T")[0];
         throw new Error(
           `${quien} ya está en un proceso de nómina ${run.status === "DRAFT" ? "en borrador" : "aprobado"} ` +
-          `del ${desde} al ${hasta}, que se solapa con el período que intentas procesar. ` +
-          "Cobraría dos veces por el mismo tiempo. Cancela ese proceso, ajusta las fechas " +
-          "o quita a esa persona de esta selección."
+            `del ${desde} al ${hasta}, que se solapa con el período que intentas procesar. ` +
+            "Cobraría dos veces por el mismo tiempo. Cancela ese proceso, ajusta las fechas " +
+            "o quita a esa persona de esta selección."
         );
       }
     }
@@ -348,22 +337,27 @@ export const PayrollRunService = {
     const periodDate = new Date(input.periodStart);
     const [
       thresholdSalMin,
-      ivssObrPct, ivssPatPct,
-      incesObrPct, incesPatPct,
-      faovObrPct, faovPatPct,
-      rpeObrPct, rpePatPct,
-      pensionesPatPct, ingresoMinimoIntegralUsd,
+      ivssObrPct,
+      ivssPatPct,
+      incesObrPct,
+      incesPatPct,
+      faovObrPct,
+      faovPatPct,
+      rpeObrPct,
+      rpePatPct,
+      pensionesPatPct,
+      ingresoMinimoIntegralUsd,
       usdFxRow,
     ] = await Promise.all([
-      LegalThresholdService.getActive(companyId, "SALARY_MIN_VES",  periodDate),
-      LegalThresholdService.getActive(companyId, "IVSS_OBR_RATE",  periodDate),
-      LegalThresholdService.getActive(companyId, "IVSS_PAT_RATE",  periodDate),
+      LegalThresholdService.getActive(companyId, "SALARY_MIN_VES", periodDate),
+      LegalThresholdService.getActive(companyId, "IVSS_OBR_RATE", periodDate),
+      LegalThresholdService.getActive(companyId, "IVSS_PAT_RATE", periodDate),
       LegalThresholdService.getActive(companyId, "INCES_OBR_RATE", periodDate),
       LegalThresholdService.getActive(companyId, "INCES_PAT_RATE", periodDate),
-      LegalThresholdService.getActive(companyId, "FAOV_OBR_RATE",  periodDate),
-      LegalThresholdService.getActive(companyId, "FAOV_PAT_RATE",  periodDate),
-      LegalThresholdService.getActive(companyId, "RPE_OBR_RATE",   periodDate),
-      LegalThresholdService.getActive(companyId, "RPE_PAT_RATE",   periodDate),
+      LegalThresholdService.getActive(companyId, "FAOV_OBR_RATE", periodDate),
+      LegalThresholdService.getActive(companyId, "FAOV_PAT_RATE", periodDate),
+      LegalThresholdService.getActive(companyId, "RPE_OBR_RATE", periodDate),
+      LegalThresholdService.getActive(companyId, "RPE_PAT_RATE", periodDate),
       // Ley Protección de las Pensiones (G.O. 6.806) — verificado con contador
       // 2026-09: tasa 9%, y el piso ("ingreso mínimo integral") está en USD, a
       // diferencia de todos los demás topes de esta lista que están en Bs.
@@ -384,7 +378,7 @@ export const PayrollRunService = {
       (config.salaryMinimumVes ? new Decimal(config.salaryMinimumVes.toString()) : new Decimal(0));
 
     // LegalThreshold almacena alícuotas como porcentaje (ej: 4.00 = 4%) → dividir /100
-    const toRate = (pct: Decimal | null) => pct ? pct.dividedBy(100) : undefined;
+    const toRate = (pct: Decimal | null) => (pct ? pct.dividedBy(100) : undefined);
 
     const activeEmployeeCount = await prisma.employee.count({
       where: { companyId, status: "ACTIVE" },
@@ -396,12 +390,12 @@ export const PayrollRunService = {
     // causó". LRPE Art. 46 lo repite para el RPE. Verificado con contador
     // (2026-09): PENSIONES_PAT (Ley Protección de las Pensiones) sigue el
     // mismo régimen — noviembre se paga, diciembre se declara con esa data.
-    const prevMonthStart = new Date(Date.UTC(
-      periodStart.getUTCFullYear(), periodStart.getUTCMonth() - 1, 1,
-    ));
-    const prevMonthEnd = new Date(Date.UTC(
-      periodStart.getUTCFullYear(), periodStart.getUTCMonth(), 0,
-    ));
+    const prevMonthStart = new Date(
+      Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() - 1, 1)
+    );
+    const prevMonthEnd = new Date(
+      Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth(), 0)
+    );
 
     // Piso de PENSIONES_PAT: verificado con contador que el "ingreso mínimo
     // integral" en USD se convierte con la tasa BCV del ÚLTIMO DÍA del mes que
@@ -434,20 +428,24 @@ export const PayrollRunService = {
       vacationBonusDays: config.vacationBonusDays,
       usdToVesRate: usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null,
       systemConcepts: systemConcepts.map((c) => ({
-        code: c.code, conceptId: c.id, salaryNature: c.salaryNature,
+        code: c.code,
+        conceptId: c.id,
+        salaryNature: c.salaryNature,
       })),
-      ivssObrRate:  toRate(ivssObrPct),
-      ivssPatRate:  toRate(ivssPatPct),
+      ivssObrRate: toRate(ivssObrPct),
+      ivssPatRate: toRate(ivssPatPct),
       incesObrRate: toRate(incesObrPct),
       incesPatRate: toRate(incesPatPct),
-      faovObrRate:  toRate(faovObrPct),
-      faovPatRate:  toRate(faovPatPct),
-      rpeObrRate:   toRate(rpeObrPct),
-      rpePatRate:   toRate(rpePatPct),
+      faovObrRate: toRate(faovObrPct),
+      faovPatRate: toRate(faovPatPct),
+      rpeObrRate: toRate(rpeObrPct),
+      rpePatRate: toRate(rpePatPct),
       pensionesEnabled: config.pensionesEnabled,
       pensionesPatRate: toRate(pensionesPatPct),
       ingresoMinimoIntegralUsd: ingresoMinimoIntegralUsd ?? undefined,
-      prevMonthEndUsdToVesRate: prevMonthEndFxRow ? new Decimal(prevMonthEndFxRow.rate.toString()) : null,
+      prevMonthEndUsdToVesRate: prevMonthEndFxRow
+        ? new Decimal(prevMonthEndFxRow.rate.toString())
+        : null,
     };
 
     // Se suman TODOS los runs APROBADOS de ese mes anterior: en nómina
@@ -471,7 +469,8 @@ export const PayrollRunService = {
     // Se distingue "no hay mes anterior" de "lo hay incompleto": en el segundo
     // caso también se cae al mes en curso, pero dejando constancia del motivo.
     const DAY_MS = 1000 * 60 * 60 * 24;
-    const prevMonthDays = Math.round((prevMonthEnd.getTime() - prevMonthStart.getTime()) / DAY_MS) + 1;
+    const prevMonthDays =
+      Math.round((prevMonthEnd.getTime() - prevMonthStart.getTime()) / DAY_MS) + 1;
     // UNIÓN de días, no suma de duraciones. Sumarlas asumía un solo proceso por
     // período —invariante que la BD imponía hasta que la ranura pasó a ser
     // (período + moneda)—. Una empresa bimonetaria que procesó sólo la primera
@@ -498,15 +497,17 @@ export const PayrollRunService = {
     // semanal. Se cuentan los runs APPROVED del año calendario en curso.
     const yearStart = new Date(Date.UTC(periodStart.getUTCFullYear(), 0, 1));
     const overtimeYtdByEmp = new Map<string, Decimal>();
-    const yearRunIds = (await prisma.payrollRun.findMany({
-      where: {
-        companyId,
-        status: "APPROVED",
-        periodStart: { gte: yearStart },
-        periodEnd: { lt: periodStart },
-      },
-      select: { id: true },
-    })).map((r) => r.id);
+    const yearRunIds = (
+      await prisma.payrollRun.findMany({
+        where: {
+          companyId,
+          status: "APPROVED",
+          periodStart: { gte: yearStart },
+          periodEnd: { lt: periodStart },
+        },
+        select: { id: true },
+      })
+    ).map((r) => r.id);
 
     if (yearRunIds.length > 0) {
       const heLines = await prisma.payrollRunLine.findMany({
@@ -524,7 +525,7 @@ export const PayrollRunService = {
         if (!l.hours) continue;
         overtimeYtdByEmp.set(
           l.employeeId,
-          (overtimeYtdByEmp.get(l.employeeId) ?? new Decimal(0)).plus(l.hours.toString()),
+          (overtimeYtdByEmp.get(l.employeeId) ?? new Decimal(0)).plus(l.hours.toString())
         );
       }
     }
@@ -542,7 +543,9 @@ export const PayrollRunService = {
       const prevLines = await prisma.payrollRunLine.findMany({
         where: { companyId, payrollRunId: { in: prevRunIds }, conceptType: "EARNING" },
         select: {
-          employeeId: true, conceptCode: true, amount: true,
+          employeeId: true,
+          conceptCode: true,
+          amount: true,
           // Naturaleza CONGELADA al calcular aquel mes. Resolverla contra el
           // catálogo vivo hacía que reclasificar un concepto reescribiera la
           // base de un mes ya aprobado, contabilizado y declarado.
@@ -561,7 +564,7 @@ export const PayrollRunService = {
       const currentCurrencyByEmp = new Map(
         employees
           .filter((e) => e.salaryHistory.length > 0)
-          .map((e) => [e.id, e.salaryHistory[0].currency]),
+          .map((e) => [e.id, e.salaryHistory[0].currency])
       );
       const usdRate = usdFxRow ? new Decimal(usdFxRow.rate.toString()) : null;
 
@@ -581,16 +584,16 @@ export const PayrollRunService = {
           if (from === "MIXED" || to === "MIXED") {
             throw new Error(
               "El empleado tiene sueldo en modalidad MIXTA en alguno de los dos " +
-              "meses: no se puede saber qué parte va en cada moneda para calcular " +
-              "la base del mes anterior. Divide el sueldo en dos registros."
+                "meses: no se puede saber qué parte va en cada moneda para calcular " +
+                "la base del mes anterior. Divide el sueldo en dos registros."
             );
           }
           if (!usdRate || usdRate.lte(0)) {
             throw new Error(
               "El empleado cambió de moneda de sueldo respecto al mes anterior y " +
-              "no hay tasa BCV registrada para el período. Regístrala en " +
-              "Contabilidad → Tasas de Cambio: sin ella, la base de cotización " +
-              "del mes anterior quedaría en una moneda distinta a la del tope."
+                "no hay tasa BCV registrada para el período. Regístrala en " +
+                "Contabilidad → Tasas de Cambio: sin ella, la base de cotización " +
+                "del mes anterior quedaría en una moneda distinta a la del tope."
             );
           }
           amount = from === "USD" ? amount.mul(usdRate) : amount.div(usdRate);
@@ -602,13 +605,13 @@ export const PayrollRunService = {
         // contador (2026-09): esta ley sí incluye los bonos no salariales.
         previousTotalCompensationByEmp.set(
           l.employeeId,
-          (previousTotalCompensationByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount),
+          (previousTotalCompensationByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount)
         );
 
         if (nature !== "SALARIO_NORMAL") continue;
         previousNormalWageByEmp.set(
           l.employeeId,
-          (previousNormalWageByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount),
+          (previousNormalWageByEmp.get(l.employeeId) ?? new Decimal(0)).plus(amount)
         );
       }
     }
@@ -631,9 +634,7 @@ export const PayrollRunService = {
     // para todo run futuro (el filtro es `payrollRunId: null`) y sin salida por
     // UI: trabajadas, marcadas como tomadas y nunca cobradas. Es el mismo defecto
     // que ya se corrigió en `approve` (ver allí), un paso antes.
-    const payableEmployeeIds = employees
-      .filter((e) => e.salaryHistory.length > 0)
-      .map((e) => e.id);
+    const payableEmployeeIds = employees.filter((e) => e.salaryHistory.length > 0).map((e) => e.id);
 
     const overtimeEntries = await prisma.overtimeEntry.findMany({
       where: {
@@ -662,15 +663,19 @@ export const PayrollRunService = {
     const claimedOvertimeIds = overtimeEntries.map((e) => e.id);
 
     type OvertimeBuckets = {
-      dayAuth: Decimal; nightAuth: Decimal;
-      dayUnauth: Decimal; nightUnauth: Decimal;
+      dayAuth: Decimal;
+      nightAuth: Decimal;
+      dayUnauth: Decimal;
+      nightUnauth: Decimal;
     };
     const overtimeByEmp = new Map<string, OvertimeBuckets>();
     for (const e of overtimeEntries) {
       if (!overtimeByEmp.has(e.employeeId)) {
         overtimeByEmp.set(e.employeeId, {
-          dayAuth: new Decimal(0), nightAuth: new Decimal(0),
-          dayUnauth: new Decimal(0), nightUnauth: new Decimal(0),
+          dayAuth: new Decimal(0),
+          nightAuth: new Decimal(0),
+          dayUnauth: new Decimal(0),
+          nightUnauth: new Decimal(0),
         });
       }
       const b = overtimeByEmp.get(e.employeeId)!;
@@ -717,8 +722,8 @@ export const PayrollRunService = {
     if (empInputs.length === 0) {
       throw new Error(
         "Ninguno de los trabajadores seleccionados tiene un sueldo con vigencia " +
-        "al inicio del período. Registra el sueldo con una fecha de vigencia " +
-        "igual o anterior al inicio, o ajusta las fechas del proceso."
+          "al inicio del período. Registra el sueldo con una fecha de vigencia " +
+          "igual o anterior al inicio, o ajusta las fechas del proceso."
       );
     }
 
@@ -773,8 +778,12 @@ export const PayrollRunService = {
         OR: [{ effectiveTo: null }, { effectiveTo: { gte: periodStart } }],
       },
       select: {
-        employeeId: true, amount: true, currency: true,
-        concept: { select: { id: true, code: true, type: true, salaryNature: true, isActive: true } },
+        employeeId: true,
+        amount: true,
+        currency: true,
+        concept: {
+          select: { id: true, code: true, type: true, salaryNature: true, isActive: true },
+        },
       },
     });
 
@@ -804,13 +813,15 @@ export const PayrollRunService = {
         if (!rate || rate.lte(0)) {
           throw new Error(
             `La asignación fija "${r.concept.code}" está pactada en ${r.currency} y esta ` +
-            `nómina se liquida en ${runCurrency}. ${MISSING_BCV_RATE_MESSAGE}`
+              `nómina se liquida en ${runCurrency}. ${MISSING_BCV_RATE_MESSAGE}`
           );
         }
         // Bs. por 1 USD: de USD a VES se multiplica, al revés se divide.
         amount = r.currency === "USD" ? original.mul(rate) : original.div(rate);
         recurringFx.set(`${r.employeeId}:${r.concept.id}`, {
-          originalAmount: original, originalCurrency: r.currency, rate,
+          originalAmount: original,
+          originalCurrency: r.currency,
+          rate,
         });
       }
 
@@ -903,30 +914,30 @@ export const PayrollRunService = {
       if (result.lines.length > 0) {
         await tx.payrollRunLine.createMany({
           data: result.lines.map((l) => {
-          const fx = recurringFx.get(`${l.employeeId}:${l.conceptId}`);
-          return {
-            companyId,
-            payrollRunId: run.id,
-            employeeId: l.employeeId,
-            conceptId: l.conceptId,
-            conceptCode: l.conceptCode,
-            conceptType: l.conceptType,
-            amount: l.amount,
-            basis: l.basis ?? null,
-            hours: l.hours ?? null,
-            rate: l.rate ?? null,
-            salaryHistoryId: l.salaryHistoryId,
-            salarySnapshotAmount: l.salarySnapshotAmount,
-            salarySnapshotCurrency: l.salarySnapshotCurrency,
-            // Snapshot igual que conceptCode/conceptType: la base del mes
-            // anterior se lee de estas líneas, y el catálogo puede cambiar.
-            salaryNature: l.salaryNature,
-            // ADR-045 D-3: sólo cuando hubo conversión. El importe en Bs por sí
-            // solo no dice de dónde salió, y la tasa de aquel día ya no está.
-            originalAmount: fx?.originalAmount ?? null,
-            originalCurrency: fx?.originalCurrency ?? null,
-            exchangeRateApplied: fx?.rate ?? null,
-          };
+            const fx = recurringFx.get(`${l.employeeId}:${l.conceptId}`);
+            return {
+              companyId,
+              payrollRunId: run.id,
+              employeeId: l.employeeId,
+              conceptId: l.conceptId,
+              conceptCode: l.conceptCode,
+              conceptType: l.conceptType,
+              amount: l.amount,
+              basis: l.basis ?? null,
+              hours: l.hours ?? null,
+              rate: l.rate ?? null,
+              salaryHistoryId: l.salaryHistoryId,
+              salarySnapshotAmount: l.salarySnapshotAmount,
+              salarySnapshotCurrency: l.salarySnapshotCurrency,
+              // Snapshot igual que conceptCode/conceptType: la base del mes
+              // anterior se lee de estas líneas, y el catálogo puede cambiar.
+              salaryNature: l.salaryNature,
+              // ADR-045 D-3: sólo cuando hubo conversión. El importe en Bs por sí
+              // solo no dice de dónde salió, y la tasa de aquel día ya no está.
+              originalAmount: fx?.originalAmount ?? null,
+              originalCurrency: fx?.originalCurrency ?? null,
+              exchangeRateApplied: fx?.rate ?? null,
+            };
           }),
         });
       }
@@ -941,7 +952,7 @@ export const PayrollRunService = {
         if (claimed.count !== claimedOvertimeIds.length) {
           throw new Error(
             "Otro proceso de nómina tomó estas horas extraordinarias mientras se " +
-            "calculaba este. Vuelve a intentarlo."
+              "calculaba este. Vuelve a intentarlo."
           );
         }
       }
@@ -1022,7 +1033,7 @@ export const PayrollRunService = {
     userId: string,
     input: AddManualLineInput,
     ipAddress: string | null,
-    userAgent: string | null,
+    userAgent: string | null
   ) {
     const run = await prisma.payrollRun.findFirst({
       where: { id: input.runId, companyId },
@@ -1073,15 +1084,17 @@ export const PayrollRunService = {
     // envío. Se bloquea con mensaje en vez de sumar dos veces en silencio.
     const yaExiste = await prisma.payrollRunLine.findFirst({
       where: {
-        companyId, payrollRunId: run.id,
-        employeeId: input.employeeId, conceptId: input.conceptId,
+        companyId,
+        payrollRunId: run.id,
+        employeeId: input.employeeId,
+        conceptId: input.conceptId,
       },
       select: { id: true },
     });
     if (yaExiste) {
       throw new Error(
         `Este trabajador ya tiene una línea de "${concept.name}" en este proceso. ` +
-        "Recalcula el proceso si necesitas cambiar el importe."
+          "Recalcula el proceso si necesitas cambiar el importe."
       );
     }
 
@@ -1111,9 +1124,9 @@ export const PayrollRunService = {
       const delta =
         concept.type === "EARNING"
           ? { totalEarnings: { increment: amount }, totalNet: { increment: amount } }
-        : concept.type === "DEDUCTION"
-          ? { totalDeductions: { increment: amount }, totalNet: { decrement: amount } }
-          : { totalEmployerCosts: { increment: amount } };
+          : concept.type === "DEDUCTION"
+            ? { totalDeductions: { increment: amount }, totalNet: { decrement: amount } }
+            : { totalEmployerCosts: { increment: amount } };
 
       await tx.payrollRun.update({ where: { id: run.id }, data: delta });
 
@@ -1216,364 +1229,466 @@ export const PayrollRunService = {
           "contaflow.payroll_run_id": runId,
         },
       },
-      () => prisma.$transaction(async (tx) => {
-      // ── Mutex atómico: solo actualiza si status === 'DRAFT' (NOM-C-03) ──
-      const updated = await tx.payrollRun.updateMany({
-        where: { id: runId, companyId, status: "DRAFT" },
-        data: {
-          status: "APPROVED",
-          approvedByUserId: userId,
-          approvedAt: new Date(),
-        },
-      });
-      if (updated.count === 0) {
-        throw new Error("Este proceso ya fue aprobado o cancelado por otro usuario");
-      }
-
-      // ── Calcular montos por concepto para el asiento ───────────────────
-      const lines = await tx.payrollRunLine.findMany({
-        where: { payrollRunId: runId, companyId },
-      });
-
-      const ivssTotal = config.ivssEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "IVSS_OBR" && l.conceptType === "DEDUCTION")
-            .reduce((s, l) => s.plus(l.amount), new Decimal(0))
-        : new Decimal(0);
-
-      const incesTotal = config.incesEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "INCES_OBR" && l.conceptType === "DEDUCTION")
-            .reduce((s, l) => s.plus(l.amount), new Decimal(0))
-        : new Decimal(0);
-
-      const faovTotal = config.banavihEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "FAOV_OBR" && l.conceptType === "DEDUCTION")
-            .reduce((s, l) => s.plus(l.amount), new Decimal(0))
-        : new Decimal(0);
-
-      const rpeTotal = config.rpeEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "RPE_OBR" && l.conceptType === "DEDUCTION")
-            .reduce((s, l) => s.plus(l.amount), new Decimal(0))
-        : new Decimal(0);
-
-      // F-03: Aportes patronales (EMPLOYER_COST — no afectan neto del empleado)
-      const ivssPatTotal = config.ivssEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "IVSS_PAT" && l.conceptType === "EMPLOYER_COST")
-            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
-        : new Decimal(0);
-      const incesPatTotal = config.incesEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "INCES_PAT" && l.conceptType === "EMPLOYER_COST")
-            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
-        : new Decimal(0);
-      const faovPatTotal = config.banavihEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "FAOV_PAT" && l.conceptType === "EMPLOYER_COST")
-            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
-        : new Decimal(0);
-      const rpePatTotal = config.rpeEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "RPE_PAT" && l.conceptType === "EMPLOYER_COST")
-            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
-        : new Decimal(0);
-      const pensionesPatTotal = config.pensionesEnabled
-        ? lines
-            .filter((l) => l.conceptCode === "PENSIONES_PAT" && l.conceptType === "EMPLOYER_COST")
-            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
-        : new Decimal(0);
-      const totalPatronal = ivssPatTotal.plus(incesPatTotal).plus(faovPatTotal).plus(rpePatTotal)
-        .plus(pensionesPatTotal);
-
-      // V-1: debit patronal = SOLO los organismos con cuenta GL configurada — garantiza cuadre del asiento.
-      // Si ivssPatronalAccountId=null pero incesPatronalAccountId≠null, el debit debe ser solo INCES.
-      const configuredPatronal = [
-        config.ivssPatronalAccountId ? ivssPatTotal : new Decimal(0),
-        config.incesPatronalAccountId ? incesPatTotal : new Decimal(0),
-        config.faovPatronalAccountId ? faovPatTotal : new Decimal(0),
-        config.rpePatronalAccountId ? rpePatTotal : new Decimal(0),
-        config.pensionesPatronalAccountId ? pensionesPatTotal : new Decimal(0),
-      ].reduce((s, v) => s.plus(v), new Decimal(0));
-
-      // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
-      // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
-      // DÉBITO: Gastos de Personal (totalEarnings — solo componentes salariales, sin cuotas de préstamo)
-      // CRÉDITO: Sueldos por Pagar (neto sin préstamos) + retenciones separadas + recuperación préstamos
-      //
-      // Invariante de cuadre: Σ entries = 0 independientemente de cuántas cuentas estén configuradas.
-      // Las cuotas de préstamo (PRESTAMO_EMP) NO son un gasto de nómina — son recuperación de un activo
-      // (Préstamos a Empleados). Por eso se excluyen de totalEarnings y se creditean contra la cuenta
-      // del activo si está configurada, o se incluyen en "Sueldos por Pagar" si no lo está.
-      const expenseAccountId = config.expenseAccountId!;
-      const payableAccountId = config.payableAccountId!;
-      const nomPeriod = `${run.periodStart.toISOString().split("T")[0]}/${run.periodEnd.toISOString().split("T")[0]}`;
-
-      // Total de cuotas de préstamo descontadas en esta nómina
-      const loanTotal = lines
-        .filter((l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION")
-        .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0));
-
-      // Gasto salarial real = bruto total − cuotas de préstamo (estas no son gasto, son recuperación de activo)
-      const salaryExpense = new Decimal(run.totalEarnings.toString()).minus(loanTotal);
-
-      // Deducciones que SÍ tienen cuenta separada configurada (retenciones)
-      const configuredDeductions = [
-        config.ivssPayableAccountId ? ivssTotal : new Decimal(0),
-        config.faovPayableAccountId ? faovTotal : new Decimal(0),
-        config.incesPayableAccountId ? incesTotal : new Decimal(0),
-        config.rpePayableAccountId ? rpeTotal : new Decimal(0),
-        // Loan recovery: solo si está configurada la cuenta del activo
-        config.loanReceivableAccountId ? loanTotal : new Decimal(0),
-      ].reduce((s, v) => s.plus(v), new Decimal(0));
-
-      // Crédito consolidado a "Sueldos por Pagar" = gasto salarial − retenciones con cuenta propia
-      const payableCredit = salaryExpense.minus(configuredDeductions).negated();
-
-      // V-2: si la nómina fue procesada en USD, convertir a VES antes de generar el asiento
-      const firstLine = lines[0];
-      const payCurrency = firstLine?.salarySnapshotCurrency ?? "VES";
-      let glMultiplier = new Decimal(1);
-      let fxNote = "";
-
-      if (payCurrency === "USD") {
-        const fxRow = await tx.exchangeRate.findFirst({
-          where: { companyId, currency: "USD", date: { lte: run.periodEnd } },
-          orderBy: { date: "desc" },
-          select: { rate: true },
-        });
-        if (!fxRow) {
-          throw new Error(
-            "Nómina en USD: registra la tasa BCV USD/VES en Contabilidad → Tasas de Cambio antes de aprobar esta nómina."
-          );
-        }
-        glMultiplier = new Decimal(fxRow.rate.toString());
-        fxNote = ` (USD → Bs. ${glMultiplier.toFixed(2)}/USD)`;
-      }
-
-      // Montos GL en VES (glMultiplier=1 para nóminas VES — no cambia valores)
-      const glSalaryExpense     = salaryExpense.mul(glMultiplier);
-      const glPayableCredit     = payableCredit.mul(glMultiplier);
-      const glIvssTotal         = ivssTotal.mul(glMultiplier);
-      const glFaovTotal         = faovTotal.mul(glMultiplier);
-      const glIncesTotal        = incesTotal.mul(glMultiplier);
-      const glRpeTotal          = rpeTotal.mul(glMultiplier);
-      const glLoanTotal         = loanTotal.mul(glMultiplier);
-      const glConfiguredPatronal = configuredPatronal.mul(glMultiplier);
-      const glIvssPatTotal      = ivssPatTotal.mul(glMultiplier);
-      const glIncesPatTotal     = incesPatTotal.mul(glMultiplier);
-      const glFaovPatTotal      = faovPatTotal.mul(glMultiplier);
-      const glRpePatTotal       = rpePatTotal.mul(glMultiplier);
-      const glPensionesPatTotal = pensionesPatTotal.mul(glMultiplier);
-
-      const nominaEntries = [
-        // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
-        { accountId: expenseAccountId, amount: glSalaryExpense, description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados${fxNote}` },
-        // CRÉDITO — Sueldos por Pagar (neto después de deducir lo que tiene cuenta propia)
-        { accountId: payableAccountId, amount: glPayableCredit, description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada${fxNote}` },
-        // CRÉDITO — IVSS Obrero por Pagar (si aplica)
-        ...(config.ivssPayableAccountId && glIvssTotal.greaterThan(0)
-          ? [{ accountId: config.ivssPayableAccountId, amount: glIvssTotal.negated(), description: `Nómina ${nomPeriod} — retención IVSS obrero${fxNote}` }]
-          : []),
-        // CRÉDITO — FAOV / BANAVIH por Pagar (si aplica)
-        ...(config.faovPayableAccountId && glFaovTotal.greaterThan(0)
-          ? [{ accountId: config.faovPayableAccountId, amount: glFaovTotal.negated(), description: `Nómina ${nomPeriod} — retención FAOV obrero${fxNote}` }]
-          : []),
-        // CRÉDITO — INCES por Pagar (si aplica)
-        ...(config.incesPayableAccountId && glIncesTotal.greaterThan(0)
-          ? [{ accountId: config.incesPayableAccountId, amount: glIncesTotal.negated(), description: `Nómina ${nomPeriod} — retención INCES obrero${fxNote}` }]
-          : []),
-        // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
-        ...(config.rpePayableAccountId && glRpeTotal.greaterThan(0)
-          ? [{ accountId: config.rpePayableAccountId, amount: glRpeTotal.negated(), description: `Nómina ${nomPeriod} — retención paro forzoso obrero${fxNote}` }]
-          : []),
-        // CRÉDITO — Préstamos a Empleados (recuperación del activo: cuota cobrada vía nómina)
-        ...(config.loanReceivableAccountId && glLoanTotal.greaterThan(0)
-          ? [{ accountId: config.loanReceivableAccountId, amount: glLoanTotal.negated(), description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados${fxNote}` }]
-          : []),
-        // V-1 + F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
-        // Debit = SOLO organismos con cuenta configurada (configuredPatronal) — garantiza cuadre.
-        ...(glConfiguredPatronal.greaterThan(0)
-          ? [{ accountId: expenseAccountId, amount: glConfiguredPatronal, description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE/Pensiones${fxNote}` }]
-          : []),
-        ...(config.ivssPatronalAccountId && glIvssPatTotal.greaterThan(0)
-          ? [{ accountId: config.ivssPatronalAccountId, amount: glIvssPatTotal.negated(), description: `Nómina ${nomPeriod} — IVSS patronal 9%${fxNote}` }]
-          : []),
-        ...(config.incesPatronalAccountId && glIncesPatTotal.greaterThan(0)
-          ? [{ accountId: config.incesPatronalAccountId, amount: glIncesPatTotal.negated(), description: `Nómina ${nomPeriod} — INCES patronal 2%${fxNote}` }]
-          : []),
-        ...(config.faovPatronalAccountId && glFaovPatTotal.greaterThan(0)
-          ? [{ accountId: config.faovPatronalAccountId, amount: glFaovPatTotal.negated(), description: `Nómina ${nomPeriod} — FAOV patronal 2%${fxNote}` }]
-          : []),
-        ...(config.rpePatronalAccountId && glRpePatTotal.greaterThan(0)
-          ? [{ accountId: config.rpePatronalAccountId, amount: glRpePatTotal.negated(), description: `Nómina ${nomPeriod} — RPE patronal 2%${fxNote}` }]
-          : []),
-        ...(config.pensionesPatronalAccountId && glPensionesPatTotal.greaterThan(0)
-          ? [{ accountId: config.pensionesPatronalAccountId, amount: glPensionesPatTotal.negated(), description: `Nómina ${nomPeriod} — Protección de Pensiones patronal 9%${fxNote}` }]
-          : []),
-      ];
-      assertBalancedGLEntries(nominaEntries); // N4: invariante partida doble
-      const asiento = await tx.transaction.create({
-        data: {
-          companyId,
-          number: `NOM-${run.periodStart.toISOString().split("T")[0]}-${runId.slice(-6)}`,
-          // Hallazgo #11: fecha del asiento = fin del período de nómina, no la fecha de aprobación.
-          // Si se usara new Date(), el asiento aparece en el Ledger del mes de aprobación
-          // en lugar del mes del período, rompiendo la coincidencia InvoiceBook ↔ Ledger.
-          date: run.periodEnd,
-          description: `Causación nómina ${run.periodStart.toISOString().split("T")[0]} — ${run.periodEnd.toISOString().split("T")[0]} (${run.employeeCount} empleados)`,
-          reference: runId,
-          userId,
-          periodId: openPeriod.id,
-          type: "DIARIO",
-          entries: {
-            create: nominaEntries,
-          },
-        },
-      });
-
-      // ── Vincular asiento al run ────────────────────────────────────────
-      const approvedRun = await tx.payrollRun.update({
-        where: { id: runId },
-        data: { transactionId: asiento.id },
-      });
-
-      // ── Actualizar saldos de préstamos (PRESTAMO_EMP) ─────────────────
-      // Se recalcula el MISMO plan que produjo la línea del recibo, en vez de
-      // repartir el total a ojo entre los préstamos del empleado. Antes esta
-      // copia leía solo las columnas VES y sólo tocaba el lado USD si el
-      // préstamo era MIXED: con uno en USD daba isPaid=true y lo marcaba
-      // pagado sin haber cobrado nada.
-      const loanLines = lines.filter((l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION");
-      if (loanLines.length > 0) {
-        const currencyByEmployee = new Map<string, SalaryCurrency>();
-        const deductedByEmployee = new Map<string, Decimal>();
-        for (const l of loanLines) {
-          const prev = deductedByEmployee.get(l.employeeId) ?? new Decimal(0);
-          deductedByEmployee.set(l.employeeId, prev.plus(new Decimal(l.amount.toString())));
-          currencyByEmployee.set(l.employeeId, (l.salarySnapshotCurrency ?? "VES") as SalaryCurrency);
-        }
-
-        for (const [empId, deducted] of deductedByEmployee.entries()) {
-          const empLoans = await tx.employeeLoan.findMany({
-            where: { companyId, employeeId: empId, status: "ACTIVE" },
-            orderBy: { createdAt: "asc" },
+      () =>
+        prisma.$transaction(async (tx) => {
+          // ── Mutex atómico: solo actualiza si status === 'DRAFT' (NOM-C-03) ──
+          const updated = await tx.payrollRun.updateMany({
+            where: { id: runId, companyId, status: "DRAFT" },
+            data: {
+              status: "APPROVED",
+              approvedByUserId: userId,
+              approvedAt: new Date(),
+            },
           });
-
-          const plans = planLoanInstallments(empLoans, currencyByEmployee.get(empId) ?? "VES");
-          const planned = plans.reduce((sum, p) => sum.plus(p.lineAmount), new Decimal(0));
-
-          // Si los préstamos cambiaron entre el cálculo y la aprobación, el
-          // recibo y el plan discrepan. Se aplica el plan (es el que cuadra con
-          // los saldos reales) y queda constancia en el log.
-          if (!planned.equals(deducted)) {
-            console.warn(
-              `[PayrollRunService] Préstamos de ${empId}: el recibo dice ${deducted.toFixed(2)} y el plan ${planned.toFixed(2)}. Se aplica el plan.`,
-            );
+          if (updated.count === 0) {
+            throw new Error("Este proceso ya fue aprobado o cancelado por otro usuario");
           }
 
-          for (const plan of plans) {
-            await tx.employeeLoan.update({
-              where: { id: plan.loanId },
-              data: {
-                remainingBalance: plan.newBalanceVes.toFixed(2),
-                ...(plan.newBalanceUsd !== null && { remainingBalanceUsd: plan.newBalanceUsd.toFixed(2) }),
-                paidInstallments: { increment: 1 },
-                status: plan.isPaid ? "PAID" : "ACTIVE",
+          // ── Calcular montos por concepto para el asiento ───────────────────
+          const lines = await tx.payrollRunLine.findMany({
+            where: { payrollRunId: runId, companyId },
+          });
+
+          const ivssTotal = config.ivssEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "IVSS_OBR" && l.conceptType === "DEDUCTION")
+                .reduce((s, l) => s.plus(l.amount), new Decimal(0))
+            : new Decimal(0);
+
+          const incesTotal = config.incesEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "INCES_OBR" && l.conceptType === "DEDUCTION")
+                .reduce((s, l) => s.plus(l.amount), new Decimal(0))
+            : new Decimal(0);
+
+          const faovTotal = config.banavihEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "FAOV_OBR" && l.conceptType === "DEDUCTION")
+                .reduce((s, l) => s.plus(l.amount), new Decimal(0))
+            : new Decimal(0);
+
+          const rpeTotal = config.rpeEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "RPE_OBR" && l.conceptType === "DEDUCTION")
+                .reduce((s, l) => s.plus(l.amount), new Decimal(0))
+            : new Decimal(0);
+
+          // F-03: Aportes patronales (EMPLOYER_COST — no afectan neto del empleado)
+          const ivssPatTotal = config.ivssEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "IVSS_PAT" && l.conceptType === "EMPLOYER_COST")
+                .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+            : new Decimal(0);
+          const incesPatTotal = config.incesEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "INCES_PAT" && l.conceptType === "EMPLOYER_COST")
+                .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+            : new Decimal(0);
+          const faovPatTotal = config.banavihEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "FAOV_PAT" && l.conceptType === "EMPLOYER_COST")
+                .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+            : new Decimal(0);
+          const rpePatTotal = config.rpeEnabled
+            ? lines
+                .filter((l) => l.conceptCode === "RPE_PAT" && l.conceptType === "EMPLOYER_COST")
+                .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+            : new Decimal(0);
+          const pensionesPatTotal = config.pensionesEnabled
+            ? lines
+                .filter(
+                  (l) => l.conceptCode === "PENSIONES_PAT" && l.conceptType === "EMPLOYER_COST"
+                )
+                .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0))
+            : new Decimal(0);
+          const totalPatronal = ivssPatTotal
+            .plus(incesPatTotal)
+            .plus(faovPatTotal)
+            .plus(rpePatTotal)
+            .plus(pensionesPatTotal);
+
+          // V-1: debit patronal = SOLO los organismos con cuenta GL configurada — garantiza cuadre del asiento.
+          // Si ivssPatronalAccountId=null pero incesPatronalAccountId≠null, el debit debe ser solo INCES.
+          const configuredPatronal = [
+            config.ivssPatronalAccountId ? ivssPatTotal : new Decimal(0),
+            config.incesPatronalAccountId ? incesPatTotal : new Decimal(0),
+            config.faovPatronalAccountId ? faovPatTotal : new Decimal(0),
+            config.rpePatronalAccountId ? rpePatTotal : new Decimal(0),
+            config.pensionesPatronalAccountId ? pensionesPatTotal : new Decimal(0),
+          ].reduce((s, v) => s.plus(v), new Decimal(0));
+
+          // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
+          // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
+          // DÉBITO: Gastos de Personal (totalEarnings — solo componentes salariales, sin cuotas de préstamo)
+          // CRÉDITO: Sueldos por Pagar (neto sin préstamos) + retenciones separadas + recuperación préstamos
+          //
+          // Invariante de cuadre: Σ entries = 0 independientemente de cuántas cuentas estén configuradas.
+          // Las cuotas de préstamo (PRESTAMO_EMP) NO son un gasto de nómina — son recuperación de un activo
+          // (Préstamos a Empleados). Por eso se excluyen de totalEarnings y se creditean contra la cuenta
+          // del activo si está configurada, o se incluyen en "Sueldos por Pagar" si no lo está.
+          const expenseAccountId = config.expenseAccountId!;
+          const payableAccountId = config.payableAccountId!;
+          const nomPeriod = `${run.periodStart.toISOString().split("T")[0]}/${run.periodEnd.toISOString().split("T")[0]}`;
+
+          // Total de cuotas de préstamo descontadas en esta nómina
+          const loanTotal = lines
+            .filter((l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION")
+            .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0));
+
+          // Gasto salarial real = bruto total − cuotas de préstamo (estas no son gasto, son recuperación de activo)
+          const salaryExpense = new Decimal(run.totalEarnings.toString()).minus(loanTotal);
+
+          // Deducciones que SÍ tienen cuenta separada configurada (retenciones)
+          const configuredDeductions = [
+            config.ivssPayableAccountId ? ivssTotal : new Decimal(0),
+            config.faovPayableAccountId ? faovTotal : new Decimal(0),
+            config.incesPayableAccountId ? incesTotal : new Decimal(0),
+            config.rpePayableAccountId ? rpeTotal : new Decimal(0),
+            // Loan recovery: solo si está configurada la cuenta del activo
+            config.loanReceivableAccountId ? loanTotal : new Decimal(0),
+          ].reduce((s, v) => s.plus(v), new Decimal(0));
+
+          // Crédito consolidado a "Sueldos por Pagar" = gasto salarial − retenciones con cuenta propia
+          const payableCredit = salaryExpense.minus(configuredDeductions).negated();
+
+          // V-2: si la nómina fue procesada en USD, convertir a VES antes de generar el asiento
+          const firstLine = lines[0];
+          const payCurrency = firstLine?.salarySnapshotCurrency ?? "VES";
+          let glMultiplier = new Decimal(1);
+          let fxNote = "";
+
+          if (payCurrency === "USD") {
+            const fxRow = await tx.exchangeRate.findFirst({
+              where: { companyId, currency: "USD", date: { lte: run.periodEnd } },
+              orderBy: { date: "desc" },
+              select: { rate: true },
+            });
+            if (!fxRow) {
+              throw new Error(
+                "Nómina en USD: registra la tasa BCV USD/VES en Contabilidad → Tasas de Cambio antes de aprobar esta nómina."
+              );
+            }
+            glMultiplier = new Decimal(fxRow.rate.toString());
+            fxNote = ` (USD → Bs. ${glMultiplier.toFixed(2)}/USD)`;
+          }
+
+          // Montos GL en VES (glMultiplier=1 para nóminas VES — no cambia valores)
+          const glSalaryExpense = salaryExpense.mul(glMultiplier);
+          const glPayableCredit = payableCredit.mul(glMultiplier);
+          const glIvssTotal = ivssTotal.mul(glMultiplier);
+          const glFaovTotal = faovTotal.mul(glMultiplier);
+          const glIncesTotal = incesTotal.mul(glMultiplier);
+          const glRpeTotal = rpeTotal.mul(glMultiplier);
+          const glLoanTotal = loanTotal.mul(glMultiplier);
+          const glConfiguredPatronal = configuredPatronal.mul(glMultiplier);
+          const glIvssPatTotal = ivssPatTotal.mul(glMultiplier);
+          const glIncesPatTotal = incesPatTotal.mul(glMultiplier);
+          const glFaovPatTotal = faovPatTotal.mul(glMultiplier);
+          const glRpePatTotal = rpePatTotal.mul(glMultiplier);
+          const glPensionesPatTotal = pensionesPatTotal.mul(glMultiplier);
+
+          const nominaEntries = [
+            // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
+            {
+              accountId: expenseAccountId,
+              amount: glSalaryExpense,
+              description: `Nómina ${nomPeriod} — salario bruto — ${run.employeeCount} empleados${fxNote}`,
+            },
+            // CRÉDITO — Sueldos por Pagar (neto después de deducir lo que tiene cuenta propia)
+            {
+              accountId: payableAccountId,
+              amount: glPayableCredit,
+              description: `Nómina ${nomPeriod} — neto + retenciones sin cuenta separada${fxNote}`,
+            },
+            // CRÉDITO — IVSS Obrero por Pagar (si aplica)
+            ...(config.ivssPayableAccountId && glIvssTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.ivssPayableAccountId,
+                    amount: glIvssTotal.negated(),
+                    description: `Nómina ${nomPeriod} — retención IVSS obrero${fxNote}`,
+                  },
+                ]
+              : []),
+            // CRÉDITO — FAOV / BANAVIH por Pagar (si aplica)
+            ...(config.faovPayableAccountId && glFaovTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.faovPayableAccountId,
+                    amount: glFaovTotal.negated(),
+                    description: `Nómina ${nomPeriod} — retención FAOV obrero${fxNote}`,
+                  },
+                ]
+              : []),
+            // CRÉDITO — INCES por Pagar (si aplica)
+            ...(config.incesPayableAccountId && glIncesTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.incesPayableAccountId,
+                    amount: glIncesTotal.negated(),
+                    description: `Nómina ${nomPeriod} — retención INCES obrero${fxNote}`,
+                  },
+                ]
+              : []),
+            // CRÉDITO — Paro Forzoso RPE por Pagar (si aplica)
+            ...(config.rpePayableAccountId && glRpeTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.rpePayableAccountId,
+                    amount: glRpeTotal.negated(),
+                    description: `Nómina ${nomPeriod} — retención paro forzoso obrero${fxNote}`,
+                  },
+                ]
+              : []),
+            // CRÉDITO — Préstamos a Empleados (recuperación del activo: cuota cobrada vía nómina)
+            ...(config.loanReceivableAccountId && glLoanTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.loanReceivableAccountId,
+                    amount: glLoanTotal.negated(),
+                    description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados${fxNote}`,
+                  },
+                ]
+              : []),
+            // V-1 + F-03: Aportes patronales — Dr Gastos de Personal / Cr CxP organismos
+            // Debit = SOLO organismos con cuenta configurada (configuredPatronal) — garantiza cuadre.
+            ...(glConfiguredPatronal.greaterThan(0)
+              ? [
+                  {
+                    accountId: expenseAccountId,
+                    amount: glConfiguredPatronal,
+                    description: `Nómina ${nomPeriod} — aportes patronales IVSS/INCES/FAOV/RPE/Pensiones${fxNote}`,
+                  },
+                ]
+              : []),
+            ...(config.ivssPatronalAccountId && glIvssPatTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.ivssPatronalAccountId,
+                    amount: glIvssPatTotal.negated(),
+                    description: `Nómina ${nomPeriod} — IVSS patronal 9%${fxNote}`,
+                  },
+                ]
+              : []),
+            ...(config.incesPatronalAccountId && glIncesPatTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.incesPatronalAccountId,
+                    amount: glIncesPatTotal.negated(),
+                    description: `Nómina ${nomPeriod} — INCES patronal 2%${fxNote}`,
+                  },
+                ]
+              : []),
+            ...(config.faovPatronalAccountId && glFaovPatTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.faovPatronalAccountId,
+                    amount: glFaovPatTotal.negated(),
+                    description: `Nómina ${nomPeriod} — FAOV patronal 2%${fxNote}`,
+                  },
+                ]
+              : []),
+            ...(config.rpePatronalAccountId && glRpePatTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.rpePatronalAccountId,
+                    amount: glRpePatTotal.negated(),
+                    description: `Nómina ${nomPeriod} — RPE patronal 2%${fxNote}`,
+                  },
+                ]
+              : []),
+            ...(config.pensionesPatronalAccountId && glPensionesPatTotal.greaterThan(0)
+              ? [
+                  {
+                    accountId: config.pensionesPatronalAccountId,
+                    amount: glPensionesPatTotal.negated(),
+                    description: `Nómina ${nomPeriod} — Protección de Pensiones patronal 9%${fxNote}`,
+                  },
+                ]
+              : []),
+          ];
+          assertBalancedGLEntries(nominaEntries); // N4: invariante partida doble
+          const asiento = await tx.transaction.create({
+            data: {
+              companyId,
+              number: `NOM-${run.periodStart.toISOString().split("T")[0]}-${runId.slice(-6)}`,
+              // Hallazgo #11: fecha del asiento = fin del período de nómina, no la fecha de aprobación.
+              // Si se usara new Date(), el asiento aparece en el Ledger del mes de aprobación
+              // en lugar del mes del período, rompiendo la coincidencia InvoiceBook ↔ Ledger.
+              date: run.periodEnd,
+              description: `Causación nómina ${run.periodStart.toISOString().split("T")[0]} — ${run.periodEnd.toISOString().split("T")[0]} (${run.employeeCount} empleados)`,
+              reference: runId,
+              userId,
+              periodId: openPeriod.id,
+              type: "DIARIO",
+              entries: {
+                create: nominaEntries,
+              },
+            },
+          });
+
+          // ── Vincular asiento al run ────────────────────────────────────────
+          const approvedRun = await tx.payrollRun.update({
+            where: { id: runId },
+            data: { transactionId: asiento.id },
+          });
+
+          // ── Actualizar saldos de préstamos (PRESTAMO_EMP) ─────────────────
+          // Se recalcula el MISMO plan que produjo la línea del recibo, en vez de
+          // repartir el total a ojo entre los préstamos del empleado. Antes esta
+          // copia leía solo las columnas VES y sólo tocaba el lado USD si el
+          // préstamo era MIXED: con uno en USD daba isPaid=true y lo marcaba
+          // pagado sin haber cobrado nada.
+          const loanLines = lines.filter(
+            (l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION"
+          );
+          if (loanLines.length > 0) {
+            const currencyByEmployee = new Map<string, SalaryCurrency>();
+            const deductedByEmployee = new Map<string, Decimal>();
+            for (const l of loanLines) {
+              const prev = deductedByEmployee.get(l.employeeId) ?? new Decimal(0);
+              deductedByEmployee.set(l.employeeId, prev.plus(new Decimal(l.amount.toString())));
+              currencyByEmployee.set(
+                l.employeeId,
+                (l.salarySnapshotCurrency ?? "VES") as SalaryCurrency
+              );
+            }
+
+            for (const [empId, deducted] of deductedByEmployee.entries()) {
+              const empLoans = await tx.employeeLoan.findMany({
+                where: { companyId, employeeId: empId, status: "ACTIVE" },
+                orderBy: { createdAt: "asc" },
+              });
+
+              const plans = planLoanInstallments(empLoans, currencyByEmployee.get(empId) ?? "VES");
+              const planned = plans.reduce((sum, p) => sum.plus(p.lineAmount), new Decimal(0));
+
+              // Si los préstamos cambiaron entre el cálculo y la aprobación, el
+              // recibo y el plan discrepan. Se aplica el plan (es el que cuadra con
+              // los saldos reales) y queda constancia en el log.
+              if (!planned.equals(deducted)) {
+                console.warn(
+                  `[PayrollRunService] Préstamos de ${empId}: el recibo dice ${deducted.toFixed(2)} y el plan ${planned.toFixed(2)}. Se aplica el plan.`
+                );
+              }
+
+              for (const plan of plans) {
+                await tx.employeeLoan.update({
+                  where: { id: plan.loanId },
+                  data: {
+                    remainingBalance: plan.newBalanceVes.toFixed(2),
+                    ...(plan.newBalanceUsd !== null && {
+                      remainingBalanceUsd: plan.newBalanceUsd.toFixed(2),
+                    }),
+                    paidInstallments: { increment: 1 },
+                    status: plan.isPaid ? "PAID" : "ACTIVE",
+                  },
+                });
+              }
+            }
+          }
+
+          // ── Cerrar el registro del Art. 183 ────────────────────────────────
+          // "la REMUNERACION ESPECIAL que haya pagado a cada trabajador". Los
+          // registros ya estan RESERVADOS por este run desde que se creo el
+          // borrador, asi que aqui solo se les pone el importe: no hay que adivinar
+          // cuales por ventana de fechas.
+          //
+          // Adivinarlo era un error con dinero detrás: marcaba como pagadas las
+          // horas de empleados fuera del run (create acepta `employeeIds`), las de
+          // quien no tiene salario registrado, y las cargadas entre create y
+          // approve — que quedaban con `paidAmount` y sin haberse pagado nunca, sin
+          // salida por UI y sin que ningun run futuro las recogiera.
+          const claimed = await tx.overtimeEntry.findMany({
+            where: { companyId, payrollRunId: runId },
+            select: { id: true, employeeId: true, kind: true, hours: true, authorized: true },
+          });
+
+          if (claimed.length > 0) {
+            const heLines = await tx.payrollRunLine.findMany({
+              where: {
+                companyId,
+                payrollRunId: runId,
+                conceptCode: { in: ["HE_DIURNA", "HE_NOCTURNA"] },
+              },
+              select: {
+                employeeId: true,
+                conceptCode: true,
+                amount: true,
+                hours: true,
+                rate: true,
               },
             });
+
+            // La clave incluye la TARIFA: el calculador emite dos lineas del mismo
+            // conceptCode por empleado —autorizadas y sin permiso, a distinto
+            // recargo (Art. 182)— y una clave `empleado:tipo` hacia que la segunda
+            // pisara a la primera, con lo que el importe anotado en el registro
+            // legal no era ninguno de los dos.
+            const paidPerHour = new Map<string, Decimal>();
+            for (const l of heLines) {
+              const h = l.hours ? new Decimal(l.hours.toString()) : null;
+              if (!h || h.lte(0) || !l.rate) continue;
+              const kind = l.conceptCode === "HE_DIURNA" ? "DIURNA" : "NOCTURNA";
+              paidPerHour.set(
+                `${l.employeeId}:${kind}:${new Decimal(l.rate.toString()).toFixed(2)}`,
+                new Decimal(l.amount.toString()).div(h)
+              );
+            }
+
+            for (const e of claimed) {
+              const rate =
+                e.kind === "DIURNA"
+                  ? e.authorized
+                    ? HE_DAY_MULTIPLIER
+                    : HE_DAY_MULTIPLIER_UNAUTHORIZED
+                  : e.authorized
+                    ? HE_NIGHT_MULTIPLIER
+                    : HE_NIGHT_MULTIPLIER_UNAUTHORIZED;
+              const perHour = paidPerHour.get(`${e.employeeId}:${e.kind}:${rate.toFixed(2)}`);
+              // Sin linea que le corresponda no se inventa un importe: se deja en
+              // null y el registro sigue mostrandose como pendiente de pago.
+              if (!perHour) continue;
+              await tx.overtimeEntry.update({
+                where: { id: e.id },
+                data: { paidAmount: perHour.mul(e.hours.toString()).toDecimalPlaces(4).toFixed(4) },
+              });
+            }
           }
-        }
-      }
 
-      // ── Cerrar el registro del Art. 183 ────────────────────────────────
-      // "la REMUNERACION ESPECIAL que haya pagado a cada trabajador". Los
-      // registros ya estan RESERVADOS por este run desde que se creo el
-      // borrador, asi que aqui solo se les pone el importe: no hay que adivinar
-      // cuales por ventana de fechas.
-      //
-      // Adivinarlo era un error con dinero detrás: marcaba como pagadas las
-      // horas de empleados fuera del run (create acepta `employeeIds`), las de
-      // quien no tiene salario registrado, y las cargadas entre create y
-      // approve — que quedaban con `paidAmount` y sin haberse pagado nunca, sin
-      // salida por UI y sin que ningun run futuro las recogiera.
-      const claimed = await tx.overtimeEntry.findMany({
-        where: { companyId, payrollRunId: runId },
-        select: { id: true, employeeId: true, kind: true, hours: true, authorized: true },
-      });
-
-      if (claimed.length > 0) {
-        const heLines = await tx.payrollRunLine.findMany({
-          where: {
-            companyId,
-            payrollRunId: runId,
-            conceptCode: { in: ["HE_DIURNA", "HE_NOCTURNA"] },
-          },
-          select: { employeeId: true, conceptCode: true, amount: true, hours: true, rate: true },
-        });
-
-        // La clave incluye la TARIFA: el calculador emite dos lineas del mismo
-        // conceptCode por empleado —autorizadas y sin permiso, a distinto
-        // recargo (Art. 182)— y una clave `empleado:tipo` hacia que la segunda
-        // pisara a la primera, con lo que el importe anotado en el registro
-        // legal no era ninguno de los dos.
-        const paidPerHour = new Map<string, Decimal>();
-        for (const l of heLines) {
-          const h = l.hours ? new Decimal(l.hours.toString()) : null;
-          if (!h || h.lte(0) || !l.rate) continue;
-          const kind = l.conceptCode === "HE_DIURNA" ? "DIURNA" : "NOCTURNA";
-          paidPerHour.set(
-            `${l.employeeId}:${kind}:${new Decimal(l.rate.toString()).toFixed(2)}`,
-            new Decimal(l.amount.toString()).div(h),
-          );
-        }
-
-        for (const e of claimed) {
-          const rate = e.kind === "DIURNA"
-            ? (e.authorized ? HE_DAY_MULTIPLIER : HE_DAY_MULTIPLIER_UNAUTHORIZED)
-            : (e.authorized ? HE_NIGHT_MULTIPLIER : HE_NIGHT_MULTIPLIER_UNAUTHORIZED);
-          const perHour = paidPerHour.get(`${e.employeeId}:${e.kind}:${rate.toFixed(2)}`);
-          // Sin linea que le corresponda no se inventa un importe: se deja en
-          // null y el registro sigue mostrandose como pendiente de pago.
-          if (!perHour) continue;
-          await tx.overtimeEntry.update({
-            where: { id: e.id },
-            data: { paidAmount: perHour.mul(e.hours.toString()).toDecimalPlaces(4).toFixed(4) },
+          // ── AuditLog (NOM-C-11) ────────────────────────────────────────────
+          await tx.auditLog.create({
+            data: {
+              companyId,
+              entityName: "PayrollRun",
+              entityId: runId,
+              action: "APPROVE_PAYROLL_RUN",
+              userId,
+              ipAddress,
+              userAgent,
+              oldValue: { status: "DRAFT" },
+              newValue: {
+                status: "APPROVED",
+                transactionId: asiento.id,
+                approvedAt: new Date().toISOString(),
+                approvedByUserId: userId,
+                employeeCount: approvedRun.employeeCount,
+                totalEarnings: approvedRun.totalEarnings.toString(),
+                totalDeductions: approvedRun.totalDeductions.toString(),
+                totalNet: approvedRun.totalNet.toString(),
+                bcvRateAtRun: approvedRun.bcvRateAtRun?.toString() ?? null,
+                // V-2: tasa de cambio usada para GL si la nómina fue en USD
+                ...(payCurrency !== "VES" && {
+                  fxRateAtApproval: glMultiplier.toString(),
+                  payCurrency,
+                }),
+              },
+            },
           });
-        }
-      }
 
-      // ── AuditLog (NOM-C-11) ────────────────────────────────────────────
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          entityName: "PayrollRun",
-          entityId: runId,
-          action: "APPROVE_PAYROLL_RUN",
-          userId,
-          ipAddress,
-          userAgent,
-          oldValue: { status: "DRAFT" },
-          newValue: {
-            status: "APPROVED",
-            transactionId: asiento.id,
-            approvedAt: new Date().toISOString(),
-            approvedByUserId: userId,
-            employeeCount: approvedRun.employeeCount,
-            totalEarnings: approvedRun.totalEarnings.toString(),
-            totalDeductions: approvedRun.totalDeductions.toString(),
-            totalNet: approvedRun.totalNet.toString(),
-            bcvRateAtRun: approvedRun.bcvRateAtRun?.toString() ?? null,
-            // V-2: tasa de cambio usada para GL si la nómina fue en USD
-            ...(payCurrency !== "VES" && { fxRateAtApproval: glMultiplier.toString(), payCurrency }),
-          },
-        },
-      });
-
-      return serializeRun(approvedRun);
-    }));
+          return serializeRun(approvedRun);
+        })
+    );
 
     // Feature 7: enviar recibos por email a empleados (fire-and-forget post-commit)
     // Degradación graceful: si email no configurado o empleado sin email, no lanza error.
@@ -1753,10 +1868,19 @@ export const PayrollRunService = {
 
     const signals: PayrollRunStaleSignal[] = [];
     const add = (count: number, one: string, many: string) => {
-      if (count > 0) signals.push({ count, label: count === 1 ? one : many.replace("{n}", String(count)) });
+      if (count > 0)
+        signals.push({ count, label: count === 1 ? one : many.replace("{n}", String(count)) });
     };
-    add(sueldos, "1 cambio de sueldo registrado después", "{n} cambios de sueldo registrados después");
-    add(horas, "1 hora extra del período registrada después", "{n} registros de horas extra del período añadidos después");
+    add(
+      sueldos,
+      "1 cambio de sueldo registrado después",
+      "{n} cambios de sueldo registrados después"
+    );
+    add(
+      horas,
+      "1 hora extra del período registrada después",
+      "{n} registros de horas extra del período añadidos después"
+    );
     add(prestamos, "1 préstamo activo creado después", "{n} préstamos activos creados después");
     add(asignaciones, "1 asignación fija creada después", "{n} asignaciones fijas creadas después");
     add(topes, "1 tope legal actualizado después", "{n} topes legales actualizados después");

@@ -72,9 +72,7 @@ export default async function SignUpPage({ searchParams }: PageProps) {
   const { plan } = await searchParams;
   const normalizedPlan = plan?.replace(/-/g, "_");
   const validPlan =
-    normalizedPlan && normalizedPlan in PLAN_SUMMARIES
-      ? (normalizedPlan as PlanKey)
-      : null;
+    normalizedPlan && normalizedPlan in PLAN_SUMMARIES ? (normalizedPlan as PlanKey) : null;
   const summary = validPlan ? PLAN_SUMMARIES[validPlan] : null;
 
   const { userId } = await auth();
@@ -86,7 +84,7 @@ export default async function SignUpPage({ searchParams }: PageProps) {
       {summary ? (
         <div className="flex w-full max-w-4xl flex-col items-center gap-8 lg:flex-row lg:items-start">
           {/* Plan summary */}
-          <div className="w-full rounded-2xl border border-slate-200 bg-white p-7 shadow-sm lg:max-w-75 lg:sticky lg:top-12">
+          <div className="w-full rounded-2xl border border-slate-200 bg-white p-7 shadow-sm lg:sticky lg:top-12 lg:max-w-75">
             {summary.badge && (
               <span
                 className={`mb-4 inline-block rounded-full px-3 py-1 text-xs font-semibold ${
@@ -98,17 +96,15 @@ export default async function SignUpPage({ searchParams }: PageProps) {
                 {summary.badge}
               </span>
             )}
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+            <p className="mb-1 text-xs font-medium tracking-wide text-slate-400 uppercase">
               Estás contratando
             </p>
-            <h2 className="mb-1 text-lg font-bold text-slate-900">
-              {summary.name}
-            </h2>
+            <h2 className="mb-1 text-lg font-bold text-slate-900">{summary.name}</h2>
             <div className="mb-0.5 text-3xl font-extrabold text-slate-900">
               {summary.displayPrice}
             </div>
             {summary.expandDetails ? (
-              <details className="mb-5 group">
+              <details className="group mb-5">
                 <summary className="cursor-pointer list-none text-xs text-slate-500">
                   {summary.billingNote} ·{" "}
                   <span className="font-semibold text-blue-600 group-open:hidden">
@@ -125,12 +121,10 @@ export default async function SignUpPage({ searchParams }: PageProps) {
             )}
 
             <div className="mb-5 rounded-lg bg-blue-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">
+              <p className="text-xs font-semibold tracking-wide text-blue-500 uppercase">
                 Total a pagar
               </p>
-              <p className="text-lg font-bold text-blue-900">
-                {summary.totalToday}
-              </p>
+              <p className="text-lg font-bold text-blue-900">{summary.totalToday}</p>
               {summary.chargeNote && (
                 <p className="mt-1 text-xs text-blue-600">{summary.chargeNote}</p>
               )}
@@ -155,8 +149,8 @@ export default async function SignUpPage({ searchParams }: PageProps) {
             </ul>
 
             <p className="text-xs text-slate-400">
-              Nunca se te cobrará sin confirmación previa. Cancela en cualquier
-              momento desde tu cuenta.
+              Nunca se te cobrará sin confirmación previa. Cancela en cualquier momento desde tu
+              cuenta.
             </p>
 
             <div className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
@@ -214,7 +208,7 @@ export default async function SignUpPage({ searchParams }: PageProps) {
                 </div>
 
                 {/* Connector */}
-                <div className="mt-4 flex-1 border-t-2 border-slate-100 mx-3" />
+                <div className="mx-3 mt-4 flex-1 border-t-2 border-slate-100" />
 
                 {/* Step 2 — pending */}
                 <div className="flex flex-col items-center">
@@ -229,10 +223,7 @@ export default async function SignUpPage({ searchParams }: PageProps) {
               </div>
             </div>
             {userId ? (
-              <AlreadySignedInPanel
-                planName={summary.name}
-                displayPrice={summary.displayPrice}
-              />
+              <AlreadySignedInPanel planName={summary.name} displayPrice={summary.displayPrice} />
             ) : (
               <SignUp />
             )}

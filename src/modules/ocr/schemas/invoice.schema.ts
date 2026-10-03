@@ -22,12 +22,12 @@ export const ExtractedInvoiceSchema = z.object({
   numeroControl: z.string().optional(),
   fechaEmision: z.string().optional(),
   // ── Bases imponibles e impuestos (VEN-NIF alícuotas) ──────────────────────
-  baseImponibleGeneral: z.string().optional(),   // base para IVA 16% (General)
-  ivaGeneral: z.string().optional(),             // IVA 16%
-  baseImponibleReducida: z.string().optional(),  // base para IVA 8% (Reducida)
-  ivaReducido: z.string().optional(),            // IVA 8%
+  baseImponibleGeneral: z.string().optional(), // base para IVA 16% (General)
+  ivaGeneral: z.string().optional(), // IVA 16%
+  baseImponibleReducida: z.string().optional(), // base para IVA 8% (Reducida)
+  ivaReducido: z.string().optional(), // IVA 8%
   baseImponibleAdicional: z.string().optional(), // base para IVA +15% (Lujo)
-  ivaAdicional: z.string().optional(),           // IVA adicional lujo
+  ivaAdicional: z.string().optional(), // IVA adicional lujo
   montoTotal: z.string().optional(),
   // ── Metadatos del pago ─────────────────────────────────────────────────────
   currency: z.enum(SUPPORTED_CURRENCIES).optional().catch(undefined),

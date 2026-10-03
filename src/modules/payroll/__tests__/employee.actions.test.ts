@@ -217,7 +217,10 @@ describe("createEmployeeAction", () => {
 
   it("P2002 → cédula duplicada en BD (NOM-B-02)", async () => {
     vi.mocked(EmployeeService.create).mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" })
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "7.0.0",
+      })
     );
     const result = await createEmployeeAction(COMPANY_ID, VALID_CREATE_INPUT);
     expect(result.success).toBe(false);

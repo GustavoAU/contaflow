@@ -100,7 +100,7 @@ function setAuth(userId: string | null) {
 }
 function setMember(role: string | null) {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-    role ? ({ role } as never) : (null as never),
+    role ? ({ role } as never) : (null as never)
   );
 }
 
@@ -196,7 +196,10 @@ describe("customer.actions — flujo exitoso", () => {
   });
 
   it("updateCustomerAction actualiza exitosamente", async () => {
-    vi.mocked(CustomerService.update).mockResolvedValue({ ...mockCustomer, name: "Nuevo" } as never);
+    vi.mocked(CustomerService.update).mockResolvedValue({
+      ...mockCustomer,
+      name: "Nuevo",
+    } as never);
     const r = await updateCustomerAction("c1", "cust1", { name: "Nuevo" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.name).toBe("Nuevo");
@@ -210,7 +213,10 @@ describe("customer.actions — flujo exitoso", () => {
 
   it("deleteCustomerAction con OWNER soft-deletes", async () => {
     setMember("OWNER");
-    vi.mocked(CustomerService.softDelete).mockResolvedValue({ deleted: true, linkedCount: 3 } as never);
+    vi.mocked(CustomerService.softDelete).mockResolvedValue({
+      deleted: true,
+      linkedCount: 3,
+    } as never);
     const r = await deleteCustomerAction("c1", "cust1");
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.linkedCount).toBe(3);
@@ -218,7 +224,10 @@ describe("customer.actions — flujo exitoso", () => {
 
   it("deleteCustomerAction retorna error si ya eliminado", async () => {
     setMember("OWNER");
-    vi.mocked(CustomerService.softDelete).mockResolvedValue({ deleted: false, linkedCount: 0 } as never);
+    vi.mocked(CustomerService.softDelete).mockResolvedValue({
+      deleted: false,
+      linkedCount: 0,
+    } as never);
     const r = await deleteCustomerAction("c1", "cust1");
     expect(r.success).toBe(false);
   });
@@ -346,7 +355,10 @@ describe("createCustomerGroupAction", () => {
   });
 
   it("ACCOUNTANT crea grupo exitosamente", async () => {
-    vi.mocked(CustomerGroupService.create).mockResolvedValue({ ...mockGroup, name: "VIP" } as never);
+    vi.mocked(CustomerGroupService.create).mockResolvedValue({
+      ...mockGroup,
+      name: "VIP",
+    } as never);
     const r = await createCustomerGroupAction("c1", "VIP");
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.name).toBe("VIP");

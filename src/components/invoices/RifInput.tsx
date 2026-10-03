@@ -5,14 +5,17 @@
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import { validateVenezuelanRif } from "@/lib/fiscal-validators";
 import { validateRifAction } from "@/modules/rif-validation/actions/validateRifAction";
-import { searchContactsByRifAction, type ContactSuggestion } from "@/modules/invoices/actions/invoice-contacts.actions";
+import {
+  searchContactsByRifAction,
+  type ContactSuggestion,
+} from "@/modules/invoices/actions/invoice-contacts.actions";
 
 type VerifyStatus =
   | "idle"
   | "checking"
-  | "verified"          // SENIAT confirmó
-  | "format_only"       // Formato válido, SENIAT no disponible
-  | "format_invalid";   // Formato incorrecto
+  | "verified" // SENIAT confirmó
+  | "format_only" // Formato válido, SENIAT no disponible
+  | "format_invalid"; // Formato incorrecto
 
 interface Props {
   companyId: string;
@@ -75,7 +78,7 @@ export function RifInput({
         }
       }, 300);
     },
-    [companyId],
+    [companyId]
   );
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -145,17 +148,22 @@ export function RifInput({
                 <li key={`${s.source}-${s.rif}`}>
                   <button
                     type="button"
-                    onMouseDown={(e) => { e.preventDefault(); handleSelectSuggestion(s); }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelectSuggestion(s);
+                    }}
                     className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-zinc-50"
                   >
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-10 font-medium bg-zinc-100 text-zinc-600 mt-0.5">
+                    <span className="text-10 mt-0.5 shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-600">
                       {s.source === "vendor" ? "PROV" : "CLI"}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5">
                         <span className="block truncate font-medium text-zinc-800">{s.name}</span>
                         {s.isSpecialContributor && (
-                          <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-10 font-bold text-amber-700">CE</span>
+                          <span className="text-10 shrink-0 rounded bg-amber-100 px-1 py-0.5 font-bold text-amber-700">
+                            CE
+                          </span>
                         )}
                       </span>
                       <span className="block font-mono text-xs text-zinc-400">{s.rif}</span>
@@ -174,7 +182,9 @@ export function RifInput({
           type="button"
           onClick={handleVerify}
           disabled={!formatValid || isChecking}
-          title={!formatValid ? "Escribe un RIF válido para verificar" : "Consultar en el portal SENIAT"}
+          title={
+            !formatValid ? "Escribe un RIF válido para verificar" : "Consultar en el portal SENIAT"
+          }
           className="shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {isChecking ? "Verificando…" : "Verificar"}
@@ -188,7 +198,9 @@ export function RifInput({
             <span className="text-red-500">✗ Formato inválido — use J-12345678-9</span>
           )}
           {status === "idle" && formatValid && (
-            <span className="text-zinc-400">Formato válido · Presiona Verificar para consultar SENIAT</span>
+            <span className="text-zinc-400">
+              Formato válido · Presiona Verificar para consultar SENIAT
+            </span>
           )}
           {status === "checking" && (
             <span className="text-zinc-400">Consultando portal SENIAT…</span>

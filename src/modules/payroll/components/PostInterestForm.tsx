@@ -16,17 +16,33 @@ export default function PostInterestForm({ companyId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [result, setResult] = useState<{ employeesProcessed: number; totalInterest: string } | null>(null);
+  const [result, setResult] = useState<{
+    employeesProcessed: number;
+    totalInterest: string;
+  } | null>(null);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const monthName = [
-      "enero", "febrero", "marzo", "abril", "mayo", "junio",
-      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+      "enero",
+      "febrero",
+      "marzo",
+      "abril",
+      "mayo",
+      "junio",
+      "julio",
+      "agosto",
+      "septiembre",
+      "octubre",
+      "noviembre",
+      "diciembre",
     ][month - 1];
-    if (!window.confirm(
-      `¿Registrar intereses sobre prestaciones de ${monthName} ${year}? Se usará la tasa BCV registrada para ese mes.`
-    )) return;
+    if (
+      !window.confirm(
+        `¿Registrar intereses sobre prestaciones de ${monthName} ${year}? Se usará la tasa BCV registrada para ese mes.`
+      )
+    )
+      return;
 
     setResult(null);
     startTransition(async () => {
@@ -44,29 +60,41 @@ export default function PostInterestForm({ companyId }: Props) {
     <div className="space-y-4">
       <form onSubmit={handleSubmit} className="flex items-end gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Año</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">Año</label>
           <input
             type="number"
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
             min={2000}
             max={2099}
-            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             required
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Mes</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">Mes</label>
           <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             {[
-              "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+              "Enero",
+              "Febrero",
+              "Marzo",
+              "Abril",
+              "Mayo",
+              "Junio",
+              "Julio",
+              "Agosto",
+              "Septiembre",
+              "Octubre",
+              "Noviembre",
+              "Diciembre",
             ].map((name, i) => (
-              <option key={i + 1} value={i + 1}>{name}</option>
+              <option key={i + 1} value={i + 1}>
+                {name}
+              </option>
             ))}
           </select>
         </div>
@@ -76,17 +104,19 @@ export default function PostInterestForm({ companyId }: Props) {
           aria-busy={isPending}
           className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Registrando…" : "Registrar intereses"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}
+          {isPending ? "Registrando…" : "Registrar intereses"}
         </button>
       </form>
 
       {result && (
-        <div className="rounded-lg bg-purple-50 border border-purple-200 p-4 text-sm">
+        <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 text-sm">
           <p className="font-medium text-purple-800">Intereses registrados</p>
-          <p className="text-purple-700 mt-1">
-            Empleados procesados: <span className="font-mono font-semibold">{result.employeesProcessed}</span>
-            &nbsp;·&nbsp;
-            Total intereses: <span className="font-mono font-semibold">
+          <p className="mt-1 text-purple-700">
+            Empleados procesados:{" "}
+            <span className="font-mono font-semibold">{result.employeesProcessed}</span>
+            &nbsp;·&nbsp; Total intereses:{" "}
+            <span className="font-mono font-semibold">
               {Number(result.totalInterest).toLocaleString("es-VE", { minimumFractionDigits: 4 })}
             </span>
           </p>

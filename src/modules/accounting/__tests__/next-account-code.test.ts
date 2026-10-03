@@ -52,9 +52,12 @@ describe("nextAccountCode", () => {
 
   it("rellena el PRIMER hueco cuando hay varios", () => {
     // Serie de 5 en 5 con dos huecos (2215 y 2225): gana el primero.
-    expect(nextAccountCode({
-      existing: ["2205", "2210", "2220", "2230"], ...PASIVO,
-    })).toBe("2215");
+    expect(
+      nextAccountCode({
+        existing: ["2205", "2210", "2220", "2230"],
+        ...PASIVO,
+      })
+    ).toBe("2215");
   });
 
   it("el hueco se busca en la rejilla de LA serie, no en los enteros", () => {
@@ -85,9 +88,12 @@ describe("nextAccountCode", () => {
   it("ignora codigos de otros rangos y los no numericos", () => {
     // El 5105 es de gastos y "1-1-01" no es un numero: ninguno debe influir ni en
     // el paso deducido ni en el hueco que se busca.
-    expect(nextAccountCode({
-      existing: ["5105", "1-1-01", "2205", "2210"], ...PASIVO,
-    })).toBe("2215");
+    expect(
+      nextAccountCode({
+        existing: ["5105", "1-1-01", "2205", "2210"],
+        ...PASIVO,
+      })
+    ).toBe("2215");
   });
 
   it("respeta un plan que va de 10 en 10", () => {

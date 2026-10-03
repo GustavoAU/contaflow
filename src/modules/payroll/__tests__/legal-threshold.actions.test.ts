@@ -6,7 +6,9 @@ const mockCheckRateLimit = vi.hoisted(() => vi.fn());
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/headers", () => ({ headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }) }));
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue({ get: vi.fn().mockReturnValue(null) }),
+}));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
   fiscalKey: (c: string, u: string) => `${c}:${u}`,
@@ -42,7 +44,8 @@ const SAMPLE = {
   effectiveFrom: "2026-01-01",
   value: "130.00",
   notes: null,
-  createdAt: new Date().toISOString(), verifiedAt: null,
+  createdAt: new Date().toISOString(),
+  verifiedAt: null,
 };
 
 function setupOk(role = "ADMIN") {
@@ -105,7 +108,10 @@ describe("createLegalThresholdAction", () => {
 
   it("bloquea si rate limit agotado", async () => {
     mockAuth.mockResolvedValue({ userId: USER_ID });
-    mockCheckRateLimit.mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes. Intente más tarde." });
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes. Intente más tarde.",
+    });
 
     const res = await createLegalThresholdAction(COMPANY_ID, VALID_INPUT);
 
@@ -144,7 +150,10 @@ describe("createLegalThresholdAction", () => {
   it("retorna error si fecha inválida", async () => {
     setupOk("ADMIN");
 
-    const res = await createLegalThresholdAction(COMPANY_ID, { ...VALID_INPUT, effectiveFrom: "2026/01/01" });
+    const res = await createLegalThresholdAction(COMPANY_ID, {
+      ...VALID_INPUT,
+      effectiveFrom: "2026/01/01",
+    });
 
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toContain("YYYY-MM-DD");
@@ -161,7 +170,13 @@ describe("deleteLegalThresholdAction", () => {
     const res = await deleteLegalThresholdAction(COMPANY_ID, "th-1");
 
     expect(res.success).toBe(true);
-    expect(LegalThresholdService.delete).toHaveBeenCalledWith(COMPANY_ID, "th-1", USER_ID, null, null);
+    expect(LegalThresholdService.delete).toHaveBeenCalledWith(
+      COMPANY_ID,
+      "th-1",
+      USER_ID,
+      null,
+      null
+    );
   });
 
   it("permite eliminar si rol es ACCOUNTANT", async () => {

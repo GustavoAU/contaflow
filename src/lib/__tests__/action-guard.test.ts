@@ -187,7 +187,7 @@ describe("requireCompanyAction — país (paso 5, ADR-042 D-2)", () => {
       expect.objectContaining({
         level: "warning",
         tags: expect.objectContaining({ companyId: COMPANY_ID, country: "XXX" }),
-      }),
+      })
     );
   });
 
@@ -315,7 +315,7 @@ describe("requireUserAction — rate limit", () => {
     // No es fiscalKey(companyId, userId): aquí todavía no hay empresa
     expect(checkRateLimit).not.toHaveBeenCalledWith(
       expect.stringContaining(COMPANY_ID),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -400,7 +400,6 @@ describe("requireUserAction — contexto de red (R-6) y contrato de salida", () 
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
   });
 });
-
 
 describe("rate limit sin mensaje propio → texto por defecto (ambos guards)", () => {
   // `checkRateLimit` siempre devuelve `error`, pero el tipo lo permite opcional:

@@ -36,7 +36,12 @@ const mockRetention = {
   deletedAt: null,
 };
 
-const mockPeriod = { id: "period-1", companyId: "comp-1", status: "OPEN", fiscalYear: { status: "OPEN" } };
+const mockPeriod = {
+  id: "period-1",
+  companyId: "comp-1",
+  status: "OPEN",
+  fiscalYear: { status: "OPEN" },
+};
 const mockLiabilityAccount = { id: "acc-liab-1", companyId: "comp-1", type: "LIABILITY" };
 const mockBankAccount = { id: "acc-bank-1", companyId: "comp-1", type: "ASSET" };
 const mockTransaction = { id: "tx-1" };
@@ -44,16 +49,14 @@ const mockTransaction = { id: "tx-1" };
 describe("enterRetention", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          retencion: prisma.retencion,
-          accountingPeriod: prisma.accountingPeriod,
-          account: prisma.account,
-          transaction: prisma.transaction,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        retencion: prisma.retencion,
+        accountingPeriod: prisma.accountingPeriod,
+        account: prisma.account,
+        transaction: prisma.transaction,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("happy path: entera retención PENDING y crea asiento DIARIO", async () => {
@@ -64,7 +67,10 @@ describe("enterRetention", () => {
       .mockResolvedValueOnce(mockBankAccount as never);
     vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
     vi.mocked(prisma.transaction.create).mockResolvedValue(mockTransaction as never);
-    vi.mocked(prisma.retencion.update).mockResolvedValue({ ...mockRetention, status: "ENTERADO" } as never);
+    vi.mocked(prisma.retencion.update).mockResolvedValue({
+      ...mockRetention,
+      status: "ENTERADO",
+    } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     await expect(
@@ -186,7 +192,7 @@ describe("enterRetention", () => {
     vi.mocked(prisma.retencion.findFirst).mockResolvedValue(mockRetention as never);
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
     vi.mocked(prisma.account.findFirst)
-      .mockResolvedValueOnce(null as never)  // liability not found
+      .mockResolvedValueOnce(null as never) // liability not found
       .mockResolvedValueOnce(mockBankAccount as never);
 
     await expect(
@@ -225,8 +231,8 @@ describe("RetentionService INCES/FAT", () => {
       undefined,
       16,
       "IVA",
-      true,   // applyInces
-      true    // applyFat
+      true, // applyInces
+      true // applyFat
     );
     expect(result.incesAmount).toBe("20.00");
     expect(result.fatAmount).toBe("7.50");

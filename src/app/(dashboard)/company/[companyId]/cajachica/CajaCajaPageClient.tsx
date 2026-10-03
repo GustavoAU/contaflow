@@ -71,7 +71,9 @@ function CreateCajaForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="caja-name" className="text-xs">Nombre *</Label>
+          <Label htmlFor="caja-name" className="text-xs">
+            Nombre *
+          </Label>
           <Input
             id="caja-name"
             value={name}
@@ -83,12 +85,14 @@ function CreateCajaForm({
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="caja-account" className="text-xs">Cuenta contable (Activo) *</Label>
+          <Label htmlFor="caja-account" className="text-xs">
+            Cuenta contable (Activo) *
+          </Label>
           <select
             id="caja-account"
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             required
             disabled={isPending || assetAccounts.length === 0}
           >
@@ -101,18 +105,20 @@ function CreateCajaForm({
           </select>
           {assetAccounts.length === 0 && (
             <p className="text-xs text-amber-600">
-              No hay cuentas de tipo Activo. Crea una cuenta de Activo en el Plan de Cuentas antes de
-              registrar una caja chica.
+              No hay cuentas de tipo Activo. Crea una cuenta de Activo en el Plan de Cuentas antes
+              de registrar una caja chica.
             </p>
           )}
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="caja-custodian" className="text-xs">Custodio responsable *</Label>
+          <Label htmlFor="caja-custodian" className="text-xs">
+            Custodio responsable *
+          </Label>
           <select
             id="caja-custodian"
             value={custodianId}
             onChange={(e) => setCustodianId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             required
             disabled={isPending || custodianOptions.length === 0}
           >
@@ -131,12 +137,14 @@ function CreateCajaForm({
           )}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="caja-currency" className="text-xs">Moneda</Label>
+          <Label htmlFor="caja-currency" className="text-xs">
+            Moneda
+          </Label>
           <select
             id="caja-currency"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             disabled={isPending}
           >
             <option value="VES">VES</option>
@@ -144,7 +152,9 @@ function CreateCajaForm({
           </select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="caja-max" className="text-xs">Saldo máximo</Label>
+          <Label htmlFor="caja-max" className="text-xs">
+            Saldo máximo
+          </Label>
           <Input
             id="caja-max"
             type="number"
@@ -195,7 +205,9 @@ export function CajaCajaPageClient({ companyId, accounts, employees, isAdmin }: 
     });
   }, [companyId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
@@ -225,7 +237,10 @@ export function CajaCajaPageClient({ companyId, accounts, employees, isAdmin }: 
             companyId={companyId}
             accounts={accounts}
             employees={employees}
-            onSuccess={() => { setShowCreate(false); load(); }}
+            onSuccess={() => {
+              setShowCreate(false);
+              load();
+            }}
             onCancel={() => setShowCreate(false)}
           />
         </div>

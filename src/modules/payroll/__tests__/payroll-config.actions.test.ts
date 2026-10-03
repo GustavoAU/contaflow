@@ -85,7 +85,9 @@ describe("savePayrollConfigAction", () => {
   });
 
   it("NOM-A-05: ADMINISTRATIVE es rechazado (no es ADMIN_ONLY)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await savePayrollConfigAction(COMPANY_ID, VALID_INPUT);
     expect(r.success).toBe(false);
   });

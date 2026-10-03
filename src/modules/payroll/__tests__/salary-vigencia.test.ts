@@ -62,9 +62,7 @@ describe("salaryCurrencyAt — aumento dentro del período", () => {
       { id: "1", salaries: [{ from: "2026-01-01", currency: "USD" as const }] },
       { id: "2", salaries: jose },
     ];
-    const monedas = new Set(
-      plantilla.map((e) => salaryCurrencyAt(e.salaries, PERIODO_INICIO)),
-    );
+    const monedas = new Set(plantilla.map((e) => salaryCurrencyAt(e.salaries, PERIODO_INICIO)));
     expect([...monedas].sort()).toEqual(["USD", "VES"]);
   });
 });

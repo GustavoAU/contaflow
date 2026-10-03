@@ -209,10 +209,7 @@ describe("ImportService.parseAccountsExcel", () => {
   });
 
   it("[RED 5] código sin dígito reconocible y sin columna 'tipo' → error de fila menciona el código", async () => {
-    const buffer = await makeExcelBufferFromRows(
-      ["codigo", "nombre"],
-      [["ABC", "Cuenta rara"]]
-    );
+    const buffer = await makeExcelBufferFromRows(["codigo", "nombre"], [["ABC", "Cuenta rara"]]);
 
     await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(/ABC/);
   });
@@ -273,22 +270,16 @@ describe("ImportService.parseAccountsExcel", () => {
   // solo tiene delimitadores (CSV exportado de otro sistema con una fila ",,," entre
   // secciones), que sobrevive al filtro de líneas vacías porque ",,," no es un string vacío.
   it("[RED — header] fila CSV solo con delimitadores (sin datos) entre cuentas no rompe el import", async () => {
-    const csv =
-      "codigo,nombre,tipo\n1105,Caja General,ASSET\n,,,\n2105,Proveedores,LIABILITY";
+    const csv = "codigo,nombre,tipo\n1105,Caja General,ASSET\n,,,\n2105,Proveedores,LIABILITY";
     const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
     expect(rows).toHaveLength(2);
     expect(rows[1].codigo).toBe("2105");
   });
 
   it("[RED — header] sin columna 'codigo' en ningún lado del archivo → error claro", async () => {
-    const buffer = await makeExcelBufferFromRows(
-      ["nombre", "tipo"],
-      [["Caja General", "ASSET"]]
-    );
+    const buffer = await makeExcelBufferFromRows(["nombre", "tipo"], [["Caja General", "ASSET"]]);
 
-    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(
-      /columna "codigo"/i
-    );
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(/columna "codigo"/i);
   });
 
   // ---------------------------------------------------------------------------
@@ -361,9 +352,7 @@ describe("ImportService.parseAccountsExcel", () => {
       [["FARMACIA EJEMPLO, C.A.", "", ""]]
     );
 
-    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(
-      /FARMACIA EJEMPLO/
-    );
+    await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(/FARMACIA EJEMPLO/);
   });
 
   // ---------------------------------------------------------------------------
@@ -578,7 +567,12 @@ describe("ImportService.importAccounts", () => {
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     await ImportService.importAccounts("company-1", "user-1", [
-      { codigo: "1201", nombre: "Cuentas por Cobrar Clientes", tipo: "ASSET", requiresThirdParty: true } as RowWithThirdParty,
+      {
+        codigo: "1201",
+        nombre: "Cuentas por Cobrar Clientes",
+        tipo: "ASSET",
+        requiresThirdParty: true,
+      } as RowWithThirdParty,
     ]);
 
     expect(prisma.account.create).toHaveBeenCalledWith(
@@ -677,7 +671,8 @@ describe("ImportService.importAccounts", () => {
 // nunca es un zip válido. parseAccountsCsv es la implementación real, separada.
 describe("ImportService.parseAccountsCsv", () => {
   it("parsea un CSV separado por comas", async () => {
-    const csv = "codigo,nombre,tipo,descripcion\n1105,Caja General,ASSET,Efectivo\n2105,Proveedores,LIABILITY,";
+    const csv =
+      "codigo,nombre,tipo,descripcion\n1105,Caja General,ASSET,Efectivo\n2105,Proveedores,LIABILITY,";
     const rows = await ImportService.parseAccountsCsv(Buffer.from(csv, "utf-8"));
     expect(rows).toHaveLength(2);
     expect(rows[0].codigo).toBe("1105");
@@ -729,9 +724,9 @@ describe("ImportService.generateAccountsTemplate", () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buffer as unknown as Parameters<typeof wb.xlsx.load>[0]);
     const ws = wb.worksheets[0];
-    const firstRow = (ws.getRow(1).values as (string | null)[]).slice(1).map((v) =>
-      String(v ?? "").toLowerCase()
-    );
+    const firstRow = (ws.getRow(1).values as (string | null)[])
+      .slice(1)
+      .map((v) => String(v ?? "").toLowerCase());
 
     expect(firstRow).toContain("codigo");
     expect(firstRow).toContain("nombre");

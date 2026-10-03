@@ -134,7 +134,7 @@ async function notifyOwners(
   companyName: string,
   telefono: string | null,
   emails: string[],
-  daysLeft: number,
+  daysLeft: number
 ): Promise<void> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const renewUrl = `${appUrl}/company/${companyId}/upgrade`;
@@ -222,7 +222,7 @@ export async function runBillingLifecycle(now: Date = new Date()): Promise<Billi
           result[key] += 1;
         } catch (err) {
           result.errors.push(
-            `reminder ${days}d ${sub.companyId}: ${err instanceof Error ? err.message : String(err)}`,
+            `reminder ${days}d ${sub.companyId}: ${err instanceof Error ? err.message : String(err)}`
           );
         }
       }

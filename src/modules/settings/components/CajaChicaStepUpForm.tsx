@@ -35,7 +35,7 @@ export function CajaChicaStepUpForm({ companyId, threshold, defaultThreshold }: 
         toast.success(
           value.trim().length > 0
             ? "Umbral de step-up de caja chica actualizado"
-            : "Umbral restablecido al valor por defecto",
+            : "Umbral restablecido al valor por defecto"
         );
       } else {
         toast.error(result.error);
@@ -73,23 +73,16 @@ export function CajaChicaStepUpForm({ companyId, threshold, defaultThreshold }: 
           onChange={(e) => setValue(e.target.value)}
           placeholder={defaultThreshold}
           aria-describedby="cajaChicaStepUpThreshold-help"
-          className="w-full max-w-xs rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm tabular-nums text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="w-full max-w-xs rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 tabular-nums focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         />
-        <p
-          id="cajaChicaStepUpThreshold-help"
-          className="text-xs text-zinc-600 dark:text-zinc-400"
-        >
-          Por encima de este monto, cerrar o reabrir una caja exigirá verificación con
-          segundo factor. Vacío = usar el valor por defecto ({defaultThreshold} VES).
+        <p id="cajaChicaStepUpThreshold-help" className="text-xs text-zinc-600 dark:text-zinc-400">
+          Por encima de este monto, cerrar o reabrir una caja exigirá verificación con segundo
+          factor. Vacío = usar el valor por defecto ({defaultThreshold} VES).
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          onClick={handleSave}
-          disabled={isPending || !dirty}
-          aria-busy={isPending}
-        >
+        <Button onClick={handleSave} disabled={isPending || !dirty} aria-busy={isPending}>
           {isPending ? "Guardando…" : "Guardar configuración"}
         </Button>
         {(threshold !== null || value.trim().length > 0) && (

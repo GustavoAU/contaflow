@@ -35,9 +35,11 @@ vi.mock("@/lib/ratelimit", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 
 import prisma from "@/lib/prisma";
@@ -70,9 +72,8 @@ describe("createIGTFAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) => fn({ iGTFTransaction: prisma.iGTFTransaction, auditLog: prisma.auditLog })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ iGTFTransaction: prisma.iGTFTransaction, auditLog: prisma.auditLog })) as never);
   });
 
   it("retorna error si no autenticado", async () => {
@@ -83,7 +84,10 @@ describe("createIGTFAction", () => {
   });
 
   it("retorna error si rate limit agotado", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes." });
+    vi.mocked(checkRateLimit).mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes.",
+    });
     const r = await createIGTFAction(VALID_INPUT);
     expect(r.success).toBe(false);
   });

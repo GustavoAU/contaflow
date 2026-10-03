@@ -151,17 +151,28 @@ describe("ReconciliationService", () => {
         statement: { bankAccount: { companyId: "other-company" } }, // cross-tenant
       } as never);
 
-      await expect(
-        ReconciliationService.findMatchCandidates(TX_ID, COMPANY_ID)
-      ).rejects.toThrow();
+      await expect(ReconciliationService.findMatchCandidates(TX_ID, COMPANY_ID)).rejects.toThrow();
     });
 
     it("retorna candidatos ordenados por score descendente (monto exacto > fecha cercana)", async () => {
-      const exactMatch = { ...BASE_PAYMENT, id: "pay-exact", amount: new Decimal("1000.00"), date: new Date("2026-01-15") };
-      const closeMatch = { ...BASE_PAYMENT, id: "pay-close", amount: new Decimal("999.99"), date: new Date("2026-01-16") };
+      const exactMatch = {
+        ...BASE_PAYMENT,
+        id: "pay-exact",
+        amount: new Decimal("1000.00"),
+        date: new Date("2026-01-15"),
+      };
+      const closeMatch = {
+        ...BASE_PAYMENT,
+        id: "pay-close",
+        amount: new Decimal("999.99"),
+        date: new Date("2026-01-16"),
+      };
 
       vi.mocked(prisma.bankTransaction.findUnique).mockResolvedValue(BASE_BANK_TX as never);
-      vi.mocked(prisma.invoicePayment.findMany).mockResolvedValue([closeMatch, exactMatch] as never);
+      vi.mocked(prisma.invoicePayment.findMany).mockResolvedValue([
+        closeMatch,
+        exactMatch,
+      ] as never);
 
       const result = await ReconciliationService.findMatchCandidates(TX_ID, COMPANY_ID, {
         amountTolerance: "1.00",

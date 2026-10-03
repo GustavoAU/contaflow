@@ -3,8 +3,8 @@ import { z } from "zod";
 
 /** Umbrales de confianza — fuente única de verdad, evita números mágicos */
 export const CONFIDENCE = {
-  AUTO: 90,       // score >= 90 → auto-aceptado
-  SUGGESTED: 70,  // score 70-89 → requiere confirmación
+  AUTO: 90, // score >= 90 → auto-aceptado
+  SUGGESTED: 70, // score 70-89 → requiere confirmación
 } as const;
 
 export type ConfidenceLevel = "AUTO" | "SUGGESTED" | "MANUAL";
@@ -38,7 +38,7 @@ export type AutoMatchResult = {
   date: string;
   description: string;
   reference: string | null;
-  amount: string;            // Decimal string positivo, 4 decimales
+  amount: string; // Decimal string positivo, 4 decimales
   type: "CREDIT" | "DEBIT";
   confidence: ConfidenceLevel;
   score: number;

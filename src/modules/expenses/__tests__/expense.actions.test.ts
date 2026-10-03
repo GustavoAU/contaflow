@@ -133,7 +133,7 @@ describe("createExpenseAction", () => {
       expect.objectContaining({ ivaAmount: "16.00" }),
       USER_ID,
       null,
-      null,
+      null
     );
   });
 
@@ -290,7 +290,7 @@ describe("listExpenseCategoriesAction", () => {
 
   it("devuelve error estructurado si servicio lanza excepción", async () => {
     vi.mocked(ExpenseService.listExpenseCategories).mockRejectedValueOnce(
-      new Error("DB no disponible"),
+      new Error("DB no disponible")
     );
     const r = await listExpenseCategoriesAction(COMPANY_ID);
     expect(r.success).toBe(false);

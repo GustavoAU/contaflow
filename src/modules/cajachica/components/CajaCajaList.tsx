@@ -73,10 +73,7 @@ function AssignCustodianControl({
   const activeEmployees = employees.filter((e) => e.status === "ACTIVE");
   const options =
     caja.custodianId && !activeEmployees.some((e) => e.id === caja.custodianId)
-      ? [
-          ...activeEmployees,
-          ...employees.filter((e) => e.id === caja.custodianId),
-        ]
+      ? [...activeEmployees, ...employees.filter((e) => e.id === caja.custodianId)]
       : activeEmployees;
 
   function open() {
@@ -133,7 +130,7 @@ function AssignCustodianControl({
           id={selectId}
           value={custodianId}
           onChange={(e) => setCustodianId(e.target.value)}
-          className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 py-1 text-sm focus-visible:ring-2 focus-visible:outline-none"
           disabled={isPending || options.length === 0}
         >
           <option value="">Seleccionar empleado...</option>
@@ -195,9 +192,7 @@ function CloseCajaDialog({
   const closeWithStepUp = useReverification(closeCajaCajaAction);
 
   // Cuenta de retorno: solo Activo y distinta de la propia cuenta de la caja.
-  const returnAccounts = accounts.filter(
-    (a) => a.type === "ASSET" && a.id !== caja.accountId,
-  );
+  const returnAccounts = accounts.filter((a) => a.type === "ASSET" && a.id !== caja.accountId);
 
   function handleConfirm() {
     setError(null);
@@ -232,11 +227,7 @@ function CloseCajaDialog({
       }}
     >
       <AlertDialogTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-xs text-zinc-500 hover:text-red-600"
-        >
+        <Button size="sm" variant="ghost" className="text-xs text-zinc-500 hover:text-red-600">
           Cerrar caja
         </Button>
       </AlertDialogTrigger>
@@ -258,7 +249,7 @@ function CloseCajaDialog({
             id={`return-account-${caja.id}`}
             value={returnAccountId}
             onChange={(e) => setReturnAccountId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             disabled={isClosing || returnAccounts.length === 0}
           >
             <option value="">Seleccionar cuenta...</option>
@@ -471,14 +462,9 @@ function CajaRow({
   const canManageCustodian = isAdmin && caja.status !== "CLOSED";
 
   return (
-    <div className="rounded-xl border bg-white shadow-sm dark:bg-zinc-950 overflow-hidden">
+    <div className="overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-950">
       {/* Balance Card */}
-      <div
-        className="cursor-pointer"
-        onClick={handleExpand}
-        role="button"
-        aria-expanded={expanded}
-      >
+      <div className="cursor-pointer" onClick={handleExpand} role="button" aria-expanded={expanded}>
         <CajaCajaBalanceCard caja={caja} />
       </div>
 
@@ -501,7 +487,11 @@ function CajaRow({
           onClick={handleExpand}
           className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
         >
-          {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
           {expanded ? "Ocultar" : "Ver movimientos"}
         </button>
 
@@ -563,11 +553,7 @@ function CajaRow({
           )}
 
           {isAdmin && caja.status === "CLOSED" && (
-            <ReopenCajaDialog
-              caja={caja}
-              companyId={companyId}
-              onReopened={onRefresh}
-            />
+            <ReopenCajaDialog caja={caja} companyId={companyId} onReopened={onRefresh} />
           )}
         </div>
       </div>
@@ -575,7 +561,7 @@ function CajaRow({
       {/* Deposit form */}
       {showDepositForm && expanded && (
         <div className="border-t px-4 py-4">
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <h4 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
             Registrar Depósito (reposición de fondo)
           </h4>
           <CajaCajaDepositForm
@@ -584,7 +570,11 @@ function CajaRow({
             cajaAccountId={caja.accountId}
             currency={caja.currency}
             accounts={accounts}
-            onSuccess={() => { setShowDepositForm(false); loadDeposits(); onRefresh(); }}
+            onSuccess={() => {
+              setShowDepositForm(false);
+              loadDeposits();
+              onRefresh();
+            }}
             onCancel={() => setShowDepositForm(false)}
           />
         </div>
@@ -593,13 +583,17 @@ function CajaRow({
       {/* Reimbursement form */}
       {showReimbForm && expanded && (
         <div className="border-t px-4 py-4">
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <h4 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
             Nuevo Reembolso (reposición de fondo)
           </h4>
           <CajaCajaReimbursementForm
             companyId={companyId}
             cajaCajaId={caja.id}
-            onSuccess={() => { setShowReimbForm(false); loadReimbursements(); onRefresh(); }}
+            onSuccess={() => {
+              setShowReimbForm(false);
+              loadReimbursements();
+              onRefresh();
+            }}
             onCancel={() => setShowReimbForm(false)}
           />
         </div>
@@ -608,14 +602,18 @@ function CajaRow({
       {/* Movement form */}
       {showForm && expanded && (
         <div className="border-t px-4 py-4">
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <h4 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
             Registrar Gasto
           </h4>
           <CajaCajaMovementForm
             companyId={companyId}
             cajaCajaId={caja.id}
             accounts={accounts}
-            onSuccess={() => { setShowForm(false); loadMovements(); onRefresh(); }}
+            onSuccess={() => {
+              setShowForm(false);
+              loadMovements();
+              onRefresh();
+            }}
             onCancel={() => setShowForm(false)}
           />
         </div>
@@ -624,7 +622,7 @@ function CajaRow({
       {/* Reimbursements */}
       {expanded && (
         <div className="border-t px-4 py-4">
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <h4 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
             Reembolsos (reposición de fondo)
           </h4>
           {isLoadingReimb ? (
@@ -636,7 +634,10 @@ function CajaRow({
               companyId={companyId}
               reimbursements={reimbursements}
               isAdmin={isAdmin}
-              onRefresh={() => { loadReimbursements(); onRefresh(); }}
+              onRefresh={() => {
+                loadReimbursements();
+                onRefresh();
+              }}
             />
           )}
         </div>
@@ -645,7 +646,7 @@ function CajaRow({
       {/* Deposits */}
       {expanded && (
         <div className="border-t px-4 py-4">
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <h4 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
             Depósitos
           </h4>
           {isLoadingDeposits ? (
@@ -658,7 +659,10 @@ function CajaRow({
               deposits={deposits}
               currency={caja.currency}
               isAdmin={isAdmin}
-              onRefresh={() => { loadDeposits(); onRefresh(); }}
+              onRefresh={() => {
+                loadDeposits();
+                onRefresh();
+              }}
             />
           )}
         </div>
@@ -667,7 +671,7 @@ function CajaRow({
       {/* Movements */}
       {expanded && (
         <div className="border-t px-4 py-4">
-          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <h4 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
             Movimientos (gastos)
           </h4>
           {isLoading ? (
@@ -681,7 +685,10 @@ function CajaRow({
               isAdmin={isAdmin}
               // HC-11: refrescar también el resumen de la caja (saldo Comprometido/
               // Disponible de la tarjeta), no solo la lista de movimientos.
-              onRefresh={() => { loadMovements(); onRefresh(); }}
+              onRefresh={() => {
+                loadMovements();
+                onRefresh();
+              }}
             />
           )}
         </div>
@@ -695,8 +702,7 @@ export function CajaCajaList({ companyId, cajas, accounts, employees, isAdmin, o
     return (
       <div className="py-12 text-center">
         <p className="text-sm text-zinc-500">
-          No hay Cajas Chicas creadas.{" "}
-          {isAdmin && "Crea una con el botón de arriba."}
+          No hay Cajas Chicas creadas. {isAdmin && "Crea una con el botón de arriba."}
         </p>
       </div>
     );

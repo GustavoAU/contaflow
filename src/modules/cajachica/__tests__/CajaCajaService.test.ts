@@ -60,7 +60,10 @@ const NOW = new Date();
 const PERIOD_YEAR = NOW.getUTCFullYear();
 const PERIOD_MONTH = NOW.getUTCMonth() + 1;
 const OPEN_PERIOD = {
-  id: "period-1", year: PERIOD_YEAR, month: PERIOD_MONTH, status: "OPEN",
+  id: "period-1",
+  year: PERIOD_YEAR,
+  month: PERIOD_MONTH,
+  status: "OPEN",
   fiscalYear: { status: "OPEN" },
 };
 
@@ -209,9 +212,8 @@ function makeCreateTx(overrides: TxOverrides = {}) {
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return { tx, cajaCreate, accountFindFirst, employeeFindFirst, auditCreate };
 }
 
@@ -333,9 +335,7 @@ function makeAssignTx(overrides: TxOverrides = {}) {
       custodian: { id: NEW_CUSTODIAN_ID, firstName: "Luis", lastName: "Gómez" },
     })
   );
-  const employeeFindFirst = vi
-    .fn()
-    .mockResolvedValue({ id: NEW_CUSTODIAN_ID, status: "ACTIVE" });
+  const employeeFindFirst = vi.fn().mockResolvedValue({ id: NEW_CUSTODIAN_ID, status: "ACTIVE" });
   const auditCreate = vi.fn().mockResolvedValue({});
   const tx = {
     cajaCaja: { findFirst: cajaFindFirst, update: cajaUpdate },
@@ -343,9 +343,8 @@ function makeAssignTx(overrides: TxOverrides = {}) {
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return { tx, cajaFindFirst, cajaUpdate, employeeFindFirst, auditCreate };
 }
 
@@ -438,9 +437,7 @@ describe("assignCustodian", () => {
       employee: { findFirst: vi.fn().mockResolvedValue(null) },
     });
 
-    await expect(assignCustodian(assignInput, USER_ID)).rejects.toThrow(
-      /no existe|no pertenece/i
-    );
+    await expect(assignCustodian(assignInput, USER_ID)).rejects.toThrow(/no existe|no pertenece/i);
     expect(cajaUpdate).not.toHaveBeenCalled();
     expect(auditCreate).not.toHaveBeenCalled();
   });
@@ -504,10 +501,18 @@ function makeCloseTx(overrides: TxOverrides = {}, remaining: string | number = 0
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
-  return { tx, findFirst, cajaUpdate, cajaCount, accountFindFirst, aggregate, txCreate, auditCreate };
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
+  return {
+    tx,
+    findFirst,
+    cajaUpdate,
+    cajaCount,
+    accountFindFirst,
+    aggregate,
+    txCreate,
+    auditCreate,
+  };
 }
 
 const closeInput = {
@@ -521,7 +526,9 @@ describe("closeCajaCaja", () => {
 
   it("rechaza si la caja no existe", async () => {
     const { closeCajaCaja } = await import("../services/CajaCajaService");
-    makeCloseTx({ cajaCaja: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn(), count: vi.fn() } });
+    makeCloseTx({
+      cajaCaja: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn(), count: vi.fn() },
+    });
     await expect(closeCajaCaja(closeInput, USER_ID)).rejects.toThrow(/no encontrada/i);
   });
 
@@ -738,9 +745,8 @@ function makeReopenTx(
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return {
     tx,
     cajaFindFirst,
@@ -849,11 +855,9 @@ describe("reopenCajaCaja", () => {
 
   it("happy SIN reversa: closeTransactionId null → no crea Transaction, solo restaura ACTIVE; audita reversalTransactionId null", async () => {
     const { reopenCajaCaja } = await import("../services/CajaCajaService");
-    const { txFindFirst, txCreate, txUpdate, cajaUpdate, auditCreate } = makeReopenTx(
-      {},
-      "0",
-      { closeTransactionId: null }
-    );
+    const { txFindFirst, txCreate, txUpdate, cajaUpdate, auditCreate } = makeReopenTx({}, "0", {
+      closeTransactionId: null,
+    });
 
     await reopenCajaCaja(reopenInput, USER_ID);
 
@@ -1180,7 +1184,6 @@ describe("getCajaReopenMagnitude", () => {
     expect(result.toString()).toBe("0");
   });
 });
-
 
 // ─── getCajaStepUpThreshold (ADR-039 nota #3 — umbral configurable por empresa) ──
 

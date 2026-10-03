@@ -65,7 +65,11 @@ export async function submitForApprovalAction(
 
   try {
     await QuotationService.submitForApproval(
-      companyId, quotationId, ctx.userId, ctx.ipAddress, ctx.userAgent
+      companyId,
+      quotationId,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
@@ -88,7 +92,11 @@ export async function approveQuotationAction(
 
   try {
     await QuotationService.approveQuotation(
-      companyId, quotationId, ctx.userId, ctx.ipAddress, ctx.userAgent
+      companyId,
+      quotationId,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
@@ -111,7 +119,11 @@ export async function rejectQuotationAction(
 
   try {
     await QuotationService.rejectQuotation(
-      companyId, quotationId, ctx.userId, ctx.ipAddress, ctx.userAgent
+      companyId,
+      quotationId,
+      ctx.userId,
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidatePath(`/company/${companyId}/orders`);
     return { success: true, data: undefined };
