@@ -119,9 +119,9 @@ Veredicto: **sin bloqueantes de base legal**. El redondeo fiscal ya es a 2 decim
 - Impacto estimado en tests: 5 a 15 (nómina y depreciación); la cifra real sale del test de arquitectura en RED (paso 3).
 
 ### Preguntas para la contadora (surgidas del paso 1; no bloquean el núcleo, sí lotes concretos)
-- **PC-1 (lote 2, IGTF de lotes):** ¿el IGTF (3%) se redondea a 2 decimales HALF_UP, y sobre el total del lote o por línea?
-- **PC-2 (lote 1, nómina):** ¿los aportes a organismos (IVSS, FAOV, INCES, RPE, pensiones) se calculan por trabajador o sobre el total del mes? (decide si la planilla de pago coincide con el asiento al céntimo). Además: fecha de vigencia del redondeo a 2 decimales en prestaciones ya acumuladas a 4.
-- **PC-3 (SPEC-005, fuera de alcance):** ¿se acepta redondear `Invoice.totalAmountVes` a 2 decimales en facturas con líneas, o el total debe conservar los decimales de cantidad × precio?
+- **PC-1 (RESUELTA 2026-10-03, contadora):** el IGTF se redondea a **2 decimales** y se calcula **por lote, sobre el total del cierre del día** (no por línea). Implementación: `total = round(totalLote × 3%, 2)`; el prorrateo por línea también a 2 decimales con la última línea cuadrando el total (ya es el patrón de `PaymentBatchService`, solo cambia la precisión de 4 a 2). Modo de redondeo: el mismo `ROUND_HALF_UP` del resto del sistema.
+- **PC-2 (RESUELTA en lo principal, 2026-10-03, contadora):** en la **contabilidad** los aportes parafiscales (IVSS, FAOV, INCES, RPE, pensiones) van **por totales**; en la **nómina** se reflejan **trabajador por trabajador**. Es exactamente el diseño actual: cada trabajador ya está a 2 decimales (`PayrollCalculatorService`) y el asiento suma esos montos. Consecuencia: el total del asiento = Σ de los montos por trabajador a 2 decimales, y así la planilla y el mayor coinciden al céntimo en nóminas en VES; en USD el total en Bs. se cuantiza una sola vez. **SIGUE SIN RESPUESTA:** la fecha de vigencia del redondeo a 2 decimales en prestaciones ya acumuladas a 4 decimales (lote 1: BenefitAccrual/BenefitAdvance/Termination/Vacation/ProfitSharing).
+- **PC-3 (RESUELTA 2026-10-03, contadora):** `Invoice.totalAmountVes` también se redondea a **2 decimales**. Queda DESBLOQUEADA la SPEC-005 (redondear el total de la factura con líneas y verificar el cuadre en `InvoiceGLPostingService`), que sigue fuera del alcance de la SPEC-004 por tocar la factura impresa y el libro de IVA.
 
 ## 12. Cierre
 Lo completa `/implementar`.
