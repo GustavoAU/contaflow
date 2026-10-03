@@ -156,6 +156,7 @@ INVARIANTES
 
 CALIDAD
 [ ] tsc --noEmit = 0 errores
+[ ] pnpm format:check en verde (si falla: `pnpm format` y commitear). El CI lo exige desde 2026-10-03; los commits de formateo masivo van AISLADOS y su SHA a `.git-blame-ignore-revs`
 [ ] npx vitest run = 0 fallos
 [ ] ¿Editaste `prisma/schema.prisma` a mano → `npm run verify:schema-format` en verde? El CI corre `prisma format --check` y **falla el job entero por un solo espacio de alineación**. Quitar un atributo (`@unique`, `@default`) desalinea la columna del resto del bloque y ni tsc ni vitest lo ven. Precedente: c003569 tumbó el Architecture audit de main dos runs seguidos (#412/#413)
 [ ] AuditLog en mismo $transaction que la mutación principal
