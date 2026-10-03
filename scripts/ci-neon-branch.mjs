@@ -52,15 +52,25 @@ async function api(method, path, body) {
   });
   const text = await res.text();
   if (!res.ok) {
-    // Solo método, ruta y estado: el cuerpo de error no lleva secretos, pero tampoco hace falta.
-    throw new Error(`Neon API ${method} ${path} -> ${res.status} ${text.slice(0, 300)}`);
+    // Sin saltos de línea: el mensaje sale como `::error::` y un cuerpo con "\n::add-mask::"
+    // o "\n::set-output" inyectaría comandos de workflow en el log.
+    const body = text.slice(0, 300).replace(/[\r\n]+/g, " ");
+    throw new Error(`Neon API ${method} ${path} -> ${res.status} ${body}`);
   }
   return text ? JSON.parse(text) : {};
 }
 
+const BRANCH_PAGE_LIMIT = 1000;
+
 async function listBranches() {
-  const { branches } = await api("GET", `/projects/${projectId}/branches`);
-  return branches ?? [];
+  const { branches } = await api("GET", `/projects/${projectId}/branches?limit=${BRANCH_PAGE_LIMIT}`);
+  const list = branches ?? [];
+  // Si la página vino llena puede haber más: no se decide con una vista parcial
+  // (el default o el branch propio podrían quedar fuera). Falla cerrado.
+  if (list.length >= BRANCH_PAGE_LIMIT) {
+    throw new Error(`El proyecto tiene ${BRANCH_PAGE_LIMIT}+ branches: lista posiblemente truncada`);
+  }
+  return list;
 }
 
 async function waitForOperations(operations) {
@@ -104,7 +114,9 @@ async function create() {
     endpoints: [{ type: "read_write" }],
   });
   const branchId = created.branch?.id;
-  if (!branchId) throw new Error("La API no devolvió el id del branch creado");
+  if (typeof branchId !== "string" || !/^br-[a-z0-9-]+$/.test(branchId)) {
+    throw new Error("La API no devolvió un id de branch válido");
+  }
   console.log(`Branch creado: ${name} (${branchId}) desde ${parent.name}, solo esquema`);
   await waitForOperations(created.operations);
 
@@ -125,7 +137,8 @@ async function create() {
   const { uri } = await api("GET", `/projects/${projectId}/connection_uri?${query}`);
   if (typeof uri !== "string" || uri === "") throw new Error("La API no devolvió connection_uri");
 
-  console.log(maskLine(uri));
+  // El comando de enmascarado lleva la URI en claro: solo dentro de Actions, nunca en una terminal local.
+  if (process.env.GITHUB_ACTIONS) console.log(maskLine(uri));
   emit("GITHUB_ENV", `DATABASE_URL_TEST=${uri}`);
   emit("GITHUB_ENV", `DATABASE_URL_DIRECT=${uri}`);
   emit("GITHUB_OUTPUT", `branch_name=${name}`);
@@ -138,11 +151,14 @@ async function remove() {
     runAttempt: requireEnv("GITHUB_RUN_ATTEMPT"),
   });
   const branches = await listBranches();
-  const branch = branches.find((b) => b.name === name);
-  if (!branch) {
+  const matches = branches.filter((b) => b.name === name);
+  if (matches.length === 0) {
     console.log(`No existe el branch ${name}: nada que borrar`);
     return;
   }
+  // Nombres duplicados: no se adivina cuál es el nuestro.
+  if (matches.length > 1) throw new Error(`Hay ${matches.length} branches llamados ${name}: ambiguo`);
+  const [branch] = matches;
   const defaultBranch = resolveDefaultBranch(branches);
   assertDeletableBranch({
     branch,
@@ -159,7 +175,10 @@ try {
   else if (command === "delete") await remove();
   else throw new Error("Uso: node scripts/ci-neon-branch.mjs <create|delete>");
 } catch (error) {
-  // El mensaje nunca incluye la key: api() solo interpola método, ruta y estado.
-  console.error(`::error::${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
+  // El mensaje nunca incluye la key; api() ya quita saltos del cuerpo y aquí se vuelve a
+  // garantizar una sola línea para que nada pueda abrir un segundo comando de workflow.
+  const message = (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ");
+  console.error(`::error::${message}`);
+  // exitCode y no process.exit(): salir con handles de fetch abiertos revienta libuv en Windows.
+  process.exitCode = 1;
 }

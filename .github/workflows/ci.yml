@@ -338,12 +338,14 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    env:
-      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+    # La key NO va en el env del job: solo la reciben los pasos que la usan (gate, create,
+    # delete). Así `pnpm install`, `prisma generate` y los tests no la ven.
     steps:
       - name: Verificar secretos
         id: gate
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
           if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
             echo "::notice::Faltan NEON_API_KEY / NEON_PROJECT_ID: integración omitida"
@@ -369,9 +371,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      # --ignore-scripts: el código de instalación de las dependencias no corre en un job
+      # con acceso a Neon. El único postinstall del repo es `prisma generate`, que va aparte.
       - name: Instalar dependencias
         if: steps.gate.outputs.enabled == 'true'
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Generar cliente Prisma
         if: steps.gate.outputs.enabled == 'true'
@@ -379,6 +383,9 @@ jobs:
 
       - name: Crear branch efímero (solo esquema)
         if: steps.gate.outputs.enabled == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: node scripts/ci-neon-branch.mjs create
 
       - name: Aplicar migraciones al branch efímero
@@ -393,6 +400,9 @@ jobs:
       # Es idempotente: si el branch no llegó a crearse, no hay nada que borrar.
       - name: Borrar branch efímero
         if: always() && steps.gate.outputs.enabled == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: node scripts/ci-neon-branch.mjs delete
 
   # ============================================================================
