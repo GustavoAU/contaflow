@@ -1,7 +1,7 @@
 ---
 id: SPEC-004
-titulo: Los asientos se redondean a 4 decimales ANTES de verificar el cuadre
-estado: BORRADOR   # devuelta a borrador 2026-10-03: la contadora dijo que la unidad contable es el CENTIMO (2 decimales); ver PA-3
+titulo: Los asientos se redondean al céntimo (2 decimales) ANTES de verificar el cuadre
+estado: APROBADA   # aprobada 2026-10-03 con la regla del céntimo (opción A); va ANTES que SPEC-001
 fecha: 2026-10-03
 rama: fix/spec-004-precision-asientos
 arbol: "[11]"
@@ -9,7 +9,7 @@ zonas: [Z-2]
 adrs: ["ADR nuevo: precisión de asientos GL"]
 ---
 
-# Los asientos se redondean a 4 decimales ANTES de verificar el cuadre
+# Los asientos se redondean al céntimo (2 decimales) ANTES de verificar el cuadre
 
 ## 1. Problema
 Un asiento puede quedar guardado **descuadrado por 0,0001 Bs.** aunque la verificación de partida doble (`assertBalancedGLEntries`, N4) dijo que cuadraba.
@@ -28,7 +28,7 @@ Es una **clase de bug**: hay 38 call-sites de `assertBalancedGLEntries` en ~20 s
 
 ## 3. Alcance
 **Incluye:**
-- Una función central única que redondea cada línea de un asiento a la precisión de la columna (4 decimales) y **absorbe el residuo** de redondeo en una línea designada, de modo que lo que se verifica es exactamente lo que se guarda.
+- Una función central única que redondea cada línea de un asiento al **céntimo (2 decimales)**, la unidad contable según la contadora, y **absorbe el residuo** de redondeo en la línea de mayor monto, de modo que lo que se verifica es exactamente lo que se guarda.
 - Que `assertBalancedGLEntries` verifique sobre los montos ya redondeados.
 - Aplicarla en los 38 call-sites (agrupados por servicio, ver sección 7).
 - Tests de integración con tasa de cambio real (varias líneas, tasas con 6 decimales) para cada generador que multiplique por tasa.
@@ -37,25 +37,25 @@ Es una **clase de bug**: hay 38 call-sites de `assertBalancedGLEntries` en ~20 s
 
 **No incluye (explícito):**
 - El trigger de la base de datos (SPEC-001).
-- Cambiar la precisión de la columna (`Decimal(19,4)`).
+- Cambiar el tipo de la columna `JournalEntry.amount` (`Decimal(19,4)` se mantiene; los asientos nuevos simplemente llevan ceros en el 3.º y 4.º decimal).
 - Recalcular o reescribir asientos históricos de otras empresas (la auditoría solo encontró 1).
 - Cambiar tasas, alícuotas ni lógica fiscal.
 
 ## 4. Reglas de negocio
-- RN-1: Todo asiento persistido tiene `SUM(amount) = 0` exacto con los montos tal como quedan en `Decimal(19,4)`.
-- RN-2: Cada línea se redondea a 4 decimales con `ROUND_HALF_UP` (mitad hacia arriba, el modo habitual en contabilidad; decidido por el usuario el 2026-10-03); el redondeo ocurre antes de verificar y antes de persistir.
-- RN-3: El residuo de redondeo (|residuo| ≤ N × 0,00005 para N líneas) se absorbe en la línea de MAYOR valor absoluto del asiento (si hay empate, la primera en orden). El residuo y la línea donde se absorbió se devuelven al llamador para dejarlos en el payload del AuditLog. Si el residuo supera ese máximo, es un error de cálculo y se lanza, no se absorbe.
-- RN-4: Los asientos sin conversión de moneda (montos ya en 4 decimales) quedan exactamente igual que hoy: la función es idempotente sobre valores ya redondeados.
+- RN-1: Todo asiento persistido tiene `SUM(amount) = 0` exacto con los montos tal como quedan guardados, y cada `amount` de un asiento nuevo es un múltiplo de 0,01 (2 decimales).
+- RN-2: Cada línea se redondea a **2 decimales** con `ROUND_HALF_UP` (mitad hacia arriba, el modo habitual en contabilidad); el redondeo ocurre antes de verificar y antes de persistir. Decidido por el usuario el 2026-10-03, según la contadora: "decimales se utilizan solo dos; si son cuatro, se redondean a dos".
+- RN-3: El residuo de redondeo (|residuo| ≤ N × 0,005 para N líneas; en la práctica unos pocos céntimos) se absorbe en la línea de MAYOR valor absoluto del asiento (si hay empate, la primera en orden). **Es visible en los reportes por ser de céntimos y eso es aceptado (opción A).** El residuo y la línea donde se absorbió se devuelven al llamador y se dejan en el payload del `AuditLog` del asiento (R-6), para que sea trazable. Si el residuo supera el máximo permitido para N líneas, es un error de cálculo y se lanza.
+- RN-4: Un monto que ya está en 2 decimales no cambia. Un monto con más decimales (p. ej. cálculos que hoy se guardan a 4) **pasa a redondearse a 2**: es un cambio de comportamiento deliberado y es la regla de la contadora; los asientos históricos NO se reescriben.
 - RN-5: Anular un asiento (VOID) niega los montos ya guardados, así que hereda el cuadre exacto del original.
 
 ## 5. Asientos contables
-No crea asientos nuevos; cambia cómo se cuantizan los existentes. Caso de prueba de referencia (nómina USD, tasa 779,9522): el asiento resultante debe sumar exactamente 0 a 4 decimales.
+No crea asientos nuevos; cambia cómo se cuantizan los existentes. Caso de prueba de referencia (nómina USD, tasa 779,9522, 11 líneas): el asiento resultante debe sumar exactamente 0 y cada línea ser múltiplo de 0,01.
 
 ## 6. Modelo de datos
 Sin cambios de schema.
 
 ## 7. Contrato de servicio y actions
-- Nueva función en `src/lib/gl-assertions.ts` (o un módulo hermano): `quantizeGLEntries(entries, { scale: 4, absorbInto })` → entradas redondeadas, con `SUM(amount) = 0` exacto.
+- Nueva función en `src/lib/gl-assertions.ts` (o un módulo hermano): `quantizeGLEntries(entries, { scale: 2, mode: ROUND_HALF_UP })` → `{ entries, residual, absorbedIndex }`, con `SUM(amount) = 0` exacto.
 - `assertBalancedGLEntries` pasa a verificar los montos cuantizados.
 - Call-sites por servicio (inventario del 2026-10-03): `TransactionService`, `CajaCajaDepositService`, `CajaCajaReimbursementService`, `CajaCajaService`, `ExchangeDifferentialService`, `FiscalYearCloseService`, `FixedAssetDepreciationService`, `FixedAssetService`, `IncomeDistributionService`, `INPCService`, `InventoryAccountingService`, `PaymentGLService`, `BenefitAccrualService`, `BenefitAdvanceService`, `EmployeeLoanService`, `PayrollRunService`, `ProfitSharingService`, `TerminationService`, `VacationService`, `retention.actions`, `RetentionService`.
 - Roles / limiter / AuditLog: sin cambios (no hay actions nuevas).
@@ -67,7 +67,7 @@ Sin cambios.
 ## 9. Criterios de aceptación
 - [ ] CA-1: Nómina en USD con tasa de 6 decimales y 11 líneas produce un asiento con `SUM(amount) = 0` exacto leído de la base de datos real (test de integración).
 - [ ] CA-2: Cada servicio del inventario de la sección 7 que multiplique por tasa tiene un test de integración equivalente.
-- [ ] CA-3: Un asiento ya en 4 decimales (nómina en VES, sin conversión) no cambia respecto a hoy (test de regresión).
+- [ ] CA-3: Un asiento cuyos montos ya están en 2 decimales no cambia (test de regresión); uno con 4 decimales se redondea a 2 y sigue sumando 0.
 - [ ] CA-4: Un residuo mayor al máximo permitido por N líneas lanza error en vez de absorberse.
 - [ ] CA-5: `vitest run` y el job `integration` del CI siguen en verde.
 - [ ] CA-6: El asiento `NOM-2026-08-16-83jgfm` queda con Σ = 0 mediante un asiento de ajuste (nunca DELETE, ADR-005), si SPEC-001 decide `T = 0`.
@@ -84,8 +84,9 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 - **R-1:** tocar 21 servicios de asientos es un cambio ancho en zona fiscal (Z-2). Hay que hacerlo por lotes con test de integración por generador, y el job `integration` ya existe para eso.
 - **R-2:** `assertBalancedGLEntries` hoy tolera 0,01; si pasa a exacto sin arreglar antes los generadores, rompe flujos reales. El orden obligatorio es: función central + generadores primero, verificación exacta después.
 - **R-3:** el asiento existente es de la empresa demo del usuario: sin riesgo operativo.
+- **R-4 (obligatorio antes de implementar):** pasar de 4 a 2 decimales cambia montos fiscales (Z-2). Antes del primer commit de código: (a) `fiscal-agent` revisa qué generadores tocan IVA/ISLR/IGTF/retenciones y si su redondeo legal ya es a 2 decimales; (b) `arch-agent` escribe el ADR de precisión de asientos. Si un servicio calcula impuestos a 4 decimales por ley o por reglamento, se detiene y se pregunta al usuario.
 
-- **PA-3 (PENDIENTE — decisión del usuario, 2026-10-03):** con la regla de la contadora la unidad contable es el **céntimo**, no el 4.º decimal. Consecuencias que cambian el diseño: (a) cuantizar cada línea a **2 decimales** (`scale: 2`), no a 4; (b) el residuo de redondeo ya no es sub-céntimo: con N líneas puede llegar a N × 0,005 (hasta ~0,055 Bs. en 11 líneas), **visible en reportes**; absorberlo en silencio en la línea mayor (decisión previa, tomada asumiendo 4 decimales) contradice su criterio de "diferencias explícitas". Alternativa: cuenta propia "Diferencias de redondeo" (transparente, exige configurarla por empresa; un servicio sin ella falla). (c) Los asientos históricos con 4 decimales no se tocan: el trigger exacto de SPEC-001 sigue siendo válido sobre lo guardado. (d) Cambiar a 2 decimales altera montos hoy generados a 4 en varios servicios (impacto fiscal Z-2): requiere ADR y revisión de fiscal-agent antes de implementar.
+- **PA-3 (RESUELTA 2026-10-03, decisión del usuario: opción A):** unidad contable = céntimo (2 decimales); el residuo de redondeo se absorbe en la línea de mayor monto del mismo asiento, visible en reportes y trazable en el AuditLog. Razón del usuario: "la gente para pagar siempre utiliza 2 decimales, no 4". Descartada la cuenta propia "Diferencias de redondeo" (opción B). Se mantiene: los asientos históricos a 4 decimales no se tocan y el trigger exacto de SPEC-001 vale sobre lo guardado.
 - **Flujos de diferencias reales (fuera de alcance, a revisar):** cierre de caja con faltante (descuento al cajero) y pagos emitidos por un monto distinto del esperado ya existen en el sistema (CajaCaja, PaymentGLService); con el trigger exacto deberán registrar la diferencia de forma explícita. Se revisarán al implementar SPEC-001.
 
 ## 12. Cierre
