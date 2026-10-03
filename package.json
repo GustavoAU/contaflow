@@ -63,6 +63,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@neon/config": "^1.8.3",
     "@tailwindcss/postcss": "^4.3.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
