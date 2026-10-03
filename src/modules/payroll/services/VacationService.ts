@@ -15,7 +15,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 import { monthlyWageToVes } from "./payroll-currency";
 
@@ -124,8 +124,11 @@ export const VacationService = {
 
     const vacationDays = new Decimal(input.vacationDays);
     const bonusDays = new Decimal(input.bonusDays);
-    const vacationAmount = dailyNormalWage.mul(vacationDays);
-    const bonusAmount = dailyNormalWage.mul(bonusDays);
+    // ADR-058 (R-1): montos del DOCUMENTO a 2 decimales en el origen; el asiento usa el mismo valor.
+    const vacationAmount = dailyNormalWage
+      .mul(vacationDays)
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const bonusAmount = dailyNormalWage.mul(bonusDays).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     // Guard: período contable del mes de inicio de vacaciones
     const startDateObj = new Date(input.startDate);
@@ -159,18 +162,24 @@ export const VacationService = {
         async (tx) => {
           // Asiento contable de causación (VEN-NIF / NIC 19)
           // Convención: positivo = Débito, negativo = Crédito
-          const vacationEntries = [
+          const rawVacationEntries = [
             {
               accountId: config.benefitsExpenseAccountId!,
-              amount: totalAmount.toDecimalPlaces(4), // Débito
+              amount: totalAmount, // Débito
               description: `Accrual vacaciones LOTTT Art.190 — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
             },
             {
               accountId: config.vacationPayableAccountId!,
-              amount: totalAmount.negated().toDecimalPlaces(4), // Crédito
+              amount: totalAmount.negated(), // Crédito
               description: `Pasivo vacaciones — ${input.periodYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
             },
           ];
+          // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+          const {
+            entries: vacationEntries,
+            residual: glResidual,
+            absorbedIndex: glAbsorbedIndex,
+          } = quantizeGLEntries(rawVacationEntries);
           assertBalancedGLEntries(vacationEntries); // N4: invariante partida doble
           const transaction = await tx.transaction.create({
             data: {
@@ -182,7 +191,11 @@ export const VacationService = {
               userId,
               type: "DIARIO",
               entries: {
-                create: vacationEntries,
+                create: vacationEntries.map((e) => ({
+                  accountId: e.accountId,
+                  amount: e.amount,
+                  description: e.description,
+                })),
               },
             },
           });
@@ -196,8 +209,8 @@ export const VacationService = {
               vacationDays: vacationDays.toFixed(2),
               bonusDays: bonusDays.toFixed(2),
               dailyNormalWage: dailyNormalWage.toFixed(4),
-              vacationAmount: vacationAmount.toFixed(4),
-              bonusAmount: bonusAmount.toFixed(4),
+              vacationAmount: vacationAmount.toFixed(2),
+              bonusAmount: bonusAmount.toFixed(2),
               startDate: new Date(input.startDate),
               endDate: new Date(input.endDate),
               isFractional,
@@ -221,9 +234,18 @@ export const VacationService = {
                 periodYear: input.periodYear,
                 vacationDays: input.vacationDays,
                 bonusDays: input.bonusDays,
-                vacationAmount: vacationAmount.toFixed(4),
-                bonusAmount: bonusAmount.toFixed(4),
+                vacationAmount: vacationAmount.toFixed(2),
+                bonusAmount: bonusAmount.toFixed(2),
                 isFractional,
+                ...(!glResidual.isZero()
+                  ? {
+                      glRounding: {
+                        residual: glResidual.toString(),
+                        absorbedIndex: glAbsorbedIndex,
+                        scale: 2,
+                      },
+                    }
+                  : {}),
               },
             },
           });

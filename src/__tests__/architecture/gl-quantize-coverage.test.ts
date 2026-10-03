@@ -41,13 +41,6 @@ const PENDING_ADOPTION: string[] = [
   "src/modules/inflation/services/INPCService.ts",
   "src/modules/inventory/services/InventoryAccountingService.ts",
   "src/modules/payments/services/PaymentGLService.ts",
-  "src/modules/payroll/services/BenefitAccrualService.ts",
-  "src/modules/payroll/services/BenefitAdvanceService.ts",
-  "src/modules/payroll/services/EmployeeLoanService.ts",
-  "src/modules/payroll/services/PayrollRunService.ts",
-  "src/modules/payroll/services/ProfitSharingService.ts",
-  "src/modules/payroll/services/TerminationService.ts",
-  "src/modules/payroll/services/VacationService.ts",
   "src/modules/retentions/actions/retention.actions.ts",
   "src/modules/retentions/services/RetentionService.ts",
 ];

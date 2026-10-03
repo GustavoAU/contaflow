@@ -17,7 +17,7 @@
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { Prisma, Currency } from "@prisma/client";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 
 // LOTTT Art. 142 literal (a): "el patrono o patrona depositará a cada trabajador
 // o trabajadora por concepto de garantía de las prestaciones sociales el
@@ -338,7 +338,11 @@ export const BenefitAccrualService = {
       // Días adicionales por antigüedad Art. 142 LOTTT (prorrateados trimestre)
       const additionalDays = calcAdditionalDays(emp.hireDate, quarterEndDate);
       const totalDays = new Decimal(BASE_DAYS_PER_QUARTER).add(additionalDays);
-      const accrualAmount = integralDailyWage.mul(totalDays);
+      // ADR-058 (R-1): el monto del DOCUMENTO se redondea a 2 decimales en el origen;
+      // el asiento, la línea de accrual y el saldo usan este mismo valor.
+      const accrualAmount = integralDailyWage
+        .mul(totalDays)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
       // Ensure BenefitBalance exists
       let balance = emp.benefitBalance;
@@ -356,18 +360,24 @@ export const BenefitAccrualService = {
         await prisma.$transaction(async (tx) => {
           // Asiento contable de causación (ADR-014 Dec. 7)
           // Convención: positivo = Débito, negativo = Crédito
-          const accrualEntries = [
+          const rawAccrualEntries = [
             {
               accountId: config.benefitsExpenseAccountId!,
-              amount: accrualAmount.toDecimalPlaces(4), // Débito
+              amount: accrualAmount, // Débito
               description: `Accrual prestaciones LOTTT Art.142 — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
             },
             {
               accountId: config.benefitsPayableAccountId!,
-              amount: accrualAmount.negated().toDecimalPlaces(4), // Crédito
+              amount: accrualAmount.negated(), // Crédito
               description: `Pasivo prestaciones — Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
             },
           ];
+          // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+          const {
+            entries: accrualEntries,
+            residual: glResidual,
+            absorbedIndex: glAbsorbedIndex,
+          } = quantizeGLEntries(rawAccrualEntries);
           assertBalancedGLEntries(accrualEntries); // N4: invariante partida doble
           const transaction = await tx.transaction.create({
             data: {
@@ -379,7 +389,11 @@ export const BenefitAccrualService = {
               userId,
               type: "DIARIO",
               entries: {
-                create: accrualEntries,
+                create: accrualEntries.map((e) => ({
+                  accountId: e.accountId,
+                  amount: e.amount,
+                  description: e.description,
+                })),
               },
             },
           });
@@ -441,6 +455,15 @@ export const BenefitAccrualService = {
                 accrualDays: BASE_DAYS_PER_QUARTER,
                 accrualAmount: accrualAmount.toFixed(4),
                 runningBalance: runningBalance.toFixed(4),
+                ...(!glResidual.isZero()
+                  ? {
+                      glRounding: {
+                        residual: glResidual.toString(),
+                        absorbedIndex: glAbsorbedIndex,
+                        scale: 2,
+                      },
+                    }
+                  : {}),
                 // F-02: trazabilidad de conversión si el salario era no-VES
                 ...(originalCurrency && {
                   originalCurrency,
@@ -542,7 +565,11 @@ export const BenefitAccrualService = {
 
       if (totalBalance.lte(0)) continue;
 
-      const interestAmount = totalBalance.mul(monthlyFactor);
+      // ADR-058 (R-1): monto del DOCUMENTO a 2 decimales en el origen. La tasa
+      // (monthlyFactor) NO se redondea: es un factor, no un monto.
+      const interestAmount = totalBalance
+        .mul(monthlyFactor)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
       const newInterestBalance = new Decimal(balance.interestBalance.toString()).add(
         interestAmount
       );
@@ -554,18 +581,24 @@ export const BenefitAccrualService = {
       const monthDate = new Date(year, month - 1, 1);
 
       await prisma.$transaction(async (tx) => {
-        const interestEntries = [
+        const rawInterestEntries = [
           {
             accountId: config.benefitsExpenseAccountId!,
-            amount: interestAmount.toDecimalPlaces(4), // Débito
+            amount: interestAmount, // Débito
             description: `Intereses BCV sobre prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
           },
           {
             accountId: config.benefitsPayableAccountId!,
-            amount: interestAmount.negated().toDecimalPlaces(4), // Crédito
+            amount: interestAmount.negated(), // Crédito
             description: `Pasivo intereses prestaciones — ${year}-${String(month).padStart(2, "0")} — emp ${balance.employeeId.slice(-6)}`,
           },
         ];
+        // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+        const {
+          entries: interestEntries,
+          residual: glResidual,
+          absorbedIndex: glAbsorbedIndex,
+        } = quantizeGLEntries(rawInterestEntries);
         assertBalancedGLEntries(interestEntries); // N4: invariante partida doble
         const transaction = await tx.transaction.create({
           data: {
@@ -577,7 +610,11 @@ export const BenefitAccrualService = {
             userId,
             type: "DIARIO",
             entries: {
-              create: interestEntries,
+              create: interestEntries.map((e) => ({
+                accountId: e.accountId,
+                amount: e.amount,
+                description: e.description,
+              })),
             },
           },
         });
@@ -622,6 +659,15 @@ export const BenefitAccrualService = {
               annualRate: bcvRate.annualRate.toString(),
               interestAmount: interestAmount.toFixed(4),
               newInterestBalance: newInterestBalance.toFixed(4),
+              ...(!glResidual.isZero()
+                ? {
+                    glRounding: {
+                      residual: glResidual.toString(),
+                      absorbedIndex: glAbsorbedIndex,
+                      scale: 2,
+                    },
+                  }
+                : {}),
             },
           },
         });
@@ -865,23 +911,32 @@ export const BenefitAccrualService = {
 
           const additionalDays = calcAdditionalDays(emp.hireDate, quarterEndDate);
           const totalDays = new Decimal(BASE_DAYS_PER_QUARTER).add(additionalDays);
-          const accrualAmount = integralDailyWage.mul(totalDays);
+          // ADR-058 (R-1): monto del DOCUMENTO a 2 decimales en el origen.
+          const accrualAmount = integralDailyWage
+            .mul(totalDays)
+            .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
           const runningBalance = empCurrentBalance.add(accrualAmount);
 
           try {
             await prisma.$transaction(async (tx) => {
-              const backfillEntries = [
+              const rawBackfillEntries = [
                 {
                   accountId: config.benefitsExpenseAccountId!,
-                  amount: accrualAmount.toDecimalPlaces(4),
+                  amount: accrualAmount,
                   description: `Acumulación retroactiva LOTTT Art.142 Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
                 },
                 {
                   accountId: config.benefitsPayableAccountId!,
-                  amount: accrualAmount.negated().toDecimalPlaces(4),
+                  amount: accrualAmount.negated(),
                   description: `Pasivo prestaciones (acumulación retroactiva) Q${quarter}/${year} — ${emp.firstName} ${emp.lastName}`,
                 },
               ];
+              // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+              const {
+                entries: backfillEntries,
+                residual: glResidual,
+                absorbedIndex: glAbsorbedIndex,
+              } = quantizeGLEntries(rawBackfillEntries);
               assertBalancedGLEntries(backfillEntries); // N4: invariante partida doble
               const transaction = await tx.transaction.create({
                 data: {
@@ -893,7 +948,11 @@ export const BenefitAccrualService = {
                   userId,
                   type: "DIARIO",
                   entries: {
-                    create: backfillEntries,
+                    create: backfillEntries.map((e) => ({
+                      accountId: e.accountId,
+                      amount: e.amount,
+                      description: e.description,
+                    })),
                   },
                 },
               });
@@ -941,6 +1000,15 @@ export const BenefitAccrualService = {
                   newValue: {
                     accrualAmount: accrualAmount.toFixed(4),
                     runningBalance: runningBalance.toFixed(4),
+                    ...(!glResidual.isZero()
+                      ? {
+                          glRounding: {
+                            residual: glResidual.toString(),
+                            absorbedIndex: glAbsorbedIndex,
+                            scale: 2,
+                          },
+                        }
+                      : {}),
                     // F-02: trazabilidad de conversión si el salario era no-VES
                     ...(originalCurrency && {
                       originalCurrency,

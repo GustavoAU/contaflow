@@ -1549,6 +1549,119 @@ describe("PayrollRunService.approve", () => {
     expect(debitEntry?.amount.toNumber()).toBe(4000);
   });
 
+  // ADR-058 / SPEC-004 CA-1: caso real del bug. Nómina USD x tasa 779,9522 con 13 líneas de
+  // asiento. En bruto Σ = 0, pero Postgres redondea cada línea a Decimal(19,4) por separado y la
+  // suma guardada deja de ser 0 (aquí −0,0001, igual que NOM-2026-08-16-83jgfm).
+  it("ADR-058: nómina USD x 779,9522 — el asiento que va a Prisma suma 0 exacto y cada línea es múltiplo de 0,01", async () => {
+    mockTx();
+    const m = (s: string) => new Decimal(s);
+    const RATE = m("779.9522");
+    const USD_RUN = {
+      ...BASE_RUN,
+      totalEarnings: m("1043.32"),
+      totalDeductions: m("0"),
+      totalNet: m("0"),
+    };
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(USD_RUN as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      expenseAccountId: "acct-exp",
+      payableAccountId: "acct-pay",
+      ivssPayableAccountId: "acct-ivss",
+      faovPayableAccountId: "acct-faov",
+      incesPayableAccountId: "acct-inces",
+      rpePayableAccountId: "acct-rpe",
+      loanReceivableAccountId: "acct-loan",
+      ivssPatronalAccountId: "acct-ivss-pat",
+      incesPatronalAccountId: "acct-inces-pat",
+      faovPatronalAccountId: "acct-faov-pat",
+      rpePatronalAccountId: "acct-rpe-pat",
+      pensionesPatronalAccountId: "acct-pens-pat",
+      ivssEnabled: true,
+      incesEnabled: true,
+      banavihEnabled: true,
+      rpeEnabled: true,
+      pensionesEnabled: true,
+    } as never);
+    vi.mocked(prisma.payrollRun.updateMany).mockResolvedValue({ count: 1 } as never);
+    const line = (conceptCode: string, conceptType: string, amount: string) => ({
+      conceptCode,
+      conceptType,
+      amount: m(amount),
+      salarySnapshotCurrency: "USD",
+    });
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      line("SAL_BASE", "EARNING", "1043.32"),
+      line("PRESTAMO_EMP", "DEDUCTION", "143.71"),
+      line("IVSS_OBR", "DEDUCTION", "42.54"),
+      line("FAOV_OBR", "DEDUCTION", "12.68"),
+      line("INCES_OBR", "DEDUCTION", "6.71"),
+      line("RPE_OBR", "DEDUCTION", "3.95"),
+      line("IVSS_PAT", "EMPLOYER_COST", "107.27"),
+      line("INCES_PAT", "EMPLOYER_COST", "24.09"),
+      line("FAOV_PAT", "EMPLOYER_COST", "21.46"),
+      line("RPE_PAT", "EMPLOYER_COST", "21.55"),
+      line("PENSIONES_PAT", "EMPLOYER_COST", "112.06"),
+    ] as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({ rate: RATE } as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-usd" } as never);
+    vi.mocked(prisma.payrollRun.update).mockResolvedValue({
+      ...USD_RUN,
+      status: "APPROVED",
+      transactionId: "tx-usd",
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue([] as never);
+
+    await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+    const txCall = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    const entries = (txCall?.data?.entries?.create ?? []) as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
+    expect(entries).toHaveLength(13);
+
+    // Reproduce el defecto: con los mismos montos USD, redondear CADA línea a 4 decimales
+    // (lo que hace Postgres con Decimal(19,4)) NO suma 0.
+    const usd = [
+      "899.61", // gasto de personal (1043.32 − préstamo 143.71)
+      "-690.02", // Sueldos por Pagar (899,61 − retenciones − cuota préstamo)
+      "-42.54",
+      "-12.68",
+      "-6.71",
+      "-3.95",
+      "-143.71",
+      "286.43", // débito patronal
+      "-107.27",
+      "-24.09",
+      "-21.46",
+      "-21.55",
+      "-112.06",
+    ].map((s) => m(s).mul(RATE));
+    expect(usd.reduce((a, x) => a.plus(x), m("0")).isZero()).toBe(true);
+    expect(usd.reduce((a, x) => a.plus(x.toDecimalPlaces(4)), m("0")).isZero()).toBe(false);
+
+    const sum = entries.reduce((acc, e) => acc.plus(e.amount), new Decimal(0));
+    expect(sum.isZero()).toBe(true);
+    for (const e of entries) {
+      expect(e.amount.mul(100).isInteger()).toBe(true);
+      expect(Object.keys(e)).not.toContain("noAbsorb"); // Prisma rechaza campos desconocidos
+    }
+
+    // Obligaciones parafiscales NO absorben: IVSS obrero = round(42.54 x 779,9522, 2).
+    const ivss = entries.find((e) => e.accountId === "acct-ivss");
+    expect(ivss?.amount.toFixed(2)).toBe("-33179.17");
+    const pens = entries.find((e) => e.accountId === "acct-pens-pat");
+    expect(pens?.amount.toFixed(2)).toBe(m("-112.06").mul(RATE).toDecimalPlaces(2).toFixed(2));
+
+    // El residuo (0,01) queda trazable en el AuditLog (R-6).
+    const audit = vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0];
+    expect(audit?.data?.newValue).toMatchObject({
+      glRounding: { residual: "0.01", scale: 2 },
+    });
+  });
+
   // V-2: USD sin tasa registrada → lanza error
   it("V-2: USD payroll throws when no exchange rate registered", async () => {
     mockTx();

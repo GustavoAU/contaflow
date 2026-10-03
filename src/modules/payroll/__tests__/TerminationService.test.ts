@@ -690,3 +690,99 @@ describe("TerminationService.finalize - asiento del Art. 142(d)", () => {
     expect(suma.isZero()).toBe(true);
   });
 });
+
+// ─── ADR-058: redondeo al céntimo en el origen ───────────────────────────────
+
+describe("TerminationService — ADR-058 (montos a 2 decimales)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("create: con un sueldo de 3333,33 todos los montos del documento quedan en múltiplos de 0,01", async () => {
+    const employee = {
+      ...BASE_EMPLOYEE,
+      salaryHistory: [{ ...BASE_EMPLOYEE.salaryHistory[0], amount: new Decimal("3333.33") }],
+      benefitBalance: {
+        id: "bal-1",
+        currentBalance: new Decimal("1000"),
+        interestBalance: new Decimal("0"),
+      },
+    };
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(employee as never);
+    vi.mocked(prisma.termination.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue(employee.salaryHistory as never);
+    vi.mocked(prisma.termination.create).mockResolvedValue(BASE_TERMINATION as never);
+
+    await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
+
+    const data = vi.mocked(prisma.termination.create).mock.calls[0]![0]!.data as unknown as Record<
+      string,
+      string
+    >;
+    const amounts = [
+      "benefitsRetroactiveAmount",
+      "vacationFractionalAmount",
+      "vacationBonusFractionalAmount",
+      "profitSharingFractionalAmount",
+      "noticePeriodAmount",
+      "totalGrossAmount",
+      "totalNetAmount",
+    ];
+    for (const k of amounts) {
+      expect(new Decimal(data[k]).mul(100).isInteger(), `${k} = ${data[k]}`).toBe(true);
+    }
+    // 3333,33/30 = 111,111 por día: el preaviso/vacaciones jamás deben traer 4 decimales útiles
+    expect(Number(data.vacationFractionalAmount)).toBeGreaterThan(0);
+  });
+
+  it("finalize: saldos previos a 4 decimales se cuantizan, el asiento suma 0 y el residuo queda en el AuditLog", async () => {
+    // Liquidación creada antes de ADR-058: montos a 4 decimales.
+    const LEGACY = {
+      ...BASE_TERMINATION,
+      vacationFractionalAmount: new Decimal("100.0040"),
+      vacationBonusFractionalAmount: new Decimal("0"),
+      profitSharingFractionalAmount: new Decimal("200.0040"),
+      totalGrossAmount: new Decimal("300.0080"),
+      totalNetAmount: new Decimal("300.0080"),
+    };
+    vi.mocked(prisma.termination.findFirst).mockResolvedValue(LEGACY as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      year: 2026,
+      month: 4,
+      status: "OPEN",
+    } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.termination.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.employee.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.termination.update).mockResolvedValue({
+      ...LEGACY,
+      status: "FINALIZED",
+    } as never);
+
+    await TerminationService.finalize(COMPANY, USER, TERM_ID);
+
+    const data = vi.mocked(prisma.transaction.create).mock.calls[0]![0]!.data as {
+      entries: { create: Array<{ accountId: string; amount: Decimal }> };
+    };
+    const lines = data.entries.create;
+    // Débitos 100,00 + 200,00 ; crédito neto 300,01 -> el residuo -0,01 se absorbe en el neto.
+    expect(lines.reduce((s, e) => s.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of lines) {
+      expect(e.amount.mul(100).isInteger()).toBe(true);
+      expect(Object.keys(e)).not.toContain("noAbsorb");
+    }
+    expect(lines.find((e) => e.accountId === "acc-pay")?.amount.toFixed(2)).toBe("-300.00");
+
+    const finalizeAudit = vi
+      .mocked(prisma.auditLog.create)
+      .mock.calls.find((c) => c[0]?.data?.action === "FINALIZE_TERMINATION");
+    expect(finalizeAudit?.[0]?.data?.newValue).toMatchObject({
+      glRounding: { residual: "-0.01", scale: 2 },
+    });
+  });
+});
