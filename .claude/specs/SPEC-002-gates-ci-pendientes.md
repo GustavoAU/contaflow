@@ -65,12 +65,12 @@ Componentes con test de a11y en esta spec, porque son los de mayor riesgo fiscal
 Cada test renderiza el componente en jsdom (`// @vitest-environment jsdom` en la primera línea) y corre axe.
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: `pnpm format:check` pasa en local y en CI.
-- [ ] CA-2: El commit de formateo está en `.git-blame-ignore-revs` y no tiene cambios de lógica (`tsc` y `vitest` en verde antes y después).
-- [ ] CA-3: El job `integration` crea el branch, aplica migraciones, corre los tests y borra el branch; el log lo muestra.
-- [ ] CA-4: Con un test de integración que falla a propósito, el branch igual se borra (se prueba una vez y se revierte).
-- [ ] CA-5: Los 5 componentes de la sección 8 tienen test de a11y en verde, o la lista de violaciones queda reportada si no se corrigen aquí.
-- [ ] CA-6: Ningún secreto se imprime en los logs del job.
+- [ ] CA-1: `pnpm format:check` pasa en local y en CI. **PENDIENTE (parte A, PR aparte):** la medición real del 2026-10-03 da 821 de 1064 archivos de `src/` sin formatear (el comentario del CI decía 237).
+- [ ] CA-2: **PENDIENTE (parte A).** El commit de formateo está en `.git-blame-ignore-revs` y no tiene cambios de lógica (`tsc` y `vitest` en verde antes y después).
+- [x] CA-3: El job `integration` crea el branch, aplica migraciones, corre los tests y borra el branch; el log lo muestra. (run 37118866664 y 37119086681; 165 migraciones desde cero, ver ADR-057)
+- [x] CA-4: Con un test de integración que falla, el branch igual se borra. Evidencia sin fabricar un fallo: los runs 37118149880 (P2003) y 37118446313 (P2034) fallaron en `Tests de integración`, el paso `Borrar branch efímero` corrió y terminó en success, y `contaflow-ci` quedó solo con `main`.
+- [x] CA-5: (6 archivos de test: 3 limpios, 5 casos con deuda real fijada con `expectKnownA11yDebt`; la corrección va en SPEC-003) Los 5 componentes de la sección 8 tienen test de a11y en verde, o la lista de violaciones queda reportada si no se corrigen aquí.
+- [x] CA-6: Ningún secreto se imprime en los logs del job. (verificado en los runs 37118866664 y 37119086681: 0 coincidencias de `npg_`, `napi_` y `postgresql://` con credenciales)
 
 ## 10. Plan de agentes
 
