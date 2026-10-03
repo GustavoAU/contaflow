@@ -52,9 +52,8 @@ const EMP_ID = "emp-1";
 const TERM_ID = "term-1";
 
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 const BASE_CONFIG = {
@@ -78,7 +77,12 @@ const BASE_EMPLOYEE = {
   status: "ACTIVE" as const,
   hireDate: new Date("2024-01-01"),
   salaryHistory: [
-    { id: "sal-1", amount: new Decimal("3000"), currency: "VES" as const, effectiveFrom: new Date("2024-01-01") },
+    {
+      id: "sal-1",
+      amount: new Decimal("3000"),
+      currency: "VES" as const,
+      effectiveFrom: new Date("2024-01-01"),
+    },
   ],
   benefitBalance: null,
 };
@@ -144,9 +148,9 @@ describe("TerminationService.create", () => {
   it("IDOR: throws if employee not found in company", async () => {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(null);
 
-    await expect(
-      TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)
-    ).rejects.toThrow("Empleado no encontrado");
+    await expect(TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)).rejects.toThrow(
+      "Empleado no encontrado"
+    );
   });
 
   it("throws if employee is TERMINATED", async () => {
@@ -155,9 +159,9 @@ describe("TerminationService.create", () => {
       status: "TERMINATED",
     } as never);
 
-    await expect(
-      TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)
-    ).rejects.toThrow("estado ACTIVO");
+    await expect(TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)).rejects.toThrow(
+      "estado ACTIVO"
+    );
   });
 
   it("throws if FINALIZED termination already exists", async () => {
@@ -167,9 +171,9 @@ describe("TerminationService.create", () => {
       status: "FINALIZED",
     } as never);
 
-    await expect(
-      TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)
-    ).rejects.toThrow("ya tiene una liquidación final registrada");
+    await expect(TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)).rejects.toThrow(
+      "ya tiene una liquidación final registrada"
+    );
   });
 
   it("la indemnizacion del Art. 92 sale sobre la rama que gano, no sobre la acumulada", async () => {
@@ -327,9 +331,9 @@ describe("TerminationService.create", () => {
       })
     );
 
-    await expect(
-      TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)
-    ).rejects.toThrow("idempotencia");
+    await expect(TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)).rejects.toThrow(
+      "idempotencia"
+    );
   });
 });
 
@@ -361,9 +365,9 @@ describe("TerminationService.finalize", () => {
   it("IDOR: throws if termination not found in company", async () => {
     vi.mocked(prisma.termination.findFirst).mockResolvedValue(null);
 
-    await expect(
-      TerminationService.finalize(COMPANY, USER, TERM_ID)
-    ).rejects.toThrow("Liquidación no encontrada");
+    await expect(TerminationService.finalize(COMPANY, USER, TERM_ID)).rejects.toThrow(
+      "Liquidación no encontrada"
+    );
   });
 
   it("throws if already FINALIZED", async () => {
@@ -372,9 +376,9 @@ describe("TerminationService.finalize", () => {
       status: "FINALIZED",
     } as never);
 
-    await expect(
-      TerminationService.finalize(COMPANY, USER, TERM_ID)
-    ).rejects.toThrow("ya fue finalizada");
+    await expect(TerminationService.finalize(COMPANY, USER, TERM_ID)).rejects.toThrow(
+      "ya fue finalizada"
+    );
   });
 
   it("throws if FINALIZING (in-progress)", async () => {
@@ -383,17 +387,17 @@ describe("TerminationService.finalize", () => {
       status: "FINALIZING",
     } as never);
 
-    await expect(
-      TerminationService.finalize(COMPANY, USER, TERM_ID)
-    ).rejects.toThrow("en proceso de finalización");
+    await expect(TerminationService.finalize(COMPANY, USER, TERM_ID)).rejects.toThrow(
+      "en proceso de finalización"
+    );
   });
 
   it("double-finalization guard: updateMany count 0 → race condition error", async () => {
     vi.mocked(prisma.termination.updateMany).mockResolvedValue({ count: 0 } as never);
 
-    await expect(
-      TerminationService.finalize(COMPANY, USER, TERM_ID)
-    ).rejects.toThrow("race condition");
+    await expect(TerminationService.finalize(COMPANY, USER, TERM_ID)).rejects.toThrow(
+      "race condition"
+    );
   });
 
   it("returns FINALIZED termination row", async () => {
@@ -502,8 +506,9 @@ describe("TerminationService - Art. 142(d), se paga el monto MAYOR", () => {
     vi.mocked(prisma.termination.create).mockClear();
     const conGarantia = await createWithBalance("9000");
 
-    const delta = new Decimal(conGarantia.totalGrossAmount)
-      .sub(new Decimal(conRetro.totalGrossAmount));
+    const delta = new Decimal(conGarantia.totalGrossAmount).sub(
+      new Decimal(conRetro.totalGrossAmount)
+    );
     expect(delta.toFixed(4)).toBe("2250.0000");
   });
 
@@ -566,15 +571,19 @@ describe("TerminationService - hallazgos de la auditoria", () => {
   it("B2: un sueldo en USD se convierte a bolivares antes de comparar las ramas", async () => {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue({
       ...BASE_EMPLOYEE,
-      salaryHistory: [{
-        id: "sal-1", amount: new Decimal("100"), currency: "USD",
-        effectiveFrom: new Date("2024-01-01"),
-      }],
+      salaryHistory: [
+        {
+          id: "sal-1",
+          amount: new Decimal("100"),
+          currency: "USD",
+          effectiveFrom: new Date("2024-01-01"),
+        },
+      ],
       benefitBalance: null,
     } as never);
-    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
-      { rate: new Decimal("300") } as never
-    );
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue({
+      rate: new Decimal("300"),
+    } as never);
 
     await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
 
@@ -589,17 +598,21 @@ describe("TerminationService - hallazgos de la auditoria", () => {
   it("B2: sin tasa registrada NO liquida — bloquea en vez de mezclar monedas", async () => {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue({
       ...BASE_EMPLOYEE,
-      salaryHistory: [{
-        id: "sal-1", amount: new Decimal("100"), currency: "USD",
-        effectiveFrom: new Date("2024-01-01"),
-      }],
+      salaryHistory: [
+        {
+          id: "sal-1",
+          amount: new Decimal("100"),
+          currency: "USD",
+          effectiveFrom: new Date("2024-01-01"),
+        },
+      ],
       benefitBalance: null,
     } as never);
     vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(null as never);
 
-    await expect(
-      TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)
-    ).rejects.toThrow("tasa BCV");
+    await expect(TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT)).rejects.toThrow(
+      "tasa BCV"
+    );
   });
 
   it("un sueldo en VES no consulta tasa de cambio", async () => {
@@ -631,15 +644,19 @@ describe("TerminationService.finalize - asiento del Art. 142(d)", () => {
     mockTx();
     vi.mocked(prisma.termination.findFirst).mockResolvedValue(TERM_RETRO as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
-      id: "period-1", year: 2026, month: 4, status: "OPEN",
+      id: "period-1",
+      year: 2026,
+      month: 4,
+      status: "OPEN",
     } as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
     vi.mocked(prisma.termination.updateMany).mockResolvedValue({ count: 1 } as never);
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
     vi.mocked(prisma.employee.update).mockResolvedValue({} as never);
-    vi.mocked(prisma.termination.update).mockResolvedValue(
-      { ...TERM_RETRO, status: "FINALIZED" } as never
-    );
+    vi.mocked(prisma.termination.update).mockResolvedValue({
+      ...TERM_RETRO,
+      status: "FINALIZED",
+    } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 

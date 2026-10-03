@@ -21,7 +21,7 @@ export function InvoiceTotalsPanel({
   igtfCalculation,
 }: Props) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-2">
+    <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
       <p className="text-sm font-semibold text-zinc-700">Resumen</p>
       <div className="space-y-1.5 text-sm">
         <div className="flex justify-between">

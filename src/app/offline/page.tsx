@@ -17,8 +17,8 @@ export default function OfflinePage() {
         <div className="space-y-2">
           <h1 className="text-xl font-semibold text-zinc-900">Sin conexión</h1>
           <p className="text-sm text-zinc-500">
-            ContaFlow necesita conexión a internet para operar. Verifica tu
-            conexión y vuelve a intentarlo.
+            ContaFlow necesita conexión a internet para operar. Verifica tu conexión y vuelve a
+            intentarlo.
           </p>
         </div>
 

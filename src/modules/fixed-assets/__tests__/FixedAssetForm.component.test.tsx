@@ -31,13 +31,13 @@ import {
 // Pools con ≥2 cuentas por tipo para ejercitar el scoring real de findBestMatch
 // (con 1 sola cuenta hay shortcut `pool[0].id` y el default no se probaría).
 const ACCOUNTS = [
-  { id: "acc-ppe",      code: "1201", name: "Propiedad, Planta y Equipo", type: "ASSET" },
-  { id: "acc-terreno",  code: "1202", name: "Terrenos",                   type: "ASSET" },
-  { id: "acc-dep-gasto", code: "6101", name: "Gasto Depreciación",        type: "EXPENSE" },
-  { id: "acc-alquiler",  code: "6102", name: "Gasto Alquiler",            type: "EXPENSE" },
-  { id: "acc-dep-acum",  code: "1301", name: "Depreciación Acumulada",    type: "CONTRA_ASSET" },
-  { id: "acc-contra-2",  code: "1302", name: "Provisión Otra",            type: "CONTRA_ASSET" },
-  { id: "acc-banco",     code: "1101", name: "Banco Mercantil",           type: "ASSET" },
+  { id: "acc-ppe", code: "1201", name: "Propiedad, Planta y Equipo", type: "ASSET" },
+  { id: "acc-terreno", code: "1202", name: "Terrenos", type: "ASSET" },
+  { id: "acc-dep-gasto", code: "6101", name: "Gasto Depreciación", type: "EXPENSE" },
+  { id: "acc-alquiler", code: "6102", name: "Gasto Alquiler", type: "EXPENSE" },
+  { id: "acc-dep-acum", code: "1301", name: "Depreciación Acumulada", type: "CONTRA_ASSET" },
+  { id: "acc-contra-2", code: "1302", name: "Provisión Otra", type: "CONTRA_ASSET" },
+  { id: "acc-banco", code: "1101", name: "Banco Mercantil", type: "ASSET" },
 ];
 
 const BASE_PROPS = {
@@ -134,16 +134,20 @@ describe("FixedAssetForm — smoke del refactor RHF (FC-03 + paridad FormData + 
       (screen.getByDisplayValue("1201 — Propiedad, Planta y Equipo") as HTMLSelectElement).value
     ).toBe("acc-ppe");
     // EXPENSE: "Gasto Depreciación" (keyword "depreci") le gana a Gasto Alquiler
-    expect(
-      (screen.getByDisplayValue("6101 — Gasto Depreciación") as HTMLSelectElement).value
-    ).toBe("acc-dep-gasto");
+    expect((screen.getByDisplayValue("6101 — Gasto Depreciación") as HTMLSelectElement).value).toBe(
+      "acc-dep-gasto"
+    );
     // CONTRA_ASSET: "Depreciación Acumulada" (acumul+depreci) le gana a Provisión Otra
     expect(
       (screen.getByDisplayValue("1301 — Depreciación Acumulada") as HTMLSelectElement).value
     ).toBe("acc-dep-acum");
     // Contrapartida GL: opcional, sin default
     expect(
-      (screen.getByDisplayValue("Sin asiento automático (registrar manualmente)") as HTMLSelectElement).value
+      (
+        screen.getByDisplayValue(
+          "Sin asiento automático (registrar manualmente)"
+        ) as HTMLSelectElement
+      ).value
     ).toBe("");
 
     // Condicionales ocultos en el estado inicial
@@ -305,12 +309,16 @@ describe("FixedAssetForm — smoke del refactor RHF (FC-03 + paridad FormData + 
     render(<FixedAssetForm {...BASE_PROPS} />);
 
     // El usuario YA tipeó un nombre antes de importar
-    const nameInput = screen.getByPlaceholderText("Ej: Vehículo Toyota Hilux 2026") as HTMLInputElement;
+    const nameInput = screen.getByPlaceholderText(
+      "Ej: Vehículo Toyota Hilux 2026"
+    ) as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: "Servidor HP" } });
 
     // Abrir la sección de importación → fetch de gastos
     fireEvent.click(screen.getByRole("button", { name: /Importar desde Gasto confirmado/ }));
-    const expenseSelect = (await screen.findByDisplayValue("— Seleccionar gasto —")) as HTMLSelectElement;
+    const expenseSelect = (await screen.findByDisplayValue(
+      "— Seleccionar gasto —"
+    )) as HTMLSelectElement;
     expect(getExpensesForAssetImportAction).toHaveBeenCalledWith("company-1");
 
     fireEvent.change(expenseSelect, { target: { value: "exp-1" } });
@@ -321,7 +329,9 @@ describe("FixedAssetForm — smoke del refactor RHF (FC-03 + paridad FormData + 
     expect(currencySelect().value).toBe("USD"); // moneda del gasto (N2)
     // Sección legal auto-expandida con los datos SENIAT del gasto
     expect((screen.getByPlaceholderText("Ej: 00-000123") as HTMLInputElement).value).toBe("F-555");
-    expect((screen.getByPlaceholderText("Ej: J-12345678-9") as HTMLInputElement).value).toBe("J-98765432-1");
+    expect((screen.getByPlaceholderText("Ej: J-12345678-9") as HTMLInputElement).value).toBe(
+      "J-98765432-1"
+    );
     // El nombre tipeado por el usuario NO se sobreescribe…
     expect(nameInput.value).toBe("Servidor HP");
     // …pero la descripción (vacía) sí se completa con el concepto

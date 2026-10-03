@@ -60,7 +60,7 @@ const ALLOWED = new Set(["src/lib/countries/ven/config.ts"]);
 describe("Arquitectura: VEN_RIF_REGEX es fuente única (MP-1 / ADR-042)", () => {
   it("ningún archivo de producción reescribe la regex del RIF inline", () => {
     const files = collectSourceFiles(path.join(ROOT, "src")).filter(
-      (f) => !f.startsWith(path.join(ROOT, "src", "__tests__")),
+      (f) => !f.startsWith(path.join(ROOT, "src", "__tests__"))
     );
 
     const violations: string[] = [];
@@ -80,7 +80,7 @@ describe("Arquitectura: VEN_RIF_REGEX es fuente única (MP-1 / ADR-042)", () => 
     expect(
       violations,
       `Regex de RIF escrita inline. Importa VEN_RIF_REGEX de "@/lib/tax-config":\n` +
-        violations.join("\n"),
+        violations.join("\n")
     ).toHaveLength(0);
   });
 
@@ -96,7 +96,7 @@ describe("Arquitectura: VEN_RIF_REGEX es fuente única (MP-1 / ADR-042)", () => 
 
     // Otros inválidos
     expect(VEN_RIF_REGEX.test("X-12345678-9")).toBe(false); // letra no válida
-    expect(VEN_RIF_REGEX.test("J-1234567-9")).toBe(false);  // 7 dígitos
-    expect(VEN_RIF_REGEX.test("12345678-9")).toBe(false);   // sin letra
+    expect(VEN_RIF_REGEX.test("J-1234567-9")).toBe(false); // 7 dígitos
+    expect(VEN_RIF_REGEX.test("12345678-9")).toBe(false); // sin letra
   });
 });

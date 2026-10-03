@@ -63,11 +63,11 @@ export function PermissionsMatrix({ companyId, currentUserRole, initialGrants }:
       <div className="flex items-start gap-2 rounded-md border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300">
         <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
-          Los checkboxes verdes fijos son permisos del rol base (no se pueden quitar).
-          Los checkboxes editables amplían el acceso de ese rol en <strong>esta empresa</strong> solamente.
-          OWNER y ADMIN siempre tienen acceso total.
-          {" "}Para <strong>Observador (VIEWER)</strong>, el permiso solo da visibilidad del módulo —
-          nunca podrá crear, anular ni modificar datos, aunque el checkbox esté activado.
+          Los checkboxes verdes fijos son permisos del rol base (no se pueden quitar). Los
+          checkboxes editables amplían el acceso de ese rol en <strong>esta empresa</strong>{" "}
+          solamente. OWNER y ADMIN siempre tienen acceso total. Para{" "}
+          <strong>Observador (VIEWER)</strong>, el permiso solo da visibilidad del módulo — nunca
+          podrá crear, anular ni modificar datos, aunque el checkbox esté activado.
         </span>
       </div>
 
@@ -112,7 +112,10 @@ export function PermissionsMatrix({ companyId, currentUserRole, initialGrants }:
                       <td key={role} className="px-4 py-3 text-center">
                         {isBase ? (
                           // Permiso base — fijo, no editable
-                          <div className="flex items-center justify-center" title="Permiso del rol base">
+                          <div
+                            className="flex items-center justify-center"
+                            title="Permiso del rol base"
+                          >
                             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-100 dark:bg-green-900/40">
                               <CheckIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                             </div>
@@ -131,8 +134,14 @@ export function PermissionsMatrix({ companyId, currentUserRole, initialGrants }:
                             className="mx-auto flex h-7 w-7 items-center justify-center rounded-md border-2 transition-colors disabled:opacity-50"
                             style={
                               isGranted
-                                ? { backgroundColor: "rgb(220 252 231)", borderColor: "rgb(134 239 172)" }
-                                : { borderColor: "rgb(212 212 216)", backgroundColor: "transparent" }
+                                ? {
+                                    backgroundColor: "rgb(220 252 231)",
+                                    borderColor: "rgb(134 239 172)",
+                                  }
+                                : {
+                                    borderColor: "rgb(212 212 216)",
+                                    backgroundColor: "transparent",
+                                  }
                             }
                           >
                             {isLoading ? (
@@ -145,7 +154,9 @@ export function PermissionsMatrix({ companyId, currentUserRole, initialGrants }:
                           // Solo lectura (VIEWER, ACCOUNTANT no-manager)
                           <div className="flex items-center justify-center">
                             {hasAccess ? (
-                              <Badge variant="secondary" className="text-xs">Sí</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                Sí
+                              </Badge>
                             ) : (
                               <span className="text-xs text-zinc-400">—</span>
                             )}

@@ -24,18 +24,14 @@ import path from "path";
 import { describe, it, expect } from "vitest";
 import { Decimal } from "decimal.js";
 import { Prisma } from "@prisma/client";
-import {
-  invoiceBaseAndIva,
-  invoiceTotalAmount,
-  type AmountTaxLine,
-} from "./invoice-amounts";
+import { invoiceBaseAndIva, invoiceTotalAmount, type AmountTaxLine } from "./invoice-amounts";
 
 // ─── Helpers de fixture ───────────────────────────────────────────────────────
 
 const line = (
   taxType: string,
   base: AmountTaxLine["base"],
-  amount: AmountTaxLine["amount"],
+  amount: AmountTaxLine["amount"]
 ): AmountTaxLine => ({ taxType, base, amount });
 
 /** Las dos filas que hoy guarda una factura de lujo de base `base` (16% + 15%). */
@@ -102,13 +98,19 @@ describe("invoiceBaseAndIva / invoiceTotalAmount — lujo (ADICIONAL_31)", () =>
 
   it("IVA_ADICIONAL mayor que IVA_GENERAL: el exceso cuenta como base propia", () => {
     // ΣG = 400, ΣA = 1000 → base = 400 + max(0, 1000 − 400) = 1000
-    const lines = [line("IVA_GENERAL", "400.00", "64.00"), line("IVA_ADICIONAL", "1000.00", "150.00")];
+    const lines = [
+      line("IVA_GENERAL", "400.00", "64.00"),
+      line("IVA_ADICIONAL", "1000.00", "150.00"),
+    ];
     expect(fmt(lines)).toEqual({ base: "1000.00", iva: "214.00", total: "1214.00" });
   });
 
   it("IVA_ADICIONAL menor que IVA_GENERAL: NO suma base extra (queda cubierta)", () => {
     // ΣG = 1000, ΣA = 400 → base 1000 (max(0, 400 − 1000) = 0)
-    const lines = [line("IVA_GENERAL", "1000.00", "160.00"), line("IVA_ADICIONAL", "400.00", "60.00")];
+    const lines = [
+      line("IVA_GENERAL", "1000.00", "160.00"),
+      line("IVA_ADICIONAL", "400.00", "60.00"),
+    ];
     expect(fmt(lines)).toEqual({ base: "1000.00", iva: "220.00", total: "1220.00" });
   });
 
@@ -339,11 +341,15 @@ describe("ivaLineTolerance — compra (PURCHASE) en VES: siempre PRINTED sin imp
 
 describe("ivaLineTolerance — compra (PURCHASE) en moneda extranjera: siempre STRICT sin importar el docType", () => {
   it.each(ALL_DOC_TYPES)("USD docType=%s → STRICT (0.01)", (docType) => {
-    expect(ivaLineTolerance({ type: "PURCHASE", docType, currency: "USD" }).equals(IVA_TOLERANCE_STRICT)).toBe(true);
+    expect(
+      ivaLineTolerance({ type: "PURCHASE", docType, currency: "USD" }).equals(IVA_TOLERANCE_STRICT)
+    ).toBe(true);
   });
 
   it.each(ALL_DOC_TYPES)("EUR docType=%s → STRICT (0.01)", (docType) => {
-    expect(ivaLineTolerance({ type: "PURCHASE", docType, currency: "EUR" }).equals(IVA_TOLERANCE_STRICT)).toBe(true);
+    expect(
+      ivaLineTolerance({ type: "PURCHASE", docType, currency: "EUR" }).equals(IVA_TOLERANCE_STRICT)
+    ).toBe(true);
   });
 });
 
@@ -377,7 +383,9 @@ describe("isIvaAmountEditable — mismos 7×2 casos; no depende de currency", ()
   });
 
   it("docType de venta futuro/desconocido → NO editable (auto-calculado, el lado seguro/fail-closed)", () => {
-    expect(isIvaAmountEditable({ type: "SALE", docType: "UN_DOCTYPE_FUTURO_DESCONOCIDO" })).toBe(false);
+    expect(isIvaAmountEditable({ type: "SALE", docType: "UN_DOCTYPE_FUTURO_DESCONOCIDO" })).toBe(
+      false
+    );
   });
 });
 
@@ -420,21 +428,21 @@ describe("ivaLineTolerance / isIvaAmountEditable — usan Decimal.js, no floats"
 // tests de arriba (7×2 + guardas) no se tocan y siguen pasando.
 describe("isIvaAmountEditable — H2: taxType EXENTO nunca es editable (ADR-049, hallazgo H2)", () => {
   it("RED: PURCHASE + FACTURA + taxType EXENTO → false (hoy PURCHASE siempre da true, sin mirar taxType)", () => {
-    expect(
-      isIvaAmountEditable({ type: "PURCHASE", docType: "FACTURA", taxType: "EXENTO" })
-    ).toBe(false);
+    expect(isIvaAmountEditable({ type: "PURCHASE", docType: "FACTURA", taxType: "EXENTO" })).toBe(
+      false
+    );
   });
 
   it("RED: SALE + REPORTE_Z (docType leniente) + taxType EXENTO → false (hoy da true por el docType; el override de EXENTO debe ganar incluso ahí)", () => {
-    expect(
-      isIvaAmountEditable({ type: "SALE", docType: "REPORTE_Z", taxType: "EXENTO" })
-    ).toBe(false);
+    expect(isIvaAmountEditable({ type: "SALE", docType: "REPORTE_Z", taxType: "EXENTO" })).toBe(
+      false
+    );
   });
 
   it("guarda: SALE + FACTURA (docType estricto, ya daba false) + taxType EXENTO → sigue false", () => {
-    expect(
-      isIvaAmountEditable({ type: "SALE", docType: "FACTURA", taxType: "EXENTO" })
-    ).toBe(false);
+    expect(isIvaAmountEditable({ type: "SALE", docType: "FACTURA", taxType: "EXENTO" })).toBe(
+      false
+    );
   });
 
   it("guarda: taxType distinto de EXENTO no cambia nada — PURCHASE + FACTURA + IVA_GENERAL → true", () => {

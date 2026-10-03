@@ -2,14 +2,28 @@
 
 import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
-import { previewInflationAdjustmentAction, runInflationAdjustmentAction } from "../actions/inpc.actions";
+import {
+  previewInflationAdjustmentAction,
+  runInflationAdjustmentAction,
+} from "../actions/inpc.actions";
 import type { SerializedPreviewRow, SerializedRepomo } from "../actions/inpc.actions";
 import type { Account } from "@prisma/client";
 import { fmtVen } from "@/lib/fmt-ven";
 
 const MONTHS = [
-  "","Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+  "",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 function fmt(v: string | number, decimals = 2): string {
@@ -32,20 +46,20 @@ export function InflationAdjustmentPanel({
   inflationBaseMonth,
 }: Props) {
   const now = new Date();
-  const [periodYear, setPeriodYear]   = useState(now.getFullYear());
+  const [periodYear, setPeriodYear] = useState(now.getFullYear());
   const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
   const [adjustmentAccountId, setAdjustmentAccountId] = useState(equityAccounts[0]?.id ?? "");
   const [repomoAccountId, setRepomoAccountId] = useState(repomoAccounts[0]?.id ?? "");
 
-  const [previewRows, setPreviewRows]       = useState<SerializedPreviewRow[] | null>(null);
-  const [previewRepomo, setPreviewRepomo]   = useState<SerializedRepomo | null>(null);
-  const [previewError, setPreviewError]     = useState<string | null>(null);
-  const [runResult, setRunResult]           = useState<string | null>(null);
-  const [runError, setRunError]             = useState<string | null>(null);
-  const [showConfirm, setShowConfirm]       = useState(false);
+  const [previewRows, setPreviewRows] = useState<SerializedPreviewRow[] | null>(null);
+  const [previewRepomo, setPreviewRepomo] = useState<SerializedRepomo | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [runResult, setRunResult] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const [isPendingPreview, startPreview] = useTransition();
-  const [isPendingRun, startRun]         = useTransition();
+  const [isPendingRun, startRun] = useTransition();
 
   const baseLabel = inflationBaseYear
     ? `${MONTHS[inflationBaseMonth ?? 1]} ${inflationBaseYear}`
@@ -88,11 +102,9 @@ export function InflationAdjustmentPanel({
         repomoAccountId: repomoAccountId || undefined,
       });
       if (r.success) {
-        const repomoMsg = r.data.repomo
-          ? `, REPOMO: Bs. ${r.data.repomo}`
-          : "";
+        const repomoMsg = r.data.repomo ? `, REPOMO: Bs. ${r.data.repomo}` : "";
         setRunResult(
-          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${fmt(r.data.totalAdjustment)}, factor ${fmt(r.data.factor, 4)}${repomoMsg}.`,
+          `Ajuste registrado: ${r.data.adjustedAccounts} cuentas, total Bs. ${fmt(r.data.totalAdjustment)}, factor ${fmt(r.data.factor, 4)}${repomoMsg}.`
         );
         setPreviewRows(null);
         setPreviewRepomo(null);
@@ -112,7 +124,7 @@ export function InflationAdjustmentPanel({
   return (
     <div className="space-y-4">
       {/* Parámetros del ajuste */}
-      <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-3">
+      <div className="space-y-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-indigo-700 uppercase">Período base:</span>
           <span className="text-xs text-indigo-600">{baseLabel}</span>
@@ -120,43 +132,50 @@ export function InflationAdjustmentPanel({
 
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Año a ajustar</label>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Año a ajustar</label>
             <input
               type="number"
               value={periodYear}
               onChange={(e) => setPeriodYear(parseInt(e.target.value))}
-              min={2000} max={2100}
+              min={2000}
+              max={2100}
               className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Mes a ajustar</label>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Mes a ajustar</label>
             <select
               value={periodMonth}
               onChange={(e) => setPeriodMonth(parseInt(e.target.value))}
               className="rounded border border-gray-300 px-2 py-1.5 text-sm"
             >
               {MONTHS.slice(1).map((m, i) => (
-                <option key={i + 1} value={i + 1}>{m}</option>
+                <option key={i + 1} value={i + 1}>
+                  {m}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Cuenta actualizadora</label>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              Cuenta actualizadora
+            </label>
             <select
               value={adjustmentAccountId}
               onChange={(e) => setAdjustmentAccountId(e.target.value)}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm min-w-48"
+              className="min-w-48 rounded border border-gray-300 px-2 py-1.5 text-sm"
             >
               {equityAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                <option key={a.id} value={a.id}>
+                  {a.code} — {a.name}
+                </option>
               ))}
             </select>
           </div>
           {repomoAccounts.length > 0 && (
             <div>
               <label
-                className="block text-xs font-medium text-gray-600 mb-1 cursor-help"
+                className="mb-1 block cursor-help text-xs font-medium text-gray-600"
                 title="Cuenta que registra el Resultado por Posición Monetaria Neta (VEN-NIF 3 §36.4)"
               >
                 Cuenta REPOMO ⓘ
@@ -164,11 +183,13 @@ export function InflationAdjustmentPanel({
               <select
                 value={repomoAccountId}
                 onChange={(e) => setRepomoAccountId(e.target.value)}
-                className="rounded border border-gray-300 px-2 py-1.5 text-sm min-w-48"
+                className="min-w-48 rounded border border-gray-300 px-2 py-1.5 text-sm"
               >
                 <option value="">— Sin REPOMO —</option>
                 {repomoAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.code} — {a.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -178,14 +199,15 @@ export function InflationAdjustmentPanel({
             disabled={isPendingPreview || !adjustmentAccountId}
             className="inline-flex items-center gap-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {isPendingPreview && <Loader2Icon className="size-4 animate-spin" />}{isPendingPreview ? "Calculando..." : "Vista Previa"}
+            {isPendingPreview && <Loader2Icon className="size-4 animate-spin" />}
+            {isPendingPreview ? "Calculando..." : "Vista Previa"}
           </button>
         </div>
 
         {repomoAccounts.length === 0 && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-1.5">
-            No hay cuentas de Ingreso/Gasto disponibles para registrar el REPOMO. Crea una cuenta de tipo
-            REVENUE o EXPENSE para el resultado por inflación.
+          <p className="rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
+            No hay cuentas de Ingreso/Gasto disponibles para registrar el REPOMO. Crea una cuenta de
+            tipo REVENUE o EXPENSE para el resultado por inflación.
           </p>
         )}
 
@@ -202,20 +224,28 @@ export function InflationAdjustmentPanel({
           </div>
 
           {hasRows && totalAdjustment !== null && (
-            <div className="rounded-lg border border-indigo-300 bg-indigo-50 px-5 py-3 flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-lg border border-indigo-300 bg-indigo-50 px-5 py-3">
               <div>
-                <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide">Total ajuste INPC</p>
-                <p className="font-mono text-2xl font-bold text-indigo-900 mt-0.5">Bs. {fmt(totalAdjustment)}</p>
+                <p className="text-xs font-medium tracking-wide text-indigo-600 uppercase">
+                  Total ajuste INPC
+                </p>
+                <p className="mt-0.5 font-mono text-2xl font-bold text-indigo-900">
+                  Bs. {fmt(totalAdjustment)}
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-indigo-500">{MONTHS[periodMonth]} {periodYear}</p>
-                <p className="text-xs text-indigo-400 mt-0.5">{previewRows?.length ?? 0} cuentas afectadas</p>
+                <p className="text-xs text-indigo-500">
+                  {MONTHS[periodMonth]} {periodYear}
+                </p>
+                <p className="mt-0.5 text-xs text-indigo-400">
+                  {previewRows?.length ?? 0} cuentas afectadas
+                </p>
               </div>
             </div>
           )}
 
           {!hasRows ? (
-            <p className="text-sm text-gray-500 py-4 text-center">
+            <p className="py-4 text-center text-sm text-gray-500">
               No hay cuentas con saldo en el período especificado.
             </p>
           ) : (
@@ -228,7 +258,7 @@ export function InflationAdjustmentPanel({
                       <th className="px-4 py-2 text-left">Tipo</th>
                       <th className="px-4 py-2 text-right">Saldo Actual</th>
                       <th
-                        className="px-4 py-2 text-right cursor-help"
+                        className="cursor-help px-4 py-2 text-right"
                         title="Factor = INPC del período ÷ INPC del período base"
                       >
                         Factor ⓘ
@@ -239,11 +269,14 @@ export function InflationAdjustmentPanel({
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {previewRows.map((row) => {
-                      const reexpressed = parseFloat(row.originalBalance) + parseFloat(row.adjustmentAmount);
+                      const reexpressed =
+                        parseFloat(row.originalBalance) + parseFloat(row.adjustmentAmount);
                       return (
                         <tr key={row.accountId} className="hover:bg-gray-50">
                           <td className="px-4 py-2">
-                            <span className="font-mono text-xs text-gray-500">{row.accountCode}</span>{" "}
+                            <span className="font-mono text-xs text-gray-500">
+                              {row.accountCode}
+                            </span>{" "}
                             <span className="text-gray-900">{row.accountName}</span>
                           </td>
                           <td className="px-4 py-2 text-xs text-gray-500">{row.accountType}</td>
@@ -251,12 +284,14 @@ export function InflationAdjustmentPanel({
                             {fmt(row.originalBalance)}
                           </td>
                           <td
-                            className="px-4 py-2 text-right font-mono text-gray-500 cursor-help"
+                            className="cursor-help px-4 py-2 text-right font-mono text-gray-500"
                             title={`${row.periodInpc} ÷ ${row.baseInpc} = ${parseFloat(row.cumulativeIndex).toFixed(6)}`}
                           >
                             {fmt(row.cumulativeIndex, 4)}
                           </td>
-                          <td className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(row.adjustmentAmount) > 0 ? "text-green-700" : "text-red-700"}`}>
+                          <td
+                            className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(row.adjustmentAmount) > 0 ? "text-green-700" : "text-red-700"}`}
+                          >
                             {fmt(row.adjustmentAmount)}
                           </td>
                           <td className="px-4 py-2 text-right font-mono font-semibold text-indigo-700">
@@ -268,7 +303,7 @@ export function InflationAdjustmentPanel({
 
                     {/* Fila REPOMO — VEN-NIF 3 §36.4 */}
                     {previewRepomo && (
-                      <tr className="bg-amber-50 border-t-2 border-amber-200">
+                      <tr className="border-t-2 border-amber-200 bg-amber-50">
                         <td className="px-4 py-2" colSpan={2}>
                           <span className="font-medium text-amber-800">REPOMO</span>{" "}
                           <span className="text-xs text-amber-600">
@@ -279,15 +314,19 @@ export function InflationAdjustmentPanel({
                           {fmt(previewRepomo.netMonetaryPosition)}
                         </td>
                         <td
-                          className="px-4 py-2 text-right font-mono text-gray-500 cursor-help"
+                          className="cursor-help px-4 py-2 text-right font-mono text-gray-500"
                           title={`Factor = ${parseFloat(previewRepomo.factor).toFixed(6)}`}
                         >
                           {fmt(previewRepomo.factor, 4)}
                         </td>
-                        <td className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(previewRepomo.repomoAmount) > 0 ? "text-red-700" : "text-green-700"}`}>
+                        <td
+                          className={`px-4 py-2 text-right font-mono font-semibold ${parseFloat(previewRepomo.repomoAmount) > 0 ? "text-red-700" : "text-green-700"}`}
+                        >
                           {fmt(previewRepomo.repomoAmount)}
                           <span className="ml-1 text-xs font-normal">
-                            {parseFloat(previewRepomo.repomoAmount) > 0 ? "(pérdida)" : "(ganancia)"}
+                            {parseFloat(previewRepomo.repomoAmount) > 0
+                              ? "(pérdida)"
+                              : "(ganancia)"}
                           </span>
                         </td>
                         <td className="px-4 py-2 text-right text-xs text-amber-600">
@@ -310,15 +349,17 @@ export function InflationAdjustmentPanel({
                 </button>
               ) : (
                 <div className="flex items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-3">
-                  <p className="text-sm text-yellow-800 font-medium flex-1">
-                    ¿Registrar el ajuste por inflación? Esta acción genera un asiento contable irreversible (solo anulable por VOID).
+                  <p className="flex-1 text-sm font-medium text-yellow-800">
+                    ¿Registrar el ajuste por inflación? Esta acción genera un asiento contable
+                    irreversible (solo anulable por VOID).
                   </p>
                   <button
                     onClick={handleConfirmRun}
                     disabled={isPendingRun}
                     className="inline-flex items-center gap-2 rounded bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
-                    {isPendingRun && <Loader2Icon className="size-4 animate-spin" />}{isPendingRun ? "Registrando..." : "Confirmar"}
+                    {isPendingRun && <Loader2Icon className="size-4 animate-spin" />}
+                    {isPendingRun ? "Registrando..." : "Confirmar"}
                   </button>
                   <button
                     onClick={() => setShowConfirm(false)}

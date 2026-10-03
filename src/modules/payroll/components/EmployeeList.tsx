@@ -103,7 +103,8 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
     }
     return sum;
   }, 0);
-  const hasMixedCurrencies = activeFiltered.some((e) => e.currentSalaryCurrency === "USD") &&
+  const hasMixedCurrencies =
+    activeFiltered.some((e) => e.currentSalaryCurrency === "USD") &&
     activeFiltered.some((e) => e.currentSalaryCurrency === "VES");
 
   if (employees.length === 0) {
@@ -134,13 +135,13 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar por nombre, cédula o cargo…"
-          className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full max-w-sm rounded-md border border-gray-300 px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           aria-label="Buscar empleados"
         />
         <select
           value={filterContract}
           onChange={(e) => setFilterContract(e.target.value)}
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           aria-label="Filtrar por tipo de contrato"
         >
           <option value="">Todos los contratos</option>
@@ -151,7 +152,7 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
         <select
           value={filterCurrency}
           onChange={(e) => setFilterCurrency(e.target.value)}
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           aria-label="Filtrar por moneda de salario"
         >
           <option value="">Todas las monedas</option>
@@ -161,7 +162,7 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-xs shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           aria-label="Filtrar por estado"
         >
           <option value="ACTIVE">Solo activos</option>
@@ -187,12 +188,24 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Empleado</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Cédula</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Cargo</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Contrato</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Salario actual</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                  Empleado
+                </th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                  Cédula
+                </th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                  Cargo
+                </th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                  Contrato
+                </th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                  Salario actual
+                </th>
+                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                  Estado
+                </th>
                 <th scope="col" className="px-4 py-3" />
               </tr>
             </thead>
@@ -217,39 +230,49 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
                             ? "bg-orange-100 text-orange-700"
                             : "bg-sky-100 text-sky-700"
                         }`}
-                        title={emp.payrollWorkerType === "OBRERO" ? "Obrero (Forma 14-02 IVSS)" : "Empleado"}
+                        title={
+                          emp.payrollWorkerType === "OBRERO"
+                            ? "Obrero (Forma 14-02 IVSS)"
+                            : "Empleado"
+                        }
                       >
                         {emp.payrollWorkerType === "OBRERO" ? "Obrero" : "Empleado"}
                       </span>
                       {/* Art. 45 LOTTT: badge de período de prueba con countdown */}
-                      {emp.status === "ACTIVE" && isProbation(emp.hireDate) && (() => {
-                        const daysLeft = probationDaysLeft(emp.hireDate);
-                        const urgent = daysLeft !== null && daysLeft <= 30;
-                        return (
-                          <span
-                            className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
-                              urgent ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
-                            }`}
-                            title={
-                              daysLeft !== null
-                                ? `Art. 45 LOTTT — ${daysLeft} días para vencer el período de prueba`
-                                : "Art. 45 LOTTT — En período de prueba (menos de 6 meses)"
-                            }
-                          >
-                            {urgent && daysLeft !== null ? `Prueba · ${daysLeft}d` : "Prueba"}
-                          </span>
-                        );
-                      })()}
+                      {emp.status === "ACTIVE" &&
+                        isProbation(emp.hireDate) &&
+                        (() => {
+                          const daysLeft = probationDaysLeft(emp.hireDate);
+                          const urgent = daysLeft !== null && daysLeft <= 30;
+                          return (
+                            <span
+                              className={`rounded-full px-1.5 py-0.5 text-xs font-medium ${
+                                urgent ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700"
+                              }`}
+                              title={
+                                daysLeft !== null
+                                  ? `Art. 45 LOTTT — ${daysLeft} días para vencer el período de prueba`
+                                  : "Art. 45 LOTTT — En período de prueba (menos de 6 meses)"
+                              }
+                            >
+                              {urgent && daysLeft !== null ? `Prueba · ${daysLeft}d` : "Prueba"}
+                            </span>
+                          );
+                        })()}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {emp.currentSalaryAmount ? (
                       <span className="inline-flex items-center gap-1.5">
-                        {formatAmount(emp.currentSalaryAmount, emp.currentSalaryCurrency ?? undefined)}
+                        {formatAmount(
+                          emp.currentSalaryAmount,
+                          emp.currentSalaryCurrency ?? undefined
+                        )}
                         {/* U-01: chip de moneda con color diferenciado */}
                         <span
                           className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${
-                            CURRENCY_CHIP[emp.currentSalaryCurrency ?? ""] ?? "bg-gray-100 text-gray-600"
+                            CURRENCY_CHIP[emp.currentSalaryCurrency ?? ""] ??
+                            "bg-gray-100 text-gray-600"
                           }`}
                         >
                           {emp.currentSalaryCurrency}
@@ -286,41 +309,63 @@ export default function EmployeeList({ companyId, employees, canWrite, usdToVesR
       {/* U-01: panel de totales con conversión a moneda base */}
       {activeFiltered.length > 0 && hasMixedCurrencies && (
         <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
-          <p className="font-semibold mb-1.5">
-            Total nómina mensual estimada — {activeFiltered.length} empleado{activeFiltered.length !== 1 ? "s" : ""} activo{activeFiltered.length !== 1 ? "s" : ""}
+          <p className="mb-1.5 font-semibold">
+            Total nómina mensual estimada — {activeFiltered.length} empleado
+            {activeFiltered.length !== 1 ? "s" : ""} activo{activeFiltered.length !== 1 ? "s" : ""}
           </p>
           {usdToVesRate ? (
             <div className="flex flex-wrap gap-4">
               <span>
                 Total equivalente VES:{" "}
-                <strong className="font-mono">{totalVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs.</strong>
+                <strong className="font-mono">
+                  {totalVes.toLocaleString("es-VE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  Bs.
+                </strong>
               </span>
               <span>
                 Total equivalente USD:{" "}
-                <strong className="font-mono">$ {totalUsd.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                <strong className="font-mono">
+                  ${" "}
+                  {totalUsd.toLocaleString("es-VE", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </strong>
               </span>
               <span className="text-blue-600">
-                Tasa: Bs. {Number(usdToVesRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2 })} / USD
-                {" "}({usdToVesRate.date})
+                Tasa: Bs.{" "}
+                {Number(usdToVesRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2 })} /
+                USD ({usdToVesRate.date})
               </span>
             </div>
           ) : (
             <p className="text-amber-700">
-              Sin tasa USD registrada — registra la tasa BCV en Contabilidad → Tasas de Cambio para ver el total equivalente.
+              Sin tasa USD registrada — registra la tasa BCV en Contabilidad → Tasas de Cambio para
+              ver el total equivalente.
             </p>
           )}
         </div>
       )}
       {activeFiltered.length > 0 && !hasMixedCurrencies && (
-        <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-600 flex items-center gap-4">
+        <div className="flex items-center gap-4 rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-600">
           <span className="font-medium">
-            Total nómina mensual ({activeFiltered.length} activo{activeFiltered.length !== 1 ? "s" : ""}):
+            Total nómina mensual ({activeFiltered.length} activo
+            {activeFiltered.length !== 1 ? "s" : ""}):
           </span>
           <span className="font-mono font-semibold">
             {activeFiltered[0]?.currentSalaryCurrency === "USD" ? "$ " : "Bs. "}
             {activeFiltered[0]?.currentSalaryCurrency === "USD"
-              ? totalUsd.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-              : totalVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ? totalUsd.toLocaleString("es-VE", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : totalVes.toLocaleString("es-VE", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
           </span>
         </div>
       )}

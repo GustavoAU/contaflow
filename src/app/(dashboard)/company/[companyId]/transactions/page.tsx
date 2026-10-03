@@ -20,9 +20,9 @@ export default async function TransactionsPage({ params }: Props) {
   const transactions = result.data;
 
   const contaTabs = [
-    { label: "Asientos",        href: `/company/${companyId}/transactions` },
+    { label: "Asientos", href: `/company/${companyId}/transactions` },
     { label: "Plan de Cuentas", href: `/company/${companyId}/accounts` },
-    { label: "Reportes",        href: `/company/${companyId}/reports` },
+    { label: "Reportes", href: `/company/${companyId}/reports` },
   ];
 
   return (

@@ -11,9 +11,27 @@ import type { FixedAsset } from "@prisma/client";
 
 // ─── Fixture helper ───────────────────────────────────────────────────────────
 
-function makeAsset(overrides: Partial<
-  Pick<FixedAsset, "acquisitionCost" | "residualValue" | "usefulLifeMonths" | "depreciationMethod" | "totalUnits" | "acquisitionDate">
->): Pick<FixedAsset, "acquisitionCost" | "residualValue" | "usefulLifeMonths" | "depreciationMethod" | "totalUnits" | "acquisitionDate"> {
+function makeAsset(
+  overrides: Partial<
+    Pick<
+      FixedAsset,
+      | "acquisitionCost"
+      | "residualValue"
+      | "usefulLifeMonths"
+      | "depreciationMethod"
+      | "totalUnits"
+      | "acquisitionDate"
+    >
+  >
+): Pick<
+  FixedAsset,
+  | "acquisitionCost"
+  | "residualValue"
+  | "usefulLifeMonths"
+  | "depreciationMethod"
+  | "totalUnits"
+  | "acquisitionDate"
+> {
   return {
     acquisitionCost: new Decimal("12000.00") as never,
     residualValue: new Decimal("0.00") as never,
@@ -201,7 +219,8 @@ describe("FixedAssetService.create — GL posting adquisición", () => {
       // pedidas existen y son de esta empresa.
       account: {
         findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-          where.id.in.map((id) => ({ id }))),
+          where.id.in.map((id) => ({ id }))
+        ),
       },
     };
   }
@@ -235,8 +254,8 @@ describe("FixedAssetService.create — GL posting adquisición", () => {
         data: expect.objectContaining({
           entries: {
             create: expect.arrayContaining([
-              expect.objectContaining({ accountId: "acc-asset" }),     // Dr
-              expect.objectContaining({ accountId: "acc-cxp" }),       // Cr
+              expect.objectContaining({ accountId: "acc-asset" }), // Dr
+              expect.objectContaining({ accountId: "acc-cxp" }), // Cr
             ]),
           },
         }),
@@ -248,7 +267,11 @@ describe("FixedAssetService.create — GL posting adquisición", () => {
     const txCreate = vi.fn().mockResolvedValue({ id: "gl-tx-1" });
     const tx = makeTx(txCreate);
 
-    await FixedAssetService.create({ ...BASE, acquisitionCounterpartAccountId: null }, "user-1", tx as never);
+    await FixedAssetService.create(
+      { ...BASE, acquisitionCounterpartAccountId: null },
+      "user-1",
+      tx as never
+    );
 
     expect(txCreate).not.toHaveBeenCalled();
   });
@@ -266,8 +289,9 @@ describe("FixedAssetService.create — GL posting adquisición", () => {
     const tx = makeTx();
     tx.account.findMany = vi.fn().mockResolvedValue([]); // ninguna de las 3 es de company
 
-    await expect(FixedAssetService.create(BASE, "user-1", tx as never))
-      .rejects.toThrow(/no pertenece(n)? a esta empresa/);
+    await expect(FixedAssetService.create(BASE, "user-1", tx as never)).rejects.toThrow(
+      /no pertenece(n)? a esta empresa/
+    );
     expect(tx.fixedAsset.create).not.toHaveBeenCalled();
   });
 });
@@ -282,10 +306,15 @@ describe("FixedAssetService.postINPCRestatement", () => {
 
     await expect(
       FixedAssetService.postINPCRestatement(
-        { companyId: "company-1", periodYear: 2026, periodMonth: 8, patrimonioAccountId: "acc-ajena" } as never,
+        {
+          companyId: "company-1",
+          periodYear: 2026,
+          periodMonth: 8,
+          patrimonioAccountId: "acc-ajena",
+        } as never,
         "user-1",
-        tx as never,
-      ),
+        tx as never
+      )
     ).rejects.toThrow(/no existe o no pertenece/);
   });
 });

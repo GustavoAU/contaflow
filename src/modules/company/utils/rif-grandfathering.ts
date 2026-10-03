@@ -34,11 +34,11 @@
 export function assertRifEditable(
   incoming: string | null,
   stored: string | null,
-  taxIdPattern: RegExp,
+  taxIdPattern: RegExp
 ): string | null {
   const next = incoming?.trim() || null;
-  if (next === null) return null;              // limpiar el RIF siempre se permite
-  if (next === (stored ?? null)) return null;  // sin cambios → grandfathering
-  if (taxIdPattern.test(next)) return null;    // cambio válido
+  if (next === null) return null; // limpiar el RIF siempre se permite
+  if (next === (stored ?? null)) return null; // sin cambios → grandfathering
+  if (taxIdPattern.test(next)) return null; // cambio válido
   return "RIF inválido (ej: J-12345678-9)";
 }

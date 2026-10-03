@@ -107,14 +107,12 @@ const NP_INVOICE = {
 describe("canAddManagedClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          managedClient: prisma.managedClient,
-          subscription: prisma.subscription,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        managedClient: prisma.managedClient,
+        subscription: prisma.subscription,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("STARTER con 4 RIFs activos → allowed:true, currentCount:4, limit:5", async () => {
@@ -182,14 +180,12 @@ describe("canAddManagedClient", () => {
 describe("addManagedClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          managedClient: prisma.managedClient,
-          subscription: prisma.subscription,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        managedClient: prisma.managedClient,
+        subscription: prisma.subscription,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   // MEDIUM-2: el @@unique([despachoCompanyId, rif]) compara strings crudos, así que
@@ -232,7 +228,9 @@ describe("addManagedClient", () => {
     const result = await addManagedClient(
       COMPANY_ID,
       { ...BASE_INPUT, rif: "12345678" }, // sin prefijo
-      ACTOR_ID, IP, UA
+      ACTOR_ID,
+      IP,
+      UA
     );
     // assert
     expect(result).toMatchObject({ success: false });
@@ -253,7 +251,9 @@ describe("addManagedClient", () => {
     const result = await addManagedClient(
       COMPANY_ID,
       { ...BASE_INPUT, rif: "C-12345678-9" },
-      ACTOR_ID, IP, UA
+      ACTOR_ID,
+      IP,
+      UA
     );
     // assert
     expect(result).toMatchObject({ success: true });
@@ -316,13 +316,11 @@ describe("addManagedClient", () => {
 describe("archiveManagedClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          managedClient: prisma.managedClient,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        managedClient: prisma.managedClient,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("happy path → success:true y establece deletedAt + deletedBy", async () => {
@@ -424,15 +422,13 @@ describe("listManagedClients", () => {
 describe("upgradeDespachoTier", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          managedClient: prisma.managedClient,
-          subscription: prisma.subscription,
-          subscriptionPayment: prisma.subscriptionPayment,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        managedClient: prisma.managedClient,
+        subscription: prisma.subscription,
+        subscriptionPayment: prisma.subscriptionPayment,
+        auditLog: prisma.auditLog,
+      })) as never);
     vi.mocked(nowpayments.createNowPaymentsInvoice).mockResolvedValue(NP_INVOICE as never);
   });
 

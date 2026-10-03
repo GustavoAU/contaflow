@@ -25,7 +25,8 @@ vi.mock("@/lib/prisma", () => ({
     // limpia calls/results, no la implementación).
     account: {
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.map((id) => ({ id }))),
+        where.id.in.map((id) => ({ id }))
+      ),
     },
   },
 }));
@@ -92,7 +93,12 @@ describe("distributeAmounts", () => {
 
 describe("buildIdempotencyKey", () => {
   it("produce hash SHA256 de 64 caracteres", () => {
-    const key = buildIdempotencyKey(COMPANY_ID, new Date("2026-05-12"), new Decimal("1000"), BASE_LINES);
+    const key = buildIdempotencyKey(
+      COMPANY_ID,
+      new Date("2026-05-12"),
+      new Decimal("1000"),
+      BASE_LINES
+    );
     expect(key).toHaveLength(64);
     expect(key).toMatch(/^[a-f0-9]+$/);
   });
@@ -175,9 +181,8 @@ describe("createDistribution (mocked)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn(prisma)) as never);
     vi.mocked(prisma.incomeDistribution.create).mockResolvedValue(mockDist as never);
     vi.mocked(prisma.incomeDistributionAudit.create).mockResolvedValue({} as never);
   });
@@ -325,37 +330,43 @@ describe("createDistribution (mocked)", () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([] as never); // acc-origin no es de COMPANY_ID
     const { createDistribution } = await import("../services/IncomeDistributionService");
 
-    await expect(createDistribution({
-      companyId: COMPANY_ID,
-      date: new Date("2026-05-12"),
-      currencyCode: "VES",
-      totalAmountOriginal: new Decimal("1000"),
-      exchangeRate: new Decimal("1"),
-      originAccountId: "acc-origin",
-      lines: BASE_LINES,
-      createdBy: USER_ID,
-    } as never)).rejects.toThrow(/no pertenece/);
+    await expect(
+      createDistribution({
+        companyId: COMPANY_ID,
+        date: new Date("2026-05-12"),
+        currencyCode: "VES",
+        totalAmountOriginal: new Decimal("1000"),
+        exchangeRate: new Decimal("1"),
+        originAccountId: "acc-origin",
+        lines: BASE_LINES,
+        createdBy: USER_ID,
+      } as never)
+    ).rejects.toThrow(/no pertenece/);
     expect(prisma.incomeDistribution.create).not.toHaveBeenCalled();
   });
 
   it("RECHAZA si la cuenta de una línea no pertenece a la empresa RECEPTORA de esa línea", async () => {
     // acc-origin (contra COMPANY_ID) sí existe; acc-2 (contra rc-2) no.
-    vi.mocked(prisma.account.findMany).mockImplementation((async (args: { where: { id: { in: string[] }; companyId: string } }) => {
+    vi.mocked(prisma.account.findMany).mockImplementation((async (args: {
+      where: { id: { in: string[] }; companyId: string };
+    }) => {
       if (args.where.companyId === "rc-2") return [];
       return args.where.id.in.map((id) => ({ id }));
     }) as never);
     const { createDistribution } = await import("../services/IncomeDistributionService");
 
-    await expect(createDistribution({
-      companyId: COMPANY_ID,
-      date: new Date("2026-05-12"),
-      currencyCode: "VES",
-      totalAmountOriginal: new Decimal("1000"),
-      exchangeRate: new Decimal("1"),
-      originAccountId: "acc-origin",
-      lines: BASE_LINES,
-      createdBy: USER_ID,
-    } as never)).rejects.toThrow(/no pertenece/);
+    await expect(
+      createDistribution({
+        companyId: COMPANY_ID,
+        date: new Date("2026-05-12"),
+        currencyCode: "VES",
+        totalAmountOriginal: new Decimal("1000"),
+        exchangeRate: new Decimal("1"),
+        originAccountId: "acc-origin",
+        lines: BASE_LINES,
+        createdBy: USER_ID,
+      } as never)
+    ).rejects.toThrow(/no pertenece/);
     expect(prisma.incomeDistribution.create).not.toHaveBeenCalled();
   });
 });
@@ -386,8 +397,30 @@ describe("applyDistribution (mocked)", () => {
     deletedAt: null,
     updatedAt: new Date(),
     lines: [
-      { id: "l1", distributionId: "dist-1", recipientCompanyId: "rc-1", recipientCompany: { name: "A" }, accountId: "acc-1", account: { code: "2100", name: "CxP A" }, percentageShare: new Decimal("60"), amountVes: new Decimal("600"), lineDescription: null, lineNumber: 1 },
-      { id: "l2", distributionId: "dist-1", recipientCompanyId: "rc-2", recipientCompany: { name: "B" }, accountId: "acc-2", account: { code: "2101", name: "CxP B" }, percentageShare: new Decimal("40"), amountVes: new Decimal("400"), lineDescription: null, lineNumber: 2 },
+      {
+        id: "l1",
+        distributionId: "dist-1",
+        recipientCompanyId: "rc-1",
+        recipientCompany: { name: "A" },
+        accountId: "acc-1",
+        account: { code: "2100", name: "CxP A" },
+        percentageShare: new Decimal("60"),
+        amountVes: new Decimal("600"),
+        lineDescription: null,
+        lineNumber: 1,
+      },
+      {
+        id: "l2",
+        distributionId: "dist-1",
+        recipientCompanyId: "rc-2",
+        recipientCompany: { name: "B" },
+        accountId: "acc-2",
+        account: { code: "2101", name: "CxP B" },
+        percentageShare: new Decimal("40"),
+        amountVes: new Decimal("400"),
+        lineDescription: null,
+        lineNumber: 2,
+      },
     ],
   };
 
@@ -415,7 +448,7 @@ describe("applyDistribution (mocked)", () => {
    */
   function installFindFirst(rows: FakeRow[], dist: unknown = draftDist) {
     vi.mocked(prisma.incomeDistribution.findFirst).mockImplementation((async (
-      args: FindFirstArgs,
+      args: FindFirstArgs
     ) => {
       if (args?.where?.id !== undefined) return dist;
 
@@ -425,7 +458,7 @@ describe("applyDistribution (mocked)", () => {
         (r) =>
           r.referenceNumber !== null &&
           r.referenceNumber.startsWith(prefix) &&
-          (tenant === undefined || r.companyId === tenant),
+          (tenant === undefined || r.companyId === tenant)
       );
       const direction = args?.orderBy?.referenceNumber;
       let chosen: FakeRow | undefined;
@@ -434,7 +467,7 @@ describe("applyDistribution (mocked)", () => {
         chosen = matches[0];
       } else {
         const sorted = [...matches].sort((a, b) =>
-          (a.referenceNumber as string).localeCompare(b.referenceNumber as string),
+          (a.referenceNumber as string).localeCompare(b.referenceNumber as string)
         );
         chosen = direction === "desc" ? sorted[sorted.length - 1] : sorted[0];
       }
@@ -446,9 +479,11 @@ describe("applyDistribution (mocked)", () => {
   function updateData() {
     const call = vi.mocked(prisma.incomeDistribution.update).mock.calls.at(-1);
     if (!call) throw new Error("incomeDistribution.update no fue llamado");
-    return (call[0] as unknown as {
-      data: { status?: string; referenceNumber?: string | null; transactionId?: string | null };
-    }).data;
+    return (
+      call[0] as unknown as {
+        data: { status?: string; referenceNumber?: string | null; transactionId?: string | null };
+      }
+    ).data;
   }
 
   /** `data` con el que el código llamó a `transaction.create`. */
@@ -468,9 +503,8 @@ describe("applyDistribution (mocked)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn(prisma)) as never);
     installFindFirst([]);
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
     // El update DEVUELVE lo que se le pasó (como un `RETURNING` real): así el
@@ -510,7 +544,9 @@ describe("applyDistribution (mocked)", () => {
   it("lanza error si el estado no es DRAFT", async () => {
     installFindFirst([], { ...draftDist, status: "APPLIED" });
     const { applyDistribution } = await import("../services/IncomeDistributionService");
-    await expect(applyDistribution("dist-1", COMPANY_ID, USER_ID)).rejects.toThrow("no puede aplicarse");
+    await expect(applyDistribution("dist-1", COMPANY_ID, USER_ID)).rejects.toThrow(
+      "no puede aplicarse"
+    );
   });
 
   it("no persiste nada si el estado no es DRAFT", async () => {
@@ -643,7 +679,7 @@ describe("applyDistribution (mocked)", () => {
 
       let attempt = 0;
       vi.mocked(prisma.$transaction).mockImplementation((async (
-        fn: (tx: typeof prisma) => unknown,
+        fn: (tx: typeof prisma) => unknown
       ) => {
         attempt++;
         if (attempt === 1) {
@@ -666,12 +702,12 @@ describe("applyDistribution (mocked)", () => {
 
     it("agotados los 3 intentos devuelve mensaje de negocio, no el P2034 crudo", async () => {
       vi.mocked(prisma.$transaction).mockRejectedValue(
-        Object.assign(new Error("could not serialize access"), { code: "P2034" }),
+        Object.assign(new Error("could not serialize access"), { code: "P2034" })
       );
 
       const { applyDistribution } = await import("../services/IncomeDistributionService");
       await expect(applyDistribution("dist-1", COMPANY_ID, USER_ID)).rejects.toThrow(
-        "Conflicto de concurrencia",
+        "Conflicto de concurrencia"
       );
       expect(prisma.$transaction).toHaveBeenCalledTimes(3);
     });
@@ -708,11 +744,13 @@ describe("voidDistribution (mocked)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn(prisma)) as never);
     vi.mocked(prisma.incomeDistribution.findFirst).mockResolvedValue(draftDist as never);
-    vi.mocked(prisma.incomeDistribution.update).mockResolvedValue({ ...draftDist, status: "VOID" } as never);
+    vi.mocked(prisma.incomeDistribution.update).mockResolvedValue({
+      ...draftDist,
+      status: "VOID",
+    } as never);
     vi.mocked(prisma.incomeDistributionAudit.create).mockResolvedValue({} as never);
   });
 
@@ -723,11 +761,14 @@ describe("voidDistribution (mocked)", () => {
   });
 
   it("bloquea anular una distribución APPLIED", async () => {
-    vi.mocked(prisma.incomeDistribution.findFirst).mockResolvedValue({ ...draftDist, status: "APPLIED" } as never);
+    vi.mocked(prisma.incomeDistribution.findFirst).mockResolvedValue({
+      ...draftDist,
+      status: "APPLIED",
+    } as never);
     const { voidDistribution } = await import("../services/IncomeDistributionService");
-    await expect(
-      voidDistribution("dist-1", COMPANY_ID, "Error", USER_ID)
-    ).rejects.toThrow("Solo se pueden anular distribuciones en DRAFT");
+    await expect(voidDistribution("dist-1", COMPANY_ID, "Error", USER_ID)).rejects.toThrow(
+      "Solo se pueden anular distribuciones en DRAFT"
+    );
   });
 });
 
@@ -742,8 +783,16 @@ describe("CreateIncomeDistributionSchema validations", () => {
     exchangeRate: "1",
     originAccountId: "clh1234567890abcdefghijk",
     lines: [
-      { recipientCompanyId: "clh1234567890abcdefghijk", accountId: "clh1234567890abcdefghijk", percentageShare: "60" },
-      { recipientCompanyId: "clhabcdefghijk1234567890", accountId: "clhabcdefghijk1234567890", percentageShare: "40" },
+      {
+        recipientCompanyId: "clh1234567890abcdefghijk",
+        accountId: "clh1234567890abcdefghijk",
+        percentageShare: "60",
+      },
+      {
+        recipientCompanyId: "clhabcdefghijk1234567890",
+        accountId: "clhabcdefghijk1234567890",
+        percentageShare: "40",
+      },
     ],
   };
 
@@ -752,18 +801,24 @@ describe("CreateIncomeDistributionSchema validations", () => {
   });
 
   it("rechaza suma de porcentajes ≠ 100", () => {
-    const bad = { ...valid, lines: [
-      { ...valid.lines[0], percentageShare: "50" },
-      { ...valid.lines[1], percentageShare: "40" },
-    ]};
+    const bad = {
+      ...valid,
+      lines: [
+        { ...valid.lines[0], percentageShare: "50" },
+        { ...valid.lines[1], percentageShare: "40" },
+      ],
+    };
     expect(CreateIncomeDistributionSchema.safeParse(bad).success).toBe(false);
   });
 
   it("rechaza destinatarios duplicados", () => {
-    const bad = { ...valid, lines: [
-      { ...valid.lines[0], percentageShare: "50" },
-      { ...valid.lines[0], percentageShare: "50" },
-    ]};
+    const bad = {
+      ...valid,
+      lines: [
+        { ...valid.lines[0], percentageShare: "50" },
+        { ...valid.lines[0], percentageShare: "50" },
+      ],
+    };
     expect(CreateIncomeDistributionSchema.safeParse(bad).success).toBe(false);
   });
 
@@ -773,7 +828,11 @@ describe("CreateIncomeDistributionSchema validations", () => {
   });
 
   it("rechaza totalAmountOriginal <= 0", () => {
-    expect(CreateIncomeDistributionSchema.safeParse({ ...valid, totalAmountOriginal: "0" }).success).toBe(false);
-    expect(CreateIncomeDistributionSchema.safeParse({ ...valid, totalAmountOriginal: "-100" }).success).toBe(false);
+    expect(
+      CreateIncomeDistributionSchema.safeParse({ ...valid, totalAmountOriginal: "0" }).success
+    ).toBe(false);
+    expect(
+      CreateIncomeDistributionSchema.safeParse({ ...valid, totalAmountOriginal: "-100" }).success
+    ).toBe(false);
   });
 });

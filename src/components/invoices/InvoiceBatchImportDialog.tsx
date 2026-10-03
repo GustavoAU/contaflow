@@ -3,7 +3,13 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { UploadCloudIcon, DownloadIcon, CheckCircle2Icon, XCircleIcon, Loader2Icon } from "lucide-react";
+import {
+  UploadCloudIcon,
+  DownloadIcon,
+  CheckCircle2Icon,
+  XCircleIcon,
+  Loader2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -13,9 +19,26 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { importInvoiceBatchAction, type BatchRow, type BatchImportResult } from "@/modules/invoices/actions/invoice-batch.actions";
+import {
+  importInvoiceBatchAction,
+  type BatchRow,
+  type BatchImportResult,
+} from "@/modules/invoices/actions/invoice-batch.actions";
 
-const CSV_HEADERS = ["tipo", "tipo_doc", "rif", "nombre", "nro_factura", "nro_control", "fecha", "base_16", "base_8", "exento", "ret_iva", "ret_islr"];
+const CSV_HEADERS = [
+  "tipo",
+  "tipo_doc",
+  "rif",
+  "nombre",
+  "nro_factura",
+  "nro_control",
+  "fecha",
+  "base_16",
+  "base_8",
+  "exento",
+  "ret_iva",
+  "ret_islr",
+];
 
 const CSV_TEMPLATE = [
   CSV_HEADERS.join(","),
@@ -36,26 +59,45 @@ function parseCSV(text: string): ParsedRow[] {
   return lines.slice(startIdx).map((line, idx) => {
     const rowNum = startIdx + idx + 1;
     const cols = line.split(",").map((c) => c.trim());
-    const [tipo, tipo_doc, rif, nombre, nro_factura, nro_control, fecha, base_16, base_8, exento, ret_iva, ret_islr] = cols;
+    const [
+      tipo,
+      tipo_doc,
+      rif,
+      nombre,
+      nro_factura,
+      nro_control,
+      fecha,
+      base_16,
+      base_8,
+      exento,
+      ret_iva,
+      ret_islr,
+    ] = cols;
 
     const errors: string[] = [];
     if (!tipo || !["COMPRA", "VENTA"].includes(tipo.toUpperCase()))
-      errors.push('tipo debe ser COMPRA o VENTA');
-    if (!tipo_doc || !["FACTURA", "NOTA_DEBITO", "NOTA_CREDITO"].includes((tipo_doc ?? "").toUpperCase()))
-      errors.push('tipo_doc debe ser FACTURA, NOTA_DEBITO o NOTA_CREDITO');
-    if (!rif) errors.push('rif requerido');
-    if (!nombre) errors.push('nombre requerido');
-    if (!nro_factura) errors.push('nro_factura requerido');
-    if (!fecha) errors.push('fecha requerida (YYYY-MM-DD)');
+      errors.push("tipo debe ser COMPRA o VENTA");
+    if (
+      !tipo_doc ||
+      !["FACTURA", "NOTA_DEBITO", "NOTA_CREDITO"].includes((tipo_doc ?? "").toUpperCase())
+    )
+      errors.push("tipo_doc debe ser FACTURA, NOTA_DEBITO o NOTA_CREDITO");
+    if (!rif) errors.push("rif requerido");
+    if (!nombre) errors.push("nombre requerido");
+    if (!nro_factura) errors.push("nro_factura requerido");
+    if (!fecha) errors.push("fecha requerida (YYYY-MM-DD)");
 
     const noBase = !base_16 && !base_8 && !exento;
     const allZero = [base_16, base_8, exento].every((v) => !v || parseFloat(v) === 0);
-    if (noBase || allZero) errors.push('se requiere al menos un monto en base_16, base_8 o exento');
+    if (noBase || allZero) errors.push("se requiere al menos un monto en base_16, base_8 o exento");
 
     return {
       rowNum,
       tipo: (tipo?.toUpperCase() ?? "COMPRA") as "COMPRA" | "VENTA",
-      tipo_doc: (tipo_doc?.toUpperCase() ?? "FACTURA") as "FACTURA" | "NOTA_DEBITO" | "NOTA_CREDITO",
+      tipo_doc: (tipo_doc?.toUpperCase() ?? "FACTURA") as
+        | "FACTURA"
+        | "NOTA_DEBITO"
+        | "NOTA_CREDITO",
       rif: rif ?? "",
       nombre: nombre ?? "",
       nro_factura: nro_factura ?? "",
@@ -142,8 +184,16 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
   const errorCount = rows.filter((r) => r.error).length;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!isPending) { onOpenChange(v); if (!v) resetDialog(); } }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!isPending) {
+          onOpenChange(v);
+          if (!v) resetDialog();
+        }
+      }}
+    >
+      <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col">
         <DialogHeader>
           <DialogTitle>Importar facturas desde CSV</DialogTitle>
           <DialogDescription>
@@ -162,16 +212,29 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
                 e.preventDefault();
                 const file = e.dataTransfer.files[0];
                 if (file) {
-                  const fakeEvent = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>;
+                  const fakeEvent = {
+                    target: { files: [file] },
+                  } as unknown as React.ChangeEvent<HTMLInputElement>;
                   handleFileChange(fakeEvent);
                 }
               }}
             >
               <UploadCloudIcon className="mx-auto mb-3 h-10 w-10 text-zinc-400" />
-              <p className="text-sm font-medium text-zinc-700">Arrastra un archivo CSV o haz clic para seleccionar</p>
-              <p className="mt-1 text-xs text-zinc-400">Formato: tipo, tipo_doc, rif, nombre, nro_factura, nro_control, fecha, base_16, base_8, exento, ret_iva, ret_islr</p>
+              <p className="text-sm font-medium text-zinc-700">
+                Arrastra un archivo CSV o haz clic para seleccionar
+              </p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Formato: tipo, tipo_doc, rif, nombre, nro_factura, nro_control, fecha, base_16,
+                base_8, exento, ret_iva, ret_islr
+              </p>
             </div>
-            <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleFileChange} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.txt"
+              className="hidden"
+              onChange={handleFileChange}
+            />
             <Button variant="outline" onClick={downloadTemplate} className="gap-2">
               <DownloadIcon className="h-4 w-4" />
               Descargar plantilla CSV
@@ -184,15 +247,21 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
           <div className="flex flex-col gap-4 overflow-hidden">
             <div className="flex items-center justify-between text-sm">
               <span className="text-zinc-600">
-                {rows.length} fila(s) — {" "}
+                {rows.length} fila(s) —{" "}
                 <span className="font-medium text-emerald-700">{validCount} válidas</span>
                 {errorCount > 0 && (
-                  <span className="ml-2 font-medium text-red-600">{errorCount} con errores (se omitirán)</span>
+                  <span className="ml-2 font-medium text-red-600">
+                    {errorCount} con errores (se omitirán)
+                  </span>
                 )}
               </span>
               <button
                 type="button"
-                onClick={() => { setStep("upload"); setRows([]); if (fileRef.current) fileRef.current.value = ""; }}
+                onClick={() => {
+                  setStep("upload");
+                  setRows([]);
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
                 className="text-xs text-zinc-400 underline hover:text-zinc-600"
               >
                 Cambiar archivo
@@ -203,7 +272,7 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
               <table className="min-w-full text-xs">
                 <thead className="bg-zinc-50 text-zinc-500">
                   <tr>
-                    <th className="px-3 py-2 text-left w-8">#</th>
+                    <th className="w-8 px-3 py-2 text-left">#</th>
                     <th className="px-3 py-2 text-left">Tipo</th>
                     <th className="px-3 py-2 text-left">RIF</th>
                     <th className="px-3 py-2 text-left">Nombre</th>
@@ -220,22 +289,32 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
                     <tr key={row.rowNum} className={row.error ? "bg-red-50" : "bg-white"}>
                       <td className="px-3 py-2 text-zinc-400">{row.rowNum}</td>
                       <td className="px-3 py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-10 font-medium ${row.tipo === "VENTA" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}`}>
+                        <span
+                          className={`text-10 rounded px-1.5 py-0.5 font-medium ${row.tipo === "VENTA" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"}`}
+                        >
                           {row.tipo}
                         </span>
                       </td>
                       <td className="px-3 py-2 font-mono">{row.rif}</td>
-                      <td className="px-3 py-2 max-w-36 truncate" title={row.nombre}>{row.nombre}</td>
+                      <td className="max-w-36 truncate px-3 py-2" title={row.nombre}>
+                        {row.nombre}
+                      </td>
                       <td className="px-3 py-2 font-mono">{row.nro_factura}</td>
                       <td className="px-3 py-2">{row.fecha}</td>
-                      <td className="px-3 py-2 text-right font-mono">{row.base_16 !== "0" ? row.base_16 : ""}</td>
-                      <td className="px-3 py-2 text-right font-mono">{row.base_8 !== "0" ? row.base_8 : ""}</td>
-                      <td className="px-3 py-2 text-right font-mono">{row.exento !== "0" ? row.exento : ""}</td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {row.base_16 !== "0" ? row.base_16 : ""}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {row.base_8 !== "0" ? row.base_8 : ""}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">
+                        {row.exento !== "0" ? row.exento : ""}
+                      </td>
                       <td className="px-3 py-2">
                         {row.error ? (
                           <span title={row.error} className="flex items-center gap-1 text-red-600">
                             <XCircleIcon className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate max-w-40">{row.error}</span>
+                            <span className="max-w-40 truncate">{row.error}</span>
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-emerald-600">
@@ -251,12 +330,20 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => { onOpenChange(false); resetDialog(); }}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false);
+                  resetDialog();
+                }}
+              >
                 Cancelar
               </Button>
               <Button onClick={handleImport} disabled={isPending || validCount === 0}>
                 {isPending ? (
-                  <><Loader2Icon className="mr-2 h-4 w-4 animate-spin" /> Importando…</>
+                  <>
+                    <Loader2Icon className="mr-2 h-4 w-4 animate-spin" /> Importando…
+                  </>
                 ) : (
                   `Importar ${validCount} factura${validCount !== 1 ? "s" : ""}`
                 )}
@@ -271,9 +358,13 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
             <div className="flex items-center gap-3 rounded-lg bg-emerald-50 p-4">
               <CheckCircle2Icon className="h-6 w-6 text-emerald-600" />
               <div>
-                <p className="font-semibold text-emerald-800">{result.created} factura(s) importadas correctamente</p>
+                <p className="font-semibold text-emerald-800">
+                  {result.created} factura(s) importadas correctamente
+                </p>
                 {result.errors.length > 0 && (
-                  <p className="text-sm text-amber-700">{result.errors.length} fila(s) con errores no se importaron</p>
+                  <p className="text-sm text-amber-700">
+                    {result.errors.length} fila(s) con errores no se importaron
+                  </p>
                 )}
               </div>
             </div>
@@ -283,17 +374,29 @@ export function InvoiceBatchImportDialog({ open, onOpenChange, companyId, period
                 <p className="mb-2 text-xs font-semibold text-red-700">Filas con errores:</p>
                 <ul className="space-y-1 text-xs text-red-600">
                   {result.errors.map((e) => (
-                    <li key={e.row}>Fila {e.row}: {e.message}</li>
+                    <li key={e.row}>
+                      Fila {e.row}: {e.message}
+                    </li>
                   ))}
                 </ul>
               </div>
             )}
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { resetDialog(); }}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  resetDialog();
+                }}
+              >
                 Importar otro archivo
               </Button>
-              <Button onClick={() => { onOpenChange(false); resetDialog(); }}>
+              <Button
+                onClick={() => {
+                  onOpenChange(false);
+                  resetDialog();
+                }}
+              >
                 Cerrar
               </Button>
             </div>

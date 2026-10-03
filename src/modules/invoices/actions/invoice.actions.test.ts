@@ -54,9 +54,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 
 vi.mock("../services/InvoiceService", () => ({
@@ -86,7 +88,9 @@ vi.mock("@/modules/exchange-rates/services/ExchangeRateService", () => ({
 
 vi.mock("../services/SeniatXMLService", () => ({
   SeniatXMLService: {
-    generate: vi.fn().mockReturnValue('<FacturaSENIAT xmlns="urn:ve:seniat:factura:1.0"></FacturaSENIAT>'),
+    generate: vi
+      .fn()
+      .mockReturnValue('<FacturaSENIAT xmlns="urn:ve:seniat:factura:1.0"></FacturaSENIAT>'),
     filename: vi.fn().mockReturnValue("factura-venta-0000001.xml"),
     qrContent: vi.fn().mockReturnValue("CONTAFLOW:RIF=J-12345678-9;FACTURA=0000001"),
   },
@@ -104,7 +108,9 @@ vi.mock("@sentry/nextjs", async (importOriginal) => ({
 }));
 // El SDK de Vercel Blob solo lo toca src/lib/private-blob.ts (su test cubre la elección de credencial).
 vi.mock("@/lib/private-blob", () => ({
-  putPrivateBlob: vi.fn().mockResolvedValue({ url: "https://blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-01.pdf" }),
+  putPrivateBlob: vi.fn().mockResolvedValue({
+    url: "https://blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-01.pdf",
+  }),
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -290,7 +296,10 @@ describe("createInvoiceAction", () => {
 
   // ── líneas 112-119: P2002 recovery con idempotencyKey ───────────────────────
   it("recupera factura existente tras P2002 en race condition con idempotencyKey (líneas 112-119)", async () => {
-    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" });
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+    });
     vi.mocked(InvoiceService.create).mockRejectedValue(p2002 as never);
     // Primera llamada: fast-path no encuentra nada (pasa el guard)
     // Segunda llamada: recovery después del P2002 encuentra la factura
@@ -309,7 +318,10 @@ describe("createInvoiceAction", () => {
 
   // ── línea 125: P2002 sin idempotencyKey → mensaje de negocio ────────────────
   it("retorna mensaje de negocio para P2002 sin idempotencyKey (línea 125)", async () => {
-    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" });
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+    });
     vi.mocked(InvoiceService.create).mockRejectedValue(p2002 as never);
 
     // Sin idempotencyKey en el input
@@ -322,7 +334,10 @@ describe("createInvoiceAction", () => {
 
   // ── P2003 ────────────────────────────────────────────────────────────────────
   it("retorna mensaje de negocio para P2003 (FK inválida)", async () => {
-    const p2003 = new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", { code: "P2003", clientVersion: "7.0.0" });
+    const p2003 = new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", {
+      code: "P2003",
+      clientVersion: "7.0.0",
+    });
     vi.mocked(InvoiceService.create).mockRejectedValue(p2003 as never);
 
     const result = await createInvoiceAction(BASE_INPUT);
@@ -334,7 +349,9 @@ describe("createInvoiceAction", () => {
 
   // ── ALERTA 10: STOCK_CONFIRM_REQUIRED ────────────────────────────────────────
   it("retorna STOCK_CONFIRM_REQUIRED con lista de ítems insuficientes", async () => {
-    const insufficient = [{ itemId: "item-1", name: "Laptop", available: "0.0000", requested: "2.0000" }];
+    const insufficient = [
+      { itemId: "item-1", name: "Laptop", available: "0.0000", requested: "2.0000" },
+    ];
     const err = new StockConfirmRequiredError(insufficient);
     vi.mocked(InvoiceService.create).mockRejectedValue(err as never);
 
@@ -349,8 +366,13 @@ describe("createInvoiceAction", () => {
 
   // ── ALERTA 10: stockWarnings en success response ─────────────────────────────
   it("incluye stockWarnings en success cuando el servicio reporta ítems en negativo", async () => {
-    const warnings = [{ itemId: "item-2", name: "Mouse", available: "1.0000", requested: "3.0000" }];
-    vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-warn", stockWarnings: warnings } as never);
+    const warnings = [
+      { itemId: "item-2", name: "Mouse", available: "1.0000", requested: "3.0000" },
+    ];
+    vi.mocked(InvoiceService.create).mockResolvedValue({
+      id: "inv-warn",
+      stockWarnings: warnings,
+    } as never);
 
     const result = await createInvoiceAction(BASE_INPUT);
 
@@ -361,7 +383,10 @@ describe("createInvoiceAction", () => {
   });
 
   it("stockWarnings es undefined cuando no hay ítems en negativo", async () => {
-    vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-ok", stockWarnings: [] } as never);
+    vi.mocked(InvoiceService.create).mockResolvedValue({
+      id: "inv-ok",
+      stockWarnings: [],
+    } as never);
 
     const result = await createInvoiceAction(BASE_INPUT);
 
@@ -540,7 +565,7 @@ describe("exportInvoiceBookPDFAction", () => {
           contentHash: createHash("sha256").update(Buffer.from("fake-pdf")).digest("hex"),
           generatedBy: "user-1",
         }),
-      }),
+      })
     );
   });
 
@@ -564,7 +589,7 @@ describe("exportInvoiceBookPDFAction", () => {
       "fiscal/company-1/libro-ventas-2026-01.pdf",
       pdf,
       "application/pdf",
-      { addRandomSuffix: true },
+      { addRandomSuffix: true }
     );
   });
 
@@ -595,13 +620,16 @@ describe("exportInvoiceBookPDFAction", () => {
     } as never);
     vi.mocked(generateInvoiceBookPDF).mockResolvedValue(Buffer.from("fake-pdf"));
     const sdkError = new Error(
-      "Vercel Blob: No token found. Either configure the `BLOB_READ_WRITE_TOKEN` environment variable, or pass a `token` option.",
+      "Vercel Blob: No token found. Either configure the `BLOB_READ_WRITE_TOKEN` environment variable, or pass a `token` option."
     );
     vi.mocked(putPrivateBlob).mockRejectedValueOnce(sdkError);
 
     const result = await exportInvoiceBookPDFAction(validParams);
 
-    expect(result).toEqual({ success: false, error: "No se pudo guardar el libro. Intenta de nuevo." });
+    expect(result).toEqual({
+      success: false,
+      error: "No se pudo guardar el libro. Intenta de nuevo.",
+    });
     expect(JSON.stringify(result)).not.toContain("BLOB_");
     expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(sdkError);
     expect(vi.mocked(prisma.fiscalReport.create)).not.toHaveBeenCalled();
@@ -684,7 +712,10 @@ describe("exportInvoiceVoucherPDFAction", () => {
 
   it("retorna error si la factura no existe", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      id: "mem-1",
+      role: "ACCOUNTANT",
+    } as never);
     vi.mocked(InvoiceService.getById).mockResolvedValue(null as never);
 
     const result = await exportInvoiceVoucherPDFAction("inv-inexistente", "company-1");
@@ -695,7 +726,10 @@ describe("exportInvoiceVoucherPDFAction", () => {
 
   it("happy path: retorna buffer PDF serializable", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      id: "mem-1",
+      role: "ACCOUNTANT",
+    } as never);
     vi.mocked(InvoiceService.getById).mockResolvedValue(mockInvoice as never);
     vi.mocked(generateInvoiceVoucherPDF).mockResolvedValue(Buffer.from("fake-voucher-pdf"));
 
@@ -711,7 +745,10 @@ describe("exportInvoiceVoucherPDFAction", () => {
 
   it("retorna error genérico si generateInvoiceVoucherPDF lanza excepción", async () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      id: "mem-1",
+      role: "ACCOUNTANT",
+    } as never);
     vi.mocked(InvoiceService.getById).mockResolvedValue(mockInvoice as never);
     vi.mocked(generateInvoiceVoucherPDF).mockRejectedValue(new Error("render failed") as never);
 
@@ -755,7 +792,10 @@ describe("exportInvoiceVoucherPDFAction — montoTotal del QR en factura de lujo
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ id: "mem-1", role: "ACCOUNTANT" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      id: "mem-1",
+      role: "ACCOUNTANT",
+    } as never);
     vi.mocked(generateInvoiceVoucherPDF).mockResolvedValue(Buffer.from("fake-voucher-pdf"));
   });
 
@@ -1033,7 +1073,9 @@ const NOTE_BASE = {
 };
 
 // Una línea IVA_GENERAL sobre base 1000.00: el IVA correcto es 160.00 (la action ve strings, como llegan del cliente).
-const noteTaxLines = (amount: string) => [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount }];
+const noteTaxLines = (amount: string) => [
+  { taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount },
+];
 
 /** NC/ND de VENTA. `docType: undefined` OMITE la clave (el schema aplicaría su default). */
 const saleNote = (docType: string | undefined, amount: string) => ({
@@ -1055,137 +1097,160 @@ const purchaseNote = (docType: string | undefined, amount: string) => ({
 // Un monto suelto en el mensaje: se tolera "." o "," decimal y el número no puede ser parte de otro más largo.
 const moneyRe = (v: string) => new RegExp(`(?<!\\d)${v.replace(".", "[.,]")}(?!\\d)`);
 
-describe.each(NOTE_ACTIONS)("$name — el docType del cliente se ignora (ADR-049 hueco C)", ({ run, service, docType, otherDocType, serviceResult }) => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
-    service.mockResolvedValue(serviceResult);
-  });
+describe.each(NOTE_ACTIONS)(
+  "$name — el docType del cliente se ignora (ADR-049 hueco C)",
+  ({ run, service, docType, otherDocType, serviceResult }) => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
+      vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
+      service.mockResolvedValue(serviceResult);
+    });
 
-  // ── VENTA: la tolerancia estricta 0.01 NO depende del docType declarado ─────────────────────────
-  it.each(["OTRO", "REPORTE_Z", "RESUMEN_VENTAS", "PLANILLA_IMPORTACION"])(
-    "VENTA con docType declarado %s y el IVA descuadrado en 0.50 → success:false por base × tasa (tolerancia 0.01) y NO llama al servicio",
-    async (declared) => {
-      const result = await run(saleNote(declared, "160.50"));
+    // ── VENTA: la tolerancia estricta 0.01 NO depende del docType declarado ─────────────────────────
+    it.each(["OTRO", "REPORTE_Z", "RESUMEN_VENTAS", "PLANILLA_IMPORTACION"])(
+      "VENTA con docType declarado %s y el IVA descuadrado en 0.50 → success:false por base × tasa (tolerancia 0.01) y NO llama al servicio",
+      async (declared) => {
+        const result = await run(saleNote(declared, "160.50"));
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toMatch(/base × tasa/);
+          expect(result.error).toMatch(moneyRe("160.50")); // recibido
+          expect(result.error).toMatch(moneyRe("160.00")); // esperado: 1000.00 x 16 %
+          expect(result.error).toMatch(moneyRe("0.01")); // tolerancia de una venta que emite ContaFlow
+          expect(result.error).not.toMatch(moneyRe("1.00")); // no la de impresora fiscal
+        }
+        expect(service).not.toHaveBeenCalled();
+      }
+    );
+
+    it("VENTA con docType declarado OTRO: el descuadre por debajo (159.50) también se rechaza y no llama al servicio", async () => {
+      const result = await run(saleNote("OTRO", "159.50"));
 
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toMatch(/base × tasa/);
-        expect(result.error).toMatch(moneyRe("160.50")); // recibido
-        expect(result.error).toMatch(moneyRe("160.00")); // esperado: 1000.00 x 16 %
-        expect(result.error).toMatch(moneyRe("0.01")); // tolerancia de una venta que emite ContaFlow
-        expect(result.error).not.toMatch(moneyRe("1.00")); // no la de impresora fiscal
+        expect(result.error).toMatch(moneyRe("159.50"));
+        expect(result.error).toMatch(moneyRe("160.00"));
       }
       expect(service).not.toHaveBeenCalled();
-    },
-  );
+    });
 
-  it("VENTA con docType declarado OTRO: el descuadre por debajo (159.50) también se rechaza y no llama al servicio", async () => {
-    const result = await run(saleNote("OTRO", "159.50"));
+    it("VENTA con docType declarado OTRO: el borde es 0.01 — 160.02 (dif 0.02) se rechaza", async () => {
+      const result = await run(saleNote("OTRO", "160.02"));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toMatch(/base × tasa/);
-      expect(result.error).toMatch(moneyRe("159.50"));
-      expect(result.error).toMatch(moneyRe("160.00"));
-    }
-    expect(service).not.toHaveBeenCalled();
-  });
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error).toMatch(/base × tasa/);
+      expect(service).not.toHaveBeenCalled();
+    });
 
-  it("VENTA con docType declarado OTRO: el borde es 0.01 — 160.02 (dif 0.02) se rechaza", async () => {
-    const result = await run(saleNote("OTRO", "160.02"));
+    it("VENTA con docType declarado OTRO: el borde 160.01 (dif 0.01) se acepta (guarda, pasa hoy)", async () => {
+      const result = await run(saleNote("OTRO", "160.01"));
 
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toMatch(/base × tasa/);
-    expect(service).not.toHaveBeenCalled();
-  });
+      expect(result.success).toBe(true);
+      expect(service).toHaveBeenCalledTimes(1);
+    });
 
-  it("VENTA con docType declarado OTRO: el borde 160.01 (dif 0.01) se acepta (guarda, pasa hoy)", async () => {
-    const result = await run(saleNote("OTRO", "160.01"));
+    it.each([
+      { declared: "FACTURA" },
+      { declared: "NOTA_CREDITO" },
+      { declared: "NOTA_DEBITO" },
+      { declared: undefined },
+    ])(
+      "VENTA con docType declarado $declared y el IVA descuadrado en 0.50 → se rechaza (guarda: ya era estricta, pasa hoy)",
+      async ({ declared }) => {
+        const result = await run(saleNote(declared, "160.50"));
 
-    expect(result.success).toBe(true);
-    expect(service).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([
-    { declared: "FACTURA" },
-    { declared: "NOTA_CREDITO" },
-    { declared: "NOTA_DEBITO" },
-    { declared: undefined },
-  ])("VENTA con docType declarado $declared y el IVA descuadrado en 0.50 → se rechaza (guarda: ya era estricta, pasa hoy)", async ({ declared }) => {
-    const result = await run(saleNote(declared, "160.50"));
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toMatch(/base × tasa/);
-      expect(result.error).toMatch(moneyRe("0.01"));
-    }
-    expect(service).not.toHaveBeenCalled();
-  });
-
-  // ── El servicio recibe SIEMPRE el docType de la nota, no el que declaró el cliente ──────────────
-  it.each([
-    { kind: "VENTA", type: "SALE", build: saleNote, declared: "OTRO" },
-    { kind: "VENTA", type: "SALE", build: saleNote, declared: "REPORTE_Z" },
-    { kind: "VENTA", type: "SALE", build: saleNote, declared: "FACTURA" },
-    { kind: "VENTA", type: "SALE", build: saleNote, declared: otherDocType },
-    { kind: "COMPRA", type: "PURCHASE", build: purchaseNote, declared: "OTRO" },
-    { kind: "COMPRA", type: "PURCHASE", build: purchaseNote, declared: otherDocType },
-  ])("$kind con docType declarado $declared e IVA exacto → success y el servicio recibe el docType de la nota", async ({ type, build, declared }) => {
-    const result = await run(build(declared, "160.00"));
-
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data).toEqual(serviceResult);
-    expect(service).toHaveBeenCalledTimes(1);
-    expect(service).toHaveBeenCalledWith(
-      "company-1",
-      expect.objectContaining({ docType, type, relatedInvoiceId: "inv-original", invoiceNumber: "NC-0000001" }),
-      "user-1",
-      null,
-      null,
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toMatch(/base × tasa/);
+          expect(result.error).toMatch(moneyRe("0.01"));
+        }
+        expect(service).not.toHaveBeenCalled();
+      }
     );
-  });
 
-  it.each([
-    { kind: "VENTA", type: "SALE", build: saleNote },
-    { kind: "COMPRA", type: "PURCHASE", build: purchaseNote },
-  ])("$kind sin docType declarado e IVA exacto → el servicio recibe el docType de la nota (guarda: hoy lo fuerza el servicio)", async ({ type, build }) => {
-    const result = await run(build(undefined, "160.00"));
+    // ── El servicio recibe SIEMPRE el docType de la nota, no el que declaró el cliente ──────────────
+    it.each([
+      { kind: "VENTA", type: "SALE", build: saleNote, declared: "OTRO" },
+      { kind: "VENTA", type: "SALE", build: saleNote, declared: "REPORTE_Z" },
+      { kind: "VENTA", type: "SALE", build: saleNote, declared: "FACTURA" },
+      { kind: "VENTA", type: "SALE", build: saleNote, declared: otherDocType },
+      { kind: "COMPRA", type: "PURCHASE", build: purchaseNote, declared: "OTRO" },
+      { kind: "COMPRA", type: "PURCHASE", build: purchaseNote, declared: otherDocType },
+    ])(
+      "$kind con docType declarado $declared e IVA exacto → success y el servicio recibe el docType de la nota",
+      async ({ type, build, declared }) => {
+        const result = await run(build(declared, "160.00"));
 
-    expect(result.success).toBe(true);
-    expect(service).toHaveBeenCalledTimes(1);
-    expect(service).toHaveBeenCalledWith("company-1", expect.objectContaining({ type }), "user-1", null, null);
-  });
-
-  // ── COMPRA: nada cambia — el IVA impreso por el proveedor manda, tolerancia 1.00 ────────────────
-  it("COMPRA con docType declarado OTRO y el IVA impreso desviado 0.50 → sigue ACEPTÁNDOSE (compras = 1.00) y se guarda TAL CUAL", async () => {
-    const result = await run(purchaseNote("OTRO", "160.50"));
-
-    expect(result.success).toBe(true);
-    expect(service).toHaveBeenCalledTimes(1);
-    expect(service).toHaveBeenCalledWith(
-      "company-1",
-      expect.objectContaining({
-        type: "PURCHASE",
-        taxLines: [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "160.50" }],
-      }),
-      "user-1",
-      null,
-      null,
+        expect(result.success).toBe(true);
+        if (result.success) expect(result.data).toEqual(serviceResult);
+        expect(service).toHaveBeenCalledTimes(1);
+        expect(service).toHaveBeenCalledWith(
+          "company-1",
+          expect.objectContaining({
+            docType,
+            type,
+            relatedInvoiceId: "inv-original",
+            invoiceNumber: "NC-0000001",
+          }),
+          "user-1",
+          null,
+          null
+        );
+      }
     );
-  });
 
-  it("COMPRA con docType declarado OTRO y desviación 1.01 → se rechaza con la tolerancia 1.00 de compras y no llama al servicio", async () => {
-    const result = await run(purchaseNote("OTRO", "161.01"));
+    it.each([
+      { kind: "VENTA", type: "SALE", build: saleNote },
+      { kind: "COMPRA", type: "PURCHASE", build: purchaseNote },
+    ])(
+      "$kind sin docType declarado e IVA exacto → el servicio recibe el docType de la nota (guarda: hoy lo fuerza el servicio)",
+      async ({ type, build }) => {
+        const result = await run(build(undefined, "160.00"));
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toMatch(/base × tasa/);
-      expect(result.error).toMatch(moneyRe("161.01")); // recibido
-      expect(result.error).toMatch(moneyRe("1.00")); // tolerancia de compras
-      expect(result.error).not.toMatch(moneyRe("0.01"));
-    }
-    expect(service).not.toHaveBeenCalled();
-  });
-});
+        expect(result.success).toBe(true);
+        expect(service).toHaveBeenCalledTimes(1);
+        expect(service).toHaveBeenCalledWith(
+          "company-1",
+          expect.objectContaining({ type }),
+          "user-1",
+          null,
+          null
+        );
+      }
+    );
+
+    // ── COMPRA: nada cambia — el IVA impreso por el proveedor manda, tolerancia 1.00 ────────────────
+    it("COMPRA con docType declarado OTRO y el IVA impreso desviado 0.50 → sigue ACEPTÁNDOSE (compras = 1.00) y se guarda TAL CUAL", async () => {
+      const result = await run(purchaseNote("OTRO", "160.50"));
+
+      expect(result.success).toBe(true);
+      expect(service).toHaveBeenCalledTimes(1);
+      expect(service).toHaveBeenCalledWith(
+        "company-1",
+        expect.objectContaining({
+          type: "PURCHASE",
+          taxLines: [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "160.50" }],
+        }),
+        "user-1",
+        null,
+        null
+      );
+    });
+
+    it("COMPRA con docType declarado OTRO y desviación 1.01 → se rechaza con la tolerancia 1.00 de compras y no llama al servicio", async () => {
+      const result = await run(purchaseNote("OTRO", "161.01"));
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toMatch(/base × tasa/);
+        expect(result.error).toMatch(moneyRe("161.01")); // recibido
+        expect(result.error).toMatch(moneyRe("1.00")); // tolerancia de compras
+        expect(result.error).not.toMatch(moneyRe("0.01"));
+      }
+      expect(service).not.toHaveBeenCalled();
+    });
+  }
+);

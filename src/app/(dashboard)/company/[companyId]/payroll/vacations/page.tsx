@@ -28,7 +28,7 @@ export default async function VacationsPage({ params }: Props) {
   const canRead = canAccess(member.role, ROLES.ACCOUNTING);
   if (!canRead) {
     return (
-      <div className="mx-auto max-w-3xl py-8 px-4">
+      <div className="mx-auto max-w-3xl px-4 py-8">
         <p className="text-sm text-gray-500">No tienes acceso a este módulo.</p>
       </div>
     );
@@ -58,7 +58,9 @@ export default async function VacationsPage({ params }: Props) {
 
   const employeeItems = employees.slice(0, 20).map((emp) => {
     const hire = new Date(emp.hireDate);
-    const yearsOfService = Math.floor((today.getTime() - hire.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    const yearsOfService = Math.floor(
+      (today.getTime() - hire.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+    );
     const entitlement = 15 + Math.max(0, yearsOfService - 1);
     const records = recordsByEmployee[emp.id] ?? [];
     const usedThisYear = records
@@ -75,22 +77,24 @@ export default async function VacationsPage({ params }: Props) {
   });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 py-8 px-4">
+    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">Nómina</Link>
+        <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">
+          Nómina
+        </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">Vacaciones</span>
+        <span className="font-medium text-gray-900">Vacaciones</span>
       </div>
 
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Vacaciones</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Registro de vacaciones y bono vacacional por empleado (Art. 190–192 LOTTT).
-          El monto se calcula automáticamente con el salario normal vigente.
+          Registro de vacaciones y bono vacacional por empleado (Art. 190–192 LOTTT). El monto se
+          calcula automáticamente con el salario normal vigente.
         </p>
       </div>
 
-      <section className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-xs text-blue-800 space-y-1">
+      <section className="space-y-1 rounded-lg border border-blue-100 bg-blue-50 p-4 text-xs text-blue-800">
         <p className="font-semibold">Referencia legal</p>
         <p>Art. 190: mínimo 15 días de vacaciones + 1 día adicional por año de servicio.</p>
         <p>Art. 192: bono vacacional mínimo 7 días + 1 día adicional por año de servicio.</p>

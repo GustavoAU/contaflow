@@ -9,7 +9,8 @@ vi.mock("@clerk/nextjs/server", () => ({ auth: mockAuth }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/ratelimit", () => ({
   checkRateLimit: mockCheckRateLimit,
-  limiters: { fiscal: {}, ocr: {}, read: {} },  fiscalKey: (c: string, u: string) => `${c}:${u}`,
+  limiters: { fiscal: {}, ocr: {}, read: {} },
+  fiscalKey: (c: string, u: string) => `${c}:${u}`,
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -92,11 +93,11 @@ function setupAuthOk() {
 // ─── Security guards — tabla de acciones ─────────────────────────────────────
 
 const REPORT_ACTIONS = [
-  { name: "getJournalAction",        fn: () => getJournalAction(COMPANY_ID) },
-  { name: "getLedgerAction",         fn: () => getLedgerAction(COMPANY_ID) },
-  { name: "getTrialBalanceAction",   fn: () => getTrialBalanceAction(COMPANY_ID) },
-  { name: "getIncomeStatementAction",fn: () => getIncomeStatementAction(COMPANY_ID) },
-  { name: "getBalanceSheetAction",   fn: () => getBalanceSheetAction(COMPANY_ID) },
+  { name: "getJournalAction", fn: () => getJournalAction(COMPANY_ID) },
+  { name: "getLedgerAction", fn: () => getLedgerAction(COMPANY_ID) },
+  { name: "getTrialBalanceAction", fn: () => getTrialBalanceAction(COMPANY_ID) },
+  { name: "getIncomeStatementAction", fn: () => getIncomeStatementAction(COMPANY_ID) },
+  { name: "getBalanceSheetAction", fn: () => getBalanceSheetAction(COMPANY_ID) },
 ];
 
 describe("report.actions — security guards", () => {
@@ -159,33 +160,30 @@ describe("report.actions — validación dateFrom > dateTo", () => {
     const result = await getLedgerAction(
       COMPANY_ID,
       new Date("2026-03-31"),
-      new Date("2026-03-01"),
+      new Date("2026-03-01")
     );
     expect(result.success).toBe(false);
-    if (!result.success)
-      expect(result.error).toContain("fecha de inicio debe ser anterior");
+    if (!result.success) expect(result.error).toContain("fecha de inicio debe ser anterior");
   });
 
   it("getTrialBalanceAction rechaza dateFrom posterior a dateTo", async () => {
     const result = await getTrialBalanceAction(
       COMPANY_ID,
       new Date("2026-12-31"),
-      new Date("2026-01-01"),
+      new Date("2026-01-01")
     );
     expect(result.success).toBe(false);
-    if (!result.success)
-      expect(result.error).toContain("fecha de inicio debe ser anterior");
+    if (!result.success) expect(result.error).toContain("fecha de inicio debe ser anterior");
   });
 
   it("getJournalAction rechaza dateFrom posterior a dateTo", async () => {
     const result = await getJournalAction(
       COMPANY_ID,
       new Date("2026-06-30"),
-      new Date("2026-06-01"),
+      new Date("2026-06-01")
     );
     expect(result.success).toBe(false);
-    if (!result.success)
-      expect(result.error).toContain("fecha de inicio debe ser anterior");
+    if (!result.success) expect(result.error).toContain("fecha de inicio debe ser anterior");
   });
 
   it("permite dateFrom === dateTo (mismo día)", async () => {
@@ -230,7 +228,7 @@ describe("report.actions — validación fecha inválida (R-01)", () => {
       COMPANY_ID,
       new Date("2026-01-01"),
       new Date("2026-06-30"),
-      new Date("abc"), // compareDateFrom inválida
+      new Date("abc") // compareDateFrom inválida
     );
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Formato de fecha inválido");
@@ -375,12 +373,12 @@ describe("getIncomeStatementAction", () => {
 
   it("retorna utilidad cuando ingresos > gastos", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValueOnce([
-      { id: "acc-1", code: "4135", name: "Ventas",            type: "REVENUE"  },
+      { id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE" },
       { id: "acc-2", code: "5105", name: "Gastos de Personal", type: "EXPENSE" },
     ] as never);
     vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
       { accountId: "acc-1", _sum: { amount: "-1000" } },
-      { accountId: "acc-2", _sum: { amount: "400"   } },
+      { accountId: "acc-2", _sum: { amount: "400" } },
     ] as never);
 
     const result = await getIncomeStatementAction(COMPANY_ID);
@@ -394,12 +392,12 @@ describe("getIncomeStatementAction", () => {
 
   it("retorna pérdida cuando gastos > ingresos", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValueOnce([
-      { id: "acc-1", code: "4135", name: "Ventas",  type: "REVENUE"  },
-      { id: "acc-2", code: "5105", name: "Gastos",  type: "EXPENSE"  },
+      { id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE" },
+      { id: "acc-2", code: "5105", name: "Gastos", type: "EXPENSE" },
     ] as never);
     vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
       { accountId: "acc-1", _sum: { amount: "-300" } },
-      { accountId: "acc-2", _sum: { amount: "800"  } },
+      { accountId: "acc-2", _sum: { amount: "800" } },
     ] as never);
 
     const result = await getIncomeStatementAction(COMPANY_ID);
@@ -414,14 +412,14 @@ describe("getIncomeStatementAction", () => {
     const result = await getIncomeStatementAction(
       COMPANY_ID,
       new Date("2026-01-01"),
-      new Date("2026-03-31"),
+      new Date("2026-03-31")
     );
 
     expect(result.success).toBe(true);
     expect(vi.mocked(prisma.account.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ companyId: COMPANY_ID }),
-      }),
+      })
     );
   });
 
@@ -438,18 +436,22 @@ describe("getIncomeStatementAction", () => {
 
   it("retorna período comparativo cuando se pasan fechas de comparación", async () => {
     vi.mocked(prisma.account.findMany)
-      .mockResolvedValueOnce([{ id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE" }] as never)
-      .mockResolvedValueOnce([{ id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE" }] as never);
+      .mockResolvedValueOnce([
+        { id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE" },
+      ] as never)
+      .mockResolvedValueOnce([
+        { id: "acc-1", code: "4135", name: "Ventas", type: "REVENUE" },
+      ] as never);
     vi.mocked(prisma.journalEntry.groupBy)
       .mockResolvedValueOnce([{ accountId: "acc-1", _sum: { amount: "-1000" } }] as never)
-      .mockResolvedValueOnce([{ accountId: "acc-1", _sum: { amount: "-800"  } }] as never);
+      .mockResolvedValueOnce([{ accountId: "acc-1", _sum: { amount: "-800" } }] as never);
 
     const result = await getIncomeStatementAction(
       COMPANY_ID,
       new Date("2026-04-01"),
       new Date("2026-04-30"),
       new Date("2026-03-01"),
-      new Date("2026-03-31"),
+      new Date("2026-03-31")
     );
     expect(result.success).toBe(true);
     if (!result.success) return;
@@ -469,16 +471,16 @@ describe("getBalanceSheetAction", () => {
   it("retorna balance cuadrado cuando Activos = Pasivos + Patrimonio", async () => {
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        { id: "acc-1", code: "1105", name: "Caja",        type: "ASSET",     isCurrent: true  },
-        { id: "acc-2", code: "2205", name: "Proveedores", type: "LIABILITY", isCurrent: true  },
-        { id: "acc-3", code: "3105", name: "Capital",     type: "EQUITY",    isCurrent: false },
+        { id: "acc-1", code: "1105", name: "Caja", type: "ASSET", isCurrent: true },
+        { id: "acc-2", code: "2205", name: "Proveedores", type: "LIABILITY", isCurrent: true },
+        { id: "acc-3", code: "3105", name: "Capital", type: "EQUITY", isCurrent: false },
       ] as never)
       .mockResolvedValueOnce([] as never);
     vi.mocked(prisma.journalEntry.groupBy)
       .mockResolvedValueOnce([
-        { accountId: "acc-1", _sum: { amount: "1000"  } },
-        { accountId: "acc-2", _sum: { amount: "-600"  } },
-        { accountId: "acc-3", _sum: { amount: "-400"  } },
+        { accountId: "acc-1", _sum: { amount: "1000" } },
+        { accountId: "acc-2", _sum: { amount: "-600" } },
+        { accountId: "acc-3", _sum: { amount: "-400" } },
       ] as never)
       .mockResolvedValueOnce([] as never);
 
@@ -494,7 +496,7 @@ describe("getBalanceSheetAction", () => {
   it("detecta balance descuadrado", async () => {
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        { id: "acc-1", code: "1105", name: "Caja",        type: "ASSET",     isCurrent: true },
+        { id: "acc-1", code: "1105", name: "Caja", type: "ASSET", isCurrent: true },
         { id: "acc-2", code: "2205", name: "Proveedores", type: "LIABILITY", isCurrent: true },
       ] as never)
       .mockResolvedValueOnce([] as never);
@@ -514,18 +516,24 @@ describe("getBalanceSheetAction", () => {
   it("contra-activo (saldo crédito) reduce totalActivos — regresión bug balance.abs()", async () => {
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        { id: "acc-1", code: "1640", name: "Maquinaria",              type: "ASSET",        isCurrent: false },
-        { id: "acc-2", code: "1691", name: "Depreciación Acumulada",  type: "CONTRA_ASSET", isCurrent: false },
-        { id: "acc-3", code: "2205", name: "Proveedores",             type: "LIABILITY",    isCurrent: true  },
-        { id: "acc-4", code: "3105", name: "Capital",                 type: "EQUITY",       isCurrent: false },
+        { id: "acc-1", code: "1640", name: "Maquinaria", type: "ASSET", isCurrent: false },
+        {
+          id: "acc-2",
+          code: "1691",
+          name: "Depreciación Acumulada",
+          type: "CONTRA_ASSET",
+          isCurrent: false,
+        },
+        { id: "acc-3", code: "2205", name: "Proveedores", type: "LIABILITY", isCurrent: true },
+        { id: "acc-4", code: "3105", name: "Capital", type: "EQUITY", isCurrent: false },
       ] as never)
       .mockResolvedValueOnce([] as never);
     vi.mocked(prisma.journalEntry.groupBy)
       .mockResolvedValueOnce([
-        { accountId: "acc-1", _sum: { amount: "10000"  } },
-        { accountId: "acc-2", _sum: { amount: "-4000"  } },
-        { accountId: "acc-3", _sum: { amount: "-4000"  } },
-        { accountId: "acc-4", _sum: { amount: "-2000"  } },
+        { accountId: "acc-1", _sum: { amount: "10000" } },
+        { accountId: "acc-2", _sum: { amount: "-4000" } },
+        { accountId: "acc-3", _sum: { amount: "-4000" } },
+        { accountId: "acc-4", _sum: { amount: "-2000" } },
       ] as never)
       .mockResolvedValueOnce([] as never);
 
@@ -545,7 +553,7 @@ describe("getBalanceSheetAction", () => {
   it("Resultado del Ejercicio refleja solo el año del dateTo, no acumulado histórico", async () => {
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        { id: "acc-1", code: "1105", name: "Caja",    type: "ASSET",  isCurrent: true  },
+        { id: "acc-1", code: "1105", name: "Caja", type: "ASSET", isCurrent: true },
         { id: "acc-2", code: "3105", name: "Capital", type: "EQUITY", isCurrent: false },
       ] as never)
       // Income accounts scoped to fiscal year
@@ -555,13 +563,13 @@ describe("getBalanceSheetAction", () => {
       ] as never);
     vi.mocked(prisma.journalEntry.groupBy)
       .mockResolvedValueOnce([
-        { accountId: "acc-1", _sum: { amount: "1600"  } },
+        { accountId: "acc-1", _sum: { amount: "1600" } },
         { accountId: "acc-2", _sum: { amount: "-1000" } },
       ] as never)
       // Income sums scoped to fiscal year → utilidad 600
       .mockResolvedValueOnce([
         { accountId: "acc-3", _sum: { amount: "-1000" } },
-        { accountId: "acc-4", _sum: { amount: "400"   } },
+        { accountId: "acc-4", _sum: { amount: "400" } },
       ] as never);
 
     const result = await getBalanceSheetAction(COMPANY_ID, new Date("2026-12-31"));
@@ -582,16 +590,16 @@ describe("getBalanceSheetAction", () => {
     // BalanceSheetService DESPUÉS del fix: abs(-3000) = 3000 → alineado con IncomeStatementService
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        { id: "acc-b1", code: "1105", name: "Caja",    type: "ASSET",  isCurrent: true  },
+        { id: "acc-b1", code: "1105", name: "Caja", type: "ASSET", isCurrent: true },
         { id: "acc-b2", code: "3105", name: "Capital", type: "EQUITY", isCurrent: false },
       ] as never)
       .mockResolvedValueOnce([
         { id: "acc-i1", code: "4135", name: "Ventas", type: "REVENUE", isCurrent: false },
-        { id: "acc-i2", code: "5110", name: "COGS",   type: "EXPENSE", isCurrent: false },
+        { id: "acc-i2", code: "5110", name: "COGS", type: "EXPENSE", isCurrent: false },
       ] as never);
     vi.mocked(prisma.journalEntry.groupBy)
       .mockResolvedValueOnce([
-        { accountId: "acc-b1", _sum: { amount: "5000"  } },
+        { accountId: "acc-b1", _sum: { amount: "5000" } },
         { accountId: "acc-b2", _sum: { amount: "-5000" } },
       ] as never)
       .mockResolvedValueOnce([
@@ -644,7 +652,7 @@ describe("report.actions — caps de volumen (MEDIUM-01)", () => {
   it("getJournalAction: trunca a 5000 y marca hasMore=true cuando hay más", async () => {
     // El action pide take: 5001 para detectar el exceso → simulamos 5001 filas
     vi.mocked(prisma.transaction.findMany).mockResolvedValue(
-      Array.from({ length: 5001 }, (_, i) => makeTx(i)) as never,
+      Array.from({ length: 5001 }, (_, i) => makeTx(i)) as never
     );
 
     const result = await getJournalAction(COMPANY_ID);

@@ -7,7 +7,6 @@ import { PUBLIC_ROUTE_PATTERNS } from "@/lib/public-routes";
 
 const isPublicRoute = createRouteMatcher(PUBLIC_ROUTE_PATTERNS);
 
-
 export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
     // `auth.protect()` en middleware redirige a la signInUrl de Clerk cuando no hay
@@ -28,7 +27,7 @@ export default clerkMiddleware(async (auth, request) => {
         unauthenticatedUrl: buildSignInUrl(
           request.url,
           request.nextUrl.pathname,
-          request.nextUrl.search,
+          request.nextUrl.search
         ),
       });
     }
@@ -50,7 +49,7 @@ export default clerkMiddleware(async (auth, request) => {
   // aplicarla. Ver los comentarios de styleSrcObserved en @/lib/csp.
   response.headers.set(
     "Content-Security-Policy-Report-Only",
-    buildCsp(nonce, styleSrcObserved(nonce), isDev),
+    buildCsp(nonce, styleSrcObserved(nonce), isDev)
   );
 
   return response;

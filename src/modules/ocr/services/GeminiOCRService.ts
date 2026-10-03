@@ -8,7 +8,11 @@
 //
 // Rate limit gratuito: 15 RPM / 1 000 RPD  (src/lib/ratelimit.ts → ocr: 12/min con margen)
 
-import { ExtractedInvoiceSchema, type ExtractedInvoice, type FieldRisk } from "../schemas/invoice.schema";
+import {
+  ExtractedInvoiceSchema,
+  type ExtractedInvoice,
+  type FieldRisk,
+} from "../schemas/invoice.schema";
 import { parseLocalNumber } from "@/lib/format";
 import { validateVenezuelanRif, CONTROL_NUMBER_REGEX } from "@/lib/fiscal-validators";
 
@@ -120,7 +124,7 @@ Reglas:
         },
       ],
       generationConfig: {
-        temperature: 0,        // máxima determinismo para extracción de datos
+        temperature: 0, // máxima determinismo para extracción de datos
         maxOutputTokens: 1024,
       },
     };
@@ -134,9 +138,7 @@ Reglas:
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Gemini API error ${response.status}: ${errorText}`
-      );
+      throw new Error(`Gemini API error ${response.status}: ${errorText}`);
     }
 
     const data = (await response.json()) as GeminiResponse;
@@ -164,18 +166,19 @@ Reglas:
     try {
       parsed = JSON.parse(cleaned);
     } catch {
-      throw new Error(
-        `Gemini retornó JSON inválido. Respuesta cruda: ${cleaned.slice(0, 200)}`
-      );
+      throw new Error(`Gemini retornó JSON inválido. Respuesta cruda: ${cleaned.slice(0, 200)}`);
     }
 
     // Normalizar montos si Gemini ignoró la instrucción de formato estándar
     if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
       const obj = parsed as Record<string, unknown>;
       for (const field of [
-        "baseImponibleGeneral", "ivaGeneral",
-        "baseImponibleReducida", "ivaReducido",
-        "baseImponibleAdicional", "ivaAdicional",
+        "baseImponibleGeneral",
+        "ivaGeneral",
+        "baseImponibleReducida",
+        "ivaReducido",
+        "baseImponibleAdicional",
+        "ivaAdicional",
         "montoTotal",
       ]) {
         if (obj[field] != null) obj[field] = normalizeMoneyStr(obj[field]);
@@ -183,8 +186,8 @@ Reglas:
       if (Array.isArray(obj.items)) {
         obj.items = (obj.items as Record<string, unknown>[]).map((item) => ({
           ...item,
-          quantity:   normalizeMoneyStr(item.quantity),
-          unitPrice:  normalizeMoneyStr(item.unitPrice),
+          quantity: normalizeMoneyStr(item.quantity),
+          unitPrice: normalizeMoneyStr(item.unitPrice),
           totalPrice: normalizeMoneyStr(item.totalPrice),
         }));
       }
@@ -193,9 +196,7 @@ Reglas:
     // Validar y tipar con el schema Zod existente
     const result = ExtractedInvoiceSchema.safeParse(parsed);
     if (!result.success) {
-      throw new Error(
-        `Los datos extraídos no pasan la validación: ${result.error.message}`
-      );
+      throw new Error(`Los datos extraídos no pasan la validación: ${result.error.message}`);
     }
 
     // ── Validación post-extracción de campos fiscales críticos (ALERTA 13/14) ─
@@ -213,7 +214,10 @@ Reglas:
       });
     }
 
-    if (extracted.numeroControl !== undefined && !CONTROL_NUMBER_REGEX.test(extracted.numeroControl)) {
+    if (
+      extracted.numeroControl !== undefined &&
+      !CONTROL_NUMBER_REGEX.test(extracted.numeroControl)
+    ) {
       risks.push({
         field: "numeroControl",
         label: "N° Control",
@@ -224,5 +228,4 @@ Reglas:
 
     return risks.length > 0 ? { ...extracted, _fieldRisks: risks } : extracted;
   }
-
 }

@@ -23,7 +23,7 @@ export const ContactNoteService = {
   async list(
     companyId: string,
     entityType: ContactEntityType,
-    entityId: string,
+    entityId: string
   ): Promise<ContactNoteRow[]> {
     return prisma.contactNote.findMany({
       where: { companyId, entityType, entityId }, // ADR-004
@@ -40,7 +40,7 @@ export const ContactNoteService = {
     entityType: ContactEntityType,
     entityId: string,
     content: string,
-    createdBy: string,
+    createdBy: string
   ): Promise<ContactNoteRow> {
     return prisma.contactNote.create({
       data: { companyId, entityType, entityId, content, createdBy },

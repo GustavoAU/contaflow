@@ -37,9 +37,9 @@ function base64urlDecode(str: string): string {
 }
 
 export interface ClientTokenPayload {
-  sub: string;       // customerId
-  cid: string;       // companyId
-  type: "client";    // discriminador — evita reutilizar tokens de empleado
+  sub: string; // customerId
+  cid: string; // companyId
+  type: "client"; // discriminador — evita reutilizar tokens de empleado
   iat: number;
   exp: number;
 }

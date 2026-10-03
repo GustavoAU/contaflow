@@ -1,7 +1,14 @@
 // src/modules/bank-reconciliation/actions/__tests__/auto-reconciliation.actions.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockAuth, mockRevalidatePath, mockPrisma, mockGemini, mockAutoService, mockCheckRateLimit } = vi.hoisted(() => ({
+const {
+  mockAuth,
+  mockRevalidatePath,
+  mockPrisma,
+  mockGemini,
+  mockAutoService,
+  mockCheckRateLimit,
+} = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockPrisma: {
@@ -77,16 +84,31 @@ beforeEach(() => {
 describe("parseBankStatementAction", () => {
   it("usuario no autenticado → error No autorizado", async () => {
     mockAuth.mockResolvedValueOnce({ userId: null });
-    const result = await parseBankStatementAction({ companyId: COMPANY_ID, base64Pdf: "x".repeat(100) });
+    const result = await parseBankStatementAction({
+      companyId: COMPANY_ID,
+      base64Pdf: "x".repeat(100),
+    });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("No autorizado");
   });
 
   it("VIEWER puede parsear (solo lectura, no muta DB)", async () => {
     mockPrisma.companyMember.findFirst.mockResolvedValueOnce(viewerMember);
-    const extracted = { rows: [], openingBalance: null, closingBalance: null, accountNumber: null, bankName: null, periodStart: null, periodEnd: null, holderName: null };
+    const extracted = {
+      rows: [],
+      openingBalance: null,
+      closingBalance: null,
+      accountNumber: null,
+      bankName: null,
+      periodStart: null,
+      periodEnd: null,
+      holderName: null,
+    };
     mockGemini.extractFromPdf.mockResolvedValueOnce(extracted);
-    const result = await parseBankStatementAction({ companyId: COMPANY_ID, base64Pdf: "x".repeat(100) });
+    const result = await parseBankStatementAction({
+      companyId: COMPANY_ID,
+      base64Pdf: "x".repeat(100),
+    });
     expect(result.success).toBe(true);
   });
 
@@ -97,7 +119,10 @@ describe("parseBankStatementAction", () => {
 
   it("sin GEMINI_API_KEY → error servicio no configurado", async () => {
     delete process.env.GEMINI_API_KEY;
-    const result = await parseBankStatementAction({ companyId: COMPANY_ID, base64Pdf: "x".repeat(100) });
+    const result = await parseBankStatementAction({
+      companyId: COMPANY_ID,
+      base64Pdf: "x".repeat(100),
+    });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("no está configurado");
   });
@@ -114,7 +139,10 @@ describe("parseBankStatementAction", () => {
       holderName: "Test User",
     };
     mockGemini.extractFromPdf.mockResolvedValueOnce(extracted);
-    const result = await parseBankStatementAction({ companyId: COMPANY_ID, base64Pdf: "x".repeat(100) });
+    const result = await parseBankStatementAction({
+      companyId: COMPANY_ID,
+      base64Pdf: "x".repeat(100),
+    });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.rows).toHaveLength(1);
   });
@@ -150,7 +178,20 @@ describe("runAutoReconciliationAction", () => {
     mockAutoService.run.mockResolvedValueOnce({
       auto: [],
       suggested: [],
-      unmatched: [{ ...validRow, amount: "943.0000", type: "DEBIT", confidence: "MANUAL", score: 0, matchType: null, matchId: null, matchLabel: null, matchAmount: null, reason: "Sin coincidencia en el sistema" }],
+      unmatched: [
+        {
+          ...validRow,
+          amount: "943.0000",
+          type: "DEBIT",
+          confidence: "MANUAL",
+          score: 0,
+          matchType: null,
+          matchId: null,
+          matchLabel: null,
+          matchAmount: null,
+          reason: "Sin coincidencia en el sistema",
+        },
+      ],
       periodHasData: true,
       totalRows: 1,
     });
@@ -167,7 +208,9 @@ describe("confirmSuggestedAction", () => {
     mockPrisma.companyMember.findFirst.mockResolvedValueOnce(viewerMember);
     const result = await confirmSuggestedAction({
       companyId: COMPANY_ID,
-      confirmations: [{ bankTransactionId: "btx-1", matchType: "INVOICE_PAYMENT", matchId: "pay-1" }],
+      confirmations: [
+        { bankTransactionId: "btx-1", matchType: "INVOICE_PAYMENT", matchId: "pay-1" },
+      ],
     });
     expect(result.success).toBe(false);
   });

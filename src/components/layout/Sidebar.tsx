@@ -30,12 +30,12 @@ const STORAGE_KEY = "cf-sidebar-collapsed";
 const SECTIONS_KEY = "cf-nav-sections-collapsed";
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  OWNER:          "Propietario",
-  ADMIN:          "Administrador",
-  ACCOUNTANT:     "Contador",
+  OWNER: "Propietario",
+  ADMIN: "Administrador",
+  ACCOUNTANT: "Contador",
   ADMINISTRATIVE: "Administrativo",
-  VIEWER:         "Lector",
-  SENIAT:         "SENIAT",
+  VIEWER: "Lector",
+  SENIAT: "SENIAT",
 };
 
 // ─── NavLink ──────────────────────────────────────────────────────────────────
@@ -110,12 +110,10 @@ function SidebarItem({
 
   const inner = (
     <>
-      <Icon className="w-3.75 h-3.75 shrink-0" />
-      {!collapsed && (
-        <span className="overflow-hidden text-ellipsis flex-1">{label}</span>
-      )}
+      <Icon className="h-3.75 w-3.75 shrink-0" />
+      {!collapsed && <span className="flex-1 overflow-hidden text-ellipsis">{label}</span>}
       {!collapsed && resolvedBadge && (
-        <span className="ml-auto text-10 font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full shrink-0">
+        <span className="text-10 ml-auto shrink-0 rounded-full bg-zinc-100 px-1.5 py-0.5 font-bold text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
           {resolvedBadge}
         </span>
       )}
@@ -146,15 +144,15 @@ function LogoutButton({ collapsed }: { collapsed: boolean }) {
       onClick={() => signOut({ redirectUrl: "/sign-in" })}
       title={collapsed ? "Cerrar sesión" : undefined}
       className={cn(
-        "flex items-center gap-2.5 w-full px-2 py-1.5 rounded-md text-13 font-medium",
-        "text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 transition-colors",
+        "text-13 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 font-medium",
+        "text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50",
         "overflow-hidden whitespace-nowrap",
         // WCAG 2.4.7: indicador de foco visible
         "outline-none focus-visible:ring-2 focus-visible:ring-red-400/70 focus-visible:ring-offset-1",
         collapsed && "justify-center"
       )}
     >
-      <LogOut className="w-3.75 h-3.75 shrink-0" />
+      <LogOut className="h-3.75 w-3.75 shrink-0" />
       {!collapsed && <span>Cerrar sesión</span>}
     </button>
   );
@@ -208,15 +206,15 @@ function CompanySwitcher({
   if (!current) return null;
 
   return (
-    <div data-co-sw className="px-2 py-2 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+    <div data-co-sw className="shrink-0 border-b border-zinc-100 px-2 py-2 dark:border-zinc-800">
       <button
         ref={btnRef}
         onClick={handleToggle}
         title={collapsed ? current.name : undefined}
         aria-label="Cambiar empresa"
         className={cn(
-          "flex items-center gap-2 w-full rounded-md px-1.5 py-1.5",
-          "hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left",
+          "flex w-full items-center gap-2 rounded-md px-1.5 py-1.5",
+          "text-left transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800",
           // WCAG 2.4.7: indicador de foco visible en el trigger del switcher
           "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
           collapsed && "justify-center"
@@ -225,12 +223,12 @@ function CompanySwitcher({
         <CompanyAvatar id={current.id} name={current.name} size="sm" />
         {!collapsed && (
           <>
-            <span className="flex-1 text-13 font-semibold text-zinc-800 dark:text-zinc-100 truncate leading-tight min-w-0">
+            <span className="text-13 min-w-0 flex-1 truncate leading-tight font-semibold text-zinc-800 dark:text-zinc-100">
               {current.name}
             </span>
             <ChevronDown
               className={cn(
-                "w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 shrink-0 transition-transform duration-150",
+                "h-3.5 w-3.5 shrink-0 text-zinc-400 transition-transform duration-150 dark:text-zinc-500",
                 open && "rotate-180"
               )}
             />
@@ -250,10 +248,10 @@ function CompanySwitcher({
               width: Math.max(dropPos.width, 228),
               zIndex: 9999,
             }}
-            className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl dark:shadow-black/40 py-1.5 overflow-hidden"
+            className="overflow-hidden rounded-xl border border-zinc-200 bg-white py-1.5 shadow-xl dark:border-zinc-700 dark:bg-zinc-800 dark:shadow-black/40"
           >
             {/* WCAG 1.4.3: text-zinc-600 (7.4:1) — text-zinc-400 fallaría (2.55:1) */}
-            <p className="px-3 pb-1 pt-0.5 text-10 font-bold uppercase tracking-1px text-zinc-600 dark:text-zinc-400">
+            <p className="text-10 tracking-1px px-3 pt-0.5 pb-1 font-bold text-zinc-600 uppercase dark:text-zinc-400">
               Mis Empresas
             </p>
 
@@ -262,7 +260,7 @@ function CompanySwitcher({
                 key={co.id}
                 onClick={() => goTo(`/company/${co.id}`)}
                 className={cn(
-                  "flex items-center gap-2.5 w-full px-3 py-2 text-left transition-colors",
+                  "flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors",
                   "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset",
                   co.id === currentCompanyId
                     ? "bg-blue-50 dark:bg-blue-900/30"
@@ -270,33 +268,33 @@ function CompanySwitcher({
                 )}
               >
                 <CompanyAvatar id={co.id} name={co.name} size="xs" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-13 font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight">
+                <div className="min-w-0 flex-1">
+                  <p className="text-13 truncate leading-tight font-medium text-zinc-800 dark:text-zinc-100">
                     {co.name}
                   </p>
                   {/* WCAG 1.4.3: text-zinc-500 (4.7:1 ✅ vs 2.55:1 de text-zinc-400) */}
                   <p className="text-11 text-zinc-500 dark:text-zinc-400">{ROLE_LABELS[co.role]}</p>
                 </div>
                 {co.id === currentCompanyId && (
-                  <Check className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <Check className="h-3.5 w-3.5 shrink-0 text-blue-500" />
                 )}
               </button>
             ))}
 
-            <div className="h-px bg-zinc-100 dark:bg-zinc-700 my-1" />
+            <div className="my-1 h-px bg-zinc-100 dark:bg-zinc-700" />
 
             <button
               onClick={() => goTo("/company/new")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset"
+              className="text-13 flex w-full items-center gap-2.5 px-3 py-2 text-zinc-500 transition-colors outline-none hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset dark:text-zinc-400 dark:hover:bg-zinc-700"
             >
-              <PlusIcon className="w-3.5 h-3.5 shrink-0" />
+              <PlusIcon className="h-3.5 w-3.5 shrink-0" />
               Agregar empresa
             </button>
             <button
               onClick={() => goTo("/dashboard")}
-              className="flex items-center gap-2.5 w-full px-3 py-2 text-13 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset"
+              className="text-13 flex w-full items-center gap-2.5 px-3 py-2 text-zinc-500 transition-colors outline-none hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-inset dark:text-zinc-400 dark:hover:bg-zinc-700"
             >
-              <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+              <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
               Ver todas las empresas
             </button>
           </div>,
@@ -334,29 +332,50 @@ export function Sidebar({
 
   const collapsed = useSyncExternalStore(
     () => () => {},
-    () => { try { return localStorage.getItem(STORAGE_KEY) === "true"; } catch { return false; } },
-    () => false,
+    () => {
+      try {
+        return localStorage.getItem(STORAGE_KEY) === "true";
+      } catch {
+        return false;
+      }
+    },
+    () => false
   );
 
   const toggle = () => {
-    try { localStorage.setItem(STORAGE_KEY, String(!collapsed)); } catch {}
+    try {
+      localStorage.setItem(STORAGE_KEY, String(!collapsed));
+    } catch {}
     forceUpdate();
   };
 
   const sectionsJson = useSyncExternalStore(
     () => () => {},
-    () => { try { return localStorage.getItem(SECTIONS_KEY) ?? "[]"; } catch { return "[]"; } },
-    () => "[]",
+    () => {
+      try {
+        return localStorage.getItem(SECTIONS_KEY) ?? "[]";
+      } catch {
+        return "[]";
+      }
+    },
+    () => "[]"
   );
 
   const collapsedSections = useMemo(() => {
-    try { return new Set(JSON.parse(sectionsJson) as string[]); } catch { return new Set<string>(); }
+    try {
+      return new Set(JSON.parse(sectionsJson) as string[]);
+    } catch {
+      return new Set<string>();
+    }
   }, [sectionsJson]);
 
   const toggleSection = (group: string) => {
     const next = new Set(collapsedSections);
-    if (next.has(group)) next.delete(group); else next.add(group);
-    try { localStorage.setItem(SECTIONS_KEY, JSON.stringify([...next])); } catch {}
+    if (next.has(group)) next.delete(group);
+    else next.add(group);
+    try {
+      localStorage.setItem(SECTIONS_KEY, JSON.stringify([...next]));
+    } catch {}
     forceUpdate();
   };
 
@@ -369,25 +388,23 @@ export function Sidebar({
   const canToggleMode = userRole === "OWNER" || userRole === "ADMIN";
 
   const isActive = (href: string) =>
-    href === `/company/${companyId}`
-      ? pathname === href
-      : pathname.startsWith(href);
+    href === `/company/${companyId}` ? pathname === href : pathname.startsWith(href);
 
   return (
     <aside
       className={cn(
-        "flex flex-col sticky top-0 h-screen",
-        "bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800",
-        "transition-[width] duration-200 ease-in-out overflow-hidden shrink-0",
+        "sticky top-0 flex h-screen flex-col",
+        "border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
+        "shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out",
         // Q3-4 Mobile-first: fuerza icon-only en pantallas < sm (390px usable sin overflow)
         collapsed ? "w-14" : "w-14 sm:w-58"
       )}
     >
       {/* Logo + collapse toggle */}
-      <div className="flex items-center gap-2 h-14 px-3.5 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-zinc-200 px-3.5 dark:border-zinc-800">
         <Link
           href="/dashboard"
-          className="w-7 h-7 bg-primary rounded-lg grid place-items-center text-primary-foreground text-sm shrink-0 shadow-primary-glow hover:bg-primary/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+          className="bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90 focus-visible:ring-ring grid h-7 w-7 shrink-0 place-items-center rounded-lg text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
           title="ContaFlow"
         >
           ⚡
@@ -396,7 +413,7 @@ export function Sidebar({
         {!collapsed && (
           <Link
             href="/dashboard"
-            className="font-extrabold text-15 text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap overflow-hidden hover:opacity-80 transition-opacity"
+            className="text-15 overflow-hidden font-extrabold tracking-tight whitespace-nowrap text-zinc-900 transition-opacity hover:opacity-80 dark:text-zinc-100"
           >
             Conta<span className="text-blue-500">Flow</span>
           </Link>
@@ -407,33 +424,31 @@ export function Sidebar({
           title={collapsed ? "Expandir menú" : "Colapsar menú"}
           aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
           className={cn(
-            "w-6 h-6 rounded-md border border-zinc-200 dark:border-zinc-700",
-            "bg-zinc-50 dark:bg-zinc-800 grid place-items-center",
-            "hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors shrink-0",
+            "h-6 w-6 rounded-md border border-zinc-200 dark:border-zinc-700",
+            "grid place-items-center bg-zinc-50 dark:bg-zinc-800",
+            "shrink-0 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700",
             // WCAG 2.4.7: foco visible en el control de colapso del sidebar
             "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70",
             !collapsed && "ml-auto"
           )}
         >
-          {collapsed
-            ? <ChevronRight className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />
-            : <ChevronLeft  className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" />}
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+          ) : (
+            <ChevronLeft className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
+          )}
         </button>
       </div>
 
       {/* Company switcher */}
       {companyId && companies.length > 0 && (
-        <CompanySwitcher
-          companies={companies}
-          currentCompanyId={companyId}
-          collapsed={collapsed}
-        />
+        <CompanySwitcher companies={companies} currentCompanyId={companyId} collapsed={collapsed} />
       )}
 
       {/* Nav scrollable */}
       <nav
         className={cn(
-          "flex-1 overflow-y-auto overflow-x-hidden py-1.5",
+          "flex-1 overflow-x-hidden overflow-y-auto py-1.5",
           "scrollbar-thin [scrollbar-color:var(--color-zinc-200)_transparent]",
           "dark:[scrollbar-color:var(--color-zinc-700)_transparent]"
         )}
@@ -458,36 +473,37 @@ export function Sidebar({
           const isSectionOpen = !collapsedSections.has(section.group);
           return (
             <div key={section.group} className="px-2">
-              <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1.5" />
+              <div className="mx-1 my-1.5 h-px bg-zinc-100 dark:bg-zinc-800" />
               {/* WCAG 1.4.3: text-zinc-600 (7.4:1) — text-zinc-400 falla (2.55:1) */}
               {!collapsed && (
                 <button
                   onClick={() => toggleSection(section.group)}
                   aria-expanded={isSectionOpen}
-                  className="flex items-center justify-between w-full px-2 pt-1 pb-0.5 text-10 font-bold uppercase tracking-085 text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1 rounded-sm"
+                  className="text-10 tracking-085 flex w-full items-center justify-between rounded-sm px-2 pt-1 pb-0.5 font-bold text-zinc-600 uppercase transition-colors outline-none hover:text-zinc-800 focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1 dark:text-zinc-400 dark:hover:text-zinc-200"
                 >
                   <span>{section.group}</span>
                   <ChevronDown
                     className={cn(
-                      "w-3 h-3 transition-transform duration-150",
+                      "h-3 w-3 transition-transform duration-150",
                       !isSectionOpen && "-rotate-90"
                     )}
                   />
                 </button>
               )}
-              {(collapsed || isSectionOpen) && section.items.map((item) => (
-                <SidebarItem
-                  key={item.href}
-                  href={item.href}
-                  Icon={item.icon}
-                  label={item.label}
-                  active={isActive(item.href)}
-                  collapsed={collapsed}
-                  disabled={item.comingSoon}
-                  locked={item.locked}
-                  badge={item.comingSoon ? "Pronto" : undefined}
-                />
-              ))}
+              {(collapsed || isSectionOpen) &&
+                section.items.map((item) => (
+                  <SidebarItem
+                    key={item.href}
+                    href={item.href}
+                    Icon={item.icon}
+                    label={item.label}
+                    active={isActive(item.href)}
+                    collapsed={collapsed}
+                    disabled={item.comingSoon}
+                    locked={item.locked}
+                    badge={item.comingSoon ? "Pronto" : undefined}
+                  />
+                ))}
             </div>
           );
         })}
@@ -495,7 +511,7 @@ export function Sidebar({
         {/* Configuración + Auditoría — siguen al último ítem del nav */}
         {companyId && (
           <div className="px-2">
-            <div className="h-px bg-zinc-100 dark:bg-zinc-800 mx-1 my-1.5" />
+            <div className="mx-1 my-1.5 h-px bg-zinc-100 dark:bg-zinc-800" />
             <SidebarItem
               href={`/company/${companyId}/settings`}
               Icon={Settings}
@@ -515,16 +531,17 @@ export function Sidebar({
       </nav>
 
       {/* Footer: modo · tema · logout — siempre visible al fondo */}
-      <div className="px-2 py-2 border-t border-sidebar-border shrink-0 space-y-1">
+      <div className="border-sidebar-border shrink-0 space-y-1 border-t px-2 py-2">
         {/* Etiqueta de versión certificada SENIAT — visible solo si el sidebar está expandido */}
         {!collapsed && (
-          <p className="px-2 pb-0.5 text-10 text-zinc-400 dark:text-zinc-600 truncate" title={CERTIFIED_VERSION_LABEL}>
+          <p
+            className="text-10 truncate px-2 pb-0.5 text-zinc-400 dark:text-zinc-600"
+            title={CERTIFIED_VERSION_LABEL}
+          >
             {CERTIFIED_VERSION_LABEL}
           </p>
         )}
-        {canToggleMode && (
-          <ViewModeToggle current={viewMode} collapsed={collapsed} />
-        )}
+        {canToggleMode && <ViewModeToggle current={viewMode} collapsed={collapsed} />}
         <ThemeToggle collapsed={collapsed} />
         <LogoutButton collapsed={collapsed} />
       </div>

@@ -76,8 +76,16 @@ const VALID_CREATE_INPUT = {
   exchangeRate: "1",
   originAccountId: "clhoriginaccount1234567",
   lines: [
-    { recipientCompanyId: "clhrecipient1234567890a", accountId: "clhaccount1234567890ab", percentageShare: "60" },
-    { recipientCompanyId: "clhrecipient1234567890b", accountId: "clhaccount1234567890cd", percentageShare: "40" },
+    {
+      recipientCompanyId: "clhrecipient1234567890a",
+      accountId: "clhaccount1234567890ab",
+      percentageShare: "60",
+    },
+    {
+      recipientCompanyId: "clhrecipient1234567890b",
+      accountId: "clhaccount1234567890cd",
+      percentageShare: "40",
+    },
   ],
 };
 
@@ -104,10 +112,13 @@ describe("createDistributionAction", () => {
   });
 
   it("rechaza input inválido (porcentajes no suman 100)", async () => {
-    const bad = { ...VALID_CREATE_INPUT, lines: [
-      { ...VALID_CREATE_INPUT.lines[0], percentageShare: "50" },
-      { ...VALID_CREATE_INPUT.lines[1], percentageShare: "30" },
-    ]};
+    const bad = {
+      ...VALID_CREATE_INPUT,
+      lines: [
+        { ...VALID_CREATE_INPUT.lines[0], percentageShare: "50" },
+        { ...VALID_CREATE_INPUT.lines[1], percentageShare: "30" },
+      ],
+    };
     const result = await createDistributionAction(bad);
     expect(result.success).toBe(false);
   });
@@ -120,7 +131,10 @@ describe("createDistributionAction", () => {
   });
 
   it("retorna error si rate limit excedido", async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes. Intente más tarde." });
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes. Intente más tarde.",
+    });
     const result = await createDistributionAction(VALID_CREATE_INPUT);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas");
@@ -146,23 +160,35 @@ describe("applyDistributionAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupHappyPath();
-    vi.mocked(Service.applyDistribution).mockResolvedValue({ ...MOCK_DIST, status: "APPLIED" } as never);
+    vi.mocked(Service.applyDistribution).mockResolvedValue({
+      ...MOCK_DIST,
+      status: "APPLIED",
+    } as never);
   });
 
   it("aplica distribución con datos válidos", async () => {
-    const result = await applyDistributionAction({ distributionId: DIST_ID, companyId: COMPANY_ID });
+    const result = await applyDistributionAction({
+      distributionId: DIST_ID,
+      companyId: COMPANY_ID,
+    });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.status).toBe("APPLIED");
   });
 
   it("rechaza input inválido", async () => {
-    const result = await applyDistributionAction({ distributionId: "not-cuid", companyId: COMPANY_ID });
+    const result = await applyDistributionAction({
+      distributionId: "not-cuid",
+      companyId: COMPANY_ID,
+    });
     expect(result.success).toBe(false);
   });
 
   it("propaga error del service", async () => {
     vi.mocked(Service.applyDistribution).mockRejectedValue(new Error("Estado incorrecto"));
-    const result = await applyDistributionAction({ distributionId: DIST_ID, companyId: COMPANY_ID });
+    const result = await applyDistributionAction({
+      distributionId: DIST_ID,
+      companyId: COMPANY_ID,
+    });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("Estado incorrecto");
   });
@@ -174,7 +200,10 @@ describe("voidDistributionAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupHappyPath();
-    vi.mocked(Service.voidDistribution).mockResolvedValue({ ...MOCK_DIST, status: "VOID" } as never);
+    vi.mocked(Service.voidDistribution).mockResolvedValue({
+      ...MOCK_DIST,
+      status: "VOID",
+    } as never);
   });
 
   it("anula distribución con motivo válido", async () => {
@@ -203,7 +232,10 @@ describe("listDistributionsAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupHappyPath();
-    vi.mocked(Service.listDistributions).mockResolvedValue({ distributions: [MOCK_DIST as never], nextCursor: null });
+    vi.mocked(Service.listDistributions).mockResolvedValue({
+      distributions: [MOCK_DIST as never],
+      nextCursor: null,
+    });
   });
 
   it("retorna lista con nextCursor", async () => {

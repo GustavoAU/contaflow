@@ -99,7 +99,10 @@ function opsOf(op: string): Recorded[] {
 
 function firstOf(op: string): Recorded {
   const found = calls.find((c) => c.op === op);
-  if (!found) throw new Error(`No se registró ninguna llamada a ${op}. Registradas: ${calls.map((c) => c.op).join(", ") || "(ninguna)"}`);
+  if (!found)
+    throw new Error(
+      `No se registró ninguna llamada a ${op}. Registradas: ${calls.map((c) => c.op).join(", ") || "(ninguna)"}`
+    );
   return found;
 }
 
@@ -263,7 +266,7 @@ describe("CompanyService.createCompany — camino feliz", () => {
           status: "ACTIVE",
           members: { create: { userId: "user-1", role: "OWNER" } },
         }),
-      }),
+      })
     );
     // Fase 37B: el seed va en la MISMA tx que el create
     expect(tx.client.expenseCategory.createMany).toHaveBeenCalledOnce();
@@ -296,7 +299,7 @@ describe("CompanyService.createCompany — camino feliz", () => {
       select: { id: true },
     });
     expect(tx.client.company.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ rif: "J-12345678-9" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ rif: "J-12345678-9" }) })
     );
   });
 
@@ -313,7 +316,7 @@ describe("CompanyService.createCompany — camino feliz", () => {
 
     expect(tx.client.company.findUnique).not.toHaveBeenCalled();
     expect(tx.client.company.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ rif: null }) }),
+      expect.objectContaining({ data: expect.objectContaining({ rif: null }) })
     );
   });
 });
@@ -330,7 +333,7 @@ describe("CompanyService.createCompany — país (ADR-042 D-13)", () => {
         country: "COL" as never,
         telefono: "0412-1234567",
         ...NET,
-      }),
+      })
     ).rejects.toThrow(/País no soportado/);
 
     // La escritura es la última frontera: nada se persiste, ni siquiera se cuenta.
@@ -351,7 +354,7 @@ describe("CompanyService.createCompany — país (ADR-042 D-13)", () => {
     });
 
     expect(tx.client.company.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ country: "VEN" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ country: "VEN" }) })
     );
   });
 });
@@ -367,7 +370,7 @@ describe("CompanyService.createCompany — límite de plan (ADR-043 D-1)", () =>
         country: "VEN",
         telefono: "0412-1234567",
         ...NET,
-      }),
+      })
     ).rejects.toBeInstanceOf(PlanLimitError);
 
     expect(tx.client.company.create).not.toHaveBeenCalled();
@@ -384,7 +387,7 @@ describe("CompanyService.createCompany — límite de plan (ADR-043 D-1)", () =>
         country: "VEN",
         telefono: "0412-1234567",
         ...NET,
-      }),
+      })
     ).resolves.toBeDefined();
 
     expect(tx.client.company.create).toHaveBeenCalledOnce();
@@ -477,7 +480,7 @@ describe("CompanyService.createCompany — RIF duplicado (LOW-4)", () => {
         telefono: "0412-1234567",
         rif: "J-12345678-9",
         ...NET,
-      }),
+      })
     ).rejects.toThrow("Ese RIF ya está registrado.");
 
     expect(tx.client.company.create).not.toHaveBeenCalled();
@@ -536,7 +539,7 @@ describe("CompanyService.updateSeniatData", () => {
       "company-1",
       "user-1",
       { ...SENIAT_DATA, rif: "j123456789" },
-      NET,
+      NET
     );
 
     expect(prisma.company.findUnique).toHaveBeenCalledWith({
@@ -544,7 +547,7 @@ describe("CompanyService.updateSeniatData", () => {
       select: { id: true },
     });
     expect(writeTx.client.company.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ rif: "J-12345678-9" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ rif: "J-12345678-9" }) })
     );
   });
 
@@ -555,7 +558,7 @@ describe("CompanyService.updateSeniatData", () => {
       "company-1",
       "user-1",
       { ...SENIAT_DATA, rif: "J-30684267-8" },
-      NET,
+      NET
     ).catch((e: Error) => e);
 
     expect((error as Error).message).toBe("Ese RIF ya está registrado.");
@@ -567,7 +570,7 @@ describe("CompanyService.updateSeniatData", () => {
     rifOwner = { id: "company-1" };
 
     await expect(
-      CompanyService.updateSeniatData("company-1", "user-1", SENIAT_DATA, NET),
+      CompanyService.updateSeniatData("company-1", "user-1", SENIAT_DATA, NET)
     ).resolves.toBeDefined();
     expect(writeTx.client.company.update).toHaveBeenCalledOnce();
   });
@@ -582,7 +585,7 @@ describe("CompanyService.archiveCompany", () => {
       expect.objectContaining({
         where: { id: "company-1" },
         data: { status: "ARCHIVED" },
-      }),
+      })
     );
     expect(auditData().action).toBe("ARCHIVE");
   });
@@ -590,9 +593,9 @@ describe("CompanyService.archiveCompany", () => {
   it("R-3/Z-3: período contable abierto → bloquea sin tocar la empresa", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
 
-    await expect(
-      CompanyService.archiveCompany("company-1", "user-1", NET),
-    ).rejects.toThrow("período contable abierto");
+    await expect(CompanyService.archiveCompany("company-1", "user-1", NET)).rejects.toThrow(
+      "período contable abierto"
+    );
 
     expect(writeTx.client.company.update).not.toHaveBeenCalled();
     expect(writeTx.client.auditLog.create).not.toHaveBeenCalled();
@@ -601,17 +604,17 @@ describe("CompanyService.archiveCompany", () => {
   it("empresa ya archivada → lanza", async () => {
     dbRow = { ...COMPANY_ROW, status: "ARCHIVED" };
 
-    await expect(
-      CompanyService.archiveCompany("company-1", "user-1", NET),
-    ).rejects.toThrow("ya está archivada");
+    await expect(CompanyService.archiveCompany("company-1", "user-1", NET)).rejects.toThrow(
+      "ya está archivada"
+    );
   });
 
   it("empresa inexistente → lanza 'Empresa no encontrada.'", async () => {
     vi.mocked(prisma.company.findUnique).mockResolvedValue(null as never);
 
-    await expect(
-      CompanyService.archiveCompany("company-404", "user-1", NET),
-    ).rejects.toThrow("Empresa no encontrada.");
+    await expect(CompanyService.archiveCompany("company-404", "user-1", NET)).rejects.toThrow(
+      "Empresa no encontrada."
+    );
   });
 });
 
@@ -628,7 +631,7 @@ describe("CompanyService.reactivateCompany", () => {
       expect.objectContaining({
         where: { id: "company-1" },
         data: { status: "ACTIVE" },
-      }),
+      })
     );
     expect(auditData().action).toBe("REACTIVATE");
   });
@@ -644,7 +647,7 @@ describe("CompanyService.reactivateCompany", () => {
     vi.mocked(writeTx.client.companyMember.count).mockResolvedValue(1 as never);
 
     await expect(
-      CompanyService.reactivateCompany("company-1", "user-1", NET),
+      CompanyService.reactivateCompany("company-1", "user-1", NET)
     ).rejects.toBeInstanceOf(PlanLimitError);
 
     expect(writeTx.client.company.update).not.toHaveBeenCalled();
@@ -667,16 +670,16 @@ describe("CompanyService.reactivateCompany", () => {
           role: "OWNER",
           companyId: { not: "company-1" },
         }),
-      }),
+      })
     );
   });
 
   it("empresa ya activa → lanza", async () => {
     dbRow = { ...COMPANY_ROW, status: "ACTIVE" };
 
-    await expect(
-      CompanyService.reactivateCompany("company-1", "user-1", NET),
-    ).rejects.toThrow("ya está activa");
+    await expect(CompanyService.reactivateCompany("company-1", "user-1", NET)).rejects.toThrow(
+      "ya está activa"
+    );
   });
 
   it("empresa inexistente → lanza 'Empresa no encontrada.'", async () => {
@@ -684,9 +687,9 @@ describe("CompanyService.reactivateCompany", () => {
     // ausencia se simula en la fila del harness, no en el cliente de fuera.
     dbRow = null as never;
 
-    await expect(
-      CompanyService.reactivateCompany("company-404", "user-1", NET),
-    ).rejects.toThrow("Empresa no encontrada.");
+    await expect(CompanyService.reactivateCompany("company-404", "user-1", NET)).rejects.toThrow(
+      "Empresa no encontrada."
+    );
   });
 });
 
@@ -746,7 +749,9 @@ describe("AuditLog — `digitalInvoiceApiKeyEnc` fuera del volcado (las 4 mutaci
     dbRow = { ...COMPANY_ROW, status: "ARCHIVED" };
     await CompanyService.reactivateCompany("company-1", "user-1", NET);
 
-    const companyOps = calls.filter((c) => /company\.(findUnique|findUniqueOrThrow|create|update)$/.test(c.op));
+    const companyOps = calls.filter((c) =>
+      /company\.(findUnique|findUniqueOrThrow|create|update)$/.test(c.op)
+    );
     expect(companyOps.length).toBeGreaterThanOrEqual(8);
     for (const call of companyOps) {
       expect(call.args.select, `${call.op} sin select explícito`).toBeDefined();
@@ -802,19 +807,18 @@ describe("R-6 — ipAddress/userAgent recibidos llegan al AuditLog", () => {
   });
 });
 
-
 describe("CompanyService.updateSeniatData — sin RIF", () => {
   it("rif null → no consulta duplicados (rama que no debe disparar el oráculo)", async () => {
     await CompanyService.updateSeniatData(
       "company-1",
       "user-1",
       { ...SENIAT_DATA, rif: null },
-      NET,
+      NET
     );
 
     expect(prisma.company.findUnique).not.toHaveBeenCalled();
     expect(writeTx.client.company.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ rif: null }) }),
+      expect.objectContaining({ data: expect.objectContaining({ rif: null }) })
     );
   });
 });

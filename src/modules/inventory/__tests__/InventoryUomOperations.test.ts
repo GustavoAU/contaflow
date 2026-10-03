@@ -11,7 +11,7 @@ vi.mock("@/lib/prisma", () => ({
     // Sin `findUnique` a proposito: el lookup de idempotencia debe ser
     // `findFirst` acotado por companyId (regresion IDOR cross-tenant).
     inventoryMovement: { findFirst: vi.fn(), findMany: vi.fn() },
-    accountingPeriod: { findFirst: vi.fn() },  // R-09: bloqueo períodos cerrados
+    accountingPeriod: { findFirst: vi.fn() }, // R-09: bloqueo períodos cerrados
     invoice: { findFirstOrThrow: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -31,7 +31,7 @@ const makeItem = (overrides = {}) => ({
   sku: "PROD-001",
   name: "Producto Test",
   averageCost: new Decimal("100.00"),
-  stockQuantity: new Decimal("120.00"),  // 10 cajas × 12 unidades/caja
+  stockQuantity: new Decimal("120.00"), // 10 cajas × 12 unidades/caja
   deletedAt: null,
   accountId: "acc-inv",
   cogsAccountId: "acc-cogs",
@@ -42,7 +42,7 @@ const makeBoxUnit = (overrides = {}) => ({
   id: UNIT_ID,
   companyId: COMPANY_ID,
   itemId: ITEM_ID,
-  conversionFactor: new Decimal("12"),  // 1 caja = 12 unidades
+  conversionFactor: new Decimal("12"), // 1 caja = 12 unidades
   isBase: false,
   deletedAt: null,
   ...overrides,
@@ -75,7 +75,7 @@ const BASE = {
   type: "ENTRADA" as const,
   quantity: 5,
   unitCost: "100",
-  reference: "REF-TEST-001",  // R-03: referencia obligatoria (min 3 chars)
+  reference: "REF-TEST-001", // R-03: referencia obligatoria (min 3 chars)
   date: new Date().toISOString(),
   idempotencyKey: "550e8400-e29b-41d4-a716-446655440001",
 };
@@ -88,9 +88,8 @@ beforeEach(() => {
   vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValue(makeBoxUnit() as never);
   vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null as never); // R-09: no hay período cerrado
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof currentTx) => unknown) => fn(currentTx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof currentTx) => unknown) =>
+    fn(currentTx)) as never);
 });
 
 // ─── Sin unitId — comportamiento base sin cambios ─────────────────────────────
@@ -125,8 +124,8 @@ describe("createDraftMovement — con unitId (conversión de unidad)", () => {
   it("convierte quantity a unidad base (5 cajas × 12 = 60 unidades)", async () => {
     await createDraftMovement(BASE_WITH_UNIT, USER_ID);
     const data = currentTx.inventoryMovement.create.mock.calls[0]![0].data;
-    expect(data.quantity.toString()).toBe("60");       // en base
-    expect(data.quantityInUnit.toString()).toBe("5");  // input original
+    expect(data.quantity.toString()).toBe("60"); // en base
+    expect(data.quantityInUnit.toString()).toBe("5"); // input original
     expect(data.conversionSnapshot.toString()).toBe("12");
     expect(data.unitId).toBe(UNIT_ID);
   });
@@ -154,10 +153,7 @@ describe("createDraftMovement — con unitId (conversión de unidad)", () => {
       makeItem({ stockQuantity: new Decimal("120") }) as never
     );
     await expect(
-      createDraftMovement(
-        { ...BASE_WITH_UNIT, type: "SALIDA", quantity: 11 },
-        USER_ID
-      )
+      createDraftMovement({ ...BASE_WITH_UNIT, type: "SALIDA", quantity: 11 }, USER_ID)
     ).rejects.toThrow("Stock insuficiente");
   });
 
@@ -167,10 +163,7 @@ describe("createDraftMovement — con unitId (conversión de unidad)", () => {
     vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockResolvedValueOnce(
       makeItem({ stockQuantity: new Decimal("120") }) as never
     );
-    await createDraftMovement(
-      { ...BASE_WITH_UNIT, type: "SALIDA", quantity: 9 },
-      USER_ID
-    );
+    await createDraftMovement({ ...BASE_WITH_UNIT, type: "SALIDA", quantity: 9 }, USER_ID);
     const data = currentTx.inventoryMovement.create.mock.calls[0]![0].data;
     expect(data.quantity.toString()).toBe("108"); // 9 × 12
   });
@@ -208,9 +201,7 @@ describe("createDraftMovement — con unitId (conversión de unidad)", () => {
   });
 
   it("idempotencia: retorna movimiento existente sin llamar a inventoryItemUnit", async () => {
-    vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValueOnce(
-      makeMovement() as never
-    );
+    vi.mocked(prisma.inventoryMovement.findFirst).mockResolvedValueOnce(makeMovement() as never);
     const result = await createDraftMovement(BASE_WITH_UNIT, USER_ID);
     expect(result.id).toBe("mov-001");
     expect(prisma.inventoryItemUnit.findFirstOrThrow).not.toHaveBeenCalled();

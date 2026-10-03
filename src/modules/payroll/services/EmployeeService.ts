@@ -227,10 +227,7 @@ export const EmployeeService = {
   },
 
   // ── getSalaryHistory — historial completo ─────────────────────────────────
-  async getSalaryHistory(
-    companyId: string,
-    employeeId: string
-  ): Promise<SalaryHistoryRow[]> {
+  async getSalaryHistory(companyId: string, employeeId: string): Promise<SalaryHistoryRow[]> {
     const rows = await prisma.salaryHistory.findMany({
       where: { employeeId, companyId },
       orderBy: { effectiveFrom: "desc" },
@@ -549,8 +546,7 @@ export const EmployeeService = {
       });
 
       const isRetroactive =
-        prevSalary &&
-        new Date(input.effectiveFrom) < new Date(prevSalary.effectiveFrom);
+        prevSalary && new Date(input.effectiveFrom) < new Date(prevSalary.effectiveFrom);
 
       await tx.auditLog.create({
         data: {

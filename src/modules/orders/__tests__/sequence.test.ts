@@ -23,8 +23,7 @@ describe("getNextDocumentNumber — Serializable + retry P2034", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never
-    );
+      fn({ orderNumberSequence: prisma.orderNumberSequence })) as never);
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 7 } as never);
   });
 
@@ -51,7 +50,7 @@ describe("getNextDocumentNumber — Serializable + retry P2034", () => {
     vi.mocked(prisma.$transaction).mockRejectedValue(p2034() as never);
 
     await expect(getNextDocumentNumber(COMPANY_ID, "PURCHASE_ORDER")).rejects.toThrow(
-      /Conflicto de concurrencia/,
+      /Conflicto de concurrencia/
     );
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);
   });
@@ -60,7 +59,7 @@ describe("getNextDocumentNumber — Serializable + retry P2034", () => {
     vi.mocked(prisma.$transaction).mockRejectedValue(new Error("connection lost") as never);
 
     await expect(getNextDocumentNumber(COMPANY_ID, "PURCHASE_ORDER")).rejects.toThrow(
-      "connection lost",
+      "connection lost"
     );
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });

@@ -167,7 +167,10 @@ describe("createPayrollRunAction", () => {
 
   it("rejects invalid periodStart (Zod)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
-    const result = await createPayrollRunAction(COMPANY_ID, { ...VALID_INPUT, periodStart: "not-a-date" });
+    const result = await createPayrollRunAction(COMPANY_ID, {
+      ...VALID_INPUT,
+      periodStart: "not-a-date",
+    });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Fecha");
   });
@@ -212,7 +215,10 @@ describe("createPayrollRunAction", () => {
 describe("approvePayrollRunAction", () => {
   it("approves run for ADMIN with rate limit (NOM-C-08, NOM-C-09)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
-    vi.mocked(PayrollRunService.approve).mockResolvedValue({ ...BASE_RUN, status: "APPROVED" } as never);
+    vi.mocked(PayrollRunService.approve).mockResolvedValue({
+      ...BASE_RUN,
+      status: "APPROVED",
+    } as never);
     const result = await approvePayrollRunAction(COMPANY_ID, { runId: RUN_ID });
     expect(result.success).toBe(true);
     expect(mockRateLimit).toHaveBeenCalled();
@@ -248,7 +254,10 @@ describe("cancelPayrollRunAction", () => {
 
   it("cancels DRAFT run for ADMIN (NOM-C-09)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
-    vi.mocked(PayrollRunService.cancel).mockResolvedValue({ ...BASE_RUN, status: "CANCELLED" } as never);
+    vi.mocked(PayrollRunService.cancel).mockResolvedValue({
+      ...BASE_RUN,
+      status: "CANCELLED",
+    } as never);
     const result = await cancelPayrollRunAction(COMPANY_ID, VALID_CANCEL);
     expect(result.success).toBe(true);
   });
@@ -335,7 +344,7 @@ describe("exportPayrollBankTxtAction", () => {
     mockUserId.mockReturnValue({ userId: "user-1" });
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
     vi.mocked(PayrollBankTxtService.generate).mockRejectedValue(
-      new Error("Proceso de nómina no encontrado"),
+      new Error("Proceso de nómina no encontrado")
     );
 
     const result = await exportPayrollBankTxtAction(COMPANY_ID, RUN_ID);
@@ -397,9 +406,7 @@ describe("createPayrollRunAction — P2002 acotado por meta.target", () => {
     // NOMBRE, no las columnas — y `p2002TargetIncludes` compara EXACTO, así que
     // buscar "periodStart" dejaba la rama muerta y el usuario caía en el mensaje
     // genérico. Precedente de CLAUDE.md: la columna es la del CONSTRAINT.
-    const error = await createFailingWith(
-      p2002("PayrollRun_companyId_period_segment_active_key"),
-    );
+    const error = await createFailingWith(p2002("PayrollRun_companyId_period_segment_active_key"));
     expect(error).toBe(MSG_PERIODO);
   });
 

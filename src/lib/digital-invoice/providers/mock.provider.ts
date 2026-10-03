@@ -29,11 +29,7 @@ export class MockDigitalInvoiceProvider implements DigitalInvoiceProvider {
     await this.delay();
 
     if (this.options.simulateTimeout) {
-      throw new DigitalInvoiceProviderError(
-        "Simulated timeout",
-        this.name,
-        true,
-      );
+      throw new DigitalInvoiceProviderError("Simulated timeout", this.name, true);
     }
 
     const seq = String(++this.sequence).padStart(8, "0");
@@ -42,17 +38,17 @@ export class MockDigitalInvoiceProvider implements DigitalInvoiceProvider {
 
     return {
       controlNumber,
-      qrCodeData:          `https://efactura.seniat.gob.ve/qr/${referenceId}`,
+      qrCodeData: `https://efactura.seniat.gob.ve/qr/${referenceId}`,
       providerReferenceId: referenceId,
-      issuedAt:            new Date(),
-      isContingency:       this.options.simulateContingency ?? false,
+      issuedAt: new Date(),
+      isContingency: this.options.simulateContingency ?? false,
     };
   }
 
   async voidInvoice(_controlNumber: string, _reason: string): Promise<DigitalVoidResult> {
     await this.delay();
     return {
-      success:  true,
+      success: true,
       voidedAt: new Date(),
     };
   }

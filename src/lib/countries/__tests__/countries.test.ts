@@ -69,7 +69,7 @@ describe.each(ALL_COUNTRIES)("contrato de FiscalConfig — %s", (code) => {
       // servicio calcula otra
       expect(
         new Decimal(info.rate).times(100).toNumber(),
-        `taxLineRates.${key}: rate=${info.rate} percent=${info.percent}`,
+        `taxLineRates.${key}: rate=${info.rate} percent=${info.percent}`
       ).toBe(new Decimal(info.percent).toNumber());
       expect(info.label.length).toBeGreaterThan(0);
     }
@@ -152,7 +152,7 @@ describe("getTaxLineRate", () => {
 
   it("lanza si el país no define esa alícuota", () => {
     expect(() => getTaxLineRate(VEN_FISCAL_CONFIG, "IVA_INEXISTENTE")).toThrow(
-      /no definida para VEN/,
+      /no definida para VEN/
     );
   });
 });
@@ -274,7 +274,7 @@ describe("VEN — valores congelados", () => {
   it("ivaCombined es exactamente general + lujo (relación luxuryGroupId, Z-2)", () => {
     const { ivaGeneral, ivaLuxury, ivaCombined } = VEN_FISCAL_CONFIG.taxRates;
     expect(new Decimal(ivaGeneral).plus(ivaLuxury).toString()).toBe(
-      new Decimal(ivaCombined).toString(),
+      new Decimal(ivaCombined).toString()
     );
   });
 });

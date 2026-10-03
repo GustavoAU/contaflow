@@ -37,7 +37,10 @@ export default function ReportsError({ error, reset }: Props) {
     setCountdown(4);
     const tick = setInterval(() => setCountdown((n) => Math.max(0, n - 1)), 1000);
     const retry = setTimeout(() => reset(), 4000);
-    return () => { clearInterval(tick); clearTimeout(retry); };
+    return () => {
+      clearInterval(tick);
+      clearTimeout(retry);
+    };
   }, [isColdStart, reset]);
 
   return (
@@ -59,9 +62,7 @@ export default function ReportsError({ error, reset }: Props) {
             : "Ocurrió un error al obtener los datos del reporte. Puedes reintentar o volver a la lista de reportes."}
         </p>
 
-        {error.digest && (
-          <p className="font-mono text-xs text-zinc-300">ref: {error.digest}</p>
-        )}
+        {error.digest && <p className="font-mono text-xs text-zinc-300">ref: {error.digest}</p>}
 
         <div className="flex justify-center gap-3 pt-2">
           <button

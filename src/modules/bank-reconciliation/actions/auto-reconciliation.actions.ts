@@ -33,8 +33,8 @@ function parseStatementDate(dateStr: string): Date {
       Date.UTC(
         parseInt(ddmmyyyy[3]!, 10),
         parseInt(ddmmyyyy[2]!, 10) - 1,
-        parseInt(ddmmyyyy[1]!, 10),
-      ),
+        parseInt(ddmmyyyy[1]!, 10)
+      )
     );
   }
   return new Date(dateStr);
@@ -156,12 +156,7 @@ export async function runAutoReconciliationAction(
     });
 
     // Correr el motor de auto-conciliación
-    const result = await AutoReconciliationService.run(
-      companyId,
-      rows,
-      periodStart,
-      periodEnd
-    );
+    const result = await AutoReconciliationService.run(companyId, rows, periodStart, periodEnd);
 
     // Aplicar matches AUTO automáticamente
     // Mapeamos resultados AUTO a BankTransactions por índice posicional

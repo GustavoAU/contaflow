@@ -17,7 +17,13 @@ import { MAX_INVOICE_AMOUNT } from "@/lib/fiscal-validators";
 import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 import { getDefaultFiscalConfig, memoizePerCountry } from "@/lib/countries";
 import type { FiscalConfig } from "@/lib/countries/types";
-import { checkControlNumber, isPlainDecimal, strictDecimal, zBusinessDate, zTaxId } from "@/lib/zod-helpers";
+import {
+  checkControlNumber,
+  isPlainDecimal,
+  strictDecimal,
+  zBusinessDate,
+  zTaxId,
+} from "@/lib/zod-helpers";
 import { ivaLineTolerance } from "@/lib/invoice-amounts";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -68,29 +74,43 @@ const amountField = () =>
 // Filtros para el libro. Soporta dos modos:
 //   Período  → { year, month } — mes calendario completo
 //   Rango    → { startDate, endDate } — máx 366 días (compatible con SIVIT)
-export const InvoiceBookFilterSchema = z.object({
-  companyId: z.string().min(1),
-  type: InvoiceTypeSchema,
-  year:      z.number().int().min(2000).max(2100).optional(),
-  month:     z.number().int().min(1).max(12).optional(),
-  startDate: zBusinessDate().optional(),
-  endDate:   zBusinessDate().optional(),
-}).superRefine((data, ctx) => {
-  const hasRange  = !!(data.startDate && data.endDate);
-  const hasPeriod = data.year !== undefined && data.month !== undefined;
-  if (!hasRange && !hasPeriod) {
-    ctx.addIssue({ code: "custom", message: "Debe especificar año+mes o un rango de fechas", path: ["year"] });
-  }
-  if (data.startDate && data.endDate) {
-    if (data.startDate > data.endDate) {
-      ctx.addIssue({ code: "custom", message: "La fecha inicial debe ser anterior a la final", path: ["endDate"] });
+export const InvoiceBookFilterSchema = z
+  .object({
+    companyId: z.string().min(1),
+    type: InvoiceTypeSchema,
+    year: z.number().int().min(2000).max(2100).optional(),
+    month: z.number().int().min(1).max(12).optional(),
+    startDate: zBusinessDate().optional(),
+    endDate: zBusinessDate().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasRange = !!(data.startDate && data.endDate);
+    const hasPeriod = data.year !== undefined && data.month !== undefined;
+    if (!hasRange && !hasPeriod) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Debe especificar año+mes o un rango de fechas",
+        path: ["year"],
+      });
     }
-    const diffDays = (data.endDate.getTime() - data.startDate.getTime()) / 86_400_000;
-    if (diffDays > 366) {
-      ctx.addIssue({ code: "custom", message: "El rango no puede superar 366 días (SIVIT)", path: ["endDate"] });
+    if (data.startDate && data.endDate) {
+      if (data.startDate > data.endDate) {
+        ctx.addIssue({
+          code: "custom",
+          message: "La fecha inicial debe ser anterior a la final",
+          path: ["endDate"],
+        });
+      }
+      const diffDays = (data.endDate.getTime() - data.startDate.getTime()) / 86_400_000;
+      if (diffDays > 366) {
+        ctx.addIssue({
+          code: "custom",
+          message: "El rango no puede superar 366 días (SIVIT)",
+          path: ["endDate"],
+        });
+      }
     }
-  }
-});
+  });
 
 // InvoiceLine (Fase 37A)
 export const InvoiceLineInputSchema = z.object({
@@ -145,7 +165,7 @@ function buildInvoiceSchemas(cfg: FiscalConfig) {
   // Alícuotas canónicas (%) por taxType — ADR-006 D-3. Antes era un objeto
   // literal con los valores venezolanos; ahora se deriva de la config del país.
   const canonicalTaxRates: Record<string, string> = Object.fromEntries(
-    Object.entries(cfg.taxLineRates).map(([key, info]) => [key, info.percent]),
+    Object.entries(cfg.taxLineRates).map(([key, info]) => [key, info.percent])
   );
 
   const taxLine = z
@@ -245,10 +265,14 @@ function buildInvoiceSchemas(cfg: FiscalConfig) {
       }
       // H-14: Prov. 0049 — N° Comprobante obligatorio cuando hay retención IVA (Art. 11)
       try {
-        if (new Decimal(data.ivaRetentionAmount).greaterThan(0) && !data.ivaRetentionVoucher?.trim()) {
+        if (
+          new Decimal(data.ivaRetentionAmount).greaterThan(0) &&
+          !data.ivaRetentionVoucher?.trim()
+        ) {
           ctx.addIssue({
             code: "custom",
-            message: "El Nº Comprobante de Retención IVA es obligatorio cuando el monto retenido es mayor a cero (Prov. 0049, Art. 11)",
+            message:
+              "El Nº Comprobante de Retención IVA es obligatorio cuando el monto retenido es mayor a cero (Prov. 0049, Art. 11)",
             path: ["ivaRetentionVoucher"],
           });
         }
@@ -265,18 +289,36 @@ function buildInvoiceSchemas(cfg: FiscalConfig) {
       // hueco B: los montos llegan en la MONEDA DEL DOCUMENTO (`currency`), no siempre en Bs. — 1,00 en USD/EUR equivaldría
       // a unos Bs. 549, así que fuera de VES se usa siempre la tolerancia estricta (la unidad mínima de esa moneda).
       const isForeignCurrency = data.currency !== "VES";
-      const tolerance = ivaLineTolerance({ type: data.type, docType: data.docType, currency: data.currency });
+      const tolerance = ivaLineTolerance({
+        type: data.type,
+        docType: data.docType,
+        currency: data.currency,
+      });
       const unitLabel = isForeignCurrency ? data.currency : "Bs.";
       const lines: unknown[] = Array.isArray(data.taxLines) ? data.taxLines : [];
       lines.forEach((raw, i) => {
         const line = raw as { taxType?: unknown; base?: unknown; amount?: unknown } | null;
-        if (!line || typeof line.taxType !== "string" || typeof line.base !== "string" || typeof line.amount !== "string") return;
+        if (
+          !line ||
+          typeof line.taxType !== "string" ||
+          typeof line.base !== "string" ||
+          typeof line.amount !== "string"
+        )
+          return;
         const canonicalRate = canonicalTaxRates[line.taxType];
-        if (canonicalRate === undefined || !withinAmountRange(line.base) || !withinAmountRange(line.amount)) return;
+        if (
+          canonicalRate === undefined ||
+          !withinAmountRange(line.base) ||
+          !withinAmountRange(line.amount)
+        )
+          return;
         let received: Decimal;
         let expected: Decimal;
         try {
-          expected = strictDecimal(line.base).times(canonicalRate).dividedBy(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+          expected = strictDecimal(line.base)
+            .times(canonicalRate)
+            .dividedBy(100)
+            .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
           received = strictDecimal(line.amount);
         } catch {
           return;

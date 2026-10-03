@@ -81,7 +81,12 @@ describe("ReceivableService.getReceivablesPaginated", () => {
     );
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(records as never);
 
-    const result = await ReceivableService.getReceivablesPaginated("company-1", AS_OF, undefined, 2);
+    const result = await ReceivableService.getReceivablesPaginated(
+      "company-1",
+      AS_OF,
+      undefined,
+      2
+    );
 
     expect(result.hasNextPage).toBe(true);
     expect(result.data).toHaveLength(2);
@@ -114,7 +119,12 @@ describe("ReceivableService.getReceivablesPaginated", () => {
     ];
     vi.mocked(prisma.invoice.findMany).mockResolvedValue(records as never);
 
-    const result = await ReceivableService.getReceivablesPaginated("company-1", AS_OF, undefined, 5);
+    const result = await ReceivableService.getReceivablesPaginated(
+      "company-1",
+      AS_OF,
+      undefined,
+      5
+    );
 
     expect(result.hasNextPage).toBe(false);
     expect(result.nextCursor).toBeNull();

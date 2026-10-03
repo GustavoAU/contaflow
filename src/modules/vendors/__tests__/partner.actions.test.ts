@@ -62,7 +62,7 @@ function setAuth(userId: string | null) {
 }
 function setMember(role: string | null) {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-    role ? ({ role } as never) : (null as never),
+    role ? ({ role } as never) : (null as never)
   );
 }
 
@@ -151,7 +151,10 @@ describe("partner.actions — role guards", () => {
 
 describe("partner.actions — rate limit", () => {
   it("createPartnerAction bloqueada por rate limit → error, sin llamar al servicio", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes" } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes",
+    } as never);
     const r = await createPartnerAction("c1", { name: "Ana Pérez" });
     expect(r.success).toBe(false);
     expect(PartnerService.create).not.toHaveBeenCalled();
@@ -186,7 +189,10 @@ describe("partner.actions — flujo exitoso", () => {
     vi.mocked(PartnerService.create).mockResolvedValue(mockPartner as never);
     const r = await createPartnerAction("c1", { name: "Ana Pérez" });
     expect(r.success).toBe(true);
-    expect(PartnerService.create).toHaveBeenCalledWith("c1", expect.objectContaining({ name: "Ana Pérez" }));
+    expect(PartnerService.create).toHaveBeenCalledWith(
+      "c1",
+      expect.objectContaining({ name: "Ana Pérez" })
+    );
   });
 
   it("createPartnerAction rechaza input inválido (name de 1 carácter) sin llamar al servicio", async () => {

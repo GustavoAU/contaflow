@@ -110,7 +110,7 @@ describe("DocumentService.generateInvoicePDFBuffer — montoTotal del QR (base c
 
   it("GUARDA: el PDF sigue recibiendo las DOS filas de detalle (solo cambia el total del QR)", async () => {
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(
-      invoiceWith(luxuryLines("1000.00", "160.00", "150.00")) as never,
+      invoiceWith(luxuryLines("1000.00", "160.00", "150.00")) as never
     );
 
     await DocumentService.generateInvoicePDFBuffer("inv-1", "company-1");
@@ -125,7 +125,9 @@ describe("DocumentService.generateInvoicePDFBuffer — montoTotal del QR (base c
 
   // ── Guardas de sobrecorrección (pasan hoy y deben seguir pasando) ─────────
   it("GUARDA: solo general 1000/160 → TOTAL=1160.00", async () => {
-    const text = await encodedQrText([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "160.00" }]);
+    const text = await encodedQrText([
+      { taxType: "IVA_GENERAL", base: "1000.00", rate: "16", amount: "160.00" },
+    ]);
 
     expect(text).toBe(qrText("1160.00"));
   });

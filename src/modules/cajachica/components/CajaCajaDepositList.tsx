@@ -83,11 +83,7 @@ export function CajaCajaDepositList({ companyId, deposits, currency, isAdmin, on
   const [voidingId, setVoidingId] = useState<string | null>(null);
 
   if (deposits.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-zinc-400">
-        No hay depósitos registrados.
-      </p>
-    );
+    return <p className="py-8 text-center text-sm text-zinc-400">No hay depósitos registrados.</p>;
   }
 
   return (
@@ -101,14 +97,14 @@ export function CajaCajaDepositList({ companyId, deposits, currency, isAdmin, on
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cfg.className}`}>
                   {cfg.label}
                 </span>
-                <p className="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                <p className="mt-0.5 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {d.description}
                 </p>
                 <p className="text-xs text-zinc-500">{d.date}</p>
                 {d.status === "POSTED" && d.transactionId && (
                   <Link
                     href={`/company/${companyId}/transactions/${d.transactionId}`}
-                    className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                    className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                     aria-label="Ver el asiento contable de este depósito"
                   >
                     <FileText className="h-3 w-3" aria-hidden />
@@ -119,7 +115,7 @@ export function CajaCajaDepositList({ companyId, deposits, currency, isAdmin, on
                   <p className="mt-0.5 text-xs text-red-500">Anulado: {d.voidReason}</p>
                 )}
               </div>
-              <div className="text-right shrink-0">
+              <div className="shrink-0 text-right">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   <MoneyBadge amount={d.amount} currency={currency} />
                 </p>
@@ -144,7 +140,10 @@ export function CajaCajaDepositList({ companyId, deposits, currency, isAdmin, on
               <VoidConfirm
                 companyId={companyId}
                 depositId={d.id}
-                onDone={() => { setVoidingId(null); onRefresh(); }}
+                onDone={() => {
+                  setVoidingId(null);
+                  onRefresh();
+                }}
               />
             )}
           </div>

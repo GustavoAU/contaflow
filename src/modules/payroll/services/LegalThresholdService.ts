@@ -13,7 +13,7 @@ export interface LegalThresholdRow {
   id: string;
   type: LegalThresholdType;
   effectiveFrom: string; // ISO date YYYY-MM-DD
-  value: string;         // Decimal serializado
+  value: string; // Decimal serializado
   notes: string | null;
   createdAt: string;
   /** Última confirmación de que el tope sigue vigente. Distinto de
@@ -55,7 +55,7 @@ export const LegalThresholdService = {
   async getActive(
     companyId: string,
     type: LegalThresholdType,
-    date: Date,
+    date: Date
   ): Promise<Decimal | null> {
     const row = await prisma.legalThreshold.findFirst({
       where: { companyId, type, effectiveFrom: { lte: date } },
@@ -73,10 +73,7 @@ export const LegalThresholdService = {
     return rows.map(serialize);
   },
 
-  async create(
-    companyId: string,
-    input: CreateLegalThresholdInput,
-  ): Promise<LegalThresholdRow> {
+  async create(companyId: string, input: CreateLegalThresholdInput): Promise<LegalThresholdRow> {
     return prisma.$transaction(async (tx) => {
       const row = await tx.legalThreshold.create({
         data: {
@@ -115,7 +112,7 @@ export const LegalThresholdService = {
     id: string,
     userId: string,
     ipAddress: string | null = null,
-    userAgent: string | null = null,
+    userAgent: string | null = null
   ): Promise<void> {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.legalThreshold.findFirst({
@@ -132,7 +129,11 @@ export const LegalThresholdService = {
           userId,
           ipAddress,
           userAgent,
-          oldValue: { type: existing.type, effectiveFrom: existing.effectiveFrom.toISOString().slice(0, 10), value: existing.value.toString() },
+          oldValue: {
+            type: existing.type,
+            effectiveFrom: existing.effectiveFrom.toISOString().slice(0, 10),
+            value: existing.value.toString(),
+          },
           newValue: Prisma.JsonNull,
         },
       });

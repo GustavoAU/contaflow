@@ -51,9 +51,7 @@ export function InvoiceTaxLinesSection({
               disabled={isBlocked}
               title={isBlocked ? "No aplica para categoría fiscal seleccionada" : undefined}
               className={`text-sm font-medium ${
-                isBlocked
-                  ? "cursor-not-allowed text-zinc-400"
-                  : "text-blue-600 hover:text-blue-800"
+                isBlocked ? "cursor-not-allowed text-zinc-400" : "text-blue-600 hover:text-blue-800"
               }`}
             >
               + Agregar línea
@@ -65,8 +63,8 @@ export function InvoiceTaxLinesSection({
       {/* Aviso bien suntuario */}
       {hasAdditionalWithoutGeneral() && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          ⚠️ Falta la línea de <strong>IVA General (16%)</strong> requerida para bienes
-          suntuarios. Agrégala sobre la misma base imponible.
+          ⚠️ Falta la línea de <strong>IVA General (16%)</strong> requerida para bienes suntuarios.
+          Agrégala sobre la misma base imponible.
         </div>
       )}
 
@@ -75,149 +73,149 @@ export function InvoiceTaxLinesSection({
         // una línea EXENTO nunca es editable aunque el resto del documento sí lo sea.
         const montoIvaEditable = isIvaAmountEditable({ type, docType, taxType: line.taxType });
         return (
-        <div
-          key={line.id}
-          className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-              Línea {idx + 1}
-              {line.luxuryGroupId && (
-                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase">
-                  Bloque suntuario
-                </span>
-              )}
-            </span>
-            {(() => {
-              // Slave IVA_GENERAL de un par suntuario: nunca mostrar eliminar —
-              // se gestiona como bloque desde la línea IVA_ADICIONAL.
-              if (line.taxType === "IVA_GENERAL" && line.luxuryGroupId) return null;
-
-              // Calcular cuántas líneas quedarían tras eliminar
-              const isLuxuryMaster = line.taxType === "IVA_ADICIONAL" && !!line.luxuryGroupId;
-              const remaining = isLuxuryMaster
-                ? taxLines.filter((l) => l.luxuryGroupId !== line.luxuryGroupId).length
-                : taxLines.filter((l) => l.id !== line.id).length;
-
-              if (remaining < 1) return null; // no dejar el form sin líneas
-
-              return (
-                <button
-                  type="button"
-                  onClick={() => removeTaxLine(line.id)}
-                  className="text-xs font-medium text-red-400 hover:text-red-600"
-                >
-                  {isLuxuryMaster ? "Eliminar bloque" : "Eliminar"}
-                </button>
-              );
-            })()}
-          </div>
-
-          {/* Tipo de impuesto */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Tipo de Impuesto
-            </label>
-            <select
-              value={line.taxType}
-              disabled={line.taxType === "IVA_GENERAL" && line.luxuryGroupId !== null}
-              onChange={(e) =>
-                updateTaxLine(line.id, "taxType", e.target.value as TaxLineType)
-              }
-              className="w-full rounded-md border bg-white px-3 py-2 text-sm font-medium text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
-            >
-              <option value="IVA_GENERAL">IVA General (16%)</option>
-              <option value="IVA_REDUCIDO">IVA Reducido (8%)</option>
-              <option value="IVA_ADICIONAL">IVA Lujo (15% Adicional)</option>
-              <option value="EXENTO">Exento / Exonerado</option>
-            </select>
-
-            {line.taxType === "IVA_ADICIONAL" && (
-              <p className="mt-1 rounded border border-amber-100 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                ⚠️ Esta línea calcula el 15% adicional. La línea de IVA General (16%) se
-                gestionará automáticamente.
-              </p>
-            )}
-          </div>
-
-          {/* Glosa / descripción de la línea */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Glosa{" "}
-              <span className="font-normal text-zinc-400" title="Prov. 00071: el libro debe identificar la naturaleza de la operación">(recomendada)</span>
-            </label>
-            <input
-              type="text"
-              value={line.description}
-              onChange={(e) => updateTaxLine(line.id, "description", e.target.value)}
-              placeholder="Ej: Venta de mercancías, Servicio de consultoría..."
-              className="w-full rounded-md border px-3 py-2 text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-
-          {/* Base + Tasa + Monto */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-zinc-600">
-                Base Imponible
+          <div key={line.id} className="space-y-3 rounded-lg border border-zinc-200 bg-white p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                Línea {idx + 1}
                 {line.luxuryGroupId && (
-                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase">
-                    Vinculado
+                  <span className="text-10 ml-2 rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700 uppercase">
+                    Bloque suntuario
                   </span>
                 )}
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={line.base}
-                disabled={line.taxType === "IVA_GENERAL" && !!line.luxuryGroupId}
-                onChange={(e) => updateTaxLine(line.id, "base", e.target.value)}
-                className="w-full rounded-md border px-3 py-2 font-mono text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
-                placeholder="0.00"
-              />
+              </span>
+              {(() => {
+                // Slave IVA_GENERAL de un par suntuario: nunca mostrar eliminar —
+                // se gestiona como bloque desde la línea IVA_ADICIONAL.
+                if (line.taxType === "IVA_GENERAL" && line.luxuryGroupId) return null;
+
+                // Calcular cuántas líneas quedarían tras eliminar
+                const isLuxuryMaster = line.taxType === "IVA_ADICIONAL" && !!line.luxuryGroupId;
+                const remaining = isLuxuryMaster
+                  ? taxLines.filter((l) => l.luxuryGroupId !== line.luxuryGroupId).length
+                  : taxLines.filter((l) => l.id !== line.id).length;
+
+                if (remaining < 1) return null; // no dejar el form sin líneas
+
+                return (
+                  <button
+                    type="button"
+                    onClick={() => removeTaxLine(line.id)}
+                    className="text-xs font-medium text-red-400 hover:text-red-600"
+                  >
+                    {isLuxuryMaster ? "Eliminar bloque" : "Eliminar"}
+                  </button>
+                );
+              })()}
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">Tasa %</label>
-              <input
-                type="text"
-                value={`${line.rate}%`}
-                readOnly
-                className="w-full cursor-not-allowed rounded-md border bg-zinc-100 px-3 py-2 text-center font-mono text-sm text-zinc-500"
-              />
-            </div>
+
+            {/* Tipo de impuesto */}
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
-                Monto IVA
-                {montoIvaEditable && (
-                  <span
-                    className="ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 text-10 font-bold text-emerald-700 uppercase"
-                    title="El IVA impreso en el documento puede diferir de base × tasa (ADR-049)"
-                  >
-                    Impreso
-                  </span>
-                )}
+                Tipo de Impuesto
               </label>
-              {montoIvaEditable ? (
+              <select
+                value={line.taxType}
+                disabled={line.taxType === "IVA_GENERAL" && line.luxuryGroupId !== null}
+                onChange={(e) => updateTaxLine(line.id, "taxType", e.target.value as TaxLineType)}
+                className="w-full rounded-md border bg-white px-3 py-2 text-sm font-medium text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
+              >
+                <option value="IVA_GENERAL">IVA General (16%)</option>
+                <option value="IVA_REDUCIDO">IVA Reducido (8%)</option>
+                <option value="IVA_ADICIONAL">IVA Lujo (15% Adicional)</option>
+                <option value="EXENTO">Exento / Exonerado</option>
+              </select>
+
+              {line.taxType === "IVA_ADICIONAL" && (
+                <p className="mt-1 rounded border border-amber-100 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                  ⚠️ Esta línea calcula el 15% adicional. La línea de IVA General (16%) se
+                  gestionará automáticamente.
+                </p>
+              )}
+            </div>
+
+            {/* Glosa / descripción de la línea */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-600">
+                Glosa{" "}
+                <span
+                  className="font-normal text-zinc-400"
+                  title="Prov. 00071: el libro debe identificar la naturaleza de la operación"
+                >
+                  (recomendada)
+                </span>
+              </label>
+              <input
+                type="text"
+                value={line.description}
+                onChange={(e) => updateTaxLine(line.id, "description", e.target.value)}
+                placeholder="Ej: Venta de mercancías, Servicio de consultoría..."
+                className="w-full rounded-md border px-3 py-2 text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Base + Tasa + Monto */}
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-zinc-600">
+                  Base Imponible
+                  {line.luxuryGroupId && (
+                    <span className="text-10 rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700 uppercase">
+                      Vinculado
+                    </span>
+                  )}
+                </label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
-                  value={line.amount}
-                  onChange={(e) => updateTaxLine(line.id, "amount", e.target.value)}
-                  className="w-full rounded-md border bg-white px-3 py-2 text-right font-mono text-sm font-semibold text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  value={line.base}
+                  disabled={line.taxType === "IVA_GENERAL" && !!line.luxuryGroupId}
+                  onChange={(e) => updateTaxLine(line.id, "base", e.target.value)}
+                  className="w-full rounded-md border px-3 py-2 font-mono text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
+                  placeholder="0.00"
                 />
-              ) : (
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-600">Tasa %</label>
                 <input
                   type="text"
-                  value={formatCurrencyAmount(line.amount, currency)}
+                  value={`${line.rate}%`}
                   readOnly
-                  className="w-full rounded-md border bg-blue-50 px-3 py-2 text-right font-mono text-sm font-semibold text-blue-700"
+                  className="w-full cursor-not-allowed rounded-md border bg-zinc-100 px-3 py-2 text-center font-mono text-sm text-zinc-500"
                 />
-              )}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-600">
+                  Monto IVA
+                  {montoIvaEditable && (
+                    <span
+                      className="text-10 ml-1.5 rounded bg-emerald-100 px-1.5 py-0.5 font-bold text-emerald-700 uppercase"
+                      title="El IVA impreso en el documento puede diferir de base × tasa (ADR-049)"
+                    >
+                      Impreso
+                    </span>
+                  )}
+                </label>
+                {montoIvaEditable ? (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={line.amount}
+                    onChange={(e) => updateTaxLine(line.id, "amount", e.target.value)}
+                    className="w-full rounded-md border bg-white px-3 py-2 text-right font-mono text-sm font-semibold text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={formatCurrencyAmount(line.amount, currency)}
+                    readOnly
+                    className="w-full rounded-md border bg-blue-50 px-3 py-2 text-right font-mono text-sm font-semibold text-blue-700"
+                  />
+                )}
+              </div>
             </div>
           </div>
-        </div>
         );
       })}
 
@@ -229,7 +227,7 @@ export function InvoiceTaxLinesSection({
         </span>
       </div>
       {currency !== "VES" && (
-        <div className="flex justify-end mt-1">
+        <div className="mt-1 flex justify-end">
           <span className="text-xs text-zinc-500 tabular-nums">
             {bcvLoading ? (
               "Consultando tasa BCV..."
@@ -240,7 +238,8 @@ export function InvoiceTaxLinesSection({
                   (parseFloat(totalIva) * parseFloat(bcvRate.rate)).toFixed(2),
                   "VES"
                 ).replace("Bs.D ", "")}{" "}
-                (tasa BCV: {parseFloat(bcvRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2 })})
+                (tasa BCV:{" "}
+                {parseFloat(bcvRate.rate).toLocaleString("es-VE", { minimumFractionDigits: 2 })})
               </>
             ) : (
               "Sin tasa BCV registrada para esta fecha"

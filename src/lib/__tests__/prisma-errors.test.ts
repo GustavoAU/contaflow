@@ -18,10 +18,10 @@ describe("mapPrismaError", () => {
 
   it("oculta errores de SET LOCAL ROLE / set_config (RLS)", () => {
     expect(mapPrismaError(new Error('db error running "SET LOCAL ROLE authenticated"'))).toBe(
-      GENERIC_DB_ERROR,
+      GENERIC_DB_ERROR
     );
     expect(mapPrismaError(new Error("error en set_config app.current_company_id"))).toBe(
-      GENERIC_DB_ERROR,
+      GENERIC_DB_ERROR
     );
   });
 
@@ -32,8 +32,8 @@ describe("mapPrismaError", () => {
   it("oculta el error de cuota de cómputo de Neon (infra) — no lo filtra crudo ni en inglés", () => {
     const msg = mapPrismaError(
       new Error(
-        "Your account or project has exceeded the compute time quota. Upgrade your plan to increase limits.",
-      ),
+        "Your account or project has exceeded the compute time quota. Upgrade your plan to increase limits."
+      )
     );
     expect(msg).toBe(GENERIC_DB_ERROR);
     expect(msg).not.toContain("quota");
@@ -43,7 +43,7 @@ describe("mapPrismaError", () => {
   it("mapea P2010 (raw query failed) a mensaje genérico en español sin exponer el mensaje crudo", () => {
     const err = new Prisma.PrismaClientKnownRequestError(
       "Raw query failed. Code: 42501. Message: permission denied for schema public",
-      { code: "P2010", clientVersion: "7.0.0" },
+      { code: "P2010", clientVersion: "7.0.0" }
     );
     const msg = mapPrismaError(err);
     expect(msg).toBe(GENERIC_DB_ERROR);
@@ -101,7 +101,10 @@ describe("mapPrismaError", () => {
 
 describe("isPrismaError", () => {
   it("identifica el código exacto", () => {
-    const err = new Prisma.PrismaClientKnownRequestError("x", { code: "P2002", clientVersion: "7.0.0" });
+    const err = new Prisma.PrismaClientKnownRequestError("x", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+    });
     expect(isPrismaError(err, "P2002")).toBe(true);
     expect(isPrismaError(err, "P2003")).toBe(false);
     expect(isPrismaError(new Error("x"), "P2002")).toBe(false);
@@ -161,7 +164,9 @@ describe("p2002TargetIncludes", () => {
   });
 
   it("[REGRESIÓN 2026-10-01] columna CON comillas literales en fields → se despojan antes de comparar", () => {
-    expect(p2002TargetIncludes(p2002DriverAdapter(['"companyId"', "name"]), "companyId")).toBe(true);
+    expect(p2002TargetIncludes(p2002DriverAdapter(['"companyId"', "name"]), "companyId")).toBe(
+      true
+    );
   });
 
   it("[REGRESIÓN 2026-10-01] columna que no está en fields → false", () => {
@@ -174,11 +179,12 @@ describe("p2002TargetIncludes", () => {
     expect(p2002TargetIncludes(real, "code")).toBe(false);
   });
 
-
   // ── target ARRAY (la forma real con el adaptador de Neon) ───────────────────
 
   it("array que contiene la columna → true", () => {
-    expect(p2002TargetIncludes(p2002(["companyId", "idempotencyKey"]), "idempotencyKey")).toBe(true);
+    expect(p2002TargetIncludes(p2002(["companyId", "idempotencyKey"]), "idempotencyKey")).toBe(
+      true
+    );
     // La otra columna del mismo compuesto también matchea — es un OR de columnas
     expect(p2002TargetIncludes(p2002(["companyId", "idempotencyKey"]), "companyId")).toBe(true);
   });
@@ -217,7 +223,9 @@ describe("p2002TargetIncludes", () => {
   });
 
   it("string que NO contiene la columna → false", () => {
-    expect(p2002TargetIncludes(p2002("companyId,periodStart,periodEnd"), "idempotencyKey")).toBe(false);
+    expect(p2002TargetIncludes(p2002("companyId,periodStart,periodEnd"), "idempotencyKey")).toBe(
+      false
+    );
   });
 
   // REGRESIÓN BUG-1 (CERRADO): el split usaba `/[,s]+/` en vez de `/[,s]+/`.
@@ -284,7 +292,7 @@ describe("p2002TargetIncludes", () => {
     expect(p2002TargetIncludes(new Error("P2002 idempotencyKey"), "idempotencyKey")).toBe(false);
     // Objeto que finge ser un error de Prisma (duck typing no basta)
     expect(
-      p2002TargetIncludes({ code: "P2002", meta: { target: ["idempotencyKey"] } }, "idempotencyKey"),
+      p2002TargetIncludes({ code: "P2002", meta: { target: ["idempotencyKey"] } }, "idempotencyKey")
     ).toBe(false);
     expect(p2002TargetIncludes(null, "idempotencyKey")).toBe(false);
     expect(p2002TargetIncludes(undefined, "idempotencyKey")).toBe(false);

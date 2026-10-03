@@ -185,9 +185,9 @@ describe("withPeriodCache", () => {
 
     const fn = vi.fn().mockRejectedValue(new Error("DB error"));
 
-    await expect(
-      withPeriodCache(companyId, periodId, "CLOSED", reportType, fn)
-    ).rejects.toThrow("DB error");
+    await expect(withPeriodCache(companyId, periodId, "CLOSED", reportType, fn)).rejects.toThrow(
+      "DB error"
+    );
 
     // El cache no debe tener nada tras un error
     const key = makeCacheKey(companyId, periodId, reportType);

@@ -128,7 +128,12 @@ describe("AIContextBuilderService.buildContext", () => {
     vi.mocked(prisma.invoice.findMany)
       .mockResolvedValueOnce([] as never) // IVA
       .mockResolvedValueOnce([
-        { controlNumber: "0001", counterpartName: "Cliente ABC", pendingAmount: "5000.00", dueDate: pastDate },
+        {
+          controlNumber: "0001",
+          counterpartName: "Cliente ABC",
+          pendingAmount: "5000.00",
+          dueDate: pastDate,
+        },
       ] as never) // CxC
       .mockResolvedValueOnce([] as never); // CxP
     const ctx = await AIContextBuilderService.buildContext(COMPANY_ID);
@@ -145,7 +150,16 @@ describe("AIContextBuilderService.buildContext", () => {
 
   it("incluye tareas pendientes de PendingTasksService", async () => {
     mockPendingTasksService.getPendingTasks.mockResolvedValue({
-      tasks: [{ type: "INVOICES_SIN_CAUSAR", severity: "error", count: 3, title: "", description: "", href: "" }],
+      tasks: [
+        {
+          type: "INVOICES_SIN_CAUSAR",
+          severity: "error",
+          count: 3,
+          title: "",
+          description: "",
+          href: "",
+        },
+      ],
       totalCount: 3,
     });
     const ctx = await AIContextBuilderService.buildContext(COMPANY_ID);

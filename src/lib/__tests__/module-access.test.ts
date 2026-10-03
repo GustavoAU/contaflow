@@ -97,7 +97,9 @@ describe("hasModuleAccess — consulta grants (rol sin acceso base)", () => {
     const result = await hasModuleAccess(COMPANY_ID, "VIEWER", "payroll");
     expect(result).toBe(false);
     expect(prisma.rolePermission.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ role: "VIEWER", module: "payroll" }) })
+      expect.objectContaining({
+        where: expect.objectContaining({ role: "VIEWER", module: "payroll" }),
+      })
     );
   });
 });

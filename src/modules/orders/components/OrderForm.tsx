@@ -11,7 +11,7 @@ import { ProductCombobox } from "./ProductCombobox";
 
 interface Props {
   companyId: string;
-  approvedQuotations: QuotationRow[];   // para el selector "desde cotización"
+  approvedQuotations: QuotationRow[]; // para el selector "desde cotización"
   onSuccess?: (id: string, number: string) => void;
 }
 
@@ -21,7 +21,15 @@ const TAX_RATES = [
   { value: "16", label: "16% — General" },
 ];
 
-const DEFAULT_ITEM = { description: "", unit: "und", quantity: "1", unitPrice: "", taxRate: "16", stockQuantity: null as string | null, inventoryItemId: null as string | null };
+const DEFAULT_ITEM = {
+  description: "",
+  unit: "und",
+  quantity: "1",
+  unitPrice: "",
+  taxRate: "16",
+  stockQuantity: null as string | null,
+  inventoryItemId: null as string | null,
+};
 
 export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -66,7 +74,13 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
   function updateItem(idx: number, field: string, value: string) {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   }
-  function updateItemDescription(idx: number, description: string, unit?: string, stockQuantity?: string, inventoryItemId?: string | null) {
+  function updateItemDescription(
+    idx: number,
+    description: string,
+    unit?: string,
+    stockQuantity?: string,
+    inventoryItemId?: string | null
+  ) {
     setItems((prev) =>
       prev.map((item, i) =>
         i === idx
@@ -114,7 +128,8 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
     });
   }
 
-  const inputCls = "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const inputCls =
+    "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const labelCls = "block text-xs font-medium text-gray-600 mb-1";
 
   const filteredQuotations = approvedQuotations.filter((q) => q.type === type);
@@ -124,13 +139,16 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
       {/* Tipo */}
       <div className="flex gap-4">
         {(["PURCHASE", "SALE"] as const).map((t) => (
-          <label key={t} className="flex items-center gap-2 cursor-pointer text-sm">
+          <label key={t} className="flex cursor-pointer items-center gap-2 text-sm">
             <input
               type="radio"
               name="orderType"
               value={t}
               checked={type === t}
-              onChange={() => { setType(t); setQuotationId(""); }}
+              onChange={() => {
+                setType(t);
+                setQuotationId("");
+              }}
               className="accent-blue-600"
             />
             {t === "PURCHASE" ? "Orden de Compra (OC)" : "Orden de Venta (OV)"}
@@ -184,11 +202,20 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>Fecha esperada de entrega</label>
-          <input type="date" className={inputCls} value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
+          <input
+            type="date"
+            className={inputCls}
+            value={expectedDate}
+            onChange={(e) => setExpectedDate(e.target.value)}
+          />
         </div>
         <div>
           <label className={labelCls}>Divisa</label>
-          <select className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+          <select
+            className={inputCls}
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+          >
             <option value="VES">VES — Bolívares</option>
             <option value="USD">USD — Dólares</option>
             <option value="EUR">EUR — Euros</option>
@@ -198,7 +225,7 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
 
       {/* Ítems */}
       <div>
-        <div className="flex items-center justify-between mb-2">
+        <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-medium text-gray-700">Ítems</span>
           <button type="button" onClick={addItem} className="text-xs text-blue-600 hover:underline">
             + Agregar ítem
@@ -206,49 +233,100 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
         </div>
         <div className="space-y-2">
           {items.map((item, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2 items-end">
+            <div key={idx} className="grid grid-cols-12 items-end gap-2">
               <div className="col-span-4">
-                {idx === 0 && <label className={labelCls}>Descripción{type === "SALE" ? " (buscar producto…)" : ""}</label>}
+                {idx === 0 && (
+                  <label className={labelCls}>
+                    Descripción{type === "SALE" ? " (buscar producto…)" : ""}
+                  </label>
+                )}
                 {type === "SALE" ? (
                   <ProductCombobox
                     companyId={companyId}
                     value={item.description}
-                    onChange={(desc, unit, stock, invItemId) => updateItemDescription(idx, desc, unit, stock, invItemId)}
+                    onChange={(desc, unit, stock, invItemId) =>
+                      updateItemDescription(idx, desc, unit, stock, invItemId)
+                    }
                     inputCls={inputCls}
                     placeholder="Nombre o SKU…"
                     required
                   />
                 ) : (
-                  <input className={inputCls} value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} placeholder="Ítem" required />
+                  <input
+                    className={inputCls}
+                    value={item.description}
+                    onChange={(e) => updateItem(idx, "description", e.target.value)}
+                    placeholder="Ítem"
+                    required
+                  />
                 )}
               </div>
               <div className="col-span-1">
                 {idx === 0 && <label className={labelCls}>Unidad</label>}
-                <input className={inputCls} value={item.unit} onChange={(e) => updateItem(idx, "unit", e.target.value)} placeholder="und" required />
+                <input
+                  className={inputCls}
+                  value={item.unit}
+                  onChange={(e) => updateItem(idx, "unit", e.target.value)}
+                  placeholder="und"
+                  required
+                />
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className={labelCls}>Cantidad</label>}
-                <input type="number" min="0.0001" step="0.0001" className={inputCls} value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} required />
+                <input
+                  type="number"
+                  min="0.0001"
+                  step="0.0001"
+                  className={inputCls}
+                  value={item.quantity}
+                  onChange={(e) => updateItem(idx, "quantity", e.target.value)}
+                  required
+                />
                 {type === "SALE" && item.stockQuantity !== null && (
-                  <p className={`mt-0.5 text-10 font-mono ${parseFloat(item.stockQuantity) <= 0 ? "text-red-600" : parseFloat(item.stockQuantity) <= 5 ? "text-amber-600" : "text-green-700"}`}>
+                  <p
+                    className={`text-10 mt-0.5 font-mono ${parseFloat(item.stockQuantity) <= 0 ? "text-red-600" : parseFloat(item.stockQuantity) <= 5 ? "text-amber-600" : "text-green-700"}`}
+                  >
                     Stock: {parseFloat(item.stockQuantity).toFixed(2)}
                   </p>
                 )}
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className={labelCls}>Precio unit.</label>}
-                <input type="number" min="0.01" step="0.01" className={inputCls} value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} placeholder="0.00" required />
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  className={inputCls}
+                  value={item.unitPrice}
+                  onChange={(e) => updateItem(idx, "unitPrice", e.target.value)}
+                  placeholder="0.00"
+                  required
+                />
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className={labelCls}>IVA</label>}
-                <select className={inputCls} value={item.taxRate} onChange={(e) => updateItem(idx, "taxRate", e.target.value)}>
-                  {TAX_RATES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                <select
+                  className={inputCls}
+                  value={item.taxRate}
+                  onChange={(e) => updateItem(idx, "taxRate", e.target.value)}
+                >
+                  {TAX_RATES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="col-span-1">
                 {idx === 0 && <div className="mb-1 h-4" />}
                 {items.length > 1 && (
-                  <button type="button" onClick={() => removeItem(idx)} className="w-full rounded border border-red-200 px-1 py-1.5 text-xs text-red-600 hover:bg-red-50">×</button>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(idx)}
+                    className="w-full rounded border border-red-200 px-1 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    ×
+                  </button>
                 )}
               </div>
             </div>
@@ -259,7 +337,14 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
       {/* Notas */}
       <div>
         <label className={labelCls}>Notas (opcional)</label>
-        <textarea className={inputCls + " resize-none"} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condiciones, instrucciones..." maxLength={500} />
+        <textarea
+          className={inputCls + " resize-none"}
+          rows={2}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Condiciones, instrucciones..."
+          maxLength={500}
+        />
       </div>
 
       <button
@@ -268,7 +353,10 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
         aria-busy={isPending}
         className="inline-flex items-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Guardando…" : `Crear ${type === "PURCHASE" ? "Orden de Compra" : "Orden de Venta"}`}
+        {isPending && <Loader2Icon className="size-4 animate-spin" />}
+        {isPending
+          ? "Guardando…"
+          : `Crear ${type === "PURCHASE" ? "Orden de Compra" : "Orden de Venta"}`}
       </button>
     </form>
   );

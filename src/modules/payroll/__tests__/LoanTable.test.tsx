@@ -47,7 +47,10 @@ const BASE: EmployeeLoanRow = {
   createdAt: "2026-07-15T00:00:00.000Z",
 };
 
-function renderTable(loans: EmployeeLoanRow[], props: Partial<React.ComponentProps<typeof LoanTable>> = {}) {
+function renderTable(
+  loans: EmployeeLoanRow[],
+  props: Partial<React.ComponentProps<typeof LoanTable>> = {}
+) {
   return render(
     <LoanTable
       companyId="co-1"
@@ -70,12 +73,14 @@ describe("LoanTable — ninguna celda de dinero queda vacía", () => {
     renderTable([BASE]);
     const cells = bodyCells();
     expect(cells[1].textContent).toMatch(/1\.200/); // MONTO
-    expect(cells[3].textContent).toMatch(/100/);    // CUOTA
+    expect(cells[3].textContent).toMatch(/100/); // CUOTA
     expect(cells[4].textContent).toMatch(/1\.000/); // SALDO
   });
 
   it("préstamo en USD con las columnas USD nulas: no deja la celda en blanco", () => {
-    renderTable([{ ...BASE, amountUsd: null, installmentAmountUsd: null, remainingBalanceUsd: null }]);
+    renderTable([
+      { ...BASE, amountUsd: null, installmentAmountUsd: null, remainingBalanceUsd: null },
+    ]);
     const cells = bodyCells();
     for (const i of [1, 3, 4]) {
       expect(cells[i].textContent?.trim()).not.toBe("");
@@ -83,11 +88,18 @@ describe("LoanTable — ninguna celda de dinero queda vacía", () => {
   });
 
   it("préstamo en VES: usa las columnas VES", () => {
-    renderTable([{
-      ...BASE, currency: "VES", totalAmount: "4500.00",
-      installmentAmount: "750.00", remainingBalance: "1500.00",
-      amountUsd: null, installmentAmountUsd: null, remainingBalanceUsd: null,
-    }]);
+    renderTable([
+      {
+        ...BASE,
+        currency: "VES",
+        totalAmount: "4500.00",
+        installmentAmount: "750.00",
+        remainingBalance: "1500.00",
+        amountUsd: null,
+        installmentAmountUsd: null,
+        remainingBalanceUsd: null,
+      },
+    ]);
     const cells = bodyCells();
     expect(cells[1].textContent).toMatch(/4\.500/);
     expect(cells[4].textContent).toMatch(/1\.500/);

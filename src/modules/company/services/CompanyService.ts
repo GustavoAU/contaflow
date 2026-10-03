@@ -179,7 +179,7 @@ export class CompanyService {
       actividad: string | null;
       isSpecialContributor: boolean;
     },
-    net: { ipAddress: string | null; userAgent: string | null },
+    net: { ipAddress: string | null; userAgent: string | null }
   ) {
     // MEDIUM-2: canonicalizar antes de comparar y de persistir (ver createCompany).
     data = { ...data, rif: normalizeRifOrNull(data.rif) };
@@ -232,7 +232,7 @@ export class CompanyService {
   static async archiveCompany(
     companyId: string,
     userId: string,
-    net: { ipAddress: string | null; userAgent: string | null },
+    net: { ipAddress: string | null; userAgent: string | null }
   ) {
     // Verificar que no haya período abierto
     const activePeriod = await prisma.accountingPeriod.findFirst({
@@ -285,7 +285,7 @@ export class CompanyService {
   static async reactivateCompany(
     companyId: string,
     userId: string,
-    net: { ipAddress: string | null; userAgent: string | null },
+    net: { ipAddress: string | null; userAgent: string | null }
   ) {
     const reactivated = await withSerializableRetry(async (tx) => {
       // I-5: el estado previo se lee DENTRO de la tx. Fuera, dos reactivaciones

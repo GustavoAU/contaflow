@@ -12,16 +12,13 @@ const conversionFactorSchema = z
     /^\d{1,18}(\.\d{1,10})?$/,
     "Factor de conversión inválido — use formato numérico (ej: 1000, 0.001, 1.5)"
   )
-  .refine(
-    (v) => parseFloat(v) > 0,
-    "El factor de conversión debe ser mayor que cero"
-  );
+  .refine((v) => parseFloat(v) > 0, "El factor de conversión debe ser mayor que cero");
 
 export const CreateUomSchema = z.object({
   companyId: z.string().min(1),
   itemId: z.string().min(1),
-  name: z.string().min(1).max(60).trim(),            // MEDIUM-1: .trim()
-  abbreviation: z.string().min(1).max(10).trim(),    // MEDIUM-1: .trim()
+  name: z.string().min(1).max(60).trim(), // MEDIUM-1: .trim()
+  abbreviation: z.string().min(1).max(10).trim(), // MEDIUM-1: .trim()
   conversionFactor: conversionFactorSchema,
   isBase: z.boolean().default(false),
 });

@@ -40,49 +40,52 @@ export default async function NewPayrollRunPage({ params, searchParams }: Props)
   const currentYear = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth() + 1;
 
-  const [activeEmployeeCount, salMinThreshold, payrollConfig, bcvRateForMonth, employees] = await Promise.all([
-    EmployeeService.countActive(companyId),
-    prisma.legalThreshold.findFirst({
-      where: { companyId, type: "SALARY_MIN_VES" },
-      orderBy: { effectiveFrom: "desc" },
-      select: { value: true, effectiveFrom: true, verifiedAt: true },
-    }),
-    prisma.payrollConfig.findUnique({
-      where: { companyId },
-      select: { frequency: true },
-    }),
-    prisma.bcvBenefitRate.findFirst({
-      where: { companyId, year: currentYear, month: currentMonth },
-      select: { id: true },
-    }),
-    // Con TODAS las vigencias del sueldo: el calculador BLOQUEA las nóminas de
-    // monedas mixtas (C-01) porque los totales no serían de ninguna de las dos,
-    // así que el formulario tiene que dejar separar por moneda — y para eso
-    // necesita la moneda que regirá el período que se elija ahí, no la última
-    // registrada. Sin `take: 1`: son una fila por cambio de sueldo.
-    prisma.employee.findMany({
-      where: { companyId, status: "ACTIVE" },
-      select: {
-        id: true, firstName: true, lastName: true,
-        salaryHistory: {
-          orderBy: { effectiveFrom: "desc" },
-          select: { effectiveFrom: true, currency: true },
+  const [activeEmployeeCount, salMinThreshold, payrollConfig, bcvRateForMonth, employees] =
+    await Promise.all([
+      EmployeeService.countActive(companyId),
+      prisma.legalThreshold.findFirst({
+        where: { companyId, type: "SALARY_MIN_VES" },
+        orderBy: { effectiveFrom: "desc" },
+        select: { value: true, effectiveFrom: true, verifiedAt: true },
+      }),
+      prisma.payrollConfig.findUnique({
+        where: { companyId },
+        select: { frequency: true },
+      }),
+      prisma.bcvBenefitRate.findFirst({
+        where: { companyId, year: currentYear, month: currentMonth },
+        select: { id: true },
+      }),
+      // Con TODAS las vigencias del sueldo: el calculador BLOQUEA las nóminas de
+      // monedas mixtas (C-01) porque los totales no serían de ninguna de las dos,
+      // así que el formulario tiene que dejar separar por moneda — y para eso
+      // necesita la moneda que regirá el período que se elija ahí, no la última
+      // registrada. Sin `take: 1`: son una fila por cambio de sueldo.
+      prisma.employee.findMany({
+        where: { companyId, status: "ACTIVE" },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          salaryHistory: {
+            orderBy: { effectiveFrom: "desc" },
+            select: { effectiveFrom: true, currency: true },
+          },
         },
-      },
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    }),
-  ]);
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      }),
+    ]);
 
   if (activeEmployeeCount === 0) {
     return (
-      <div className="p-6 max-w-lg">
+      <div className="max-w-lg p-6">
         <PrerequisiteGuide type="employees" companyId={companyId} />
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="max-w-3xl p-6">
       <PayrollRunForm
         companyId={companyId}
         activeEmployeeCount={activeEmployeeCount}

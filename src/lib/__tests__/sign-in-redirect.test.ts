@@ -24,7 +24,7 @@ describe("buildSignInUrl", () => {
 
   it("preserva la query string del destino", () => {
     const url = new URL(
-      buildSignInUrl(`${ORIGIN}/company/abc/invoices?page=2`, "/company/abc/invoices", "?page=2"),
+      buildSignInUrl(`${ORIGIN}/company/abc/invoices?page=2`, "/company/abc/invoices", "?page=2")
     );
     expect(url.searchParams.get("redirect_url")).toBe("/company/abc/invoices?page=2");
   });
@@ -43,8 +43,8 @@ describe("buildSignInUrl", () => {
       buildSignInUrl(
         `${ORIGIN}/dashboard?redirect_url=https://evil.tld`,
         "/dashboard",
-        "?redirect_url=https%3A%2F%2Fevil.tld",
-      ),
+        "?redirect_url=https%3A%2F%2Fevil.tld"
+      )
     );
     // El origen del sign-in nunca cambia…
     expect(url.origin).toBe(ORIGIN);
@@ -55,9 +55,7 @@ describe("buildSignInUrl", () => {
   });
 
   it("no rompe con caracteres que exigen encoding", () => {
-    const url = new URL(
-      buildSignInUrl(`${ORIGIN}/company/a b`, "/company/a b", "?q=x%20y&n=1"),
-    );
+    const url = new URL(buildSignInUrl(`${ORIGIN}/company/a b`, "/company/a b", "?q=x%20y&n=1"));
     expect(url.searchParams.get("redirect_url")).toBe("/company/a b?q=x%20y&n=1");
   });
 });

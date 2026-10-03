@@ -28,7 +28,7 @@ const DOC_PREFIX: Record<OrderDocType, string> = {
 
 export async function getNextDocumentNumber(
   companyId: string,
-  docType: OrderDocType,
+  docType: OrderDocType
 ): Promise<string> {
   let lastErr: unknown;
 
@@ -45,13 +45,15 @@ export async function getNextDocumentNumber(
           });
           return `${DOC_PREFIX[docType]}-${String(seq.lastNumber).padStart(4, "0")}`;
         },
-        { isolationLevel: "Serializable" },
+        { isolationLevel: "Serializable" }
       );
     } catch (err) {
       if (isP2034(err)) {
         lastErr = err;
         if (attempt === MAX_ATTEMPTS) {
-          throw new Error("Conflicto de concurrencia al asignar el número — reintenta la operación");
+          throw new Error(
+            "Conflicto de concurrencia al asignar el número — reintenta la operación"
+          );
         }
         continue;
       }

@@ -64,14 +64,12 @@ function makeInvoiceRow(overrides = {}) {
 }
 
 function setupTxMock() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({
-        invoice: prisma.invoice,
-        invoicePayment: prisma.invoicePayment,
-        auditLog: prisma.auditLog,
-      })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({
+      invoice: prisma.invoice,
+      invoicePayment: prisma.invoicePayment,
+      auditLog: prisma.auditLog,
+    })) as never);
 }
 
 // ─── classifyAgingBucket — pure function ─────────────────────────────────────
@@ -273,14 +271,12 @@ describe("ReceivableService.cancelPayment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(false);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          invoicePayment: prisma.invoicePayment,
-          invoice: prisma.invoice,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        invoicePayment: prisma.invoicePayment,
+        invoice: prisma.invoice,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   it("hace soft delete del pago y revierte pendingAmount", async () => {

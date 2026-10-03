@@ -10,8 +10,16 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const EMPLOYEES = [
-  { id: "e1", name: "Ana Pérez", salaries: [{ amount: "1000", currency: "VES", effectiveFrom: "2020-01-01" }] },
-  { id: "e2", name: "Luis Gómez", salaries: [{ amount: "500", currency: "USD", effectiveFrom: "2020-01-01" }] },
+  {
+    id: "e1",
+    name: "Ana Pérez",
+    salaries: [{ amount: "1000", currency: "VES", effectiveFrom: "2020-01-01" }],
+  },
+  {
+    id: "e2",
+    name: "Luis Gómez",
+    salaries: [{ amount: "500", currency: "USD", effectiveFrom: "2020-01-01" }],
+  },
 ];
 
 describe("PayrollRunForm — a11y", () => {
@@ -22,7 +30,7 @@ describe("PayrollRunForm — a11y", () => {
         todayISO="2026-10-02"
         activeEmployeeCount={2}
         employees={EMPLOYEES as never}
-      />,
+      />
     );
     expect(container.querySelectorAll("input").length).toBeGreaterThanOrEqual(2);
     expect(container.querySelectorAll("label").length).toBeGreaterThanOrEqual(2);

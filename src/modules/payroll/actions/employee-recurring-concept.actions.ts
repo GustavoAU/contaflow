@@ -28,11 +28,11 @@ function revalidate(companyId: string) {
 // ── listRecurringConceptsAction — ACCOUNTING ─────────────────────────────────
 export async function listRecurringConceptsAction(
   companyId: string,
-  employeeId?: string,
+  employeeId?: string
 ): Promise<ActionResult<RecurringConceptRow[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
   if (!ctx.ok) return ctx.error;
-  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+  if (!(await hasModuleAccess(companyId, ctx.role, "payroll")))
     return { success: false, error: moduleAccessError("payroll") };
 
   try {
@@ -46,7 +46,7 @@ export async function listRecurringConceptsAction(
 // ── createRecurringConceptAction — ACCOUNTING ────────────────────────────────
 export async function createRecurringConceptAction(
   companyId: string,
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<RecurringConceptRow>> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ACCOUNTING,
@@ -55,7 +55,7 @@ export async function createRecurringConceptAction(
     captureNet: true,
   });
   if (!ctx.ok) return ctx.error;
-  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+  if (!(await hasModuleAccess(companyId, ctx.role, "payroll")))
     return { success: false, error: moduleAccessError("payroll") };
 
   const parsed = CreateRecurringConceptSchema.safeParse(rawInput);
@@ -65,7 +65,11 @@ export async function createRecurringConceptAction(
 
   try {
     const row = await EmployeeRecurringConceptService.create(
-      companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent,
+      companyId,
+      ctx.userId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidate(companyId);
     return { success: true, data: row };
@@ -77,7 +81,7 @@ export async function createRecurringConceptAction(
 // ── endRecurringConceptAction — ACCOUNTING ───────────────────────────────────
 export async function endRecurringConceptAction(
   companyId: string,
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<RecurringConceptRow>> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ACCOUNTING,
@@ -85,7 +89,7 @@ export async function endRecurringConceptAction(
     captureNet: true,
   });
   if (!ctx.ok) return ctx.error;
-  if (!await hasModuleAccess(companyId, ctx.role, "payroll"))
+  if (!(await hasModuleAccess(companyId, ctx.role, "payroll")))
     return { success: false, error: moduleAccessError("payroll") };
 
   const parsed = EndRecurringConceptSchema.safeParse(rawInput);
@@ -95,7 +99,11 @@ export async function endRecurringConceptAction(
 
   try {
     const row = await EmployeeRecurringConceptService.end(
-      companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent,
+      companyId,
+      ctx.userId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidate(companyId);
     return { success: true, data: row };

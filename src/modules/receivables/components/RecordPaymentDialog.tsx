@@ -24,7 +24,10 @@ import {
 } from "@/components/ui/select";
 import { recordPaymentAction } from "../actions/receivable.actions";
 // ADR-032 F2: selector de cuenta bancaria para GL auto-posting (vía canónica)
-import { listBankAccountsAction, type BankAccountOption } from "@/modules/payments/actions/payment.actions";
+import {
+  listBankAccountsAction,
+  type BankAccountOption,
+} from "@/modules/payments/actions/payment.actions";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import type { ReceivableRow } from "../services/ReceivableService";
 import { Decimal } from "decimal.js";
@@ -74,11 +77,16 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
     listBankAccountsAction(companyId).then((res) => {
       if (!cancelled && res.success) setBankAccounts(res.data);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, companyId]);
 
   useEffect(() => {
-    if (!open || selectedCurrency === "VES") { setBcvRate(null); return; }
+    if (!open || selectedCurrency === "VES") {
+      setBcvRate(null);
+      return;
+    }
     let cancelled = false;
     setBcvLoading(true);
     setBcvRate(null);
@@ -87,7 +95,9 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
       if (res.success && res.data) setBcvRate(parseFloat(res.data.rate));
       setBcvLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, selectedCurrency, companyId]);
 
   const currencyAllowed = (CURRENCY_ALLOWED_METHODS as readonly string[]).includes(method);
@@ -118,7 +128,9 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
 
       if (result.success) {
         const currencyLabel = CURRENCY_LABELS[selectedCurrency];
-        toast.success(`Pago registrado: ${currencyLabel} ${Number(amount).toLocaleString("es-VE", { minimumFractionDigits: 2 })}`);
+        toast.success(
+          `Pago registrado: ${currencyLabel} ${Number(amount).toLocaleString("es-VE", { minimumFractionDigits: 2 })}`
+        );
         setOpen(false);
         onSuccess?.();
       } else {
@@ -150,9 +162,10 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
     enteredAmount > 0 && vesEquivalent > 0 && vesEquivalent <= maxAmount && !rateMissing;
 
   // IGTF preview (3% del equivalente en Bs.D) — Decimal.js; servidor recalcula al guardar.
-  const igtfPreview = isForeign && vesEquivalentDec.gt(0)
-    ? vesEquivalentDec.mul("0.03").toDecimalPlaces(2).toString()
-    : null;
+  const igtfPreview =
+    isForeign && vesEquivalentDec.gt(0)
+      ? vesEquivalentDec.mul("0.03").toDecimalPlaces(2).toString()
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -168,8 +181,9 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
             Factura {row.invoiceNumber} — {row.counterpartName}
             <br />
             Saldo pendiente:{" "}
-            <span className="font-semibold text-foreground">
-              Bs. {Number(row.pendingAmountVes).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+            <span className="text-foreground font-semibold">
+              Bs.{" "}
+              {Number(row.pendingAmountVes).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -177,7 +191,8 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
         <div className="grid gap-4 py-2">
           <div className="grid gap-1.5">
             <Label htmlFor="amount">
-              Monto ({selectedCurrency === "VES" ? "Bs.D" : selectedCurrency === "USD" ? "USD" : "EUR"})
+              Monto (
+              {selectedCurrency === "VES" ? "Bs.D" : selectedCurrency === "USD" ? "USD" : "EUR"})
             </Label>
             <Input
               id="amount"
@@ -245,17 +260,17 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
 
           <div className="grid gap-1.5">
             <Label htmlFor="date">Fecha del pago</Label>
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
 
           <div className="grid gap-1.5">
-            <Label htmlFor="bank-account">Cuenta bancaria (opcional — asiento automático si hay cuentas GL configuradas)</Label>
-            <Select value={bankAccountId || "none"} onValueChange={(v) => setBankAccountId(v === "none" ? "" : v)}>
+            <Label htmlFor="bank-account">
+              Cuenta bancaria (opcional — asiento automático si hay cuentas GL configuradas)
+            </Label>
+            <Select
+              value={bankAccountId || "none"}
+              onValueChange={(v) => setBankAccountId(v === "none" ? "" : v)}
+            >
               <SelectTrigger id="bank-account">
                 <SelectValue placeholder="Sin asiento contable" />
               </SelectTrigger>
@@ -293,7 +308,9 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
           {igtfPreview && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               IGTF 3% (pago en {selectedCurrency}) — se aplicará automáticamente:
-              <span className="ml-1 font-mono font-semibold">Bs.D {Number(igtfPreview).toLocaleString("es-VE", { minimumFractionDigits: 2 })}</span>
+              <span className="ml-1 font-mono font-semibold">
+                Bs.D {Number(igtfPreview).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              </span>
             </div>
           )}
         </div>
@@ -302,8 +319,13 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isPending || !isAmountValid} aria-busy={isPending}>
-            {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Registrando..." : "Confirmar pago"}
+          <Button
+            onClick={handleSubmit}
+            disabled={isPending || !isAmountValid}
+            aria-busy={isPending}
+          >
+            {isPending && <Loader2Icon className="animate-spin" />}
+            {isPending ? "Registrando..." : "Confirmar pago"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -68,24 +68,22 @@ const VALID_QUOTATION_INPUT = {
   type: "PURCHASE",
   counterpartName: "Proveedor S.A.",
   validUntil: "2026-05-31",
-  items: [
-    { description: "Ítem A", unit: "und", quantity: "10", unitPrice: "100", taxRate: "16" },
-  ],
+  items: [{ description: "Ítem A", unit: "und", quantity: "10", unitPrice: "100", taxRate: "16" }],
 };
 
 const VALID_ORDER_INPUT = {
   type: "PURCHASE",
   counterpartName: "Proveedor S.A.",
-  items: [
-    { description: "Ítem A", unit: "und", quantity: "10", unitPrice: "100", taxRate: "16" },
-  ],
+  items: [{ description: "Ítem A", unit: "und", quantity: "10", unitPrice: "100", taxRate: "16" }],
 };
 
 describe("createQuotationAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
   });
 
   it("ADMINISTRATIVE puede crear cotización", async () => {
@@ -141,7 +139,9 @@ describe("approveQuotationAction", () => {
   });
 
   it("ADMINISTRATIVE es rechazado (no es ACCOUNTING)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await approveQuotationAction(COMPANY_ID, "quot-1");
     expect(r.success).toBe(false);
     expect((r as { success: false; error: string }).error).toBe("No autorizado"); // ADR-041: mensaje estandarizado del guard
@@ -175,7 +175,9 @@ describe("rejectQuotationAction", () => {
   });
 
   it("ADMINISTRATIVE rechazado en reject", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await rejectQuotationAction(COMPANY_ID, "quot-1");
     expect(r.success).toBe(false);
   });
@@ -185,7 +187,9 @@ describe("createOrderAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
   });
 
   it("ADMINISTRATIVE puede crear orden", async () => {
@@ -223,7 +227,9 @@ describe("approveOrderAction", () => {
   });
 
   it("ADMINISTRATIVE rechazado en aprobar orden (no es ACCOUNTING)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await approveOrderAction(COMPANY_ID, "order-1");
     expect(r.success).toBe(false);
     expect((r as { success: false; error: string }).error).toBe("No autorizado"); // ADR-041: mensaje estandarizado del guard
@@ -245,7 +251,7 @@ describe("convertOrderToInvoiceAction", () => {
   });
 
   const VALID_CONVERT = {
-    orderId: "clxxxxxxxxxxxxxxxxxxxxxx",  // valid cuid format for test
+    orderId: "clxxxxxxxxxxxxxxxxxxxxxx", // valid cuid format for test
     invoiceNumber: "F-0001",
     date: "2026-04-14",
   };
@@ -264,7 +270,9 @@ describe("convertOrderToInvoiceAction", () => {
   });
 
   it("ADMINISTRATIVE rechazado en convertir", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const r = await convertOrderToInvoiceAction(COMPANY_ID, VALID_CONVERT);
     expect(r.success).toBe(false);
     expect((r as { success: false; error: string }).error).toBe("No autorizado"); // ADR-041: mensaje estandarizado del guard

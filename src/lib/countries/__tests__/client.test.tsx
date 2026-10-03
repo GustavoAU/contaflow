@@ -39,9 +39,7 @@ describe("useFiscalConfig", () => {
 
   it("con provider entrega la config inyectada", () => {
     const ven = toClientFiscalConfig(getFiscalConfig("VEN"));
-    const cfg = capture((probe) => (
-      <FiscalUIProvider config={ven}>{probe}</FiscalUIProvider>
-    ));
+    const cfg = capture((probe) => <FiscalUIProvider config={ven}>{probe}</FiscalUIProvider>);
     expect(cfg.countryCode).toBe("VEN");
     expect(cfg.timezone).toBe("America/Caracas");
   });

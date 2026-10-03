@@ -57,12 +57,7 @@ const CreateCompanySchema = z.object({
   country: z.string().max(8).optional(),
   // El formato se valida DESPUÉS del parse, contra taxIdRegex del país elegido
   // (el schema es estático y el país es dinámico).
-  rif: z
-    .string()
-    .max(20)
-    .optional()
-    .or(z.literal(""))
-    .or(z.undefined()),
+  rif: z.string().max(20).optional().or(z.literal("")).or(z.undefined()),
   address: z.string().max(300).optional(),
   // Obligatorio: se usa para recordatorios de renovación por WhatsApp/email
   // M-2: era el ÚNICO campo sin cota del schema — y el obligatorio. Con
@@ -74,7 +69,10 @@ const CreateCompanySchema = z.object({
     .trim()
     .min(1, "El teléfono es obligatorio")
     .max(30, "Teléfono demasiado largo")
-    .refine((v) => v.replace(/\D/g, "").length >= 10, "Teléfono inválido (incluye código de área, ej: 0412-1234567)"),
+    .refine(
+      (v) => v.replace(/\D/g, "").length >= 10,
+      "Teléfono inválido (incluye código de área, ej: 0412-1234567)"
+    ),
   scopeProfile: z.enum(["SOLO", "EMPRESA", "DESPACHO"]).optional(),
 });
 
@@ -91,7 +89,11 @@ export async function updateCompanySeniatDataAction(
   try {
     const validated = UpdateCompanySeniatSchema.parse(input);
 
-    const ctx = await requireCompanyAction(validated.companyId, { roles: ROLES.ADMIN_ONLY, limiter: limiters.fiscal, captureNet: true });
+    const ctx = await requireCompanyAction(validated.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+      captureNet: true,
+    });
     if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para modificar datos fiscales SENIAT
@@ -110,20 +112,25 @@ export async function updateCompanySeniatDataAction(
     const rifError = assertRifEditable(
       validated.rif ?? null,
       current?.rif ?? null,
-      getFiscalConfig(ctx.country).taxIdRegex,
+      getFiscalConfig(ctx.country).taxIdRegex
     );
     if (rifError) return { success: false, error: rifError };
 
-    const company = await CompanyService.updateSeniatData(validated.companyId, ctx.userId, {
-      name: validated.name,
-      rif: validated.rif || null,
-      address: validated.address || null,
-      telefono: validated.telefono || null,
-      email: validated.email || null,
-      ciiu: validated.ciiu || null,
-      actividad: validated.actividad || null,
-      isSpecialContributor: validated.isSpecialContributor,
-    }, ctx); // R-6: ipAddress/userAgent — cambiar datos SENIAT es mutación fiscal
+    const company = await CompanyService.updateSeniatData(
+      validated.companyId,
+      ctx.userId,
+      {
+        name: validated.name,
+        rif: validated.rif || null,
+        address: validated.address || null,
+        telefono: validated.telefono || null,
+        email: validated.email || null,
+        ciiu: validated.ciiu || null,
+        actividad: validated.actividad || null,
+        isSpecialContributor: validated.isSpecialContributor,
+      },
+      ctx
+    ); // R-6: ipAddress/userAgent — cambiar datos SENIAT es mutación fiscal
 
     revalidatePath(`/company/${validated.companyId}/settings`);
     return { success: true, data: { id: company.id } };
@@ -200,8 +207,8 @@ export async function createCompanyAction(
           scopeProfile: validated.scopeProfile ?? null,
           ipAddress: ctx.ipAddress,
           userAgent: ctx.userAgent,
-        }),
-      ),
+        })
+      )
     );
 
     revalidatePath("/dashboard");
@@ -211,10 +218,14 @@ export async function createCompanyAction(
     if (error instanceof PlanLimitError) {
       return {
         success: false,
-        error: "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
+        error:
+          "Tu plan incluye 1 empresa. ¿Gestionas múltiples RIFs? Escríbenos a info@contaflow.app para un plan de despacho.",
       };
     }
-    if (error instanceof Error && (error as Error & { isUnsupportedCountry?: boolean }).isUnsupportedCountry) {
+    if (
+      error instanceof Error &&
+      (error as Error & { isUnsupportedCountry?: boolean }).isUnsupportedCountry
+    ) {
       return { success: false, error: "País no soportado todavía." };
     }
     return toActionError(error);
@@ -229,7 +240,10 @@ export async function updateScopeProfileAction(
   try {
     const validated = UpdateScopeProfileSchema.parse(input);
 
-    const ctx = await requireCompanyAction(validated.companyId, { roles: ROLES.ADMIN_ONLY, captureNet: true });
+    const ctx = await requireCompanyAction(validated.companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      captureNet: true,
+    });
     if (!ctx.ok) return ctx.error;
 
     await prisma.$transaction(async (tx) => {
@@ -274,7 +288,10 @@ export async function archiveCompanyAction(
   _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }> | StepUpError> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, captureNet: true });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      captureNet: true,
+    });
     if (!ctx.ok) return ctx.error;
 
     // Q2-3: Step-up — re-verificación con 2do factor para archivar empresa
@@ -299,7 +316,10 @@ export async function reactivateCompanyAction(
   _userId?: string // kept for backward compat — ignored, uses auth() userId
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, captureNet: true });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      captureNet: true,
+    });
     if (!ctx.ok) return ctx.error;
 
     const company = await CompanyService.reactivateCompany(companyId, ctx.userId, ctx);

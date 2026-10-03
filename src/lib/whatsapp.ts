@@ -36,7 +36,7 @@ export function isWhatsAppConfigured(): boolean {
 }
 
 export async function sendWhatsAppTemplate(
-  payload: WhatsAppTemplatePayload,
+  payload: WhatsAppTemplatePayload
 ): Promise<WhatsAppResult> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
@@ -46,7 +46,7 @@ export async function sendWhatsAppTemplate(
   if (!phoneNumberId || !token) {
     console.warn(
       "[WhatsAppService] Credenciales no configuradas — WhatsApp no enviado:",
-      payload.templateName,
+      payload.templateName
     );
     return { ok: false, skipped: true, error: "WhatsApp no configurado" };
   }

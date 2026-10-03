@@ -6,8 +6,8 @@ import prisma from "@/lib/prisma";
 
 export const SERIALIZABLE_TX_OPTIONS = {
   isolationLevel: "Serializable" as const,
-  timeout: 15000,  // 15 s: cubre cold start Neon (~5 s) + 10 queries
-  maxWait: 5000,   // 5 s: espera máxima por conexión disponible
+  timeout: 15000, // 15 s: cubre cold start Neon (~5 s) + 10 queries
+  maxWait: 5000, // 5 s: espera máxima por conexión disponible
 } as const;
 
 const P2034_DELAYS = [0, 50, 150] as const;
@@ -15,9 +15,7 @@ const MAX_ATTEMPTS = P2034_DELAYS.length;
 
 type PrismaTxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-export async function withSerializableRetry<T>(
-  fn: (tx: PrismaTxClient) => Promise<T>
-): Promise<T> {
+export async function withSerializableRetry<T>(fn: (tx: PrismaTxClient) => Promise<T>): Promise<T> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (attempt > 1) {
       await new Promise((r) => setTimeout(r, P2034_DELAYS[attempt - 1]));

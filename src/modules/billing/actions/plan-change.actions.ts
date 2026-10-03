@@ -5,10 +5,7 @@ import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import * as PlanChangeService from "../services/PlanChangeService";
-import {
-  RequestPlanChangeSchema,
-  CancelPlanChangeSchema,
-} from "../schemas/plan-change.schema";
+import { RequestPlanChangeSchema, CancelPlanChangeSchema } from "../schemas/plan-change.schema";
 import type { SubscriptionPlan } from "@prisma/client";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
@@ -18,12 +15,14 @@ import { toActionError } from "../utils/action-errors";
 export async function requestPlanChangeAction(input: {
   companyId: string;
   toPlan: string;
-}): Promise<ActionResult<{
-  planChangeRequestId: string;
-  effectiveDate: string;
-  newPriceUsdCents: number;
-  invoiceUrl: string | null;
-}>> {
+}): Promise<
+  ActionResult<{
+    planChangeRequestId: string;
+    effectiveDate: string;
+    newPriceUsdCents: number;
+    invoiceUrl: string | null;
+  }>
+> {
   try {
     const validated = RequestPlanChangeSchema.parse(input);
 
@@ -43,7 +42,7 @@ export async function requestPlanChangeAction(input: {
       validated.toPlan as SubscriptionPlan,
       userId,
       ipAddress,
-      userAgent,
+      userAgent
     );
 
     // Iniciar el checkout de pago. Si falla la llamada externa, NO tumbamos la
@@ -54,7 +53,7 @@ export async function requestPlanChangeAction(input: {
         result.planChangeRequestId,
         userId,
         ipAddress,
-        userAgent,
+        userAgent
       );
       invoiceUrl = checkout.invoiceUrl;
     } catch {
@@ -101,7 +100,7 @@ export async function payPlanChangeAction(input: {
       input.planChangeRequestId,
       ctx.userId,
       ctx.ipAddress,
-      ctx.userAgent,
+      ctx.userAgent
     );
 
     return { success: true, data: { invoiceUrl: checkout.invoiceUrl } };
@@ -137,7 +136,7 @@ export async function cancelPlanChangeAction(input: {
       ctx.userId,
       validated.reason,
       ctx.ipAddress,
-      ctx.userAgent,
+      ctx.userAgent
     );
 
     revalidatePath(`/settings/plan`);
@@ -149,19 +148,21 @@ export async function cancelPlanChangeAction(input: {
 
 // ─── getSubscriptionStatusAction ─────────────────────────────────────────────
 
-export async function getSubscriptionStatusAction(companyId: string): Promise<ActionResult<{
-  plan: string;
-  status: string;
-  currentPeriodEnd: string;
-  priceUsdCents: number;
-  pendingChange: {
-    id: string;
-    toPlan: string;
-    effectiveDate: string;
-    newPriceUsdCents: number;
+export async function getSubscriptionStatusAction(companyId: string): Promise<
+  ActionResult<{
+    plan: string;
     status: string;
-  } | null;
-}>> {
+    currentPeriodEnd: string;
+    priceUsdCents: number;
+    pendingChange: {
+      id: string;
+      toPlan: string;
+      effectiveDate: string;
+      newPriceUsdCents: number;
+      status: string;
+    } | null;
+  }>
+> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
     if (!ctx.ok) return ctx.error;

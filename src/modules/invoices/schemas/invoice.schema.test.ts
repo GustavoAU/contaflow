@@ -209,7 +209,11 @@ const additional = (base: string, amount: string) => taxLineOf("IVA_ADICIONAL", 
 const exempt = (base: string, amount: string) => taxLineOf("EXENTO", base, amount);
 
 const saleDoc = (docType: string, taxLines: object[]) => ({ ...BASE_SALE, docType, taxLines });
-const purchaseDoc = (docType: string, taxLines: object[]) => ({ ...BASE_INVOICE, docType, taxLines });
+const purchaseDoc = (docType: string, taxLines: object[]) => ({
+  ...BASE_INVOICE,
+  docType,
+  taxLines,
+});
 // El schema de notas exige la factura original; `CreateInvoiceSchema` ignora la clave extra.
 const asNote = <T extends object>(doc: T) => ({ ...doc, relatedInvoiceId: "inv-original-1" });
 
@@ -222,14 +226,16 @@ type SchemaLike = { safeParse: (input: unknown) => Parsed };
 function ivaIssues(result: Parsed): Issue[] {
   if (result.success) return [];
   return result.error.issues.filter(
-    (i) => i.path.length === 3 && i.path[0] === "taxLines" && i.path[2] === "amount",
+    (i) => i.path.length === 3 && i.path[0] === "taxLines" && i.path[2] === "amount"
   );
 }
 
 /** Rechazo por incoherencia de IVA: success:false y UN issue por cada índice de línea mala. */
 function expectRejected(result: Parsed, atIndexes: number[] = [0]) {
   expect(result.success, "el schema debió rechazar el IVA incoherente con base × tasa").toBe(false);
-  expect(ivaIssues(result).map((i) => i.path)).toEqual(atIndexes.map((n) => ["taxLines", n, "amount"]));
+  expect(ivaIssues(result).map((i) => i.path)).toEqual(
+    atIndexes.map((n) => ["taxLines", n, "amount"])
+  );
 }
 
 function expectAccepted(result: Parsed) {
@@ -251,7 +257,9 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
       { amount: "160.01", why: "borde superior (dif 0.01)" },
       { amount: "159.99", why: "borde inferior (dif 0.01)" },
     ])("acepta 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1000.00", amount)])));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1000.00", amount)]))
+      );
     });
 
     it.each([
@@ -260,12 +268,16 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
       { amount: "1.00", why: "error grande" },
       { amount: "0.00", why: "IVA omitido" },
     ])("rechaza 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
-      expectRejected(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1000.00", amount)])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1000.00", amount)]))
+      );
     });
 
     it("el caso reportado (base 1000.00, rate 16.00, IVA 1.00) ya no se acepta", () => {
       const result = CreateInvoiceSchema.safeParse(
-        saleDoc("FACTURA", [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.00", amount: "1.00" }]),
+        saleDoc("FACTURA", [
+          { taxType: "IVA_GENERAL", base: "1000.00", rate: "16.00", amount: "1.00" },
+        ])
       );
       expectRejected(result);
     });
@@ -273,16 +285,23 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     it.each([
       { amount: "197.53", why: "exacto: 197.5296 redondea a 197.53" },
       { amount: "197.52", why: "borde inferior (dif 0.01)" },
-      { amount: "197.54", why: "borde superior (dif 0.01 contra el esperado REDONDEADO; contra 197.5296 sería 0.0104)" },
+      {
+        amount: "197.54",
+        why: "borde superior (dif 0.01 contra el esperado REDONDEADO; contra 197.5296 sería 0.0104)",
+      },
     ])("acepta 1234.56 @16% con IVA $amount ($why)", ({ amount }) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1234.56", amount)])));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1234.56", amount)]))
+      );
     });
 
     it.each([
       { amount: "197.51", why: "dif 0.02" },
       { amount: "197.55", why: "dif 0.02" },
     ])("rechaza 1234.56 @16% con IVA $amount ($why)", ({ amount }) => {
-      expectRejected(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1234.56", amount)])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1234.56", amount)]))
+      );
     });
   });
 
@@ -292,26 +311,29 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     { name: "CreateInvoiceSchema", schema: CreateInvoiceSchema },
   ];
 
-  describe.each(noteSchemas)("VENTA NOTA_CREDITO / NOTA_DEBITO vía $name — tolerancia Bs. 0.01", ({ schema }) => {
-    describe.each(["NOTA_CREDITO", "NOTA_DEBITO"])("%s", (docType) => {
-      it.each([
-        { amount: "160.00", why: "exacto" },
-        { amount: "160.01", why: "borde superior" },
-        { amount: "159.99", why: "borde inferior" },
-      ])("acepta 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
-        expectAccepted(schema.safeParse(asNote(saleDoc(docType, [general("1000.00", amount)]))));
-      });
+  describe.each(noteSchemas)(
+    "VENTA NOTA_CREDITO / NOTA_DEBITO vía $name — tolerancia Bs. 0.01",
+    ({ schema }) => {
+      describe.each(["NOTA_CREDITO", "NOTA_DEBITO"])("%s", (docType) => {
+        it.each([
+          { amount: "160.00", why: "exacto" },
+          { amount: "160.01", why: "borde superior" },
+          { amount: "159.99", why: "borde inferior" },
+        ])("acepta 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
+          expectAccepted(schema.safeParse(asNote(saleDoc(docType, [general("1000.00", amount)]))));
+        });
 
-      it.each([
-        { amount: "160.02", why: "dif 0.02" },
-        { amount: "159.98", why: "dif 0.02 por debajo" },
-        { amount: "1.00", why: "error grande" },
-        { amount: "0.00", why: "IVA omitido" },
-      ])("rechaza 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
-        expectRejected(schema.safeParse(asNote(saleDoc(docType, [general("1000.00", amount)]))));
+        it.each([
+          { amount: "160.02", why: "dif 0.02" },
+          { amount: "159.98", why: "dif 0.02 por debajo" },
+          { amount: "1.00", why: "error grande" },
+          { amount: "0.00", why: "IVA omitido" },
+        ])("rechaza 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
+          expectRejected(schema.safeParse(asNote(saleDoc(docType, [general("1000.00", amount)]))));
+        });
       });
-    });
-  });
+    }
+  );
 
   // ── 3. VENTA REPORTE_Z / RESUMEN_VENTAS / OTRO — impresora fiscal, 1.00 ─────
   describe.each(["REPORTE_Z", "RESUMEN_VENTAS", "OTRO"])(
@@ -323,7 +345,9 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
         { amount: "161.00", why: "borde superior (dif 1.00)" },
         { amount: "159.00", why: "borde inferior (dif 1.00)" },
       ])("acepta 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
-        expectAccepted(CreateInvoiceSchema.safeParse(saleDoc(docType, [general("1000.00", amount)])));
+        expectAccepted(
+          CreateInvoiceSchema.safeParse(saleDoc(docType, [general("1000.00", amount)]))
+        );
       });
 
       it.each([
@@ -331,17 +355,27 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
         { amount: "158.99", why: "dif 1.01 por debajo" },
         { amount: "0.00", why: "IVA omitido" },
       ])("rechaza 1000.00 @16% con IVA $amount ($why)", ({ amount }) => {
-        expectRejected(CreateInvoiceSchema.safeParse(saleDoc(docType, [general("1000.00", amount)])));
+        expectRejected(
+          CreateInvoiceSchema.safeParse(saleDoc(docType, [general("1000.00", amount)]))
+        );
       });
-    },
+    }
   );
 
   describe("VENTA con docType fuera de la lista estricta (PLANILLA_IMPORTACION) → 'todo lo demás' = 1.00", () => {
     it("acepta el borde 161.00", () => {
-      expectAccepted(CreateInvoiceSchema.safeParse(saleDoc("PLANILLA_IMPORTACION", [general("1000.00", "161.00")])));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse(
+          saleDoc("PLANILLA_IMPORTACION", [general("1000.00", "161.00")])
+        )
+      );
     });
     it("rechaza 161.01", () => {
-      expectRejected(CreateInvoiceSchema.safeParse(saleDoc("PLANILLA_IMPORTACION", [general("1000.00", "161.01")])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(
+          saleDoc("PLANILLA_IMPORTACION", [general("1000.00", "161.01")])
+        )
+      );
     });
   });
 
@@ -355,7 +389,9 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
         { amount: "161.00", why: "borde superior (dif 1.00)" },
         { amount: "159.00", why: "borde inferior (dif 1.00)" },
       ])("acepta 1000.00 @16% con IVA impreso $amount ($why)", ({ amount }) => {
-        expectAccepted(CreateInvoiceSchema.safeParse(purchaseDoc(docType, [general("1000.00", amount)])));
+        expectAccepted(
+          CreateInvoiceSchema.safeParse(purchaseDoc(docType, [general("1000.00", amount)]))
+        );
       });
 
       it.each([
@@ -364,23 +400,42 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
         { amount: "1.00", why: "error grande" },
         { amount: "0.00", why: "IVA omitido" },
       ])("rechaza 1000.00 @16% con IVA impreso $amount ($why)", ({ amount }) => {
-        expectRejected(CreateInvoiceSchema.safeParse(purchaseDoc(docType, [general("1000.00", amount)])));
+        expectRejected(
+          CreateInvoiceSchema.safeParse(purchaseDoc(docType, [general("1000.00", amount)]))
+        );
       });
-    },
+    }
   );
 
   describe("COMPRA vía el schema de notas (NOTA_CREDITO / NOTA_DEBITO de proveedor)", () => {
-    it.each(["NOTA_CREDITO", "NOTA_DEBITO"])("%s: acepta IVA impreso 160.90 y el borde 161.00", (docType) => {
-      expectAccepted(CreateCreditDebitNoteSchema.safeParse(asNote(purchaseDoc(docType, [general("1000.00", "160.90")]))));
-      expectAccepted(CreateCreditDebitNoteSchema.safeParse(asNote(purchaseDoc(docType, [general("1000.00", "161.00")]))));
-    });
+    it.each(["NOTA_CREDITO", "NOTA_DEBITO"])(
+      "%s: acepta IVA impreso 160.90 y el borde 161.00",
+      (docType) => {
+        expectAccepted(
+          CreateCreditDebitNoteSchema.safeParse(
+            asNote(purchaseDoc(docType, [general("1000.00", "160.90")]))
+          )
+        );
+        expectAccepted(
+          CreateCreditDebitNoteSchema.safeParse(
+            asNote(purchaseDoc(docType, [general("1000.00", "161.00")]))
+          )
+        );
+      }
+    );
     it.each(["NOTA_CREDITO", "NOTA_DEBITO"])("%s: rechaza 161.01", (docType) => {
-      expectRejected(CreateCreditDebitNoteSchema.safeParse(asNote(purchaseDoc(docType, [general("1000.00", "161.01")]))));
+      expectRejected(
+        CreateCreditDebitNoteSchema.safeParse(
+          asNote(purchaseDoc(docType, [general("1000.00", "161.01")]))
+        )
+      );
     });
   });
 
   it("COMPRA: el IVA impreso aceptado se conserva TAL CUAL (no se reemplaza por base × tasa)", () => {
-    const result = CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [general("1000.00", "160.90")]));
+    const result = CreateInvoiceSchema.safeParse(
+      purchaseDoc("FACTURA", [general("1000.00", "160.90")])
+    );
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.taxLines).toHaveLength(1);
@@ -394,11 +449,31 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     // `expected` es el IVA correcto escrito a mano (no recalculado en el test).
     const ROWS: Array<{ base: string; taxType: TaxType; expected: string; why: string }> = [
       { base: "1234.56", taxType: "IVA_GENERAL", expected: "197.53", why: "197.5296 sube" },
-      { base: "100.10", taxType: "IVA_GENERAL", expected: "16.02", why: "16.016; con Number 16.03-16.02 = 0.010000000000001563 > 0.01" },
+      {
+        base: "100.10",
+        taxType: "IVA_GENERAL",
+        expected: "16.02",
+        why: "16.016; con Number 16.03-16.02 = 0.010000000000001563 > 0.01",
+      },
       { base: "1333.33", taxType: "IVA_GENERAL", expected: "213.33", why: "213.3328 baja" },
-      { base: "100.30", taxType: "IVA_ADICIONAL", expected: "15.05", why: "15.045 es empate: HALF_UP da 15.05 (Number da 15.044999999999998 y HALF_EVEN 15.04)" },
-      { base: "787430.00", taxType: "IVA_REDUCIDO", expected: "62994.40", why: "exacto; con Number 62994.41-62994.40 = 0.010000000002037268 > 0.01" },
-      { base: "9999999.99", taxType: "IVA_GENERAL", expected: "1600000.00", why: "1599999.9984 sube a 1600000.00" },
+      {
+        base: "100.30",
+        taxType: "IVA_ADICIONAL",
+        expected: "15.05",
+        why: "15.045 es empate: HALF_UP da 15.05 (Number da 15.044999999999998 y HALF_EVEN 15.04)",
+      },
+      {
+        base: "787430.00",
+        taxType: "IVA_REDUCIDO",
+        expected: "62994.40",
+        why: "exacto; con Number 62994.41-62994.40 = 0.010000000002037268 > 0.01",
+      },
+      {
+        base: "9999999.99",
+        taxType: "IVA_GENERAL",
+        expected: "1600000.00",
+        why: "1599999.9984 sube a 1600000.00",
+      },
     ];
     const REGIMES: Array<{ name: string; tol: string; build: (line: object) => object }> = [
       { name: "VENTA FACTURA", tol: "0.01", build: (line) => saleDoc("FACTURA", [line]) },
@@ -406,27 +481,37 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     ];
 
     describe.each(REGIMES)("$name (tolerancia $tol)", ({ tol, build }) => {
-      it.each(ROWS)("acepta el esperado y sus dos bordes: $base @ $taxType → $expected ($why)", ({ base, taxType, expected }) => {
-        const at = (amount: string) => CreateInvoiceSchema.safeParse(build(taxLineOf(taxType, base, amount)));
-        expectAccepted(at(expected));
-        expectAccepted(at(new Decimal(expected).plus(tol).toFixed(2)));
-        const down = new Decimal(expected).minus(tol);
-        if (!down.isNegative()) expectAccepted(at(down.toFixed(2)));
-      });
+      it.each(ROWS)(
+        "acepta el esperado y sus dos bordes: $base @ $taxType → $expected ($why)",
+        ({ base, taxType, expected }) => {
+          const at = (amount: string) =>
+            CreateInvoiceSchema.safeParse(build(taxLineOf(taxType, base, amount)));
+          expectAccepted(at(expected));
+          expectAccepted(at(new Decimal(expected).plus(tol).toFixed(2)));
+          const down = new Decimal(expected).minus(tol);
+          if (!down.isNegative()) expectAccepted(at(down.toFixed(2)));
+        }
+      );
 
-      it.each(ROWS)("rechaza un centavo más allá de cada borde: $base @ $taxType → $expected", ({ base, taxType, expected }) => {
-        const at = (amount: string) => CreateInvoiceSchema.safeParse(build(taxLineOf(taxType, base, amount)));
-        expectRejected(at(new Decimal(expected).plus(tol).plus("0.01").toFixed(2)));
-        const belowDown = new Decimal(expected).minus(tol).minus("0.01");
-        if (!belowDown.isNegative()) expectRejected(at(belowDown.toFixed(2)));
-      });
+      it.each(ROWS)(
+        "rechaza un centavo más allá de cada borde: $base @ $taxType → $expected",
+        ({ base, taxType, expected }) => {
+          const at = (amount: string) =>
+            CreateInvoiceSchema.safeParse(build(taxLineOf(taxType, base, amount)));
+          expectRejected(at(new Decimal(expected).plus(tol).plus("0.01").toFixed(2)));
+          const belowDown = new Decimal(expected).minus(tol).minus("0.01");
+          if (!belowDown.isNegative()) expectRejected(at(belowDown.toFixed(2)));
+        }
+      );
     });
   });
 
   // ── 5. Alícuotas: reducido 8 %, adicional 15 %, exento ──────────────────────
   describe("IVA_REDUCIDO 8% (base 787430.00 → 62994.40)", () => {
     it.each(["62994.40", "62994.41", "62994.39"])("VENTA FACTURA acepta IVA %s", (amount) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [reduced("787430.00", amount)])));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [reduced("787430.00", amount)]))
+      );
     });
     it.each([
       { amount: "62994.42", why: "dif 0.02" },
@@ -434,19 +519,27 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
       { amount: "6299.44", why: "coma decimal corrida un lugar" },
       { amount: "0.00", why: "IVA omitido" },
     ])("VENTA FACTURA rechaza IVA $amount ($why)", ({ amount }) => {
-      expectRejected(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [reduced("787430.00", amount)])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [reduced("787430.00", amount)]))
+      );
     });
     it.each(["62994.40", "62995.40", "62993.40"])("COMPRA acepta IVA impreso %s", (amount) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [reduced("787430.00", amount)])));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [reduced("787430.00", amount)]))
+      );
     });
     it.each(["62995.41", "62993.39", "6299.44"])("COMPRA rechaza IVA impreso %s", (amount) => {
-      expectRejected(CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [reduced("787430.00", amount)])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [reduced("787430.00", amount)]))
+      );
     });
   });
 
   describe("IVA_ADICIONAL 15% (base 1000.00 → 150.00)", () => {
     it.each(["150.00", "150.01", "149.99"])("VENTA FACTURA acepta IVA %s", (amount) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [additional("1000.00", amount)])));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [additional("1000.00", amount)]))
+      );
     });
     it.each([
       { amount: "150.02", why: "dif 0.02" },
@@ -454,13 +547,19 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
       { amount: "310.00", why: "31% total aplicado por error a la línea adicional" },
       { amount: "0.00", why: "IVA omitido" },
     ])("VENTA FACTURA rechaza IVA $amount ($why)", ({ amount }) => {
-      expectRejected(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [additional("1000.00", amount)])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [additional("1000.00", amount)]))
+      );
     });
     it.each(["150.00", "151.00", "149.00"])("COMPRA acepta IVA impreso %s", (amount) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [additional("1000.00", amount)])));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [additional("1000.00", amount)]))
+      );
     });
     it.each(["151.01", "148.99"])("COMPRA rechaza IVA impreso %s", (amount) => {
-      expectRejected(CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [additional("1000.00", amount)])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [additional("1000.00", amount)]))
+      );
     });
   });
 
@@ -474,11 +573,18 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     it.each(["0.02", "0.50"])("VENTA FACTURA rechaza IVA %s en una línea exenta", (amount) => {
       expectRejected(CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [exempt("500.00", amount)])));
     });
-    it.each(["0.00", "0.50", "1.00"])("COMPRA acepta IVA impreso %s en una línea exenta", (amount) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [exempt("500.00", amount)])));
-    });
+    it.each(["0.00", "0.50", "1.00"])(
+      "COMPRA acepta IVA impreso %s en una línea exenta",
+      (amount) => {
+        expectAccepted(
+          CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [exempt("500.00", amount)]))
+        );
+      }
+    );
     it("COMPRA rechaza IVA impreso 1.01 en una línea exenta", () => {
-      expectRejected(CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [exempt("500.00", "1.01")])));
+      expectRejected(
+        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [exempt("500.00", "1.01")]))
+      );
     });
   });
 
@@ -486,7 +592,7 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
   describe("varias líneas de impuesto", () => {
     it("una buena y una mala → un solo issue, en el índice de la mala, con los montos", () => {
       const result = CreateInvoiceSchema.safeParse(
-        saleDoc("FACTURA", [general("1000.00", "160.00"), reduced("500.00", "45.00")]),
+        saleDoc("FACTURA", [general("1000.00", "160.00"), reduced("500.00", "45.00")])
       );
       expectRejected(result, [1]);
       const [issue] = ivaIssues(result);
@@ -496,21 +602,25 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
 
     it("una mala y una buena → el issue apunta al índice 0", () => {
       const result = CreateInvoiceSchema.safeParse(
-        saleDoc("FACTURA", [general("1000.00", "100.00"), reduced("500.00", "40.00")]),
+        saleDoc("FACTURA", [general("1000.00", "100.00"), reduced("500.00", "40.00")])
       );
       expectRejected(result, [0]);
     });
 
     it("buena, mala, buena → un solo issue en el índice 1", () => {
       const result = CreateInvoiceSchema.safeParse(
-        saleDoc("FACTURA", [general("1000.00", "160.00"), reduced("500.00", "45.00"), exempt("300.00", "0.00")]),
+        saleDoc("FACTURA", [
+          general("1000.00", "160.00"),
+          reduced("500.00", "45.00"),
+          exempt("300.00", "0.00"),
+        ])
       );
       expectRejected(result, [1]);
     });
 
     it("dos malas → dos issues, cada uno con sus propios montos", () => {
       const result = CreateInvoiceSchema.safeParse(
-        saleDoc("FACTURA", [general("1000.00", "100.00"), reduced("500.00", "45.00")]),
+        saleDoc("FACTURA", [general("1000.00", "100.00"), reduced("500.00", "45.00")])
       );
       expectRejected(result, [0, 1]);
       const [first, second] = ivaIssues(result);
@@ -522,27 +632,35 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
 
     it("factura de lujo correcta (GENERAL 160.00 + ADICIONAL 150.00 sobre la misma base) se acepta", () => {
       expectAccepted(
-        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1000.00", "160.00"), additional("1000.00", "150.00")])),
+        CreateInvoiceSchema.safeParse(
+          saleDoc("FACTURA", [general("1000.00", "160.00"), additional("1000.00", "150.00")])
+        )
       );
     });
 
     it("factura de lujo con el 31% puesto en la línea adicional → rechaza SOLO esa línea (índice 1)", () => {
       expectRejected(
-        CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1000.00", "160.00"), additional("1000.00", "310.00")])),
-        [1],
+        CreateInvoiceSchema.safeParse(
+          saleDoc("FACTURA", [general("1000.00", "160.00"), additional("1000.00", "310.00")])
+        ),
+        [1]
       );
     });
 
     it("COMPRA con dos líneas impresas dentro de 1.00 (160.90 y 40.80) se acepta", () => {
       expectAccepted(
-        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [general("1000.00", "160.90"), reduced("500.00", "40.80")])),
+        CreateInvoiceSchema.safeParse(
+          purchaseDoc("FACTURA", [general("1000.00", "160.90"), reduced("500.00", "40.80")])
+        )
       );
     });
 
     it("COMPRA: si la segunda línea excede 1.00 (41.01 contra 40.00), el issue va al índice 1", () => {
       expectRejected(
-        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [general("1000.00", "160.90"), reduced("500.00", "41.01")])),
-        [1],
+        CreateInvoiceSchema.safeParse(
+          purchaseDoc("FACTURA", [general("1000.00", "160.90"), reduced("500.00", "41.01")])
+        ),
+        [1]
       );
     });
   });
@@ -550,7 +668,9 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
   // ── Mensaje del issue ───────────────────────────────────────────────────────
   describe("mensaje del issue", () => {
     it("VENTA FACTURA: incluye el monto recibido, el esperado (base × tasa) y la tolerancia 0.01", () => {
-      const result = CreateInvoiceSchema.safeParse(saleDoc("FACTURA", [general("1000.00", "12.34")]));
+      const result = CreateInvoiceSchema.safeParse(
+        saleDoc("FACTURA", [general("1000.00", "12.34")])
+      );
       expectRejected(result);
       const [issue] = ivaIssues(result);
       expect(issue.message).toMatch(/IVA/);
@@ -561,7 +681,9 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     });
 
     it("COMPRA: incluye el monto recibido, el esperado y la tolerancia 1.00", () => {
-      const result = CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [general("1000.00", "12.34")]));
+      const result = CreateInvoiceSchema.safeParse(
+        purchaseDoc("FACTURA", [general("1000.00", "12.34")])
+      );
       expectRejected(result);
       const [issue] = ivaIssues(result);
       expect(issue.message).toMatch(money("12.34"));
@@ -571,7 +693,9 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     });
 
     it("VENTA REPORTE_Z: la tolerancia del mensaje es 1.00", () => {
-      const result = CreateInvoiceSchema.safeParse(saleDoc("REPORTE_Z", [general("1000.00", "12.34")]));
+      const result = CreateInvoiceSchema.safeParse(
+        saleDoc("REPORTE_Z", [general("1000.00", "12.34")])
+      );
       expectRejected(result);
       const [issue] = ivaIssues(result);
       expect(issue.message).toMatch(money("1.00"));
@@ -582,22 +706,43 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
   // ── 7. Regresiones que deben SEGUIR pasando ─────────────────────────────────
   describe("regresiones (deben seguir pasando)", () => {
     it.each([
-      { name: "VENTA FACTURA", doc: saleDoc("FACTURA", [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "15.00", amount: "150.00" }]) },
-      { name: "COMPRA FACTURA", doc: purchaseDoc("FACTURA", [{ taxType: "IVA_REDUCIDO", base: "1000.00", rate: "16.00", amount: "160.00" }]) },
-    ])("$name: una tasa no canónica sigue rechazándose en ['taxLines', 0, 'rate'] (aunque el monto cuadre con ella)", ({ doc }) => {
-      const result = CreateInvoiceSchema.safeParse(doc);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        const rateIssue = result.error.issues.find(
-          (i) => i.path.length === 3 && i.path[0] === "taxLines" && i.path[1] === 0 && i.path[2] === "rate",
-        );
-        expect(rateIssue?.message).toMatch(/^Tasa inválida para IVA_(GENERAL|REDUCIDO): debe ser (16|8)%$/);
+      {
+        name: "VENTA FACTURA",
+        doc: saleDoc("FACTURA", [
+          { taxType: "IVA_GENERAL", base: "1000.00", rate: "15.00", amount: "150.00" },
+        ]),
+      },
+      {
+        name: "COMPRA FACTURA",
+        doc: purchaseDoc("FACTURA", [
+          { taxType: "IVA_REDUCIDO", base: "1000.00", rate: "16.00", amount: "160.00" },
+        ]),
+      },
+    ])(
+      "$name: una tasa no canónica sigue rechazándose en ['taxLines', 0, 'rate'] (aunque el monto cuadre con ella)",
+      ({ doc }) => {
+        const result = CreateInvoiceSchema.safeParse(doc);
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          const rateIssue = result.error.issues.find(
+            (i) =>
+              i.path.length === 3 &&
+              i.path[0] === "taxLines" &&
+              i.path[1] === 0 &&
+              i.path[2] === "rate"
+          );
+          expect(rateIssue?.message).toMatch(
+            /^Tasa inválida para IVA_(GENERAL|REDUCIDO): debe ser (16|8)%$/
+          );
+        }
       }
-    });
+    );
 
     it("mensaje exacto de tasa no canónica para IVA_GENERAL", () => {
       const result = CreateInvoiceSchema.safeParse(
-        saleDoc("FACTURA", [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "15.00", amount: "150.00" }]),
+        saleDoc("FACTURA", [
+          { taxType: "IVA_GENERAL", base: "1000.00", rate: "15.00", amount: "150.00" },
+        ])
       );
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -606,25 +751,36 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
       }
     });
 
-    it.each(["16", "16.00", "16.0"])("la tasa canónica escrita como '%s' se sigue aceptando con IVA 160.00", (rate) => {
-      expectAccepted(
-        CreateInvoiceSchema.safeParse(
-          saleDoc("FACTURA", [{ taxType: "IVA_GENERAL", base: "1000.00", rate, amount: "160.00" }]),
-        ),
-      );
-    });
+    it.each(["16", "16.00", "16.0"])(
+      "la tasa canónica escrita como '%s' se sigue aceptando con IVA 160.00",
+      (rate) => {
+        expectAccepted(
+          CreateInvoiceSchema.safeParse(
+            saleDoc("FACTURA", [
+              { taxType: "IVA_GENERAL", base: "1000.00", rate, amount: "160.00" },
+            ])
+          )
+        );
+      }
+    );
 
     it("una factura de venta correcta (general + reducido + exento) se sigue aceptando", () => {
       expectAccepted(
         CreateInvoiceSchema.safeParse(
-          saleDoc("FACTURA", [general("1000.00", "160.00"), reduced("500.00", "40.00"), exempt("300.00", "0.00")]),
-        ),
+          saleDoc("FACTURA", [
+            general("1000.00", "160.00"),
+            reduced("500.00", "40.00"),
+            exempt("300.00", "0.00"),
+          ])
+        )
       );
     });
 
     it("una factura de compra correcta (con Nº de control) se sigue aceptando", () => {
       expectAccepted(
-        CreateInvoiceSchema.safeParse(purchaseDoc("FACTURA", [general("1000.00", "160.00"), reduced("500.00", "40.00")])),
+        CreateInvoiceSchema.safeParse(
+          purchaseDoc("FACTURA", [general("1000.00", "160.00"), reduced("500.00", "40.00")])
+        )
       );
     });
 
@@ -695,16 +851,21 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.issues.every((i) => i.message.length < 300)).toBe(true);
-        expect(result.error.issues.some((i) => /no coincide con base × tasa/.test(i.message))).toBe(false);
+        expect(result.error.issues.some((i) => /no coincide con base × tasa/.test(i.message))).toBe(
+          false
+        );
       }
     });
 
     it("un monto de 5000 dígitos y una tasa desmesurada tampoco generan mensajes enormes", () => {
-      const doc = saleDoc("FACTURA", [{ ...general("1000.00", "160.00"), amount: "9".repeat(5000), rate: "1".repeat(5000) }]);
+      const doc = saleDoc("FACTURA", [
+        { ...general("1000.00", "160.00"), amount: "9".repeat(5000), rate: "1".repeat(5000) },
+      ]);
       const result = CreateInvoiceSchema.safeParse(doc);
 
       expect(result.success).toBe(false);
-      if (!result.success) expect(result.error.issues.every((i) => i.message.length < 300)).toBe(true);
+      if (!result.success)
+        expect(result.error.issues.every((i) => i.message.length < 300)).toBe(true);
     });
   });
 
@@ -722,24 +883,40 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
     });
 
     it("creditDebitNote: rechaza VENTA NOTA_CREDITO con IVA incoherente", () => {
-      expectRejected(schemas.creditDebitNote.safeParse(asNote(saleDoc("NOTA_CREDITO", [general("1000.00", "1.00")]))));
+      expectRejected(
+        schemas.creditDebitNote.safeParse(
+          asNote(saleDoc("NOTA_CREDITO", [general("1000.00", "1.00")]))
+        )
+      );
     });
     it("creditDebitNote: acepta VENTA NOTA_CREDITO con el IVA correcto", () => {
-      expectAccepted(schemas.creditDebitNote.safeParse(asNote(saleDoc("NOTA_CREDITO", [general("1000.00", "160.00")]))));
+      expectAccepted(
+        schemas.creditDebitNote.safeParse(
+          asNote(saleDoc("NOTA_CREDITO", [general("1000.00", "160.00")]))
+        )
+      );
     });
 
     it("createWithLines: hereda la regla — rechaza VENTA FACTURA con IVA incoherente", () => {
-      expectRejected(schemas.createWithLines.safeParse(saleDoc("FACTURA", [general("1000.00", "1.00")])));
+      expectRejected(
+        schemas.createWithLines.safeParse(saleDoc("FACTURA", [general("1000.00", "1.00")]))
+      );
     });
     it("createWithLines: acepta VENTA FACTURA con el IVA correcto", () => {
-      expectAccepted(schemas.createWithLines.safeParse(saleDoc("FACTURA", [general("1000.00", "160.00")])));
+      expectAccepted(
+        schemas.createWithLines.safeParse(saleDoc("FACTURA", [general("1000.00", "160.00")]))
+      );
     });
 
     it("create: COMPRA con IVA impreso 160.90 se acepta", () => {
-      expectAccepted(schemas.create.safeParse(purchaseDoc("FACTURA", [general("1000.00", "160.90")])));
+      expectAccepted(
+        schemas.create.safeParse(purchaseDoc("FACTURA", [general("1000.00", "160.90")]))
+      );
     });
     it("create: COMPRA con IVA impreso 161.01 se rechaza", () => {
-      expectRejected(schemas.create.safeParse(purchaseDoc("FACTURA", [general("1000.00", "161.01")])));
+      expectRejected(
+        schemas.create.safeParse(purchaseDoc("FACTURA", [general("1000.00", "161.01")]))
+      );
     });
   });
 });
@@ -764,7 +941,7 @@ describe("Integridad del IVA — monto de línea coherente con base × tasa (Z-2
 function rateIssues(result: Parsed): Issue[] {
   if (result.success) return [];
   return result.error.issues.filter(
-    (i) => i.path.length === 3 && i.path[0] === "taxLines" && i.path[2] === "rate",
+    (i) => i.path.length === 3 && i.path[0] === "taxLines" && i.path[2] === "rate"
   );
 }
 
@@ -786,7 +963,11 @@ function expectRateRejected(result: Parsed, atIndexes: number[] = [0]) {
  * IVA y de la discrepancia "base × tasa" y, si se indican `amounts`, el primero trae el monto recibido y el esperado
  * (calculado con la alícuota canónica del servidor).
  */
-function expectIvaRejected(result: Parsed, atIndexes: number[] = [0], amounts?: { received: string; expected: string }) {
+function expectIvaRejected(
+  result: Parsed,
+  atIndexes: number[] = [0],
+  amounts?: { received: string; expected: string }
+) {
   expectRejected(result, atIndexes);
   const issues = ivaIssues(result);
   for (const issue of issues) {
@@ -866,10 +1047,30 @@ const MISWRITTEN_RATES: Array<{
 // Escrituras planas de la alícuota canónica que HOY ya se aceptan y deben seguir aceptándose (comprobado corriendo el
 // test antes de fijarlas). `rate.padEnd(12, "0")` es el borde: exactamente 12 caracteres.
 const PLAIN_RATES: Array<{ taxType: TaxType; base: string; amount: string; rates: string[] }> = [
-  { taxType: "IVA_GENERAL", base: "1000.00", amount: "160.00", rates: ["16", "16.00", "016", "+16", "16.", "16.".padEnd(12, "0")] },
-  { taxType: "IVA_REDUCIDO", base: "1000.00", amount: "80.00", rates: ["8", "8.00", "08", "+8", "8.", "8.".padEnd(12, "0")] },
-  { taxType: "IVA_ADICIONAL", base: "1000.00", amount: "150.00", rates: ["15", "15.00", "015", "+15", "15.", "15.".padEnd(12, "0")] },
-  { taxType: "EXENTO", base: "1000.00", amount: "0.00", rates: ["0", "0.00", "00", "+0", "0.", "0.".padEnd(12, "0")] },
+  {
+    taxType: "IVA_GENERAL",
+    base: "1000.00",
+    amount: "160.00",
+    rates: ["16", "16.00", "016", "+16", "16.", "16.".padEnd(12, "0")],
+  },
+  {
+    taxType: "IVA_REDUCIDO",
+    base: "1000.00",
+    amount: "80.00",
+    rates: ["8", "8.00", "08", "+8", "8.", "8.".padEnd(12, "0")],
+  },
+  {
+    taxType: "IVA_ADICIONAL",
+    base: "1000.00",
+    amount: "150.00",
+    rates: ["15", "15.00", "015", "+15", "15.", "15.".padEnd(12, "0")],
+  },
+  {
+    taxType: "EXENTO",
+    base: "1000.00",
+    amount: "0.00",
+    rates: ["0", "0.00", "00", "+0", "0.", "0.".padEnd(12, "0")],
+  },
 ];
 
 describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 caracteres", () => {
@@ -877,20 +1078,24 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
   describe.each(RATE_DOCS)("A.1 rechazo — $name", ({ build }) => {
     describe.each(MISWRITTEN_RATES)("$taxType", ({ taxType, base, coherent, rates }) => {
       it.each(rates)("rechaza rate $rate ($why) aunque el IVA sea coherente", ({ rate }) => {
-        const result = CreateInvoiceSchema.safeParse(build([{ taxType, base, rate, amount: coherent }]));
+        const result = CreateInvoiceSchema.safeParse(
+          build([{ taxType, base, rate, amount: coherent }])
+        );
         expectRateRejected(result);
         // El monto SÍ cuadra con la alícuota canónica: la rate es la única causa del rechazo (un solo issue en el path rate).
         expect(ivaIssues(result)).toEqual([]);
       });
 
       it.each(rates)("rechaza rate $rate ($why) con IVA 1.00", ({ rate }) => {
-        expectRateRejected(CreateInvoiceSchema.safeParse(build([{ taxType, base, rate, amount: "1.00" }])));
+        expectRateRejected(
+          CreateInvoiceSchema.safeParse(build([{ taxType, base, rate, amount: "1.00" }]))
+        );
       });
     });
 
     it("la rate mal escrita en la SEGUNDA línea → el issue de la tasa apunta al índice 1", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([general("1000.00", "160.00"), { ...reduced("500.00", "40.00"), rate: "0.8e1" }]),
+        build([general("1000.00", "160.00"), { ...reduced("500.00", "40.00"), rate: "0.8e1" }])
       );
       expectRateRejected(result, [1]);
       expect(ivaIssues(result)).toEqual([]); // 500.00 x 8 % = 40.00 cuadra con la alícuota canónica
@@ -898,14 +1103,19 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
 
     it("dos líneas con la rate mal escrita → un issue de tasa por línea, el primero en el índice 0", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([{ ...general("1000.00", "160.00"), rate: "1.6e1" }, { ...reduced("500.00", "40.00"), rate: "0x8" }]),
+        build([
+          { ...general("1000.00", "160.00"), rate: "1.6e1" },
+          { ...reduced("500.00", "40.00"), rate: "0x8" },
+        ])
       );
       expectRateRejected(result, [0, 1]);
     });
 
     it("una rate de 5000 caracteres se rechaza en el path rate SIN copiar el valor en el mensaje", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "1".repeat(5000), amount: "160.00" }]),
+        build([
+          { taxType: "IVA_GENERAL", base: "1000.00", rate: "1".repeat(5000), amount: "160.00" },
+        ])
       );
       expectRateRejected(result);
       if (!result.success) expect(rateIssues(result)[0].message.length).toBeLessThan(300);
@@ -914,13 +1124,16 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
 
   // ── A.1 (borde) Más de 12 caracteres se rechaza aunque valga exactamente lo mismo ───────────────
   describe.each(RATE_DOCS)("A.1 borde de longitud — $name", ({ build }) => {
-    it.each(PLAIN_RATES)("$taxType: una rate de 13 caracteres (el borde de 12 + un cero más) se rechaza", ({ taxType, base, amount, rates }) => {
-      const atLimit = rates[rates.length - 1]; // la última fila de PLAIN_RATES es la de exactamente 12 caracteres
-      expect(atLimit).toHaveLength(12);
-      const rate = atLimit + "0";
-      expect(rate).toHaveLength(13);
-      expectRateRejected(CreateInvoiceSchema.safeParse(build([{ taxType, base, rate, amount }])));
-    });
+    it.each(PLAIN_RATES)(
+      "$taxType: una rate de 13 caracteres (el borde de 12 + un cero más) se rechaza",
+      ({ taxType, base, amount, rates }) => {
+        const atLimit = rates[rates.length - 1]; // la última fila de PLAIN_RATES es la de exactamente 12 caracteres
+        expect(atLimit).toHaveLength(12);
+        const rate = atLimit + "0";
+        expect(rate).toHaveLength(13);
+        expectRateRejected(CreateInvoiceSchema.safeParse(build([{ taxType, base, rate, amount }])));
+      }
+    );
   });
 
   // ── A.2 Lo que hoy se acepta SIGUE aceptándose (con el IVA coherente) ────────────────────────────
@@ -935,8 +1148,10 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
       expect("16.000000000").toHaveLength(12);
       expectAccepted(
         CreateInvoiceSchema.safeParse(
-          build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.000000000", amount: "160.00" }]),
-        ),
+          build([
+            { taxType: "IVA_GENERAL", base: "1000.00", rate: "16.000000000", amount: "160.00" },
+          ])
+        )
       );
     });
   });
@@ -945,7 +1160,7 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
   describe.each(RATE_DOCS)("A.3 alícuota canónica — $name", ({ build }) => {
     it("IVA_GENERAL con rate plana pero no canónica (16.5) y monto coherente con ESA rate (165.00): issue en la tasa Y en el monto, y el primero es el de la tasa", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.5", amount: "165.00" }]),
+        build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.5", amount: "165.00" }])
       );
       expectRateRejected(result); // incluye: issues[0] es el de ["taxLines", 0, "rate"]
       // y hay UN issue en ["taxLines", 0, "amount"]: recibido 165.00; esperado 160.00 con la alícuota del SERVIDOR (16 %),
@@ -955,7 +1170,7 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
 
     it("el mensaje de la tasa sigue siendo el de la alícuota canónica y sale PRIMERO", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.5", amount: "165.00" }]),
+        build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.5", amount: "165.00" }])
       );
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -966,7 +1181,7 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
 
     it("rate 16.5 con el IVA canónico (160.00): SOLO el issue de la tasa (el monto se contrasta con 16 %, no con 16,5 %)", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.5", amount: "160.00" }]),
+        build([{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.5", amount: "160.00" }])
       );
       expectRateRejected(result);
       expect(ivaIssues(result)).toEqual([]);
@@ -974,7 +1189,7 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
 
     it("IVA_REDUCIDO con la rate del GENERAL (16) y monto 160.00: además de la tasa, el monto se contrasta con el 8 % canónico (80.00)", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([{ taxType: "IVA_REDUCIDO", base: "1000.00", rate: "16", amount: "160.00" }]),
+        build([{ taxType: "IVA_REDUCIDO", base: "1000.00", rate: "16", amount: "160.00" }])
       );
       expectRateRejected(result);
       expectIvaRejected(result, [0], { received: "160.00", expected: "80.00" }); // esperado: 1000.00 x 8 %
@@ -982,7 +1197,7 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
 
     it("EXENTO con rate 0.5 (plana, no canónica) y monto 5.00: además de la tasa, el monto se contrasta con 0 % (0.00)", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([{ taxType: "EXENTO", base: "1000.00", rate: "0.5", amount: "5.00" }]),
+        build([{ taxType: "EXENTO", base: "1000.00", rate: "0.5", amount: "5.00" }])
       );
       expectRateRejected(result);
       expectIvaRejected(result, [0], { received: "5.00", expected: "0.00" }); // esperado: 1000.00 x 0 %
@@ -990,7 +1205,10 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
 
     it("una línea buena y otra con rate no canónica → el issue de la tasa y el del monto apuntan al índice 1", () => {
       const result = CreateInvoiceSchema.safeParse(
-        build([general("1000.00", "160.00"), { taxType: "IVA_REDUCIDO", base: "500.00", rate: "10", amount: "50.00" }]),
+        build([
+          general("1000.00", "160.00"),
+          { taxType: "IVA_REDUCIDO", base: "500.00", rate: "10", amount: "50.00" },
+        ])
       );
       expectRateRejected(result, [1]);
       expectIvaRejected(result, [1], { received: "50.00", expected: "40.00" }); // 500.00 x 8 %
@@ -1009,15 +1227,21 @@ describe("ADR-049 hueco A — la rate debe ser decimal llano de máximo 12 carac
     it("creditDebitNote: rate '0x10' se rechaza en ['taxLines', 0, 'rate']", () => {
       expectRateRejected(
         schemas.creditDebitNote.safeParse(
-          asNote(saleDoc("NOTA_CREDITO", [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "0x10", amount: "160.00" }])),
-        ),
+          asNote(
+            saleDoc("NOTA_CREDITO", [
+              { taxType: "IVA_GENERAL", base: "1000.00", rate: "0x10", amount: "160.00" },
+            ])
+          )
+        )
       );
     });
     it("createWithLines: rate '16.0000000000000' se rechaza en ['taxLines', 0, 'rate']", () => {
       expectRateRejected(
         schemas.createWithLines.safeParse(
-          saleDoc("FACTURA", [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.0000000000000", amount: "160.00" }]),
-        ),
+          saleDoc("FACTURA", [
+            { taxType: "IVA_GENERAL", base: "1000.00", rate: "16.0000000000000", amount: "160.00" },
+          ])
+        )
       );
     });
     it("create: COMPRA con rate '1.6e1' también se rechaza", () => {
@@ -1039,73 +1263,114 @@ describe("ADR-049 hueco B — tolerancia por moneda: currency !== VES usa SIEMPR
       { name: "sin currency (default VES)", extra: {} },
       { name: "currency VES explícita", extra: { currency: "VES" } },
     ])("$name: acepta IVA impreso 160.50 (dif 0.50 <= 1.00)", ({ extra }) => {
-      expectAccepted(CreateInvoiceSchema.safeParse({ ...purchaseDoc("FACTURA", [general("1000.00", "160.50")]), ...extra }));
+      expectAccepted(
+        CreateInvoiceSchema.safeParse({
+          ...purchaseDoc("FACTURA", [general("1000.00", "160.50")]),
+          ...extra,
+        })
+      );
     });
 
     it("VES: el borde 161.00 (dif 1.00) se acepta y 161.01 se rechaza", () => {
-      const at = (amount: string) => CreateInvoiceSchema.safeParse(inCurrency(purchaseDoc("FACTURA", [general("1000.00", amount)]), "VES"));
+      const at = (amount: string) =>
+        CreateInvoiceSchema.safeParse(
+          inCurrency(purchaseDoc("FACTURA", [general("1000.00", amount)]), "VES")
+        );
       expectAccepted(at("161.00"));
       expectIvaRejected(at("161.01"), [0], { received: "161.01", expected: "160.00" });
     });
   });
 
-  describe.each(FOREIGN)("COMPRA en %s — tolerancia estricta 0.01 (la unidad mínima de la moneda)", (currency) => {
-    describe.each(["FACTURA", "NOTA_CREDITO", "NOTA_DEBITO", "PLANILLA_IMPORTACION", "OTRO"])("%s", (docType) => {
-      const at = (amount: string) => CreateInvoiceSchema.safeParse(inCurrency(purchaseDoc(docType, [general("1000.00", amount)]), currency));
+  describe.each(FOREIGN)(
+    "COMPRA en %s — tolerancia estricta 0.01 (la unidad mínima de la moneda)",
+    (currency) => {
+      describe.each(["FACTURA", "NOTA_CREDITO", "NOTA_DEBITO", "PLANILLA_IMPORTACION", "OTRO"])(
+        "%s",
+        (docType) => {
+          const at = (amount: string) =>
+            CreateInvoiceSchema.safeParse(
+              inCurrency(purchaseDoc(docType, [general("1000.00", amount)]), currency)
+            );
 
-      it.each(["160.00", "160.01", "159.99"])("acepta IVA impreso %s (exacto o borde de 0.01)", (amount) => {
-        expectAccepted(at(amount));
+          it.each(["160.00", "160.01", "159.99"])(
+            "acepta IVA impreso %s (exacto o borde de 0.01)",
+            (amount) => {
+              expectAccepted(at(amount));
+            }
+          );
+
+          it.each([
+            { amount: "160.02", why: "dif 0.02 por encima del borde" },
+            { amount: "159.98", why: "dif 0.02 por debajo del borde" },
+            { amount: "160.50", why: "dif 0.50: en VES se aceptaría, en moneda extranjera no" },
+            { amount: "161.00", why: "dif 1.00: el borde de VES NO aplica" },
+          ])("rechaza IVA impreso $amount ($why)", ({ amount }) => {
+            expectIvaRejected(at(amount), [0], { received: amount, expected: "160.00" });
+          });
+        }
+      );
+
+      it("vía el schema de notas (NOTA_CREDITO de proveedor): 160.01 se acepta y 160.50 se rechaza", () => {
+        const at = (amount: string) =>
+          CreateCreditDebitNoteSchema.safeParse(
+            asNote(inCurrency(purchaseDoc("NOTA_CREDITO", [general("1000.00", amount)]), currency))
+          );
+        expectAccepted(at("160.01"));
+        expectIvaRejected(at("160.50"), [0], { received: "160.50", expected: "160.00" });
       });
-
-      it.each([
-        { amount: "160.02", why: "dif 0.02 por encima del borde" },
-        { amount: "159.98", why: "dif 0.02 por debajo del borde" },
-        { amount: "160.50", why: "dif 0.50: en VES se aceptaría, en moneda extranjera no" },
-        { amount: "161.00", why: "dif 1.00: el borde de VES NO aplica" },
-      ])("rechaza IVA impreso $amount ($why)", ({ amount }) => {
-        expectIvaRejected(at(amount), [0], { received: amount, expected: "160.00" });
-      });
-    });
-
-    it("vía el schema de notas (NOTA_CREDITO de proveedor): 160.01 se acepta y 160.50 se rechaza", () => {
-      const at = (amount: string) =>
-        CreateCreditDebitNoteSchema.safeParse(asNote(inCurrency(purchaseDoc("NOTA_CREDITO", [general("1000.00", amount)]), currency)));
-      expectAccepted(at("160.01"));
-      expectIvaRejected(at("160.50"), [0], { received: "160.50", expected: "160.00" });
-    });
-  });
+    }
+  );
 
   // ── B.2 VENTA REPORTE_Z / RESUMEN_VENTAS / OTRO / PLANILLA_IMPORTACION ──────────────────────────
-  describe.each(["REPORTE_Z", "RESUMEN_VENTAS", "OTRO", "PLANILLA_IMPORTACION"])("VENTA %s", (docType) => {
-    it.each(["160.50", "161.00"])("en VES acepta IVA %s (impresora fiscal, tolerancia 1.00; guarda, pasa hoy)", (amount) => {
-      expectAccepted(CreateInvoiceSchema.safeParse(inCurrency(saleDoc(docType, [general("1000.00", amount)]), "VES")));
-    });
+  describe.each(["REPORTE_Z", "RESUMEN_VENTAS", "OTRO", "PLANILLA_IMPORTACION"])(
+    "VENTA %s",
+    (docType) => {
+      it.each(["160.50", "161.00"])(
+        "en VES acepta IVA %s (impresora fiscal, tolerancia 1.00; guarda, pasa hoy)",
+        (amount) => {
+          expectAccepted(
+            CreateInvoiceSchema.safeParse(
+              inCurrency(saleDoc(docType, [general("1000.00", amount)]), "VES")
+            )
+          );
+        }
+      );
 
-    describe.each(FOREIGN)("en %s — tolerancia 0.01", (currency) => {
-      const at = (amount: string) => CreateInvoiceSchema.safeParse(inCurrency(saleDoc(docType, [general("1000.00", amount)]), currency));
+      describe.each(FOREIGN)("en %s — tolerancia 0.01", (currency) => {
+        const at = (amount: string) =>
+          CreateInvoiceSchema.safeParse(
+            inCurrency(saleDoc(docType, [general("1000.00", amount)]), currency)
+          );
 
-      it.each(["160.00", "160.01", "159.99"])("acepta IVA %s", (amount) => {
-        expectAccepted(at(amount));
+        it.each(["160.00", "160.01", "159.99"])("acepta IVA %s", (amount) => {
+          expectAccepted(at(amount));
+        });
+        it.each([
+          { amount: "160.50", why: "dif 0.50" },
+          { amount: "159.50", why: "dif 0.50 por debajo" },
+          { amount: "161.00", why: "dif 1.00: el borde de VES NO aplica" },
+          { amount: "160.02", why: "dif 0.02" },
+        ])("rechaza IVA $amount ($why)", ({ amount }) => {
+          expectIvaRejected(at(amount), [0], { received: amount, expected: "160.00" });
+        });
       });
-      it.each([
-        { amount: "160.50", why: "dif 0.50" },
-        { amount: "159.50", why: "dif 0.50 por debajo" },
-        { amount: "161.00", why: "dif 1.00: el borde de VES NO aplica" },
-        { amount: "160.02", why: "dif 0.02" },
-      ])("rechaza IVA $amount ($why)", ({ amount }) => {
-        expectIvaRejected(at(amount), [0], { received: amount, expected: "160.00" });
-      });
-    });
-  });
+    }
+  );
 
   // ── B.3 VENTA FACTURA / NC / ND en moneda extranjera: ya era estricta (guarda, pasa hoy) ─────────
-  describe.each(["FACTURA", "NOTA_CREDITO", "NOTA_DEBITO"])("VENTA %s en moneda extranjera (guarda)", (docType) => {
-    it.each(FOREIGN)("%s: acepta 160.01 y rechaza 160.02", (currency) => {
-      const at = (amount: string) => CreateInvoiceSchema.safeParse(inCurrency(saleDoc(docType, [general("1000.00", amount)]), currency));
-      expectAccepted(at("160.01"));
-      expectIvaRejected(at("160.02"), [0], { received: "160.02", expected: "160.00" });
-    });
-  });
+  describe.each(["FACTURA", "NOTA_CREDITO", "NOTA_DEBITO"])(
+    "VENTA %s en moneda extranjera (guarda)",
+    (docType) => {
+      it.each(FOREIGN)("%s: acepta 160.01 y rechaza 160.02", (currency) => {
+        const at = (amount: string) =>
+          CreateInvoiceSchema.safeParse(
+            inCurrency(saleDoc(docType, [general("1000.00", amount)]), currency)
+          );
+        expectAccepted(at("160.01"));
+        expectIvaRejected(at("160.02"), [0], { received: "160.02", expected: "160.00" });
+      });
+    }
+  );
 
   // ── B.4 El mensaje nombra la moneda del documento ───────────────────────────────────────────────
   describe("mensaje del issue: la unidad es la moneda del documento, no siempre 'Bs.'", () => {
@@ -1119,43 +1384,66 @@ describe("ADR-049 hueco B — tolerancia por moneda: currency !== VES usa SIEMPR
     it.each([
       { name: "currency VES explícita", extra: { currency: "VES" } },
       { name: "sin currency (default VES)", extra: {} },
-    ])("COMPRA $name: dice 'Bs.' con recibido, esperado y tolerancia 1.00, y no nombra otra moneda", ({ extra }) => {
-      const message = messageOf({ ...purchaseDoc("FACTURA", [general("1000.00", "12.34")]), ...extra });
-      expect(message).toContain("Bs.");
-      expect(message).not.toContain("USD");
-      expect(message).not.toContain("EUR");
-      expect(message).toMatch(money("12.34"));
-      expect(message).toMatch(money("160.00"));
-      expect(message).toMatch(money("1.00"));
-    });
+    ])(
+      "COMPRA $name: dice 'Bs.' con recibido, esperado y tolerancia 1.00, y no nombra otra moneda",
+      ({ extra }) => {
+        const message = messageOf({
+          ...purchaseDoc("FACTURA", [general("1000.00", "12.34")]),
+          ...extra,
+        });
+        expect(message).toContain("Bs.");
+        expect(message).not.toContain("USD");
+        expect(message).not.toContain("EUR");
+        expect(message).toMatch(money("12.34"));
+        expect(message).toMatch(money("160.00"));
+        expect(message).toMatch(money("1.00"));
+      }
+    );
 
-    it.each(FOREIGN)("COMPRA en %s: nombra la moneda, NO dice 'Bs.' y anuncia la tolerancia 0.01", (currency) => {
-      const message = messageOf(inCurrency(purchaseDoc("FACTURA", [general("1000.00", "12.34")]), currency));
-      expect(message).toContain(currency);
-      expect(message).not.toContain("Bs.");
-      expect(message).toMatch(money("12.34")); // recibido
-      expect(message).toMatch(money("160.00")); // esperado: 1000.00 x 16 %
-      expect(message).toMatch(money("0.01")); // tolerancia de la moneda extranjera
-      expect(message).not.toMatch(money("1.00")); // no anuncia la tolerancia de VES
-    });
+    it.each(FOREIGN)(
+      "COMPRA en %s: nombra la moneda, NO dice 'Bs.' y anuncia la tolerancia 0.01",
+      (currency) => {
+        const message = messageOf(
+          inCurrency(purchaseDoc("FACTURA", [general("1000.00", "12.34")]), currency)
+        );
+        expect(message).toContain(currency);
+        expect(message).not.toContain("Bs.");
+        expect(message).toMatch(money("12.34")); // recibido
+        expect(message).toMatch(money("160.00")); // esperado: 1000.00 x 16 %
+        expect(message).toMatch(money("0.01")); // tolerancia de la moneda extranjera
+        expect(message).not.toMatch(money("1.00")); // no anuncia la tolerancia de VES
+      }
+    );
 
-    it.each(FOREIGN)("VENTA REPORTE_Z en %s: nombra la moneda, NO dice 'Bs.' y la tolerancia es 0.01", (currency) => {
-      const message = messageOf(inCurrency(saleDoc("REPORTE_Z", [general("1000.00", "12.34")]), currency));
-      expect(message).toContain(currency);
-      expect(message).not.toContain("Bs.");
-      expect(message).toMatch(money("0.01"));
-      expect(message).not.toMatch(money("1.00"));
-    });
+    it.each(FOREIGN)(
+      "VENTA REPORTE_Z en %s: nombra la moneda, NO dice 'Bs.' y la tolerancia es 0.01",
+      (currency) => {
+        const message = messageOf(
+          inCurrency(saleDoc("REPORTE_Z", [general("1000.00", "12.34")]), currency)
+        );
+        expect(message).toContain(currency);
+        expect(message).not.toContain("Bs.");
+        expect(message).toMatch(money("0.01"));
+        expect(message).not.toMatch(money("1.00"));
+      }
+    );
 
-    it.each(FOREIGN)("VENTA FACTURA en %s (ya estricta): nombra la moneda y NO dice 'Bs.'", (currency) => {
-      const message = messageOf(inCurrency(saleDoc("FACTURA", [general("1000.00", "12.34")]), currency));
-      expect(message).toContain(currency);
-      expect(message).not.toContain("Bs.");
-      expect(message).toMatch(money("0.01"));
-    });
+    it.each(FOREIGN)(
+      "VENTA FACTURA en %s (ya estricta): nombra la moneda y NO dice 'Bs.'",
+      (currency) => {
+        const message = messageOf(
+          inCurrency(saleDoc("FACTURA", [general("1000.00", "12.34")]), currency)
+        );
+        expect(message).toContain(currency);
+        expect(message).not.toContain("Bs.");
+        expect(message).toMatch(money("0.01"));
+      }
+    );
 
     it("VENTA REPORTE_Z en VES: sigue diciendo 'Bs.' con tolerancia 1.00 (guarda)", () => {
-      const message = messageOf(inCurrency(saleDoc("REPORTE_Z", [general("1000.00", "12.34")]), "VES"));
+      const message = messageOf(
+        inCurrency(saleDoc("REPORTE_Z", [general("1000.00", "12.34")]), "VES")
+      );
       expect(message).toContain("Bs.");
       expect(message).toMatch(money("1.00"));
     });
@@ -1166,34 +1454,52 @@ describe("ADR-049 hueco B — tolerancia por moneda: currency !== VES usa SIEMPR
     const schemas = getInvoiceSchemas(getFiscalConfig("VEN"));
 
     it("create: COMPRA en VES con IVA impreso 160.50 se acepta (guarda)", () => {
-      expectAccepted(schemas.create.safeParse(inCurrency(purchaseDoc("FACTURA", [general("1000.00", "160.50")]), "VES")));
+      expectAccepted(
+        schemas.create.safeParse(
+          inCurrency(purchaseDoc("FACTURA", [general("1000.00", "160.50")]), "VES")
+        )
+      );
     });
     it.each(FOREIGN)("create: COMPRA en %s con IVA impreso 160.50 se rechaza", (currency) => {
       expectIvaRejected(
-        schemas.create.safeParse(inCurrency(purchaseDoc("FACTURA", [general("1000.00", "160.50")]), currency)),
+        schemas.create.safeParse(
+          inCurrency(purchaseDoc("FACTURA", [general("1000.00", "160.50")]), currency)
+        ),
         [0],
-        { received: "160.50", expected: "160.00" },
+        { received: "160.50", expected: "160.00" }
       );
     });
     it.each(FOREIGN)("create: VENTA REPORTE_Z en %s con dif 0.50 se rechaza", (currency) => {
       expectIvaRejected(
-        schemas.create.safeParse(inCurrency(saleDoc("REPORTE_Z", [general("1000.00", "160.50")]), currency)),
+        schemas.create.safeParse(
+          inCurrency(saleDoc("REPORTE_Z", [general("1000.00", "160.50")]), currency)
+        ),
         [0],
-        { received: "160.50", expected: "160.00" },
+        { received: "160.50", expected: "160.00" }
       );
     });
-    it.each(FOREIGN)("creditDebitNote: COMPRA NOTA_DEBITO en %s con IVA impreso 160.50 se rechaza y con 160.01 se acepta", (currency) => {
-      const at = (amount: string) =>
-        schemas.creditDebitNote.safeParse(asNote(inCurrency(purchaseDoc("NOTA_DEBITO", [general("1000.00", amount)]), currency)));
-      expectIvaRejected(at("160.50"), [0], { received: "160.50", expected: "160.00" });
-      expectAccepted(at("160.01"));
-    });
-    it.each(FOREIGN)("createWithLines: COMPRA en %s con IVA impreso 160.50 se rechaza (hereda la regla)", (currency) => {
-      expectIvaRejected(
-        schemas.createWithLines.safeParse(inCurrency(purchaseDoc("FACTURA", [general("1000.00", "160.50")]), currency)),
-        [0],
-        { received: "160.50", expected: "160.00" },
-      );
-    });
+    it.each(FOREIGN)(
+      "creditDebitNote: COMPRA NOTA_DEBITO en %s con IVA impreso 160.50 se rechaza y con 160.01 se acepta",
+      (currency) => {
+        const at = (amount: string) =>
+          schemas.creditDebitNote.safeParse(
+            asNote(inCurrency(purchaseDoc("NOTA_DEBITO", [general("1000.00", amount)]), currency))
+          );
+        expectIvaRejected(at("160.50"), [0], { received: "160.50", expected: "160.00" });
+        expectAccepted(at("160.01"));
+      }
+    );
+    it.each(FOREIGN)(
+      "createWithLines: COMPRA en %s con IVA impreso 160.50 se rechaza (hereda la regla)",
+      (currency) => {
+        expectIvaRejected(
+          schemas.createWithLines.safeParse(
+            inCurrency(purchaseDoc("FACTURA", [general("1000.00", "160.50")]), currency)
+          ),
+          [0],
+          { received: "160.50", expected: "160.00" }
+        );
+      }
+    );
   });
 });

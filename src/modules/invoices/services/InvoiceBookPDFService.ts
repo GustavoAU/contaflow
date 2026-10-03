@@ -1,7 +1,7 @@
 // src/modules/invoices/services/InvoiceBookPDFService.ts
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
-import React from "react"
-import type { InvoiceBookRow, InvoiceBookSummary } from "./InvoiceService"
+import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import React from "react";
+import type { InvoiceBookRow, InvoiceBookSummary } from "./InvoiceService";
 
 // ─── Estilos ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -47,26 +47,26 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: "#6b7280",
   },
-})
+});
 
 const TAX_LINE_LABELS: Record<string, string> = {
   IVA_GENERAL: "IVA General",
   IVA_REDUCIDO: "IVA Reducido",
   IVA_ADICIONAL: "IVA Adicional",
   EXENTO: "Exento",
-}
+};
 
 // ─── Tipos de parámetros ───────────────────────────────────────────────────────
 export type InvoiceBookPDFParams = {
-  companyId: string
-  companyName: string
-  companyRif: string
-  periodId: string
-  periodLabel: string       // "Enero 2026"
-  invoiceType: "SALE" | "PURCHASE"
-  invoices: InvoiceBookRow[]
-  summary: InvoiceBookSummary
-}
+  companyId: string;
+  companyName: string;
+  companyRif: string;
+  periodId: string;
+  periodLabel: string; // "Enero 2026"
+  invoiceType: "SALE" | "PURCHASE";
+  invoices: InvoiceBookRow[];
+  summary: InvoiceBookSummary;
+};
 
 // ─── Encabezado de tabla ───────────────────────────────────────────────────────
 function TableHeader({ invoiceType }: { invoiceType: "SALE" | "PURCHASE" }) {
@@ -77,7 +77,7 @@ function TableHeader({ invoiceType }: { invoiceType: "SALE" | "PURCHASE" }) {
     React.createElement(
       Text,
       { style: styles.cellWide },
-      invoiceType === "PURCHASE" ? "Proveedor" : "Cliente",
+      invoiceType === "PURCHASE" ? "Proveedor" : "Cliente"
     ),
     React.createElement(Text, { style: styles.cell }, "RIF"),
     React.createElement(Text, { style: styles.cell }, "N° Factura"),
@@ -102,8 +102,8 @@ function TableHeader({ invoiceType }: { invoiceType: "SALE" | "PURCHASE" }) {
           React.createElement(Text, { style: styles.cellRight }, "Base IGTF"),
           React.createElement(Text, { style: styles.cellRight }, "Monto IGTF"),
         ]
-      : []),
-  )
+      : [])
+  );
 }
 
 // ─── Fila de datos ─────────────────────────────────────────────────────────────
@@ -112,12 +112,16 @@ function InvoiceRow({
   invoiceType,
   rowIndex,
 }: {
-  row: InvoiceBookRow
-  invoiceType: "SALE" | "PURCHASE"
-  rowIndex: number
+  row: InvoiceBookRow;
+  invoiceType: "SALE" | "PURCHASE";
+  rowIndex: number;
 }) {
-  const dateStr = new Date(row.date.getUTCFullYear(), row.date.getUTCMonth(), row.date.getUTCDate()).toLocaleDateString("es-VE")
-  const rowStyle = rowIndex % 2 === 0 ? styles.tableRow : styles.tableRowAlt
+  const dateStr = new Date(
+    row.date.getUTCFullYear(),
+    row.date.getUTCMonth(),
+    row.date.getUTCDate()
+  ).toLocaleDateString("es-VE");
+  const rowStyle = rowIndex % 2 === 0 ? styles.tableRow : styles.tableRowAlt;
 
   if (row.taxLines.length === 0) {
     return React.createElement(
@@ -148,8 +152,8 @@ function InvoiceRow({
             React.createElement(Text, { style: styles.cellRight }, row.igtfBase),
             React.createElement(Text, { style: styles.cellRight }, row.igtfAmount),
           ]
-        : []),
-    )
+        : [])
+    );
   }
 
   return React.createElement(
@@ -160,38 +164,34 @@ function InvoiceRow({
         View,
         { style: rowStyle, key: line.id },
         React.createElement(Text, { style: styles.cell }, idx === 0 ? dateStr : ""),
-        React.createElement(
-          Text,
-          { style: styles.cellWide },
-          idx === 0 ? row.counterpartName : "",
-        ),
+        React.createElement(Text, { style: styles.cellWide }, idx === 0 ? row.counterpartName : ""),
         React.createElement(Text, { style: styles.cell }, idx === 0 ? row.counterpartRif : ""),
         React.createElement(Text, { style: styles.cell }, idx === 0 ? row.invoiceNumber : ""),
         React.createElement(
           Text,
           { style: styles.cell },
-          idx === 0 ? (row.controlNumber ?? "") : "",
+          idx === 0 ? (row.controlNumber ?? "") : ""
         ),
         React.createElement(Text, { style: styles.cell }, idx === 0 ? row.docType : ""),
         React.createElement(Text, { style: styles.cell }, idx === 0 ? row.taxCategory : ""),
         React.createElement(
           Text,
           { style: styles.cell },
-          idx === 0 ? (row.relatedDocNumber ?? "") : "",
+          idx === 0 ? (row.relatedDocNumber ?? "") : ""
         ),
         ...(invoiceType === "PURCHASE"
           ? [
               React.createElement(
                 Text,
                 { style: styles.cell },
-                idx === 0 ? (row.importFormNumber ?? "") : "",
+                idx === 0 ? (row.importFormNumber ?? "") : ""
               ),
             ]
           : []),
         React.createElement(
           Text,
           { style: styles.cell },
-          TAX_LINE_LABELS[line.taxType] ?? line.taxType,
+          TAX_LINE_LABELS[line.taxType] ?? line.taxType
         ),
         React.createElement(Text, { style: styles.cellRight }, line.base),
         React.createElement(Text, { style: styles.cellNarrowRight }, line.rate),
@@ -199,39 +199,35 @@ function InvoiceRow({
         React.createElement(
           Text,
           { style: styles.cellRight },
-          idx === 0 ? row.ivaRetentionAmount : "",
+          idx === 0 ? row.ivaRetentionAmount : ""
         ),
         React.createElement(
           Text,
           { style: styles.cell },
-          idx === 0 ? (row.ivaRetentionVoucher ?? "") : "",
+          idx === 0 ? (row.ivaRetentionVoucher ?? "") : ""
         ),
         ...(invoiceType === "PURCHASE"
           ? [
               React.createElement(
                 Text,
                 { style: styles.cellRight },
-                idx === 0 ? row.islrRetentionAmount : "",
+                idx === 0 ? row.islrRetentionAmount : ""
               ),
             ]
           : []),
         ...(invoiceType === "SALE"
           ? [
+              React.createElement(Text, { style: styles.cellRight }, idx === 0 ? row.igtfBase : ""),
               React.createElement(
                 Text,
                 { style: styles.cellRight },
-                idx === 0 ? row.igtfBase : "",
-              ),
-              React.createElement(
-                Text,
-                { style: styles.cellRight },
-                idx === 0 ? row.igtfAmount : "",
+                idx === 0 ? row.igtfAmount : ""
               ),
             ]
-          : []),
-      ),
-    ),
-  )
+          : [])
+      )
+    )
+  );
 }
 
 // ─── Fila de totales ───────────────────────────────────────────────────────────
@@ -239,8 +235,8 @@ function TotalsRow({
   summary,
   invoiceType,
 }: {
-  summary: InvoiceBookSummary
-  invoiceType: "SALE" | "PURCHASE"
+  summary: InvoiceBookSummary;
+  invoiceType: "SALE" | "PURCHASE";
 }) {
   // Columnas antes de Base Imponible:
   // Fecha, Proveedor/Cliente, RIF, N° Factura, N° Control, Tipo Doc, Categoría, N° Doc Rel.
@@ -248,14 +244,14 @@ function TotalsRow({
   // Se emiten celda por celda con los mismos estilos que TableHeader/InvoiceRow (TOTALES en la primera,
   // Proveedor/Cliente es la ancha): una sola celda con `flex` sumado desalineaba las cifras hasta 30 pt,
   // porque react-pdf no reparte ese peso como la suma de las columnas que reemplaza.
-  const leadingCols = invoiceType === "PURCHASE" ? 10 : 9
+  const leadingCols = invoiceType === "PURCHASE" ? 10 : 9;
   const leading = [
     React.createElement(Text, { style: styles.totalsLabel }, "TOTALES"),
     React.createElement(Text, { style: styles.cellWide }, ""),
     ...Array.from({ length: leadingCols - 2 }, () =>
-      React.createElement(Text, { style: styles.cell }, ""),
+      React.createElement(Text, { style: styles.cell }, "")
     ),
-  ]
+  ];
 
   return React.createElement(
     View,
@@ -274,14 +270,13 @@ function TotalsRow({
           React.createElement(Text, { style: styles.cell }, ""),
           React.createElement(Text, { style: styles.totalsCell }, summary.totalIgtf),
         ]
-      : []),
-  )
+      : [])
+  );
 }
 
 // ─── Documento PDF ─────────────────────────────────────────────────────────────
 function InvoiceBookDocument({ params }: { params: InvoiceBookPDFParams }) {
-  const bookTitle =
-    params.invoiceType === "SALE" ? "Libro de Ventas" : "Libro de Compras"
+  const bookTitle = params.invoiceType === "SALE" ? "Libro de Ventas" : "Libro de Compras";
 
   return React.createElement(
     Document,
@@ -294,17 +289,9 @@ function InvoiceBookDocument({ params }: { params: InvoiceBookPDFParams }) {
         View,
         { style: styles.header },
         React.createElement(Text, { style: styles.title }, params.companyName),
-        React.createElement(
-          Text,
-          { style: styles.subtitle },
-          `RIF: ${params.companyRif}`,
-        ),
+        React.createElement(Text, { style: styles.subtitle }, `RIF: ${params.companyRif}`),
         React.createElement(Text, { style: styles.subtitle }, bookTitle),
-        React.createElement(
-          Text,
-          { style: styles.subtitle },
-          `Período: ${params.periodLabel}`,
-        ),
+        React.createElement(Text, { style: styles.subtitle }, `Período: ${params.periodLabel}`)
       ),
       // ── Tabla ─────────────────────────────────────────────────────────────
       React.createElement(
@@ -317,12 +304,12 @@ function InvoiceBookDocument({ params }: { params: InvoiceBookPDFParams }) {
             row,
             invoiceType: params.invoiceType,
             rowIndex: idx,
-          }),
+          })
         ),
         React.createElement(TotalsRow, {
           summary: params.summary,
           invoiceType: params.invoiceType,
-        }),
+        })
       ),
       // ── Footer con paginación ─────────────────────────────────────────────
       React.createElement(
@@ -331,17 +318,19 @@ function InvoiceBookDocument({ params }: { params: InvoiceBookPDFParams }) {
         React.createElement(
           Text,
           null,
-          `${params.companyName} — ${bookTitle} — ${params.periodLabel}`,
+          `${params.companyName} — ${bookTitle} — ${params.periodLabel}`
         ),
         React.createElement(
           Text,
-          { render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
-            `Página ${pageNumber} de ${totalPages}` },
-          null,
-        ),
-      ),
-    ),
-  )
+          {
+            render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
+              `Página ${pageNumber} de ${totalPages}`,
+          },
+          null
+        )
+      )
+    )
+  );
 }
 
 // ─── Función exportada ─────────────────────────────────────────────────────────
@@ -356,6 +345,6 @@ function InvoiceBookDocument({ params }: { params: InvoiceBookPDFParams }) {
  * Las columnas coinciden exactamente con handleExportExcel() en InvoiceBook.tsx.
  */
 export async function generateInvoiceBookPDF(params: InvoiceBookPDFParams): Promise<Buffer> {
-  const element = React.createElement(InvoiceBookDocument, { params })
-  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0])
+  const element = React.createElement(InvoiceBookDocument, { params });
+  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0]);
 }

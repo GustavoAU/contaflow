@@ -20,7 +20,10 @@ async function guardReceivables(companyId: string) {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL, limiter: limiters.read });
   if (!ctx.ok) return ctx.error;
 
-  const company = await prisma.company.findFirst({ where: { id: companyId }, select: { name: true, rif: true } });
+  const company = await prisma.company.findFirst({
+    where: { id: companyId },
+    select: { name: true, rif: true },
+  });
   if (!company) return { success: false as const, error: "Empresa no encontrada" };
 
   return { success: true as const, companyName: company.name, companyRif: company.rif };

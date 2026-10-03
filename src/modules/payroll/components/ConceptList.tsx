@@ -67,15 +67,23 @@ export default function ConceptList({ companyId, initial, canWrite }: Props) {
   function renderGroup(title: string, items: PayrollConceptRow[]) {
     return (
       <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
+        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">{title}</h3>
         <div className="overflow-x-auto rounded border">
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Código</th>
-                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Nombre</th>
-                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Tipo</th>
-                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Estado</th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                  Código
+                </th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                  Nombre
+                </th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                  Tipo
+                </th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                  Estado
+                </th>
                 {canWrite && <th scope="col" className="px-4 py-2" />}
               </tr>
             </thead>

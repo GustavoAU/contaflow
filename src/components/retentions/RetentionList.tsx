@@ -2,7 +2,14 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Loader2Icon, ClockIcon, CheckCircleIcon, CheckCheckIcon, XCircleIcon, type LucideIcon } from "lucide-react";
+import {
+  Loader2Icon,
+  ClockIcon,
+  CheckCircleIcon,
+  CheckCheckIcon,
+  XCircleIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -22,10 +29,10 @@ type Props = {
 };
 
 const STATUS_LABEL: Record<string, { label: string; className: string; Icon?: LucideIcon }> = {
-  PENDING:  { label: "Pendiente", className: "bg-yellow-100 text-yellow-700", Icon: ClockIcon },
-  ISSUED:   { label: "Emitida",   className: "bg-green-100 text-green-700",   Icon: CheckCircleIcon },
-  ENTERADO: { label: "Enterada",  className: "bg-indigo-100 text-indigo-700", Icon: CheckCheckIcon },
-  VOIDED:   { label: "Anulada",   className: "bg-red-100 text-red-700",       Icon: XCircleIcon },
+  PENDING: { label: "Pendiente", className: "bg-yellow-100 text-yellow-700", Icon: ClockIcon },
+  ISSUED: { label: "Emitida", className: "bg-green-100 text-green-700", Icon: CheckCircleIcon },
+  ENTERADO: { label: "Enterada", className: "bg-indigo-100 text-indigo-700", Icon: CheckCheckIcon },
+  VOIDED: { label: "Anulada", className: "bg-red-100 text-red-700", Icon: XCircleIcon },
 };
 
 function EnterRetentionModal({
@@ -120,7 +127,9 @@ function EnterRetentionModal({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">Fecha de enteramiento</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">
+            Fecha de enteramiento
+          </label>
           <input
             type="date"
             value={enterDate}
@@ -195,7 +204,9 @@ function RetentionCard({
         </div>
         <div className="text-right">
           <p className="font-mono text-sm font-bold">{formatAmount(retention.totalRetention)}</p>
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}
+          >
             {StatusIcon && <StatusIcon className="h-3 w-3" aria-hidden />}
             {statusInfo.label}
           </span>
@@ -208,9 +219,7 @@ function RetentionCard({
         {retention.incesAmount && <span>INCES: {formatAmount(retention.incesAmount)}</span>}
         {retention.fatAmount && <span>FAT: {formatAmount(retention.fatAmount)}</span>}
         <span>Tipo: {retention.type}</span>
-        {retention.voucherNumber && (
-          <span className="font-mono">{retention.voucherNumber}</span>
-        )}
+        {retention.voucherNumber && <span className="font-mono">{retention.voucherNumber}</span>}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">

@@ -100,7 +100,7 @@ export type UserGuardContext = {
 };
 
 export async function requireUserAction(
-  opts: UserGuardOptions = {},
+  opts: UserGuardOptions = {}
 ): Promise<UserGuardContext | GuardFailure> {
   const { userId } = await auth();
   if (!userId) return fail("No autorizado");
@@ -119,7 +119,7 @@ export async function requireUserAction(
 
 export async function requireCompanyAction(
   companyId: string,
-  opts: GuardOptions,
+  opts: GuardOptions
 ): Promise<GuardContext | GuardFailure> {
   // 1. Autenticación
   const { userId } = await auth();

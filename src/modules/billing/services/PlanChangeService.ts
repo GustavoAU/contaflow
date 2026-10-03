@@ -33,7 +33,7 @@ export async function requestPlanChange(
   toPlan: SubscriptionPlan,
   requestedByUserId: string,
   ipAddress: string | null,
-  userAgent: string | null,
+  userAgent: string | null
 ): Promise<{ planChangeRequestId: string; effectiveDate: Date; newPriceUsdCents: number }> {
   const subscription = await prisma.subscription.findUnique({ where: { companyId } });
   if (!subscription) throw new Error("La empresa no tiene una suscripción activa.");
@@ -44,7 +44,8 @@ export async function requestPlanChange(
   const existing = await prisma.planChangeRequest.findFirst({
     where: { subscriptionId: subscription.id, status: { in: ACTIVE_STATUSES } },
   });
-  if (existing) throw new Error("Ya tienes un cambio de plan pendiente. Cancélalo antes de crear uno nuevo.");
+  if (existing)
+    throw new Error("Ya tienes un cambio de plan pendiente. Cancélalo antes de crear uno nuevo.");
 
   // El precio del plan depende del perfil de la empresa (Individual vs Empresa).
   // getPlanPriceCents lanza si el plan no aplica al perfil (ej. SOLO + EARLY_ADOPTER) —
@@ -80,7 +81,12 @@ export async function requestPlanChange(
           userId: requestedByUserId,
           ipAddress,
           userAgent,
-          newValue: { fromPlan: subscription.plan, toPlan, effectiveDate, newPriceUsdCents } as object,
+          newValue: {
+            fromPlan: subscription.plan,
+            toPlan,
+            effectiveDate,
+            newPriceUsdCents,
+          } as object,
         },
       });
 
@@ -109,7 +115,7 @@ export async function createPlanChangeCheckout(
   planChangeRequestId: string,
   actorUserId: string,
   ipAddress: string | null,
-  userAgent: string | null,
+  userAgent: string | null
 ): Promise<{ invoiceUrl: string; subscriptionPaymentId: string }> {
   const req = await prisma.planChangeRequest.findUnique({
     where: { id: planChangeRequestId },
@@ -139,7 +145,11 @@ export async function createPlanChangeCheckout(
           amountUsdCents: req.newPriceUsdCents,
           currency: "usd",
           status: "PENDING",
-          metadata: { planChange: true, toPlan: req.toPlan, companyId: req.subscription.companyId } as object,
+          metadata: {
+            planChange: true,
+            toPlan: req.toPlan,
+            companyId: req.subscription.companyId,
+          } as object,
         },
       });
 
@@ -152,7 +162,11 @@ export async function createPlanChangeCheckout(
           userId: actorUserId,
           ipAddress,
           userAgent,
-          newValue: { planChangeRequestId: req.id, toPlan: req.toPlan, amountUsdCents: req.newPriceUsdCents } as object,
+          newValue: {
+            planChangeRequestId: req.id,
+            toPlan: req.toPlan,
+            amountUsdCents: req.newPriceUsdCents,
+          } as object,
         },
       });
 
@@ -197,50 +211,53 @@ export async function applyDuePlanChanges(): Promise<{ applied: number; errors: 
 
   for (const req of due) {
     try {
-      await prisma.$transaction(async (tx) => {
-        // D-5: compare-and-swap — solo continúa si sigue CONFIRMED
-        const updated = await tx.planChangeRequest.updateMany({
-          where: { id: req.id, status: "CONFIRMED" },
-          data: { status: "APPLYING" },
-        });
-        if (updated.count === 0) return; // otro proceso lo tomó
+      await prisma.$transaction(
+        async (tx) => {
+          // D-5: compare-and-swap — solo continúa si sigue CONFIRMED
+          const updated = await tx.planChangeRequest.updateMany({
+            where: { id: req.id, status: "CONFIRMED" },
+            data: { status: "APPLYING" },
+          });
+          if (updated.count === 0) return; // otro proceso lo tomó
 
-        const newPeriodEnd = calculateNewPeriodEnd(req.effectiveDate, req.toPlan);
+          const newPeriodEnd = calculateNewPeriodEnd(req.effectiveDate, req.toPlan);
 
-        await tx.subscription.update({
-          where: { id: req.subscriptionId },
-          data: {
-            plan: req.toPlan,
-            priceUsdCents: req.newPriceUsdCents,
-            currentPeriodStart: req.effectiveDate,
-            currentPeriodEnd: newPeriodEnd,
-            status: "ACTIVE",
-          },
-        });
+          await tx.subscription.update({
+            where: { id: req.subscriptionId },
+            data: {
+              plan: req.toPlan,
+              priceUsdCents: req.newPriceUsdCents,
+              currentPeriodStart: req.effectiveDate,
+              currentPeriodEnd: newPeriodEnd,
+              status: "ACTIVE",
+            },
+          });
 
-        const subscription = await tx.subscription.findUnique({
-          where: { id: req.subscriptionId },
-          select: { companyId: true },
-        });
+          const subscription = await tx.subscription.findUnique({
+            where: { id: req.subscriptionId },
+            select: { companyId: true },
+          });
 
-        await tx.planChangeRequest.update({
-          where: { id: req.id },
-          data: { status: "APPLIED", appliedByUserId: "cron", appliedAt: new Date() },
-        });
+          await tx.planChangeRequest.update({
+            where: { id: req.id },
+            data: { status: "APPLIED", appliedByUserId: "cron", appliedAt: new Date() },
+          });
 
-        await tx.auditLog.create({
-          data: {
-            companyId: subscription!.companyId,
-            entityId: req.id,
-            entityName: "PlanChangeRequest",
-            action: "PLAN_CHANGE_APPLIED",
-            userId: "cron",
-            ipAddress: null,
-            userAgent: "ContaFlow-Cron",
-            newValue: { toPlan: req.toPlan, newPeriodEnd } as object,
-          },
-        });
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+          await tx.auditLog.create({
+            data: {
+              companyId: subscription!.companyId,
+              entityId: req.id,
+              entityName: "PlanChangeRequest",
+              action: "PLAN_CHANGE_APPLIED",
+              userId: "cron",
+              ipAddress: null,
+              userAgent: "ContaFlow-Cron",
+              newValue: { toPlan: req.toPlan, newPeriodEnd } as object,
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }
+      );
 
       applied++;
     } catch (err) {
@@ -258,7 +275,7 @@ export async function cancelPlanChange(
   cancelledByUserId: string,
   reason: string,
   ipAddress: string | null,
-  userAgent: string | null,
+  userAgent: string | null
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const req = await tx.planChangeRequest.findUnique({

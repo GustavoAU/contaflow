@@ -18,9 +18,11 @@ vi.mock("@/lib/ratelimit", () => ({
   limiters: { fiscal: {}, ocr: {} },
 }));
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx),
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
@@ -81,10 +83,8 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ auditLog: prisma.auditLog })) as never);
     vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-1", stockWarnings: [] } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
@@ -101,9 +101,10 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
   });
 
   it("rechaza VIEWER — no puede crear facturas", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      { ...MEMBER, role: "VIEWER" } as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      ...MEMBER,
+      role: "VIEWER",
+    } as never);
     // VIEWER sin grant explícito → hasModuleAccess retorna false (ADR-025)
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue(null as never);
 
@@ -123,9 +124,10 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
   // más restrictivo. El fix agrega `canAccess(ctx.role, ROLES.WRITERS)` después
   // de `hasModuleAccess`.
   it("REGRESIÓN (bypass cerrado): VIEWER CON grant explícito a 'invoicing' sigue sin poder crear facturas", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-      { ...MEMBER, role: "VIEWER" } as never,
-    );
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      ...MEMBER,
+      role: "VIEWER",
+    } as never);
     // El grant SÍ existe — antes del fix esto hacía que hasModuleAccess retornara
     // true y la mutación se ejecutara igual (el bug real y confirmado).
     vi.mocked(prisma.rolePermission.findFirst).mockResolvedValue({
@@ -140,7 +142,7 @@ describe("createInvoiceAction — ADR-006 D-1 security regression", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error).toBe(
-        "Crear facturas requiere rol Administrativo, Contador, Administrador o Propietario",
+        "Crear facturas requiere rol Administrativo, Contador, Administrador o Propietario"
       );
     }
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -206,10 +208,11 @@ describe("createInvoiceAction — P2002 por target (Z-1 Nº Control / idempotenc
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
     vi.mocked(prisma.controlNumberSequence.upsert).mockResolvedValue({ lastNumber: 7 } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ auditLog: prisma.auditLog, controlNumberSequence: prisma.controlNumberSequence })) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        auditLog: prisma.auditLog,
+        controlNumberSequence: prisma.controlNumberSequence,
+      })) as never);
     vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-1", stockWarnings: [] } as never);
   });
 
@@ -298,14 +301,11 @@ describe("createInvoiceAction — P2002 por target (Z-1 Nº Control / idempotenc
   //
   // `it.fails` mantiene el gate verde documentando el fallo REAL y se pone rojo en
   // cuanto se corrija el call-site (entonces pásalo a `it`).
-  it(
-    "REGRESIÓN: el P2002 real de ControlNumberSequence (['companyId','invoiceType']) da el mensaje transitorio",
-    async () => {
-      vi.mocked(prisma.controlNumberSequence.upsert).mockRejectedValue(
-        p2002(["companyId", "invoiceType"]),
-      );
+  it("REGRESIÓN: el P2002 real de ControlNumberSequence (['companyId','invoiceType']) da el mensaje transitorio", async () => {
+    vi.mocked(prisma.controlNumberSequence.upsert).mockRejectedValue(
+      p2002(["companyId", "invoiceType"])
+    );
 
-      expect(await errorFor(SALE_INPUT)).toBe(MSG_TRANSITORIO);
-    },
-  );
+    expect(await errorFor(SALE_INPUT)).toBe(MSG_TRANSITORIO);
+  });
 });

@@ -46,9 +46,7 @@ export default async function OvertimePage({ params }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Horas Extraordinarias</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            Registro obligatorio — LOTTT Art. 183
-          </p>
+          <p className="mt-0.5 text-sm text-gray-500">Registro obligatorio — LOTTT Art. 183</p>
         </div>
         <Link
           href={`/company/${companyId}/payroll`}

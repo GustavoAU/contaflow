@@ -25,7 +25,7 @@ export function CompanyAvatar({
       className={cn(
         SIZE[size],
         AVATAR_COLORS[hashIdx(id)],
-        "rounded-lg flex items-center justify-center font-bold text-white shrink-0 select-none",
+        "flex shrink-0 items-center justify-center rounded-lg font-bold text-white select-none",
         className
       )}
     >

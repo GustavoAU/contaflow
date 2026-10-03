@@ -50,7 +50,7 @@ export function ClientPortalTokenButton({ companyId, customerId, customerName }:
           onClick={handleGenerate}
           disabled={isPending}
           aria-busy={isPending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
+          className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 focus:ring-2 focus:ring-teal-500 focus:ring-offset-1 focus:outline-none disabled:opacity-60"
         >
           {isPending ? (
             <Loader2Icon className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -67,8 +67,8 @@ export function ClientPortalTokenButton({ companyId, customerId, customerName }:
   return (
     <div className="space-y-2">
       <p className="text-xs text-gray-500">
-        Enlace del portal para{" "}
-        <span className="font-medium text-gray-700">{customerName}</span> (válido 30 días):
+        Enlace del portal para <span className="font-medium text-gray-700">{customerName}</span>{" "}
+        (válido 30 días):
       </p>
       <div className="flex items-center gap-2">
         <input
@@ -82,7 +82,7 @@ export function ClientPortalTokenButton({ companyId, customerId, customerName }:
         <button
           type="button"
           onClick={handleCopy}
-          className="shrink-0 inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-teal-500 focus:outline-none"
           aria-label={copied ? "Copiado" : "Copiar enlace"}
         >
           {copied ? (
@@ -100,7 +100,10 @@ export function ClientPortalTokenButton({ companyId, customerId, customerName }:
       </div>
       <button
         type="button"
-        onClick={() => { setUrl(null); setError(null); }}
+        onClick={() => {
+          setUrl(null);
+          setError(null);
+        }}
         className="text-xs text-gray-400 hover:underline"
       >
         Regenerar enlace

@@ -27,7 +27,7 @@ describe("CreatePartnerSchema — name", () => {
     expect(CreatePartnerSchema.safeParse({}).success).toBe(false);
   });
 
-  it("rechaza nombre que tras trim queda en 1 carácter (\" A \")", () => {
+  it('rechaza nombre que tras trim queda en 1 carácter (" A ")', () => {
     expect(CreatePartnerSchema.safeParse({ name: " A " }).success).toBe(false);
   });
 });
@@ -43,23 +43,33 @@ describe("CreatePartnerSchema — rif (reusa VEN_RIF_REGEX de Vendor/Customer, A
   });
 
   it("acepta rif V-12345678-0 (persona natural)", () => {
-    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "V-12345678-0" }).success).toBe(true);
+    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "V-12345678-0" }).success).toBe(
+      true
+    );
   });
 
   it("acepta rif C-12345678-9 (comunal, LL-001 regresión)", () => {
-    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "C-12345678-9" }).success).toBe(true);
+    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "C-12345678-9" }).success).toBe(
+      true
+    );
   });
 
   it("rechaza rif sin dígito verificador (V-12345678)", () => {
-    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "V-12345678" }).success).toBe(false);
+    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "V-12345678" }).success).toBe(
+      false
+    );
   });
 
   it("rechaza rif sin guión (J12345678)", () => {
-    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "J12345678" }).success).toBe(false);
+    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "J12345678" }).success).toBe(
+      false
+    );
   });
 
   it("rechaza rif con prefijo no soportado (X-12345678-9)", () => {
-    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "X-12345678-9" }).success).toBe(false);
+    expect(CreatePartnerSchema.safeParse({ name: "Ana Pérez", rif: "X-12345678-9" }).success).toBe(
+      false
+    );
   });
 
   it('convierte rif "" en null (limpia la columna, evita P2002 en @@unique([companyId, rif]))', () => {
@@ -75,7 +85,10 @@ describe("CreatePartnerSchema — notes", () => {
   });
 
   it("acepta notes con texto", () => {
-    const r = CreatePartnerSchema.safeParse({ name: "Ana Pérez", notes: "Socio fundador, 30% del capital" });
+    const r = CreatePartnerSchema.safeParse({
+      name: "Ana Pérez",
+      notes: "Socio fundador, 30% del capital",
+    });
     expect(r.success).toBe(true);
   });
 

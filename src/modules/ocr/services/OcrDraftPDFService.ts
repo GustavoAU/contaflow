@@ -1,17 +1,17 @@
 // src/modules/ocr/services/OcrDraftPDFService.ts
 // Genera un comprobante PDF "BORRADOR" a partir de datos extraídos por OCR.
 // Bloque C ítem 4 — PDF en módulo OCR.
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
-import React from "react"
-import type { ExtractedInvoice } from "../schemas/invoice.schema"
+import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import React from "react";
+import type { ExtractedInvoice } from "../schemas/invoice.schema";
 
 export type OcrDraftPDFParams = {
-  extracted: ExtractedInvoice
-  companyName: string
-  companyRif: string
-  companyAddress?: string | null
-  extractedAt: Date
-}
+  extracted: ExtractedInvoice;
+  companyName: string;
+  companyRif: string;
+  companyAddress?: string | null;
+  extractedAt: Date;
+};
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ const CURRENCY_LABELS: Record<string, string> = {
   VES: "Bolívares (VES)",
   USD: "Dólares (USD)",
   EUR: "Euros (EUR)",
-}
+};
 
 const PAYMENT_LABELS: Record<string, string> = {
   EFECTIVO: "Efectivo",
@@ -29,7 +29,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   CASHEA: "Cashea",
   TRANSFERENCIA: "Transferencia",
   OTRO: "Otro",
-}
+};
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
@@ -125,29 +125,29 @@ const S = StyleSheet.create({
     fontSize: 7,
     color: "#9ca3af",
   },
-})
+});
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 function fmtLocal(d: Date): string {
-  return d.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" })
+  return d.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 // ─── Función exportada ────────────────────────────────────────────────────────
 
 export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Buffer> {
-  const { extracted, companyName, companyRif, companyAddress, extractedAt } = params
+  const { extracted, companyName, companyRif, companyAddress, extractedAt } = params;
 
   // Construir filas de impuestos
-  type TaxRow = { label: string; base: string; rate: string; iva: string }
-  const taxRows: TaxRow[] = []
+  type TaxRow = { label: string; base: string; rate: string; iva: string };
+  const taxRows: TaxRow[] = [];
   if (extracted.baseImponibleGeneral ?? extracted.ivaGeneral) {
     taxRows.push({
       label: "IVA General (16%)",
       base: extracted.baseImponibleGeneral ?? "—",
       rate: "16",
       iva: extracted.ivaGeneral ?? "—",
-    })
+    });
   }
   if (extracted.baseImponibleReducida ?? extracted.ivaReducido) {
     taxRows.push({
@@ -155,7 +155,7 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
       base: extracted.baseImponibleReducida ?? "—",
       rate: "8",
       iva: extracted.ivaReducido ?? "—",
-    })
+    });
   }
   if (extracted.baseImponibleAdicional ?? extracted.ivaAdicional) {
     taxRows.push({
@@ -163,10 +163,10 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
       base: extracted.baseImponibleAdicional ?? "—",
       rate: "15",
       iva: extracted.ivaAdicional ?? "—",
-    })
+    });
   }
 
-  const hasItems = extracted.items && extracted.items.length > 0
+  const hasItems = extracted.items && extracted.items.length > 0;
 
   const doc = React.createElement(
     Document,
@@ -186,26 +186,22 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
           React.createElement(Text, { style: S.companyRif }, `RIF: ${companyRif}`),
           companyAddress
             ? React.createElement(Text, { style: S.companyAddress }, companyAddress)
-            : null,
+            : null
         ),
         React.createElement(
           View,
           { style: S.draftBadge },
           React.createElement(Text, { style: S.draftText }, "BORRADOR"),
-          React.createElement(Text, { style: S.draftSub }, "Datos extraídos por IA"),
-        ),
+          React.createElement(Text, { style: S.draftSub }, "Datos extraídos por IA")
+        )
       ),
 
       // ── Título ──
-      React.createElement(
-        Text,
-        { style: S.title },
-        "COMPROBANTE DE ESCANEO OCR",
-      ),
+      React.createElement(Text, { style: S.title }, "COMPROBANTE DE ESCANEO OCR"),
       React.createElement(
         Text,
         { style: S.titleMeta },
-        `Extraído el ${fmtLocal(extractedAt)}  ·  Precisión ~95% — Verificar antes de registrar`,
+        `Extraído el ${fmtLocal(extractedAt)}  ·  Precisión ~95% — Verificar antes de registrar`
       ),
 
       // ── Datos del emisor ──
@@ -217,31 +213,31 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
           View,
           { style: S.infoCell },
           React.createElement(Text, { style: S.infoLabel }, "Razón Social"),
-          React.createElement(Text, { style: S.infoValue }, extracted.razonSocial ?? "—"),
+          React.createElement(Text, { style: S.infoValue }, extracted.razonSocial ?? "—")
         ),
         React.createElement(
           View,
           { style: S.infoCell },
           React.createElement(Text, { style: S.infoLabel }, "RIF"),
-          React.createElement(Text, { style: S.infoValue }, extracted.rif ?? "—"),
+          React.createElement(Text, { style: S.infoValue }, extracted.rif ?? "—")
         ),
         React.createElement(
           View,
           { style: S.infoCell },
           React.createElement(Text, { style: S.infoLabel }, "N° Factura"),
-          React.createElement(Text, { style: S.infoValue }, extracted.numeroFactura ?? "—"),
+          React.createElement(Text, { style: S.infoValue }, extracted.numeroFactura ?? "—")
         ),
         React.createElement(
           View,
           { style: S.infoCell },
           React.createElement(Text, { style: S.infoLabel }, "N° Control"),
-          React.createElement(Text, { style: S.infoValue }, extracted.numeroControl ?? "—"),
+          React.createElement(Text, { style: S.infoValue }, extracted.numeroControl ?? "—")
         ),
         React.createElement(
           View,
           { style: S.infoCell },
           React.createElement(Text, { style: S.infoLabel }, "Fecha de Emisión"),
-          React.createElement(Text, { style: S.infoValue }, extracted.fechaEmision ?? "—"),
+          React.createElement(Text, { style: S.infoValue }, extracted.fechaEmision ?? "—")
         ),
         React.createElement(
           View,
@@ -250,10 +246,8 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
           React.createElement(
             Text,
             { style: S.infoValue },
-            extracted.currency
-              ? (CURRENCY_LABELS[extracted.currency] ?? extracted.currency)
-              : "—",
-          ),
+            extracted.currency ? (CURRENCY_LABELS[extracted.currency] ?? extracted.currency) : "—"
+          )
         ),
         extracted.paymentMethod
           ? React.createElement(
@@ -263,10 +257,10 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
               React.createElement(
                 Text,
                 { style: S.infoValue },
-                PAYMENT_LABELS[extracted.paymentMethod] ?? extracted.paymentMethod,
-              ),
+                PAYMENT_LABELS[extracted.paymentMethod] ?? extracted.paymentMethod
+              )
             )
-          : null,
+          : null
       ),
 
       // Notas (fuera del grid — ancho completo)
@@ -275,7 +269,7 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
             View,
             { style: S.infoCellFull },
             React.createElement(Text, { style: S.infoLabel }, "Notas"),
-            React.createElement(Text, { style: S.infoValue }, extracted.notes),
+            React.createElement(Text, { style: S.infoValue }, extracted.notes)
           )
         : null,
 
@@ -291,7 +285,7 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
               React.createElement(Text, { style: S.cellDesc }, "Tipo de Impuesto"),
               React.createElement(Text, { style: S.cellRight }, "Base Imponible"),
               React.createElement(Text, { style: S.cellNarrow }, "Alíc."),
-              React.createElement(Text, { style: S.cellRight }, "Monto IVA"),
+              React.createElement(Text, { style: S.cellRight }, "Monto IVA")
             ),
             ...taxRows.map((row, idx) =>
               React.createElement(
@@ -300,9 +294,9 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
                 React.createElement(Text, { style: S.cellDesc }, row.label),
                 React.createElement(Text, { style: S.cellRight }, row.base),
                 React.createElement(Text, { style: S.cellNarrow }, `${row.rate}%`),
-                React.createElement(Text, { style: S.cellRight }, row.iva),
-              ),
-            ),
+                React.createElement(Text, { style: S.cellRight }, row.iva)
+              )
+            )
           )
         : null,
 
@@ -318,7 +312,7 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
               React.createElement(Text, { style: S.itemDesc }, "Descripción"),
               React.createElement(Text, { style: S.itemNum }, "Cant."),
               React.createElement(Text, { style: S.itemNum }, "P/Unitario"),
-              React.createElement(Text, { style: S.itemNum }, "Total"),
+              React.createElement(Text, { style: S.itemNum }, "Total")
             ),
             ...extracted.items!.map((item, idx) =>
               React.createElement(
@@ -327,9 +321,9 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
                 React.createElement(Text, { style: S.itemDesc }, item.description),
                 React.createElement(Text, { style: S.itemNum }, item.quantity ?? "—"),
                 React.createElement(Text, { style: S.itemNum }, item.unitPrice ?? "—"),
-                React.createElement(Text, { style: S.itemNum }, item.totalPrice ?? "—"),
-              ),
-            ),
+                React.createElement(Text, { style: S.itemNum }, item.totalPrice ?? "—")
+              )
+            )
           )
         : null,
 
@@ -342,8 +336,8 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
               View,
               { style: S.totalsRow },
               React.createElement(Text, { style: S.totalLabel }, "MONTO TOTAL:"),
-              React.createElement(Text, { style: S.totalValue }, extracted.montoTotal),
-            ),
+              React.createElement(Text, { style: S.totalValue }, extracted.montoTotal)
+            )
           )
         : null,
 
@@ -354,7 +348,7 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
         React.createElement(
           Text,
           null,
-          `ContaFlow · Comprobante OCR${extracted.numeroFactura ? ` · Factura N° ${extracted.numeroFactura}` : ""}`,
+          `ContaFlow · Comprobante OCR${extracted.numeroFactura ? ` · Factura N° ${extracted.numeroFactura}` : ""}`
         ),
         React.createElement(
           Text,
@@ -362,11 +356,11 @@ export async function generateOcrDraftPDF(params: OcrDraftPDFParams): Promise<Bu
             render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
               `Pág. ${pageNumber} / ${totalPages}`,
           },
-          null,
-        ),
-      ),
-    ),
-  )
+          null
+        )
+      )
+    )
+  );
 
-  return renderToBuffer(doc as Parameters<typeof renderToBuffer>[0])
+  return renderToBuffer(doc as Parameters<typeof renderToBuffer>[0]);
 }

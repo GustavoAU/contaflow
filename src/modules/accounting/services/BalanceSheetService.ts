@@ -106,7 +106,7 @@ function addAsset(
   result: CategorizedBalanceAccounts,
   account: AccountWithBalance,
   balance: Decimal,
-  displayName: string,
+  displayName: string
 ): void {
   const row: BalanceSheetRow = {
     id: account.id,
@@ -132,7 +132,7 @@ function addAsset(
 function addLiability(
   result: CategorizedBalanceAccounts,
   account: AccountWithBalance,
-  balance: Decimal,
+  balance: Decimal
 ): void {
   const displayBalance = balance.negated(); // crédito normal → mostrar positivo
   const row: BalanceSheetRow = {
@@ -159,7 +159,7 @@ function addLiability(
 function addEquity(
   result: CategorizedBalanceAccounts,
   account: AccountWithBalance,
-  balance: Decimal,
+  balance: Decimal
 ): void {
   const displayBalance = balance.negated();
   result.equity.push({
@@ -218,155 +218,153 @@ export class BalanceSheetService {
    * @returns Balance General con activos, pasivos, patrimonio y flag `isBalanced`
    */
   static async compute(
-  companyId: string,
-  dateTo?: Date,
-  incomeDateFrom?: Date,
-): Promise<BalanceSheet> {
-  // Activos/Pasivos/Patrimonio: acumulados desde el inicio hasta dateTo (sin límite inferior)
-  const balanceDateFilter = dateTo ? { date: { lte: dateTo } } : {};
-  // Resultado del Ejercicio: solo el año fiscal corriente — evita mezclar resultados históricos
-  const incomeDateFilter =
-    incomeDateFrom || dateTo
-      ? {
-          date: {
-            ...(incomeDateFrom ? { gte: incomeDateFrom } : {}),
-            ...(dateTo ? { lte: dateTo } : {}),
-          },
-        }
-      : {};
+    companyId: string,
+    dateTo?: Date,
+    incomeDateFrom?: Date
+  ): Promise<BalanceSheet> {
+    // Activos/Pasivos/Patrimonio: acumulados desde el inicio hasta dateTo (sin límite inferior)
+    const balanceDateFilter = dateTo ? { date: { lte: dateTo } } : {};
+    // Resultado del Ejercicio: solo el año fiscal corriente — evita mezclar resultados históricos
+    const incomeDateFilter =
+      incomeDateFrom || dateTo
+        ? {
+            date: {
+              ...(incomeDateFrom ? { gte: incomeDateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
+        : {};
 
-  // N5: dos rondas de queries en paralelo — evita cargar filas individuales de JournalEntry.
-  // Ronda 1: solo metadatos de cuentas (sin journalEntries).
-  // Ronda 2: groupBy + _sum a nivel de BD → O(1) memoria por cuenta sin importar el volumen.
-  const [balanceMeta, incomeMeta] = await Promise.all([
-    prisma.account.findMany({
-      where: { companyId, type: { in: ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY"] } },
-      orderBy: { code: "asc" },
-      select: { id: true, code: true, name: true, type: true, isCurrent: true },
-    }),
-    prisma.account.findMany({
-      where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
-      select: { id: true, code: true, name: true, type: true, isCurrent: true },
-    }),
-  ]);
+    // N5: dos rondas de queries en paralelo — evita cargar filas individuales de JournalEntry.
+    // Ronda 1: solo metadatos de cuentas (sin journalEntries).
+    // Ronda 2: groupBy + _sum a nivel de BD → O(1) memoria por cuenta sin importar el volumen.
+    const [balanceMeta, incomeMeta] = await Promise.all([
+      prisma.account.findMany({
+        where: { companyId, type: { in: ["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY"] } },
+        orderBy: { code: "asc" },
+        select: { id: true, code: true, name: true, type: true, isCurrent: true },
+      }),
+      prisma.account.findMany({
+        where: { companyId, type: { in: ["REVENUE", "EXPENSE"] } },
+        select: { id: true, code: true, name: true, type: true, isCurrent: true },
+      }),
+    ]);
 
-  const balanceAccountIds = balanceMeta.map((a) => a.id);
-  const incomeAccountIds  = incomeMeta.map((a) => a.id);
+    const balanceAccountIds = balanceMeta.map((a) => a.id);
+    const incomeAccountIds = incomeMeta.map((a) => a.id);
 
-  const [balanceSums, incomeSums] = await Promise.all([
-    prisma.journalEntry.groupBy({
-      by: ["accountId"],
-      where: {
-        accountId: { in: balanceAccountIds },
-        transaction: { status: TX_STATUS.POSTED, ...balanceDateFilter },
-      },
-      _sum: { amount: true },
-    }),
-    prisma.journalEntry.groupBy({
-      by: ["accountId"],
-      where: {
-        accountId: { in: incomeAccountIds },
-        transaction: { status: TX_STATUS.POSTED, ...incomeDateFilter },
-      },
-      _sum: { amount: true },
-    }),
-  ]);
+    const [balanceSums, incomeSums] = await Promise.all([
+      prisma.journalEntry.groupBy({
+        by: ["accountId"],
+        where: {
+          accountId: { in: balanceAccountIds },
+          transaction: { status: TX_STATUS.POSTED, ...balanceDateFilter },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.journalEntry.groupBy({
+        by: ["accountId"],
+        where: {
+          accountId: { in: incomeAccountIds },
+          transaction: { status: TX_STATUS.POSTED, ...incomeDateFilter },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
 
-  const balanceSumMap = new Map(
-    balanceSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
-  );
-  const incomeSumMap = new Map(
-    incomeSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
-  );
-
-  const balanceAccounts: AccountWithBalance[] = balanceMeta.map((a) => ({
-    ...a,
-    balance: balanceSumMap.get(a.id) ?? new Decimal(0),
-  }));
-  const incomeAccounts: AccountWithBalance[] = incomeMeta.map((a) => ({
-    ...a,
-    balance: incomeSumMap.get(a.id) ?? new Decimal(0),
-  }));
-
-  // Clasificar activos, pasivos y patrimonio
-  const categorized = categorizeBalanceAccounts(balanceAccounts);
-
-  // El Resultado del Ejercicio (utilidad/pérdida) se incorpora al Patrimonio
-  const netIncome = computeNetIncome(incomeAccounts);
-  if (!netIncome.isZero()) {
-    categorized.equity.push({
-      id: "net-income",
-      code: "—",
-      name: "Resultado del Ejercicio",
-      balance: netIncome.toFixed(2),
-    });
-    categorized.totalEquity = categorized.totalEquity.plus(netIncome);
-  }
-
-  const totalLiabilitiesAndEquity = categorized.totalLiabilities.plus(categorized.totalEquity);
-  const isBalanced = categorized.totalAssets
-    .minus(totalLiabilitiesAndEquity)
-    .abs()
-    .lessThan(BALANCE_TOLERANCE);
-
-  // Advertencias contables: condiciones que no impiden generar el balance pero
-  // deben revisarse antes de presentarlo al SENIAT o en una fiscalización.
-  const warnings: string[] = [];
-  if (categorized.totalNonCurrentAssets.isNegative()) {
-    warnings.push(
-      "El total de Activos No Corrientes es negativo. " +
-      "Verifique que existan cuentas de costo original (ASSET) para cada cuenta de " +
-      "depreciación acumulada (CONTRA_ASSET) configurada en el Plan de Cuentas. " +
-      "Un activo no corriente negativo causará rechazo en una fiscalización SENIAT."
+    const balanceSumMap = new Map(
+      balanceSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
     );
-  }
-  if (!isBalanced) {
-    warnings.push(
-      `El Balance General no cuadra: Activos (${categorized.totalAssets.toFixed(2)} Bs.) ≠ ` +
-      `Pasivos + Patrimonio (${totalLiabilitiesAndEquity.toFixed(2)} Bs.). ` +
-      "Revise que todos los asientos estén registrados con partida doble correcta."
+    const incomeSumMap = new Map(
+      incomeSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
     );
-  }
 
-  // R-04: detectar cuentas con saldo invertido al tipo normal.
-  // Una cuenta REVENUE con saldo débito (> 0) o una cuenta EXPENSE con saldo crédito (< 0)
-  // indica reversiones en exceso — situación inusual que puede ocultar errores contables.
-  // NIC 1 §32 prohíbe compensar partidas sin revelación explícita.
-  const invertedAccounts = incomeAccounts.filter(
-    (a) =>
-      !a.balance.isZero() &&
-      ((a.type === "REVENUE" && a.balance.isPositive()) ||
-        (a.type === "EXPENSE" && a.balance.isNegative())),
-  );
-  if (invertedAccounts.length > 0) {
-    const detail = invertedAccounts
-      .map((a) => `${a.code} ${a.name}`)
-      .join(", ");
-    warnings.push(
-      `${invertedAccounts.length} cuenta(s) con saldo invertido al tipo normal: ${detail}. ` +
-      "Esto puede indicar reversiones en exceso. " +
-      "Verifique en el Libro Mayor antes de presentar."
+    const balanceAccounts: AccountWithBalance[] = balanceMeta.map((a) => ({
+      ...a,
+      balance: balanceSumMap.get(a.id) ?? new Decimal(0),
+    }));
+    const incomeAccounts: AccountWithBalance[] = incomeMeta.map((a) => ({
+      ...a,
+      balance: incomeSumMap.get(a.id) ?? new Decimal(0),
+    }));
+
+    // Clasificar activos, pasivos y patrimonio
+    const categorized = categorizeBalanceAccounts(balanceAccounts);
+
+    // El Resultado del Ejercicio (utilidad/pérdida) se incorpora al Patrimonio
+    const netIncome = computeNetIncome(incomeAccounts);
+    if (!netIncome.isZero()) {
+      categorized.equity.push({
+        id: "net-income",
+        code: "—",
+        name: "Resultado del Ejercicio",
+        balance: netIncome.toFixed(2),
+      });
+      categorized.totalEquity = categorized.totalEquity.plus(netIncome);
+    }
+
+    const totalLiabilitiesAndEquity = categorized.totalLiabilities.plus(categorized.totalEquity);
+    const isBalanced = categorized.totalAssets
+      .minus(totalLiabilitiesAndEquity)
+      .abs()
+      .lessThan(BALANCE_TOLERANCE);
+
+    // Advertencias contables: condiciones que no impiden generar el balance pero
+    // deben revisarse antes de presentarlo al SENIAT o en una fiscalización.
+    const warnings: string[] = [];
+    if (categorized.totalNonCurrentAssets.isNegative()) {
+      warnings.push(
+        "El total de Activos No Corrientes es negativo. " +
+          "Verifique que existan cuentas de costo original (ASSET) para cada cuenta de " +
+          "depreciación acumulada (CONTRA_ASSET) configurada en el Plan de Cuentas. " +
+          "Un activo no corriente negativo causará rechazo en una fiscalización SENIAT."
+      );
+    }
+    if (!isBalanced) {
+      warnings.push(
+        `El Balance General no cuadra: Activos (${categorized.totalAssets.toFixed(2)} Bs.) ≠ ` +
+          `Pasivos + Patrimonio (${totalLiabilitiesAndEquity.toFixed(2)} Bs.). ` +
+          "Revise que todos los asientos estén registrados con partida doble correcta."
+      );
+    }
+
+    // R-04: detectar cuentas con saldo invertido al tipo normal.
+    // Una cuenta REVENUE con saldo débito (> 0) o una cuenta EXPENSE con saldo crédito (< 0)
+    // indica reversiones en exceso — situación inusual que puede ocultar errores contables.
+    // NIC 1 §32 prohíbe compensar partidas sin revelación explícita.
+    const invertedAccounts = incomeAccounts.filter(
+      (a) =>
+        !a.balance.isZero() &&
+        ((a.type === "REVENUE" && a.balance.isPositive()) ||
+          (a.type === "EXPENSE" && a.balance.isNegative()))
     );
-  }
+    if (invertedAccounts.length > 0) {
+      const detail = invertedAccounts.map((a) => `${a.code} ${a.name}`).join(", ");
+      warnings.push(
+        `${invertedAccounts.length} cuenta(s) con saldo invertido al tipo normal: ${detail}. ` +
+          "Esto puede indicar reversiones en exceso. " +
+          "Verifique en el Libro Mayor antes de presentar."
+      );
+    }
 
-  return {
-    currentAssets: categorized.currentAssets,
-    nonCurrentAssets: categorized.nonCurrentAssets,
-    currentLiabilities: categorized.currentLiabilities,
-    nonCurrentLiabilities: categorized.nonCurrentLiabilities,
-    totalCurrentAssets: categorized.totalCurrentAssets.toFixed(2),
-    totalNonCurrentAssets: categorized.totalNonCurrentAssets.toFixed(2),
-    totalCurrentLiabilities: categorized.totalCurrentLiabilities.toFixed(2),
-    totalNonCurrentLiabilities: categorized.totalNonCurrentLiabilities.toFixed(2),
-    assets: categorized.assets,
-    liabilities: categorized.liabilities,
-    equity: categorized.equity,
-    totalAssets: categorized.totalAssets.toFixed(2),
-    totalLiabilities: categorized.totalLiabilities.toFixed(2),
-    totalEquity: categorized.totalEquity.toFixed(2),
-    totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2),
-    isBalanced,
-    warnings,
-  };
-}
+    return {
+      currentAssets: categorized.currentAssets,
+      nonCurrentAssets: categorized.nonCurrentAssets,
+      currentLiabilities: categorized.currentLiabilities,
+      nonCurrentLiabilities: categorized.nonCurrentLiabilities,
+      totalCurrentAssets: categorized.totalCurrentAssets.toFixed(2),
+      totalNonCurrentAssets: categorized.totalNonCurrentAssets.toFixed(2),
+      totalCurrentLiabilities: categorized.totalCurrentLiabilities.toFixed(2),
+      totalNonCurrentLiabilities: categorized.totalNonCurrentLiabilities.toFixed(2),
+      assets: categorized.assets,
+      liabilities: categorized.liabilities,
+      equity: categorized.equity,
+      totalAssets: categorized.totalAssets.toFixed(2),
+      totalLiabilities: categorized.totalLiabilities.toFixed(2),
+      totalEquity: categorized.totalEquity.toFixed(2),
+      totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2),
+      isBalanced,
+      warnings,
+    };
+  }
 }

@@ -11,8 +11,8 @@ import { toActionError } from "../utils/action-errors";
 
 const SIVITExportSchema = z.object({
   companyId: z.string().min(1),
-  dateFrom:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
-  dateTo:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
 });
 
 export async function generateSIVITAction(
@@ -33,9 +33,10 @@ export async function generateSIVITAction(
     if (!ctx.ok) return ctx.error;
 
     const from = new Date(dateFrom + "T00:00:00Z");
-    const to   = new Date(dateTo   + "T23:59:59Z");
+    const to = new Date(dateTo + "T23:59:59Z");
 
-    if (to < from) return { success: false, error: "La fecha de fin debe ser posterior a la de inicio" };
+    if (to < from)
+      return { success: false, error: "La fecha de fin debe ser posterior a la de inicio" };
 
     const diffDays = (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
     if (diffDays > 366) return { success: false, error: "El rango máximo es 366 días" };

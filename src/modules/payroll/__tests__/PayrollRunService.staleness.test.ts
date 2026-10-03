@@ -74,7 +74,10 @@ describe("PayrollRunService.getStaleSignals", () => {
 
   it("sólo mira las horas extra DEL PERÍODO y aún sin pagar", async () => {
     await PayrollRunService.getStaleSignals("company-1", "run-1");
-    const where = vi.mocked(prisma.overtimeEntry.count).mock.calls[0][0]!.where as Record<string, unknown>;
+    const where = vi.mocked(prisma.overtimeEntry.count).mock.calls[0][0]!.where as Record<
+      string,
+      unknown
+    >;
     expect(where.payrollRunId).toBeNull();
     expect(where.workedOn).toEqual({ gte: RUN_BORRADOR.periodStart, lte: RUN_BORRADOR.periodEnd });
     expect(where.companyId).toBe("company-1");
@@ -82,13 +85,17 @@ describe("PayrollRunService.getStaleSignals", () => {
 
   it("consulta sólo a los trabajadores de ESTE proceso, sin repetirlos", async () => {
     await PayrollRunService.getStaleSignals("company-1", "run-1");
-    const where = vi.mocked(prisma.salaryHistory.count).mock.calls[0][0]!.where as Record<string, unknown>;
+    const where = vi.mocked(prisma.salaryHistory.count).mock.calls[0][0]!.where as Record<
+      string,
+      unknown
+    >;
     expect(where.employeeId).toEqual({ in: ["emp-1", "emp-2"] });
   });
 
   it("un proceso APROBADO no produce aviso: el asiento ya existe", async () => {
     vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue({
-      ...RUN_BORRADOR, status: "APPROVED",
+      ...RUN_BORRADOR,
+      status: "APPROVED",
     } as never);
     expect(await PayrollRunService.getStaleSignals("company-1", "run-1")).toBeNull();
   });

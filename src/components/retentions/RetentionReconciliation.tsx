@@ -4,7 +4,10 @@
 
 import { useState, useTransition } from "react";
 import { CheckCircle2Icon, XCircleIcon, AlertTriangleIcon, LinkIcon } from "lucide-react";
-import { getRetentionReconciliationAction, type ReconciliationRow } from "@/modules/retentions/actions/retention.actions";
+import {
+  getRetentionReconciliationAction,
+  type ReconciliationRow,
+} from "@/modules/retentions/actions/retention.actions";
 
 type Props = {
   companyId: string;
@@ -13,15 +16,44 @@ type Props = {
 };
 
 const MONTHS = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
-const STATUS_CFG: Record<ReconciliationRow["status"], { label: string; icon: React.ReactNode; className: string }> = {
-  MATCHED:                  { label: "Coincide",               icon: <CheckCircle2Icon className="h-4 w-4" aria-hidden />, className: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-  RETENTION_WITHOUT_INVOICE:{ label: "Sin factura",            icon: <AlertTriangleIcon className="h-4 w-4" aria-hidden />, className: "text-amber-700 bg-amber-50 border-amber-200" },
-  INVOICE_WITHOUT_RETENTION:{ label: "Sin comprobante",        icon: <XCircleIcon className="h-4 w-4" aria-hidden />,       className: "text-red-700 bg-red-50 border-red-200" },
-  MISMATCH:                 { label: "Descuadre de monto",     icon: <XCircleIcon className="h-4 w-4" aria-hidden />,       className: "text-red-700 bg-red-50 border-red-200" },
+const STATUS_CFG: Record<
+  ReconciliationRow["status"],
+  { label: string; icon: React.ReactNode; className: string }
+> = {
+  MATCHED: {
+    label: "Coincide",
+    icon: <CheckCircle2Icon className="h-4 w-4" aria-hidden />,
+    className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+  },
+  RETENTION_WITHOUT_INVOICE: {
+    label: "Sin factura",
+    icon: <AlertTriangleIcon className="h-4 w-4" aria-hidden />,
+    className: "text-amber-700 bg-amber-50 border-amber-200",
+  },
+  INVOICE_WITHOUT_RETENTION: {
+    label: "Sin comprobante",
+    icon: <XCircleIcon className="h-4 w-4" aria-hidden />,
+    className: "text-red-700 bg-red-50 border-red-200",
+  },
+  MISMATCH: {
+    label: "Descuadre de monto",
+    icon: <XCircleIcon className="h-4 w-4" aria-hidden />,
+    className: "text-red-700 bg-red-50 border-red-200",
+  },
 };
 
 const currentYear = new Date().getFullYear();
@@ -58,10 +90,12 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
           <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             {MONTHS.map((m, i) => (
-              <option key={i + 1} value={i + 1}>{m}</option>
+              <option key={i + 1} value={i + 1}>
+                {m}
+              </option>
             ))}
           </select>
         </div>
@@ -70,10 +104,12 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-              <option key={y} value={y}>{y}</option>
+              <option key={y} value={y}>
+                {y}
+              </option>
             ))}
           </select>
         </div>
@@ -89,7 +125,10 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
       </div>
 
       {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
           {error}
         </div>
       )}
@@ -109,28 +148,44 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
               </div>
             )}
             {rows.length === 0 && (
-              <p className="text-sm text-zinc-500">No hay retenciones ni facturas con retención en este período.</p>
+              <p className="text-sm text-zinc-500">
+                No hay retenciones ni facturas con retención en este período.
+              </p>
             )}
           </div>
 
           {rows.length > 0 && (
             <div className="overflow-x-auto rounded-lg border bg-white">
-              <table className="min-w-full text-sm border-separate border-spacing-0">
+              <table className="min-w-full border-separate border-spacing-0 text-sm">
                 <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                   <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Estado</th>
-                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Comprobante RIVA</th>
-                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Status ret.</th>
-                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">IVA Retenido (ret.)</th>
+                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">
+                      Estado
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">
+                      Comprobante RIVA
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">
+                      Status ret.
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">
+                      IVA Retenido (ret.)
+                    </th>
                     <th scope="col" className="px-4 py-3 text-left">
                       <span className="flex items-center gap-1">
                         <LinkIcon className="h-3.5 w-3.5" aria-hidden />
                         Factura Libro Compras
                       </span>
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Proveedor</th>
-                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">IVA Ret. (factura)</th>
-                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Comprobante (factura)</th>
+                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">
+                      Proveedor
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">
+                      IVA Ret. (factura)
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">
+                      Comprobante (factura)
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -142,7 +197,9 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
                         className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
                       >
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-medium ${cfg.className}`}>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-medium ${cfg.className}`}
+                          >
                             {cfg.icon}
                             {cfg.label}
                           </span>
@@ -152,43 +209,56 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {row.retentionStatus ? (
-                            <span className={`rounded px-1.5 py-0.5 text-10 font-medium ${
-                              row.retentionStatus === "ENTERADO"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : row.retentionStatus === "PENDING"
-                                ? "bg-amber-50 text-amber-700"
-                                : "bg-zinc-100 text-zinc-600"
-                            }`}>
+                            <span
+                              className={`text-10 rounded px-1.5 py-0.5 font-medium ${
+                                row.retentionStatus === "ENTERADO"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : row.retentionStatus === "PENDING"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : "bg-zinc-100 text-zinc-600"
+                              }`}
+                            >
                               {row.retentionStatus}
                             </span>
-                          ) : <span className="text-zinc-400">—</span>}
+                          ) : (
+                            <span className="text-zinc-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-xs whitespace-nowrap">
-                          {row.retentionIvaRetention
-                            ? `Bs. ${row.retentionIvaRetention}`
-                            : <span className="text-zinc-400">—</span>}
+                          {row.retentionIvaRetention ? (
+                            `Bs. ${row.retentionIvaRetention}`
+                          ) : (
+                            <span className="text-zinc-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
                           {row.invoiceNumber ?? <span className="text-zinc-400">—</span>}
                         </td>
-                        <td className="px-4 py-3 text-xs max-w-48 truncate">
+                        <td className="max-w-48 truncate px-4 py-3 text-xs">
                           {row.counterpartName ?? (
                             <span className="text-zinc-400">{row.counterpartRif ?? "—"}</span>
                           )}
                         </td>
-                        <td className={`px-4 py-3 text-right font-mono text-xs whitespace-nowrap ${
-                          row.status === "MISMATCH" ? "font-bold text-red-600" : ""
-                        }`}>
-                          {row.invoiceIvaRetentionAmount
-                            ? `Bs. ${row.invoiceIvaRetentionAmount}`
-                            : <span className="text-zinc-400">—</span>}
+                        <td
+                          className={`px-4 py-3 text-right font-mono text-xs whitespace-nowrap ${
+                            row.status === "MISMATCH" ? "font-bold text-red-600" : ""
+                          }`}
+                        >
+                          {row.invoiceIvaRetentionAmount ? (
+                            `Bs. ${row.invoiceIvaRetentionAmount}`
+                          ) : (
+                            <span className="text-zinc-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
-                          {row.invoiceIvaRetentionVoucher ?? (
-                            row.status === "INVOICE_WITHOUT_RETENTION"
-                              ? <span className="text-red-500 text-xs font-medium">Sin comprobante</span>
-                              : <span className="text-zinc-400">—</span>
-                          )}
+                          {row.invoiceIvaRetentionVoucher ??
+                            (row.status === "INVOICE_WITHOUT_RETENTION" ? (
+                              <span className="text-xs font-medium text-red-500">
+                                Sin comprobante
+                              </span>
+                            ) : (
+                              <span className="text-zinc-400">—</span>
+                            ))}
                         </td>
                       </tr>
                     );
@@ -200,7 +270,9 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
 
           {issues > 0 && (
             <p className="text-xs text-zinc-500">
-              <strong>Nota:</strong> Las alertas deben resolverse antes de presentar la Forma 30. Una retención sin factura o una factura sin comprobante es una inconsistencia sancionable bajo COT Art. 102 y Prov. 0049 Art. 11.
+              <strong>Nota:</strong> Las alertas deben resolverse antes de presentar la Forma 30.
+              Una retención sin factura o una factura sin comprobante es una inconsistencia
+              sancionable bajo COT Art. 102 y Prov. 0049 Art. 11.
             </p>
           )}
         </>

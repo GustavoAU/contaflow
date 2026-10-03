@@ -13,7 +13,7 @@ import {
 type Props = {
   companyId: string;
   type: "SALE" | "PURCHASE";
-  value: string;           // ID seleccionado
+  value: string; // ID seleccionado
   onChange: (id: string) => void;
 };
 
@@ -116,56 +116,55 @@ export function RelatedInvoicePicker({ companyId, type, value, onChange }: Props
       ) : (
         /* ─── Input de búsqueda ──────────────────────────────────────────── */
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={handleFocus}
             placeholder="Buscar por RIF, número o nombre del cliente/proveedor..."
-            className="w-full rounded-md border py-2 pl-9 pr-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-md border py-2 pr-9 pl-9 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <ChevronDown className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
         </div>
       )}
 
       {/* ─── Dropdown de resultados ───────────────────────────────────────── */}
       {open && !selected && (
         <div className="absolute z-50 mt-1 w-full rounded-lg border bg-white shadow-lg">
-          {isPending && (
-            <p className="px-4 py-3 text-xs text-zinc-400">Buscando...</p>
-          )}
+          {isPending && <p className="px-4 py-3 text-xs text-zinc-400">Buscando...</p>}
           {!isPending && results.length === 0 && (
             <p className="px-4 py-3 text-xs text-zinc-400">
               {query ? "Sin resultados" : "Sin facturas disponibles"}
             </p>
           )}
-          {!isPending && results.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleSelect(item)}
-              className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-zinc-50 border-b last:border-b-0 transition-colors"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-zinc-900">{item.invoiceNumber}</p>
-                <p className="truncate text-xs text-zinc-500">
-                  {item.counterpartName}
-                  {item.counterpartRif && (
-                    <span className="ml-1 font-mono text-zinc-400">{item.counterpartRif}</span>
-                  )}
-                  <span className="mx-1 text-zinc-300">·</span>
-                  {item.date}
-                  {item.totalAmountVes && (
-                    <>
-                      <span className="mx-1 text-zinc-300">·</span>
-                      <span className="font-mono">Bs. {fmt(item.totalAmountVes)}</span>
-                    </>
-                  )}
-                </p>
-              </div>
-            </button>
-          ))}
+          {!isPending &&
+            results.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleSelect(item)}
+                className="flex w-full items-start gap-3 border-b px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-zinc-50"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-zinc-900">{item.invoiceNumber}</p>
+                  <p className="truncate text-xs text-zinc-500">
+                    {item.counterpartName}
+                    {item.counterpartRif && (
+                      <span className="ml-1 font-mono text-zinc-400">{item.counterpartRif}</span>
+                    )}
+                    <span className="mx-1 text-zinc-300">·</span>
+                    {item.date}
+                    {item.totalAmountVes && (
+                      <>
+                        <span className="mx-1 text-zinc-300">·</span>
+                        <span className="font-mono">Bs. {fmt(item.totalAmountVes)}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </button>
+            ))}
         </div>
       )}
     </div>

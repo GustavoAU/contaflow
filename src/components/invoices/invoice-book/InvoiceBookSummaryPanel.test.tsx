@@ -2,7 +2,10 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { InvoiceBookSummaryPanel } from "./InvoiceBookSummaryPanel";
-import type { InvoiceBookResult, InvoiceBookSummary } from "@/modules/invoices/services/InvoiceService";
+import type {
+  InvoiceBookResult,
+  InvoiceBookSummary,
+} from "@/modules/invoices/services/InvoiceService";
 
 const zero: InvoiceBookSummary = {
   totalBaseGeneral: "0.00",

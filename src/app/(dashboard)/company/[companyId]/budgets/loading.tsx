@@ -3,7 +3,7 @@
 
 export default function BudgetsLoading() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="animate-pulse space-y-6">
       {/* Header */}
       <div className="space-y-2">
         <div className="h-7 w-64 rounded bg-zinc-200" />
@@ -19,14 +19,14 @@ export default function BudgetsLoading() {
         {/* Left panel */}
         <div className="w-72 space-y-2">
           <div className="h-9 rounded-md bg-zinc-200" />
-          {[1,2,3].map((i) => (
+          {[1, 2, 3].map((i) => (
             <div key={i} className="h-16 rounded-lg bg-zinc-100" />
           ))}
         </div>
         {/* Right panel */}
         <div className="flex-1 space-y-3">
           <div className="h-12 rounded-lg bg-zinc-100" />
-          {[1,2,3,4,5].map((i) => (
+          {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="h-10 rounded bg-zinc-50" />
           ))}
         </div>

@@ -68,7 +68,7 @@ describe("Arquitectura: aislamiento multi-tenant en páginas", () => {
       "Leer Company por id suelto carga la fila de otro tenant antes de que nadie " +
         "autorice. Usa requireCompanyPage(companyId, select) de " +
         "@/lib/company-page-guard: el where lleva companyId Y userId.\n" +
-        offenders.join("\n"),
+        offenders.join("\n")
     ).toHaveLength(0);
   });
 

@@ -30,16 +30,18 @@ export default async function NewTerminationPage({ params }: Props) {
   const employees = await EmployeeService.list(companyId, "ACTIVE");
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 py-8 px-4">
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">Nómina</Link>
+        <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">
+          Nómina
+        </Link>
         <span>/</span>
         <Link href={`/company/${companyId}/payroll/terminations`} className="hover:text-gray-700">
           Liquidaciones
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">Nueva</span>
+        <span className="font-medium text-gray-900">Nueva</span>
       </div>
 
       <div>

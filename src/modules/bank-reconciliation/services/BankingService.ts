@@ -31,80 +31,86 @@ export const BankingService = {
     }
 
     // Validar que el balance del CSV cuadra
-    const balanceCheck = CsvParserService.validateCsvBalance(csvRows, openingBalance, closingBalance);
+    const balanceCheck = CsvParserService.validateCsvBalance(
+      csvRows,
+      openingBalance,
+      closingBalance
+    );
     if (!balanceCheck.valid) {
       throw new Error(
         `El balance del extracto no cuadra. Calculado: ${balanceCheck.actual?.toFixed(4)}, Declarado: ${balanceCheck.expected?.toFixed(4)}`
       );
     }
 
-    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
-      // Crear extracto
-      const statement = await tx.bankStatement.create({
-        data: {
-          bankAccountId,
-          // Determinar período a partir de las fechas de las filas
-          periodStart: csvRows.length > 0 ? csvRows[0].date : new Date(),
-          periodEnd: csvRows.length > 0 ? csvRows[csvRows.length - 1].date : new Date(),
-          openingBalance: openingBalance.toFixed(4),
-          closingBalance: closingBalance.toFixed(4),
-          importedBy,
-        },
-      });
-
-      // Crear transacciones
-      for (const row of csvRows) {
-        // Determinar tipo y monto
-        let type: "CREDIT" | "DEBIT";
-        let amount: Decimal;
-
-        if (row.credit !== null && (row.debit === null || row.credit.greaterThan(0))) {
-          type = "CREDIT";
-          amount = row.credit;
-        } else if (row.debit !== null) {
-          type = "DEBIT";
-          amount = row.debit;
-        } else {
-          // Fila sin movimiento — ignorar
-          continue;
-        }
-
-        await tx.bankTransaction.create({
+    return prisma.$transaction(async (tx) =>
+      withCompanyContext(companyId, tx, async (tx) => {
+        // Crear extracto
+        const statement = await tx.bankStatement.create({
           data: {
-            statementId: statement.id,
-            companyId,
-            date: row.date,
-            description: row.description,
-            type,
-            amount: amount.toFixed(4),
-          },
-        });
-      }
-
-      // Contar transacciones creadas
-      const transactionCount = await tx.bankTransaction.count({
-        where: { statementId: statement.id },
-      });
-
-      // AuditLog
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          entityId: statement.id,
-          entityName: "BankStatement",
-          action: "IMPORT",
-          userId: importedBy,
-          newValue: {
             bankAccountId,
+            // Determinar período a partir de las fechas de las filas
+            periodStart: csvRows.length > 0 ? csvRows[0].date : new Date(),
+            periodEnd: csvRows.length > 0 ? csvRows[csvRows.length - 1].date : new Date(),
             openingBalance: openingBalance.toFixed(4),
             closingBalance: closingBalance.toFixed(4),
-            transactionCount,
+            importedBy,
           },
-        },
-      });
+        });
 
-      return { statementId: statement.id, transactionCount };
-    }));
+        // Crear transacciones
+        for (const row of csvRows) {
+          // Determinar tipo y monto
+          let type: "CREDIT" | "DEBIT";
+          let amount: Decimal;
+
+          if (row.credit !== null && (row.debit === null || row.credit.greaterThan(0))) {
+            type = "CREDIT";
+            amount = row.credit;
+          } else if (row.debit !== null) {
+            type = "DEBIT";
+            amount = row.debit;
+          } else {
+            // Fila sin movimiento — ignorar
+            continue;
+          }
+
+          await tx.bankTransaction.create({
+            data: {
+              statementId: statement.id,
+              companyId,
+              date: row.date,
+              description: row.description,
+              type,
+              amount: amount.toFixed(4),
+            },
+          });
+        }
+
+        // Contar transacciones creadas
+        const transactionCount = await tx.bankTransaction.count({
+          where: { statementId: statement.id },
+        });
+
+        // AuditLog
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            entityId: statement.id,
+            entityName: "BankStatement",
+            action: "IMPORT",
+            userId: importedBy,
+            newValue: {
+              bankAccountId,
+              openingBalance: openingBalance.toFixed(4),
+              closingBalance: closingBalance.toFixed(4),
+              transactionCount,
+            },
+          },
+        });
+
+        return { statementId: statement.id, transactionCount };
+      })
+    );
   },
 
   /**
@@ -140,58 +146,60 @@ export const BankingService = {
     companyId: string,
     reconciledBy: string
   ): Promise<BankTransaction> {
-    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
-      // Verificar que la transacción pertenece a la empresa (companyId directo — Fase 13D)
-      const bankTx = await tx.bankTransaction.findFirst({
-        where: { id: transactionId, companyId, deletedAt: null },
-      });
-      if (!bankTx) {
-        throw new Error("La transacción bancaria no existe o no pertenece a la empresa indicada");
-      }
+    return prisma.$transaction(async (tx) =>
+      withCompanyContext(companyId, tx, async (tx) => {
+        // Verificar que la transacción pertenece a la empresa (companyId directo — Fase 13D)
+        const bankTx = await tx.bankTransaction.findFirst({
+          where: { id: transactionId, companyId, deletedAt: null },
+        });
+        if (!bankTx) {
+          throw new Error("La transacción bancaria no existe o no pertenece a la empresa indicada");
+        }
 
-      // Verificar que no esté ya conciliada
-      if (bankTx.isReconciled) {
-        throw new Error("La transacción ya está conciliada");
-      }
+        // Verificar que no esté ya conciliada
+        if (bankTx.isReconciled) {
+          throw new Error("La transacción ya está conciliada");
+        }
 
-      // Verificar que el pago pertenece a la empresa
-      const payment = await tx.invoicePayment.findFirst({
-        where: { id: invoicePaymentId, companyId },
-      });
-      if (!payment) {
-        throw new Error("El pago no existe o no pertenece a la empresa indicada");
-      }
+        // Verificar que el pago pertenece a la empresa
+        const payment = await tx.invoicePayment.findFirst({
+          where: { id: invoicePaymentId, companyId },
+        });
+        if (!payment) {
+          throw new Error("El pago no existe o no pertenece a la empresa indicada");
+        }
 
-      // Actualizar transacción
-      const updated = await tx.bankTransaction.update({
-        where: { id: transactionId },
-        data: {
-          matchedPaymentId: invoicePaymentId,
-          matchedAt: new Date(),
-          matchedBy: reconciledBy,
-          isReconciled: true,
-        },
-      });
-
-      // AuditLog
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          entityId: transactionId,
-          entityName: "BankTransaction",
-          action: "RECONCILE",
-          userId: reconciledBy,
-          oldValue: { isReconciled: false, matchedPaymentId: null },
-          newValue: {
-            isReconciled: true,
+        // Actualizar transacción
+        const updated = await tx.bankTransaction.update({
+          where: { id: transactionId },
+          data: {
             matchedPaymentId: invoicePaymentId,
-            matchedAt: new Date().toISOString(),
+            matchedAt: new Date(),
+            matchedBy: reconciledBy,
+            isReconciled: true,
           },
-        },
-      });
+        });
 
-      return updated;
-    }));
+        // AuditLog
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            entityId: transactionId,
+            entityName: "BankTransaction",
+            action: "RECONCILE",
+            userId: reconciledBy,
+            oldValue: { isReconciled: false, matchedPaymentId: null },
+            newValue: {
+              isReconciled: true,
+              matchedPaymentId: invoicePaymentId,
+              matchedAt: new Date().toISOString(),
+            },
+          },
+        });
+
+        return updated;
+      })
+    );
   },
 
   /**
@@ -203,48 +211,50 @@ export const BankingService = {
     companyId: string,
     unreconciledBy: string
   ): Promise<BankTransaction> {
-    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
-      // Verificar pertenencia a companyId (directo — Fase 13D)
-      const bankTx = await tx.bankTransaction.findFirst({
-        where: { id: transactionId, companyId, deletedAt: null },
-      });
-      if (!bankTx) {
-        throw new Error("La transacción bancaria no existe o no pertenece a la empresa indicada");
-      }
+    return prisma.$transaction(async (tx) =>
+      withCompanyContext(companyId, tx, async (tx) => {
+        // Verificar pertenencia a companyId (directo — Fase 13D)
+        const bankTx = await tx.bankTransaction.findFirst({
+          where: { id: transactionId, companyId, deletedAt: null },
+        });
+        if (!bankTx) {
+          throw new Error("La transacción bancaria no existe o no pertenece a la empresa indicada");
+        }
 
-      // Verificar que esté conciliada
-      if (!bankTx.isReconciled) {
-        throw new Error("La transacción no está conciliada");
-      }
+        // Verificar que esté conciliada
+        if (!bankTx.isReconciled) {
+          throw new Error("La transacción no está conciliada");
+        }
 
-      const updated = await tx.bankTransaction.update({
-        where: { id: transactionId },
-        data: {
-          matchedPaymentId: null,
-          matchedAt: null,
-          matchedBy: null,
-          isReconciled: false,
-        },
-      });
-
-      // AuditLog
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          entityId: transactionId,
-          entityName: "BankTransaction",
-          action: "UNRECONCILE",
-          userId: unreconciledBy,
-          oldValue: {
-            isReconciled: true,
-            matchedPaymentId: bankTx.matchedPaymentId,
+        const updated = await tx.bankTransaction.update({
+          where: { id: transactionId },
+          data: {
+            matchedPaymentId: null,
+            matchedAt: null,
+            matchedBy: null,
+            isReconciled: false,
           },
-          newValue: { isReconciled: false, matchedPaymentId: null },
-        },
-      });
+        });
 
-      return updated;
-    }));
+        // AuditLog
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            entityId: transactionId,
+            entityName: "BankTransaction",
+            action: "UNRECONCILE",
+            userId: unreconciledBy,
+            oldValue: {
+              isReconciled: true,
+              matchedPaymentId: bankTx.matchedPaymentId,
+            },
+            newValue: { isReconciled: false, matchedPaymentId: null },
+          },
+        });
+
+        return updated;
+      })
+    );
   },
 
   /**

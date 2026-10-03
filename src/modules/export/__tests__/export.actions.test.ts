@@ -94,7 +94,9 @@ describe("createExportJobAction", () => {
     vi.mocked(prisma.exportJob.findFirst).mockResolvedValue({ id: "existing-job" } as never);
     const result = await createExportJobAction(VALID_INPUT);
     expect(result.success).toBe(false);
-    expect((result as { success: false; error: string }).error).toContain("Ya existe una exportación");
+    expect((result as { success: false; error: string }).error).toContain(
+      "Ya existe una exportación"
+    );
   });
 
   it("retorna error de schema si dateFrom > dateTo", async () => {
@@ -183,13 +185,21 @@ describe("generateSIVITAction", () => {
   });
 
   it("rechaza si fecha fin anterior a fecha inicio", async () => {
-    const r = await generateSIVITAction({ ...VALID_SIVIT, dateFrom: "2026-02-01", dateTo: "2026-01-01" });
+    const r = await generateSIVITAction({
+      ...VALID_SIVIT,
+      dateFrom: "2026-02-01",
+      dateTo: "2026-01-01",
+    });
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("posterior");
   });
 
   it("rechaza si rango supera 366 días", async () => {
-    const r = await generateSIVITAction({ ...VALID_SIVIT, dateFrom: "2024-01-01", dateTo: "2026-01-01" });
+    const r = await generateSIVITAction({
+      ...VALID_SIVIT,
+      dateFrom: "2024-01-01",
+      dateTo: "2026-01-01",
+    });
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("366");
   });
@@ -231,7 +241,17 @@ describe("listExportJobsAction", () => {
   });
 
   it("devuelve lista de jobs del usuario", async () => {
-    const fakeJobs = [{ id: "j1", status: "DONE", dateFrom: new Date(), dateTo: new Date(), fileSize: 100, expiresAt: null, createdAt: new Date() }];
+    const fakeJobs = [
+      {
+        id: "j1",
+        status: "DONE",
+        dateFrom: new Date(),
+        dateTo: new Date(),
+        fileSize: 100,
+        expiresAt: null,
+        createdAt: new Date(),
+      },
+    ];
     vi.mocked(prisma.exportJob.findMany).mockResolvedValue(fakeJobs as never);
     const result = await listExportJobsAction(COMPANY_ID);
     expect(result.success).toBe(true);

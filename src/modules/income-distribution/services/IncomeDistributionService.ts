@@ -73,11 +73,7 @@ export type CreateDistributionInput = {
 const P2034_DELAYS = [0, 50, 100] as const;
 
 function isP2034(err: unknown): boolean {
-  return (
-    err instanceof Error &&
-    "code" in err &&
-    (err as { code: string }).code === "P2034"
-  );
+  return err instanceof Error && "code" in err && (err as { code: string }).code === "P2034";
 }
 
 function serialize(dist: {
@@ -166,7 +162,7 @@ export function buildIdempotencyKey(
   companyId: string,
   date: Date,
   totalAmountVes: Decimal,
-  lines: { recipientCompanyId: string; percentageShare: Decimal }[],
+  lines: { recipientCompanyId: string; percentageShare: Decimal }[]
 ): string {
   const sorted = [...lines]
     .sort((a, b) => a.recipientCompanyId.localeCompare(b.recipientCompanyId))
@@ -184,7 +180,7 @@ export function computeTotalVes(original: Decimal, rate: Decimal): Decimal {
 /** Distribuye totalVes entre las líneas según porcentajes; la última absorbe el residuo */
 export function distributeAmounts(
   totalVes: Decimal,
-  lines: { percentageShare: Decimal }[],
+  lines: { percentageShare: Decimal }[]
 ): Decimal[] {
   const amounts: Decimal[] = [];
   let accumulated = new Decimal(0);
@@ -206,7 +202,7 @@ export function distributeAmounts(
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export async function createDistribution(
-  input: CreateDistributionInput,
+  input: CreateDistributionInput
 ): Promise<IncomeDistributionSummary> {
   const totalVes = computeTotalVes(input.totalAmountOriginal, input.exchangeRate);
   const amounts = distributeAmounts(totalVes, input.lines);
@@ -220,7 +216,7 @@ export async function createDistribution(
     // `recipientCompanyId`, no contra la empresa que origina la distribución.
     await assertAccountsBelongToCompany(tx, input.companyId, [input.originAccountId]);
     await Promise.all(
-      input.lines.map((l) => assertAccountsBelongToCompany(tx, l.recipientCompanyId, [l.accountId])),
+      input.lines.map((l) => assertAccountsBelongToCompany(tx, l.recipientCompanyId, [l.accountId]))
     );
 
     let dist;
@@ -252,8 +248,10 @@ export async function createDistribution(
       });
     } catch (err) {
       if (
-        typeof err === "object" && err !== null &&
-        "code" in err && (err as { code: string }).code === "P2002"
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        (err as { code: string }).code === "P2002"
       ) {
         // Fuente única (`p2002TargetIncludes`): `meta.target` no tiene forma
         // estable — llega como array con el adaptador de Neon, pero el tipo no lo
@@ -289,7 +287,7 @@ export async function applyDistribution(
   companyId: string,
   userId: string,
   ipAddress?: string | null,
-  userAgent?: string | null,
+  userAgent?: string | null
 ): Promise<IncomeDistributionSummary> {
   const MAX_ATTEMPTS = 3;
   let lastErr: unknown;
@@ -313,12 +311,12 @@ export async function applyDistribution(
           // V-6: sum invariant (con tolerancia ±0.01)
           const sumLines = dist.lines.reduce(
             (acc, l) => acc.plus(new Decimal(l.amountVes.toString())),
-            new Decimal(0),
+            new Decimal(0)
           );
           const totalVes = new Decimal(dist.totalAmountVes.toString());
           if (sumLines.minus(totalVes).abs().greaterThan(new Decimal("0.01"))) {
             throw new Error(
-              `Invariante violada: suma de líneas ${sumLines.toFixed(2)} ≠ total ${totalVes.toFixed(2)}`,
+              `Invariante violada: suma de líneas ${sumLines.toFixed(2)} ≠ total ${totalVes.toFixed(2)}`
             );
           }
 
@@ -418,12 +416,13 @@ export async function applyDistribution(
 
           return serialize(applied);
         },
-        { isolationLevel: "Serializable" },
+        { isolationLevel: "Serializable" }
       );
     } catch (err) {
       if (isP2034(err)) {
         lastErr = err;
-        if (attempt === MAX_ATTEMPTS) throw new Error("Conflicto de concurrencia — reintente la operación");
+        if (attempt === MAX_ATTEMPTS)
+          throw new Error("Conflicto de concurrencia — reintente la operación");
         continue;
       }
       throw err;
@@ -439,7 +438,7 @@ export async function voidDistribution(
   voidReason: string,
   userId: string,
   ipAddress?: string | null,
-  userAgent?: string | null,
+  userAgent?: string | null
 ): Promise<IncomeDistributionSummary> {
   return prisma.$transaction(
     async (tx) => {
@@ -451,7 +450,7 @@ export async function voidDistribution(
       // MVP: solo DRAFT puede anularse; APPLIED → deferred to Fase 36E (ADR-023)
       if (dist.status !== "DRAFT") {
         throw new Error(
-          `Solo se pueden anular distribuciones en DRAFT. Estado actual: ${dist.status}. Para revertir una distribución aplicada, contacte al administrador.`,
+          `Solo se pueden anular distribuciones en DRAFT. Estado actual: ${dist.status}. Para revertir una distribución aplicada, contacte al administrador.`
         );
       }
 
@@ -481,13 +480,13 @@ export async function voidDistribution(
 
       return serialize(voided);
     },
-    { isolationLevel: "Serializable" },
+    { isolationLevel: "Serializable" }
   );
 }
 
 export async function getDistributionById(
   distributionId: string,
-  companyId: string,
+  companyId: string
 ): Promise<IncomeDistributionSummary | null> {
   const dist = await prisma.incomeDistribution.findFirst({
     where: { id: distributionId, companyId },
@@ -499,7 +498,7 @@ export async function getDistributionById(
 export async function listDistributions(
   companyId: string,
   cursor?: string,
-  limit = 50,
+  limit = 50
 ): Promise<{ distributions: IncomeDistributionSummary[]; nextCursor: string | null }> {
   const take = limit + 1;
   const rows = await prisma.incomeDistribution.findMany({

@@ -7,7 +7,12 @@ import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
 import prisma from "@/lib/prisma";
 import { mapPrismaError } from "@/lib/prisma-errors";
-import { getBalanceSheetAction, getIncomeStatementAction, getLedgerAction, getTrialBalanceAction } from "./report.actions";
+import {
+  getBalanceSheetAction,
+  getIncomeStatementAction,
+  getLedgerAction,
+  getTrialBalanceAction,
+} from "./report.actions";
 import {
   generateBalanceSheetPDF,
   generateIncomeStatementPDF,
@@ -16,7 +21,9 @@ import {
   type AccountantInfo,
 } from "../services/FinancialStatementsPDFService";
 
-type PDFResult = { success: true; data: { pdf: string; filename: string } } | { success: false; error: string };
+type PDFResult =
+  | { success: true; data: { pdf: string; filename: string } }
+  | { success: false; error: string };
 
 // Convierte un error de generacion de PDF al formato de respuesta estandar.
 // Sanitiza vía mapPrismaError: errores de negocio (español) pasan; técnicos de BD
@@ -32,7 +39,10 @@ type GuardResult =
 
 async function guardAccounting(companyId: string): Promise<GuardResult> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.read,
+    });
     if (!ctx.ok) return ctx.error;
 
     const [company, settings] = await Promise.all([
@@ -87,7 +97,10 @@ export async function exportBalanceSheetPDFAction(companyId: string): Promise<PD
       data: reportResult.data,
       accountant: guard.accountant,
     });
-    return { success: true, data: { pdf: buffer.toString("base64"), filename: `Balance-General-${today}.pdf` } };
+    return {
+      success: true,
+      data: { pdf: buffer.toString("base64"), filename: `Balance-General-${today}.pdf` },
+    };
   } catch (error) {
     return toPDFError(error);
   }
@@ -114,7 +127,10 @@ export async function exportIncomeStatementPDFAction(companyId: string): Promise
       data: reportResult.data.current,
       accountant: guard.accountant,
     });
-    return { success: true, data: { pdf: buffer.toString("base64"), filename: `Estado-Resultados-${today}.pdf` } };
+    return {
+      success: true,
+      data: { pdf: buffer.toString("base64"), filename: `Estado-Resultados-${today}.pdf` },
+    };
   } catch (error) {
     return toPDFError(error);
   }
@@ -139,7 +155,10 @@ export async function exportTrialBalancePDFAction(companyId: string): Promise<PD
       data: reportResult.data,
       accountant: guard.accountant,
     });
-    return { success: true, data: { pdf: buffer.toString("base64"), filename: `Balance-Comprobacion-${today}.pdf` } };
+    return {
+      success: true,
+      data: { pdf: buffer.toString("base64"), filename: `Balance-Comprobacion-${today}.pdf` },
+    };
   } catch (error) {
     return toPDFError(error);
   }
@@ -150,7 +169,7 @@ export async function exportTrialBalancePDFAction(companyId: string): Promise<PD
 export async function exportLedgerPDFAction(
   companyId: string,
   dateFrom?: string,
-  dateTo?: string,
+  dateTo?: string
 ): Promise<PDFResult> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
@@ -158,7 +177,7 @@ export async function exportLedgerPDFAction(
   const reportResult = await getLedgerAction(
     companyId,
     dateFrom ? new Date(dateFrom) : undefined,
-    dateTo ? new Date(dateTo + "T23:59:59") : undefined,
+    dateTo ? new Date(dateTo + "T23:59:59") : undefined
   );
   if (!reportResult.success) return { success: false, error: reportResult.error };
 

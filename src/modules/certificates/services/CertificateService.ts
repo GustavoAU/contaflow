@@ -126,13 +126,16 @@ export class CertificateService {
    * Debe llamarse dentro de un $transaction activo (R-6: AuditLog en mismo tx).
    */
   static async generateSelfSigned(
-    tx: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+    tx: Omit<
+      typeof prisma,
+      "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+    >,
     companyId: string,
     companyName: string,
     rif: string,
     userId: string,
     ipAddress: string | null,
-    userAgent: string | null,
+    userAgent: string | null
   ) {
     // Rechazar si ya existe certificado
     const existing = await tx.companyCertificate.findUnique({
@@ -193,12 +196,15 @@ export class CertificateService {
    * Debe llamarse dentro de un $transaction activo.
    */
   static async loadOfficialCertificate(
-    tx: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+    tx: Omit<
+      typeof prisma,
+      "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+    >,
     companyId: string,
     p12Buffer: Buffer,
     userId: string,
     ipAddress: string | null,
-    userAgent: string | null,
+    userAgent: string | null
   ) {
     // Validar estructura PKCS#12 antes de cifrar
     let commonName: string;
@@ -223,13 +229,10 @@ export class CertificateService {
       expiresAt = cert.validity.notAfter;
 
       const certDer = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes();
-      thumbprint = crypto
-        .createHash("sha256")
-        .update(Buffer.from(certDer, "binary"))
-        .digest("hex");
+      thumbprint = crypto.createHash("sha256").update(Buffer.from(certDer, "binary")).digest("hex");
     } catch (err) {
       throw new Error(
-        `El archivo .p12 no es válido o está dañado: ${err instanceof Error ? err.message : String(err)}`,
+        `El archivo .p12 no es válido o está dañado: ${err instanceof Error ? err.message : String(err)}`
       );
     }
 
@@ -300,7 +303,7 @@ export class CertificateService {
 
     const now = new Date();
     const daysUntilExpiry = Math.floor(
-      (cert.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+      (cert.expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     return {

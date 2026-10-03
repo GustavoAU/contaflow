@@ -23,9 +23,11 @@ export const PayrollConfigSchema = z.object({
   // Clase de riesgo declarada ante el IVSS. Determina la cotización patronal
   // (LSS Art. 59): mínimo 9% / medio 10% / máximo 11%. No es una preferencia:
   // la fija la actividad económica de la empresa según el Reglamento.
-  ivssRiskClass: z.enum(["MINIMO", "MEDIO", "MAXIMO"], {
-    error: "Selecciona la clase de riesgo declarada ante el IVSS",
-  }).default("MEDIO"),
+  ivssRiskClass: z
+    .enum(["MINIMO", "MEDIO", "MAXIMO"], {
+      error: "Selecciona la clase de riesgo declarada ante el IVSS",
+    })
+    .default("MEDIO"),
   // Salario mínimo nacional vigente en Bs (para topes de cotización).
   // Cuando null/vacío: sin tope (empresa no lo ha configurado aún).
   salaryMinimumVes: z.string().optional().nullable(),
@@ -45,7 +47,9 @@ export const PayrollConfigSchema = z.object({
     error: "Selecciona la modalidad de fideicomiso",
   }),
   // VAC-1: jornada laboral para cómputo de días hábiles en vacaciones (LOTTT)
-  workSchedule: z.enum(["LUNES_VIERNES", "LUNES_SABADO", "LUNES_SABADO_MEDIO"]).default("LUNES_VIERNES"),
+  workSchedule: z
+    .enum(["LUNES_VIERNES", "LUNES_SABADO", "LUNES_SABADO_MEDIO"])
+    .default("LUNES_VIERNES"),
   // ── Paso 3 — Cuentas contables ─────────────────────────────────────────────
   //
   // ESTAS DIECISIETE TIENEN QUE ESTAR TODAS. Zod descarta en silencio las claves

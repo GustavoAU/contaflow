@@ -14,12 +14,7 @@ type Props = {
   onCancel: () => void;
 };
 
-export function CajaCajaReimbursementForm({
-  companyId,
-  cajaCajaId,
-  onSuccess,
-  onCancel,
-}: Props) {
+export function CajaCajaReimbursementForm({ companyId, cajaCajaId, onSuccess, onCancel }: Props) {
   // <input type="month"> devuelve "YYYY-MM" nativamente — justo el formato del schema.
   const [monthYear, setMonthYear] = useState(currentMonthLocalISO());
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +65,7 @@ export function CajaCajaReimbursementForm({
         </div>
       )}
 
-      <div className="flex gap-2 pt-1 border-t">
+      <div className="flex gap-2 border-t pt-1">
         <Button type="submit" size="sm" disabled={isPending} aria-busy={isPending}>
           Crear reembolso
         </Button>

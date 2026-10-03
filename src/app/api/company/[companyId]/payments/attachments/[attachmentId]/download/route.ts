@@ -29,7 +29,7 @@ function contentDisposition(kind: "inline" | "attachment", fileName: string): st
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ companyId: string; attachmentId: string }> },
+  { params }: { params: Promise<{ companyId: string; attachmentId: string }> }
 ): Promise<Response> {
   const { companyId, attachmentId } = await params;
 
@@ -46,9 +46,16 @@ export async function GET(
   // ADR-004: companyId en el where. Un id de otra empresa da 404, no 403: no confirma que exista.
   const attachment = await prisma.paymentAttachment.findFirst({
     where: { id: attachmentId, companyId, deletedAt: null },
-    select: { paymentRecordId: true, blobKey: true, fileName: true, mimeType: true, contentHash: true },
+    select: {
+      paymentRecordId: true,
+      blobKey: true,
+      fileName: true,
+      mimeType: true,
+      contentHash: true,
+    },
   });
-  if (!attachment) return NextResponse.json({ error: "Comprobante no encontrado" }, { status: 404 });
+  if (!attachment)
+    return NextResponse.json({ error: "Comprobante no encontrado" }, { status: 404 });
 
   if (!isValidAttachmentPathname(attachment.blobKey, companyId, attachment.paymentRecordId)) {
     Sentry.captureMessage("PaymentAttachment.blobKey fuera del prefijo de su pago", {
@@ -73,7 +80,9 @@ export async function GET(
   const contentType = known ? attachment.mimeType : "application/octet-stream";
   // La extensión del nombre sigue al tipo (filas antiguas incluidas). Los PDF se descargan: la CSP obligatoria del
   // middleware trae object-src 'none' y el visor de PDF del navegador puede quedar bloqueado; las imágenes van en línea.
-  const fileName = known ? attachmentFileNameFor(attachment.fileName, attachment.mimeType as AllowedMimeType) : "comprobante";
+  const fileName = known
+    ? attachmentFileNameFor(attachment.fileName, attachment.mimeType as AllowedMimeType)
+    : "comprobante";
   const kind = known && contentType !== "application/pdf" ? "inline" : "attachment";
 
   return new NextResponse(result.stream, {

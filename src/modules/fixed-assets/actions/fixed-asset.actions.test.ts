@@ -39,10 +39,16 @@ vi.mock("../services/FixedAssetService", async (importOriginal) => {
       postMonthlyDepreciation: vi.fn().mockResolvedValue({ processed: 2, skipped: 0, errors: [] }),
       dispose: vi.fn().mockResolvedValue(undefined),
       getSummary: vi.fn().mockResolvedValue([]),
-      getSchedule: vi.fn().mockResolvedValue({ asset: { name: "Vehículo Toyota" }, projected: [], posted: [] }),
+      getSchedule: vi
+        .fn()
+        .mockResolvedValue({ asset: { name: "Vehículo Toyota" }, projected: [], posted: [] }),
       postDepreciation: vi.fn().mockResolvedValue({ created: true }),
       postClosedYearCatchUpDepreciation: vi.fn().mockResolvedValue({ processed: 0 }),
-      postINPCRestatement: vi.fn().mockResolvedValue({ processed: 2, skipped: 0, totalAdjustment: { toFixed: () => "1200.00" } }),
+      postINPCRestatement: vi.fn().mockResolvedValue({
+        processed: 2,
+        skipped: 0,
+        totalAdjustment: { toFixed: () => "1200.00" },
+      }),
       getGLReconciliation: vi.fn().mockResolvedValue([]),
       getINPCRestatementHistory: vi.fn().mockResolvedValue([]),
     },
@@ -52,13 +58,16 @@ vi.mock("../services/FixedAssetService", async (importOriginal) => {
 
 vi.mock("@/lib/prisma", () => ({
   default: {
-    companyMember:    { findFirst: vi.fn().mockResolvedValue(mockMember) },
-    accountingPeriod: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
-    expense:          { findMany: vi.fn().mockResolvedValue([]) },
-    fixedAsset:       { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    companyMember: { findFirst: vi.fn().mockResolvedValue(mockMember) },
+    accountingPeriod: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    expense: { findMany: vi.fn().mockResolvedValue([]) },
+    fixedAsset: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     depreciationEntry: { findUnique: vi.fn().mockResolvedValue(null) },
-    fiscalYearClose:  { findMany: vi.fn().mockResolvedValue([]) },
-    $transaction:     mockTransaction,
+    fiscalYearClose: { findMany: vi.fn().mockResolvedValue([]) },
+    $transaction: mockTransaction,
   },
 }));
 
@@ -99,7 +108,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(auth).mockResolvedValue({ userId: "user-test" } as never);
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(mockMember as never);
-  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn({})) as never);
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({})) as never);
   vi.mocked(FiscalYearCloseService.isFiscalYearClosed).mockResolvedValue(false);
   vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue([]);
@@ -157,7 +167,7 @@ describe("createFixedAssetAction", () => {
     expect(FixedAssetService.create).toHaveBeenCalledWith(
       expect.objectContaining({ name: "Vehículo Toyota", companyId: "company-001" }),
       "user-test",
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -167,7 +177,7 @@ describe("createFixedAssetAction", () => {
     expect(FixedAssetService.create).toHaveBeenCalledWith(
       expect.objectContaining({ acquisitionCounterpartAccountId: "acc-cxp-001" }),
       "user-test",
-      expect.anything(),
+      expect.anything()
     );
   });
 });
@@ -222,11 +232,11 @@ describe("postMonthlyDepreciationAction", () => {
 
 describe("disposeFixedAssetAction", () => {
   const DISPOSE_INPUT = {
-    assetId:           "asset-001",
-    companyId:         "company-001",
-    disposalDate:      new Date("2026-04-01"),
-    reason:            "OBSOLETE" as const,
-    saleProceeds:      "0",
+    assetId: "asset-001",
+    companyId: "company-001",
+    disposalDate: new Date("2026-04-01"),
+    reason: "OBSOLETE" as const,
+    saleProceeds: "0",
     proceedsAccountId: null,
     gainLossAccountId: null,
   };
@@ -267,19 +277,19 @@ describe("disposeFixedAssetAction", () => {
     vi.mocked(FixedAssetService.dispose).mockResolvedValue(undefined);
     const r = await disposeFixedAssetAction({
       ...DISPOSE_INPUT,
-      applyArt66:            true,
+      applyArt66: true,
       art66ExpenseAccountId: "acc-gasto-iva-reintegro",
-      ivaCFAccountId:        "acc-iva-cf",
+      ivaCFAccountId: "acc-iva-cf",
     });
     expect(r.success).toBe(true);
     expect(vi.mocked(FixedAssetService.dispose)).toHaveBeenCalledWith(
       expect.objectContaining({
-        applyArt66:            true,
+        applyArt66: true,
         art66ExpenseAccountId: "acc-gasto-iva-reintegro",
-        ivaCFAccountId:        "acc-iva-cf",
+        ivaCFAccountId: "acc-iva-cf",
       }),
       expect.any(String),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -290,7 +300,7 @@ describe("disposeFixedAssetAction", () => {
     expect(vi.mocked(FixedAssetService.dispose)).toHaveBeenCalledWith(
       expect.objectContaining({ applyArt66: false }),
       expect.any(String),
-      expect.anything(),
+      expect.anything()
     );
   });
 });
@@ -299,9 +309,9 @@ describe("disposeFixedAssetAction", () => {
 
 describe("postFixedAssetINPCRestatementAction", () => {
   const INPC_INPUT = {
-    companyId:           "company-001",
-    periodYear:          2026,
-    periodMonth:         3,
+    companyId: "company-001",
+    periodYear: 2026,
+    periodMonth: 3,
     patrimonioAccountId: "acc-patrimonio",
   };
 
@@ -340,7 +350,11 @@ describe("postFixedAssetINPCRestatementAction", () => {
   });
 
   it("retorna error si input inválido (Zod)", async () => {
-    const r = await postFixedAssetINPCRestatementAction({ companyId: "", periodYear: 2026, periodMonth: 3 });
+    const r = await postFixedAssetINPCRestatementAction({
+      companyId: "",
+      periodYear: 2026,
+      periodMonth: 3,
+    });
     expect(r.success).toBe(false);
   });
 
@@ -395,12 +409,12 @@ describe("getFixedAssetGLReconciliationAction", () => {
     vi.mocked(FixedAssetService.getGLReconciliation).mockResolvedValue([
       {
         accDepreciationAccountId: "acc-contra",
-        accountCode:  "1.5.1",
-        accountName:  "Dep. Acumulada Vehículos",
-        moduleTotal:  new Decimal("1500.00"),
-        glTotal:      new Decimal("1500.00"),
-        difference:   new Decimal("0.00"),
-        assetCount:   2,
+        accountCode: "1.5.1",
+        accountName: "Dep. Acumulada Vehículos",
+        moduleTotal: new Decimal("1500.00"),
+        glTotal: new Decimal("1500.00"),
+        difference: new Decimal("0.00"),
+        assetCount: 2,
       },
     ] as never);
     const r = await getFixedAssetGLReconciliationAction("company-001");
@@ -419,12 +433,12 @@ describe("getFixedAssetGLReconciliationAction", () => {
     vi.mocked(FixedAssetService.getGLReconciliation).mockResolvedValue([
       {
         accDepreciationAccountId: "acc-contra",
-        accountCode:  "1.5.1",
-        accountName:  "Dep. Acumulada",
-        moduleTotal:  new Decimal("1000.00"),
-        glTotal:      new Decimal("1250.00"),
-        difference:   new Decimal("250.00"),
-        assetCount:   1,
+        accountCode: "1.5.1",
+        accountName: "Dep. Acumulada",
+        moduleTotal: new Decimal("1000.00"),
+        glTotal: new Decimal("1250.00"),
+        difference: new Decimal("250.00"),
+        assetCount: 1,
       },
     ] as never);
     const r = await getFixedAssetGLReconciliationAction("company-001");
@@ -462,18 +476,18 @@ describe("getFixedAssetINPCHistoryAction", () => {
     const { Decimal } = await import("decimal.js");
     vi.mocked(FixedAssetService.getINPCRestatementHistory).mockResolvedValue([
       {
-        id:                "restatement-001",
-        assetId:           "asset-001",
-        assetName:         "Vehículo Toyota",
-        inpcPeriodYear:    2026,
-        inpcPeriodMonth:   3,
-        factor:            new Decimal("1.524300"),
-        adjustmentAmount:  new Decimal("3000.00"),
+        id: "restatement-001",
+        assetId: "asset-001",
+        assetName: "Vehículo Toyota",
+        inpcPeriodYear: 2026,
+        inpcPeriodMonth: 3,
+        factor: new Decimal("1.524300"),
+        adjustmentAmount: new Decimal("3000.00"),
         previousBookValue: new Decimal("20000.00"),
-        newRestatedValue:  new Decimal("23000.00"),
-        equityAccountId:   "acc-patrimonio",
-        transactionId:     "tx-001-asset-001",
-        createdAt:         new Date("2026-03-31T12:00:00Z"),
+        newRestatedValue: new Decimal("23000.00"),
+        equityAccountId: "acc-patrimonio",
+        transactionId: "tx-001-asset-001",
+        createdAt: new Date("2026-03-31T12:00:00Z"),
       },
     ] as never);
     const r = await getFixedAssetINPCHistoryAction("company-001", "asset-001");
@@ -543,14 +557,14 @@ describe("getExpensesForAssetImportAction", () => {
     const { Decimal } = await import("decimal.js");
     vi.mocked(prisma.expense.findMany).mockResolvedValue([
       {
-        id:            "exp-001",
-        concept:       "Compra Vehículo Toyota Hilux",
-        amount:        new Decimal("50000.00"),
-        currency:      "USD",
+        id: "exp-001",
+        concept: "Compra Vehículo Toyota Hilux",
+        amount: new Decimal("50000.00"),
+        currency: "USD",
         invoiceNumber: "00-000123",
-        invoiceDate:   new Date("2026-01-15"),
-        supplierName:  null,
-        vendor:        { name: "Importadora Toyota", rif: "J-12345678-9" },
+        invoiceDate: new Date("2026-01-15"),
+        supplierName: null,
+        vendor: { name: "Importadora Toyota", rif: "J-12345678-9" },
       },
     ] as never);
     const r = await getExpensesForAssetImportAction("company-001");
@@ -571,14 +585,14 @@ describe("getExpensesForAssetImportAction", () => {
     const { Decimal } = await import("decimal.js");
     vi.mocked(prisma.expense.findMany).mockResolvedValue([
       {
-        id:            "exp-002",
-        concept:       "Equipo de oficina",
-        amount:        new Decimal("1500.00"),
-        currency:      "VES",
+        id: "exp-002",
+        concept: "Equipo de oficina",
+        amount: new Decimal("1500.00"),
+        currency: "VES",
         invoiceNumber: null,
-        invoiceDate:   null,
-        supplierName:  "Tienda Genérica",
-        vendor:        null,
+        invoiceDate: null,
+        supplierName: "Tienda Genérica",
+        vendor: null,
       },
     ] as never);
     const r = await getExpensesForAssetImportAction("company-001");
@@ -613,7 +627,13 @@ describe("getDepreciationScheduleAction", () => {
     vi.mocked(FixedAssetService.getSchedule).mockResolvedValue({
       asset: { name: "Vehículo Toyota" },
       projected: [
-        { year: 2026, month: 2, amount: new Decimal("750.00"), accumulated: new Decimal("750.00"), bookValue: new Decimal("49250.00") },
+        {
+          year: 2026,
+          month: 2,
+          amount: new Decimal("750.00"),
+          accumulated: new Decimal("750.00"),
+          bookValue: new Decimal("49250.00"),
+        },
       ],
       posted: [{ periodYear: 2026, periodMonth: 1 }],
     } as never);
@@ -647,7 +667,10 @@ describe("previewDepreciationScheduleAction", () => {
   });
 
   it("retorna error si rate limit agotado", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes." });
+    vi.mocked(checkRateLimit).mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes.",
+    });
     const r = await previewDepreciationScheduleAction(PREVIEW_INPUT);
     expect(r.success).toBe(false);
   });
@@ -692,7 +715,10 @@ describe("catchUpAssetDepreciationAction", () => {
   });
 
   it("retorna error si activo no está ACTIVE", async () => {
-    vi.mocked(prisma.fixedAsset.findFirst).mockResolvedValue({ ...ASSET_ROW, status: "DISPOSED" } as never);
+    vi.mocked(prisma.fixedAsset.findFirst).mockResolvedValue({
+      ...ASSET_ROW,
+      status: "DISPOSED",
+    } as never);
     const r = await catchUpAssetDepreciationAction(CATCH_UP_INPUT);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("activo");

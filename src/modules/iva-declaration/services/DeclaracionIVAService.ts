@@ -3,7 +3,15 @@
 import { Decimal } from "decimal.js";
 import prisma from "@/lib/prisma";
 import type { PrismaClient } from "@prisma/client";
-import type { Forma30Result, SeccionA, SeccionB, SeccionC, SeccionD, SeccionE, TaxLineRow } from "../types/forma30.types";
+import type {
+  Forma30Result,
+  SeccionA,
+  SeccionB,
+  SeccionC,
+  SeccionD,
+  SeccionE,
+  TaxLineRow,
+} from "../types/forma30.types";
 
 const ZERO = new Decimal(0);
 
@@ -18,7 +26,10 @@ function addRow(acc: TaxLineRow, base: Decimal, tax: Decimal, sign: 1 | -1 = 1):
   };
 }
 
-function vesRate(inv: { currency: string; exchangeRate: { rate: { toString(): string } } | null }): Decimal {
+function vesRate(inv: {
+  currency: string;
+  exchangeRate: { rate: { toString(): string } } | null;
+}): Decimal {
   if (inv.currency === "VES" || !inv.exchangeRate) return new Decimal(1);
   return new Decimal(inv.exchangeRate.rate.toString());
 }
@@ -76,7 +87,7 @@ export class DeclaracionIVAService {
     });
     if (invoiceCount > MAX_INVOICES_PER_PERIOD) {
       throw new Error(
-        `El período ${String(month).padStart(2, "0")}/${year} tiene ${invoiceCount.toLocaleString("es-VE")} facturas — excede el máximo procesable (${MAX_INVOICES_PER_PERIOD.toLocaleString("es-VE")}). Contacte a soporte.`,
+        `El período ${String(month).padStart(2, "0")}/${year} tiene ${invoiceCount.toLocaleString("es-VE")} facturas — excede el máximo procesable (${MAX_INVOICES_PER_PERIOD.toLocaleString("es-VE")}). Contacte a soporte.`
       );
     }
 
@@ -218,8 +229,7 @@ export class DeclaracionIVAService {
       const fx = vesRate(inv);
 
       // Importaciones van a B5
-      const isImport =
-        inv.docType === "PLANILLA_IMPORTACION" || inv.taxCategory === "IMPORTACION";
+      const isImport = inv.docType === "PLANILLA_IMPORTACION" || inv.taxCategory === "IMPORTACION";
 
       for (const tl of inv.taxLines) {
         const base = new Decimal(tl.base.toString()).times(fx);

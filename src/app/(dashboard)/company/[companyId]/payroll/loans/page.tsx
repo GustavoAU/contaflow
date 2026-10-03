@@ -27,7 +27,7 @@ export default async function LoansPage({ params }: Props) {
   const canRead = canAccess(member.role, ROLES.ACCOUNTING);
   if (!canRead) {
     return (
-      <div className="mx-auto max-w-3xl py-8 px-4">
+      <div className="mx-auto max-w-3xl px-4 py-8">
         <p className="text-sm text-gray-500">No tienes acceso a este módulo.</p>
       </div>
     );

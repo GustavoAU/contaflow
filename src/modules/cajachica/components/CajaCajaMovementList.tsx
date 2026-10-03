@@ -23,7 +23,6 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   VOIDED: { label: "Anulado", className: "bg-zinc-100 text-zinc-500 line-through" },
 };
 
-
 function VoidConfirm({
   companyId,
   movementId,
@@ -96,9 +95,7 @@ export function CajaCajaMovementList({ companyId, movements, isAdmin, onRefresh 
 
   if (movements.length === 0) {
     return (
-      <p className="py-8 text-center text-sm text-zinc-400">
-        No hay movimientos registrados.
-      </p>
+      <p className="py-8 text-center text-sm text-zinc-400">No hay movimientos registrados.</p>
     );
   }
 
@@ -112,19 +109,16 @@ export function CajaCajaMovementList({ companyId, movements, isAdmin, onRefresh 
       {movements.map((m) => {
         const cfg = STATUS_CONFIG[m.status] ?? STATUS_CONFIG.PENDING;
         return (
-          <div
-            key={m.id}
-            className="rounded-lg border bg-white p-3 dark:bg-zinc-950"
-          >
+          <div key={m.id} className="rounded-lg border bg-white p-3 dark:bg-zinc-950">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-mono text-zinc-500">{m.voucherNumber}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs text-zinc-500">{m.voucherNumber}</span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cfg.className}`}>
                     {cfg.label}
                   </span>
                 </div>
-                <p className="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                <p className="mt-0.5 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {m.concept}
                 </p>
                 <p className="text-xs text-zinc-500">
@@ -136,7 +130,7 @@ export function CajaCajaMovementList({ companyId, movements, isAdmin, onRefresh 
                   </p>
                 )}
               </div>
-              <div className="text-right shrink-0">
+              <div className="shrink-0 text-right">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   <MoneyBadge amount={m.amount} currency={m.currency} />
                 </p>
@@ -175,7 +169,10 @@ export function CajaCajaMovementList({ companyId, movements, isAdmin, onRefresh 
               <VoidConfirm
                 companyId={companyId}
                 movementId={m.id}
-                onDone={() => { setVoidingId(null); onRefresh(); }}
+                onDone={() => {
+                  setVoidingId(null);
+                  onRefresh();
+                }}
               />
             )}
           </div>

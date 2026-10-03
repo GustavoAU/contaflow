@@ -11,8 +11,8 @@ import { HKADigitalInvoiceProvider } from "./providers/hka/hka.provider";
 export type ProviderType = "NONE" | "HKA";
 
 interface CompanyProviderConfig {
-  provider:           ProviderType;
-  apiKeyEnc?:         string | null; // AES-256-GCM cifrado con CERT_ENCRYPTION_SECRET
+  provider: ProviderType;
+  apiKeyEnc?: string | null; // AES-256-GCM cifrado con CERT_ENCRYPTION_SECRET
 }
 
 // ─── Descifrado de credenciales ───────────────────────────────────────────────
@@ -26,9 +26,9 @@ function decryptApiKey(encrypted: string): string {
   if (parts.length !== 3) throw new Error("Formato de clave cifrada inválido");
 
   const [ivHex, authTagHex, ciphertextHex] = parts;
-  const key        = Buffer.from(secret.slice(0, 64).padEnd(64, "0"), "hex");
-  const iv         = Buffer.from(ivHex, "hex");
-  const authTag    = Buffer.from(authTagHex, "hex");
+  const key = Buffer.from(secret.slice(0, 64).padEnd(64, "0"), "hex");
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
   const ciphertext = Buffer.from(ciphertextHex, "hex");
 
   const decipher = createDecipheriv("aes-256-gcm", key, iv);
@@ -50,7 +50,7 @@ function getHKABaseUrl(): string {
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
 export function createDigitalInvoiceProvider(
-  config: CompanyProviderConfig,
+  config: CompanyProviderConfig
 ): DigitalInvoiceProvider | null {
   if (process.env.NODE_ENV === "test") {
     return new MockDigitalInvoiceProvider();
@@ -76,7 +76,9 @@ export function createDigitalInvoiceProvider(
 
 // ─── Utilidad para tests ──────────────────────────────────────────────────────
 
-export function createMockProvider(options?: ConstructorParameters<typeof MockDigitalInvoiceProvider>[0]) {
+export function createMockProvider(
+  options?: ConstructorParameters<typeof MockDigitalInvoiceProvider>[0]
+) {
   return new MockDigitalInvoiceProvider(options);
 }
 

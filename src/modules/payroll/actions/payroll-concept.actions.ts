@@ -35,9 +35,7 @@ export async function listConceptsAction(
   if (!ctx.ok) return ctx.error;
 
   // Seed defaults si no existen aún (idempotente)
-  await PayrollConceptService.seedDefaults(
-    companyId, ctx.userId, ctx.ipAddress, ctx.userAgent,
-  );
+  await PayrollConceptService.seedDefaults(companyId, ctx.userId, ctx.ipAddress, ctx.userAgent);
   const concepts = await PayrollConceptService.list(companyId);
   return { success: true, data: concepts };
 }
@@ -59,7 +57,13 @@ export async function createConceptAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const concept = await PayrollConceptService.create(companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const concept = await PayrollConceptService.create(
+      companyId,
+      ctx.userId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
@@ -87,7 +91,14 @@ export async function updateConceptAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const concept = await PayrollConceptService.update(companyId, ctx.userId, conceptId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const concept = await PayrollConceptService.update(
+      companyId,
+      ctx.userId,
+      conceptId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: concept };
   } catch (err) {
@@ -108,7 +119,13 @@ export async function deleteConceptAction(
   if (!ctx.ok) return ctx.error;
 
   try {
-    await PayrollConceptService.delete(companyId, ctx.userId, conceptId, ctx.ipAddress, ctx.userAgent);
+    await PayrollConceptService.delete(
+      companyId,
+      ctx.userId,
+      conceptId,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: { deleted: true } };
   } catch (err) {

@@ -57,7 +57,7 @@ function readFromPackage(pkg: string, candidates: string[]): { path: string; con
   throw new Error(
     `No se encontró ninguno de [${candidates.join(", ")}] en "${pkg}".\n` +
       "La librería reestructuró su build: revisa a mano si ya soporta nonce en estilos y " +
-      "actualiza este vigía (ver I-1 en src/lib/csp.ts).",
+      "actualiza este vigía (ver I-1 en src/lib/csp.ts)."
   );
 }
 
@@ -74,13 +74,13 @@ describe("I-1 — vigía: ¿ya se puede aplicar style-src estricto?", () => {
     const styleSrc = content.match(/"style-src":\s*\[([^\]]*)\]/)?.[1];
     expect(
       styleSrc,
-      "No se pudo leer el style-src por defecto de Clerk — cambió el formato del bundle.",
+      "No se pudo leer el style-src por defecto de Clerk — cambió el formato del bundle."
     ).toBeDefined();
 
     expect(
       styleSrc,
       "Clerk YA NO exige 'unsafe-inline' para estilos → uno de los dos bloqueantes de I-1 cayó. " +
-        "Revisa si sus <style data-emotion> ahora llevan nonce y avanza I-1 en src/lib/csp.ts.",
+        "Revisa si sus <style data-emotion> ahora llevan nonce y avanza I-1 en src/lib/csp.ts."
     ).toContain("unsafe-inline");
   });
 
@@ -92,7 +92,7 @@ describe("I-1 — vigía: ¿ya se puede aplicar style-src estricto?", () => {
     expect(
       /\bnonce\??\s*:/.test(content),
       "sonner YA acepta un nonce → pásaselo al <Toaster> y quita este bloqueante de I-1 " +
-        "(src/lib/csp.ts). El nonce está disponible en la cabecera x-nonce.",
+        "(src/lib/csp.ts). El nonce está disponible en la cabecera x-nonce."
     ).toBe(false);
   });
 });

@@ -80,7 +80,7 @@ export async function createCheckout(
   plan: PaidPlan,
   actorUserId: string,
   ipAddress: string | null,
-  userAgent: string | null,
+  userAgent: string | null
 ): Promise<{ invoiceUrl: string; subscriptionPaymentId: string }> {
   const existing = await prisma.subscription.findUnique({ where: { companyId } });
   if (existing?.status === "ACTIVE") {
@@ -88,7 +88,9 @@ export async function createCheckout(
   }
   // LOW-1: bloquear doble checkout cuando hay pago pendiente
   if (existing?.status === "PAST_DUE") {
-    throw new Error("Ya tienes un pago en curso. Complétalo o espera a que expire antes de iniciar uno nuevo.");
+    throw new Error(
+      "Ya tienes un pago en curso. Complétalo o espera a que expire antes de iniciar uno nuevo."
+    );
   }
 
   // El precio depende del perfil de la empresa (Individual vs Empresa).
@@ -107,73 +109,75 @@ export async function createCheckout(
       : Prisma.TransactionIsolationLevel.ReadCommitted;
 
   // ── Transacción: reservar slot + crear Subscription + SubscriptionPayment ──
-  const subscriptionPayment = await prisma.$transaction(async (tx) => {
-    let earlyAdopterSlot: number | null = null;
+  const subscriptionPayment = await prisma.$transaction(
+    async (tx) => {
+      let earlyAdopterSlot: number | null = null;
 
-    if (plan === "EARLY_ADOPTER") {
-      const count = await tx.subscription.count({
-        where: { plan: "EARLY_ADOPTER", status: { not: "EXPIRED" } },
-      });
-      if (count >= EARLY_ADOPTER_MAX_SLOTS) {
-        throw new Error("No quedan slots de Early Adopter disponibles.");
+      if (plan === "EARLY_ADOPTER") {
+        const count = await tx.subscription.count({
+          where: { plan: "EARLY_ADOPTER", status: { not: "EXPIRED" } },
+        });
+        if (count >= EARLY_ADOPTER_MAX_SLOTS) {
+          throw new Error("No quedan slots de Early Adopter disponibles.");
+        }
+        // ADR-004-EXCEPTION: slot check global — busca números ocupados en TODAS las empresas para asignar un slot único
+        const taken = await tx.subscription.findMany({
+          where: { plan: "EARLY_ADOPTER" },
+          select: { earlyAdopterSlot: true },
+        });
+        const takenSet = new Set(taken.map((s) => s.earlyAdopterSlot));
+        earlyAdopterSlot = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].find((n) => !takenSet.has(n)) ?? null;
       }
-      // ADR-004-EXCEPTION: slot check global — busca números ocupados en TODAS las empresas para asignar un slot único
-      const taken = await tx.subscription.findMany({
-        where: { plan: "EARLY_ADOPTER" },
-        select: { earlyAdopterSlot: true },
+
+      // Upsert Subscription en PAST_DUE — representa "pago pendiente"
+      const subscription = await tx.subscription.upsert({
+        where: { companyId },
+        create: {
+          companyId,
+          plan,
+          status: "PAST_DUE",
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+          priceUsdCents,
+          earlyAdopterSlot,
+        },
+        update: {
+          plan,
+          status: "PAST_DUE",
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+          priceUsdCents,
+          earlyAdopterSlot,
+        },
       });
-      const takenSet = new Set(taken.map((s) => s.earlyAdopterSlot));
-      earlyAdopterSlot =
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].find((n) => !takenSet.has(n)) ?? null;
-    }
 
-    // Upsert Subscription en PAST_DUE — representa "pago pendiente"
-    const subscription = await tx.subscription.upsert({
-      where: { companyId },
-      create: {
-        companyId,
-        plan,
-        status: "PAST_DUE",
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
-        priceUsdCents,
-        earlyAdopterSlot,
-      },
-      update: {
-        plan,
-        status: "PAST_DUE",
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
-        priceUsdCents,
-        earlyAdopterSlot,
-      },
-    });
+      const payment = await tx.subscriptionPayment.create({
+        data: {
+          subscriptionId: subscription.id,
+          amountUsdCents: priceUsdCents,
+          currency: "usd",
+          status: "PENDING",
+          metadata: { plan, companyId },
+        },
+      });
 
-    const payment = await tx.subscriptionPayment.create({
-      data: {
-        subscriptionId: subscription.id,
-        amountUsdCents: priceUsdCents,
-        currency: "usd",
-        status: "PENDING",
-        metadata: { plan, companyId },
-      },
-    });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: payment.id,
+          entityName: "SubscriptionPayment",
+          action: "BILLING_CHECKOUT_INITIATED",
+          userId: actorUserId,
+          ipAddress,
+          userAgent,
+          newValue: { plan, priceUsdCents } as object,
+        },
+      });
 
-    await tx.auditLog.create({
-      data: {
-        companyId,
-        entityId: payment.id,
-        entityName: "SubscriptionPayment",
-        action: "BILLING_CHECKOUT_INITIATED",
-        userId: actorUserId,
-        ipAddress,
-        userAgent,
-        newValue: { plan, priceUsdCents } as object,
-      },
-    });
-
-    return payment;
-  }, { isolationLevel });
+      return payment;
+    },
+    { isolationLevel }
+  );
 
   // ── Llamada externa a NOWPayments (fuera de la tx) ────────────────────────
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://contaflow.app";
@@ -209,113 +213,113 @@ export async function handleIPN(ipn: NowPaymentsIPN, ipnSourceIp?: string | null
 
   // HIGH-2: idempotencia y activación dentro de una sola tx con RepeatableRead
   // evita race condition entre IPNs concurrentes del mismo pago
-  await prisma.$transaction(async (tx) => {
-    // ADR-004-EXCEPTION: lookup por IDs de NOWPayments — companyId desconocido hasta encontrar el pago
-    const payment = await tx.subscriptionPayment.findFirst({
-      where: {
-        OR: [
-          { id: String(ipn.order_id) },
-          { nowpaymentsPaymentId: paymentIdStr },
-        ],
-      },
-      include: { subscription: true },
-    });
-
-    if (!payment) throw new Error("Pago no encontrado");
-
-    // Idempotencia: ignorar si ya está en estado terminal (dentro de la tx)
-    if (payment.status === "CONFIRMED" || payment.status === "REFUNDED") return;
-
-    // HIGH-1: validar monto recibido vs monto esperado antes de activar
-    if (isFinished) {
-      const paidCents = Math.round((ipn.actually_paid ?? 0) * 100);
-      if (paidCents < payment.amountUsdCents - IPN_AMOUNT_TOLERANCE_CENTS) {
-        throw new Error(
-          `Pago insuficiente: recibido ${paidCents}¢, esperado ${payment.amountUsdCents}¢`
-        );
-      }
-    }
-
-    await tx.subscriptionPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: newStatus,
-        nowpaymentsPaymentId: paymentIdStr,
-        paidAt: isFinished ? now : undefined,
-        metadata: {
-          ...(typeof payment.metadata === "object" && payment.metadata !== null
-            ? (payment.metadata as Record<string, unknown>)
-            : {}),
-          lastIpn: { ...ipn, payment_id: paymentIdStr },
+  await prisma.$transaction(
+    async (tx) => {
+      // ADR-004-EXCEPTION: lookup por IDs de NOWPayments — companyId desconocido hasta encontrar el pago
+      const payment = await tx.subscriptionPayment.findFirst({
+        where: {
+          OR: [{ id: String(ipn.order_id) }, { nowpaymentsPaymentId: paymentIdStr }],
         },
-      },
-    });
+        include: { subscription: true },
+      });
 
-    if (isFinished) {
-      // Cambio de plan: confirmar la solicitud (el cron la aplica en effectiveDate). NO renovar/activar la suscripción.
-      if (payment.planChangeRequestId) {
-        await tx.planChangeRequest.updateMany({
-          where: { id: payment.planChangeRequestId, status: "PENDING_PAYMENT" },
-          data: { status: "CONFIRMED", confirmedByUserId: "system", confirmedAt: now },
+      if (!payment) throw new Error("Pago no encontrado");
+
+      // Idempotencia: ignorar si ya está en estado terminal (dentro de la tx)
+      if (payment.status === "CONFIRMED" || payment.status === "REFUNDED") return;
+
+      // HIGH-1: validar monto recibido vs monto esperado antes de activar
+      if (isFinished) {
+        const paidCents = Math.round((ipn.actually_paid ?? 0) * 100);
+        if (paidCents < payment.amountUsdCents - IPN_AMOUNT_TOLERANCE_CENTS) {
+          throw new Error(
+            `Pago insuficiente: recibido ${paidCents}¢, esperado ${payment.amountUsdCents}¢`
+          );
+        }
+      }
+
+      await tx.subscriptionPayment.update({
+        where: { id: payment.id },
+        data: {
+          status: newStatus,
+          nowpaymentsPaymentId: paymentIdStr,
+          paidAt: isFinished ? now : undefined,
+          metadata: {
+            ...(typeof payment.metadata === "object" && payment.metadata !== null
+              ? (payment.metadata as Record<string, unknown>)
+              : {}),
+            lastIpn: { ...ipn, payment_id: paymentIdStr },
+          },
+        },
+      });
+
+      if (isFinished) {
+        // Cambio de plan: confirmar la solicitud (el cron la aplica en effectiveDate). NO renovar/activar la suscripción.
+        if (payment.planChangeRequestId) {
+          await tx.planChangeRequest.updateMany({
+            where: { id: payment.planChangeRequestId, status: "PENDING_PAYMENT" },
+            data: { status: "CONFIRMED", confirmedByUserId: "system", confirmedAt: now },
+          });
+          await tx.auditLog.create({
+            data: {
+              companyId: payment.subscription.companyId,
+              entityId: payment.planChangeRequestId,
+              entityName: "PlanChangeRequest",
+              action: "PLAN_CHANGE_CONFIRMED",
+              userId: "system",
+              ipAddress: ipnSourceIp ?? null,
+              userAgent: "NOWPayments-IPN",
+              newValue: { paymentId: payment.id, amountUsdCents: payment.amountUsdCents } as object,
+            },
+          });
+          return; // no activar la suscripción — es un cambio de plan, no una renovación
+        }
+
+        const plan = payment.subscription.plan as PaidPlan;
+        const periodDays = PLAN_PERIOD_DAYS[plan] ?? 30;
+        const periodEnd = addDays(now, periodDays);
+
+        // ADR-034: si el pago es un checkout de tier Despacho, aplicar el tier al
+        // confirmar (no antes — un pago fallido no debe cambiar el tier).
+        const meta =
+          typeof payment.metadata === "object" && payment.metadata !== null
+            ? (payment.metadata as Record<string, unknown>)
+            : {};
+        const despachoTierUpgrade = meta.despachoTierUpgrade as
+          | "STARTER"
+          | "PRO"
+          | "UNLIMITED"
+          | undefined;
+
+        await tx.subscription.update({
+          where: { id: payment.subscriptionId },
+          data: {
+            status: "ACTIVE",
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            ...(despachoTierUpgrade ? { despachoTier: despachoTierUpgrade } : {}),
+          },
         });
+
         await tx.auditLog.create({
           data: {
             companyId: payment.subscription.companyId,
-            entityId: payment.planChangeRequestId,
-            entityName: "PlanChangeRequest",
-            action: "PLAN_CHANGE_CONFIRMED",
+            entityId: payment.subscriptionId,
+            entityName: "Subscription",
+            action: "BILLING_SUBSCRIPTION_ACTIVATED",
             userId: "system",
             ipAddress: ipnSourceIp ?? null,
             userAgent: "NOWPayments-IPN",
-            newValue: { paymentId: payment.id, amountUsdCents: payment.amountUsdCents } as object,
+            newValue: {
+              plan,
+              paymentId: payment.id,
+              amountUsdCents: payment.amountUsdCents,
+              actuallyPaidCents: Math.round((ipn.actually_paid ?? 0) * 100),
+            } as object,
           },
         });
-        return; // no activar la suscripción — es un cambio de plan, no una renovación
       }
-
-      const plan = payment.subscription.plan as PaidPlan;
-      const periodDays = PLAN_PERIOD_DAYS[plan] ?? 30;
-      const periodEnd = addDays(now, periodDays);
-
-      // ADR-034: si el pago es un checkout de tier Despacho, aplicar el tier al
-      // confirmar (no antes — un pago fallido no debe cambiar el tier).
-      const meta =
-        typeof payment.metadata === "object" && payment.metadata !== null
-          ? (payment.metadata as Record<string, unknown>)
-          : {};
-      const despachoTierUpgrade = meta.despachoTierUpgrade as
-        | "STARTER"
-        | "PRO"
-        | "UNLIMITED"
-        | undefined;
-
-      await tx.subscription.update({
-        where: { id: payment.subscriptionId },
-        data: {
-          status: "ACTIVE",
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-          ...(despachoTierUpgrade ? { despachoTier: despachoTierUpgrade } : {}),
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          companyId: payment.subscription.companyId,
-          entityId: payment.subscriptionId,
-          entityName: "Subscription",
-          action: "BILLING_SUBSCRIPTION_ACTIVATED",
-          userId: "system",
-          ipAddress: ipnSourceIp ?? null,
-          userAgent: "NOWPayments-IPN",
-          newValue: {
-            plan,
-            paymentId: payment.id,
-            amountUsdCents: payment.amountUsdCents,
-            actuallyPaidCents: Math.round((ipn.actually_paid ?? 0) * 100),
-          } as object,
-        },
-      });
-    }
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }
+  );
 }

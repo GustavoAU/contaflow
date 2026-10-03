@@ -83,7 +83,7 @@ export function isSupportedCountry(value: string): value is CountryCode {
 export function getFiscalConfig(country: string): FiscalConfig {
   if (!isSupportedCountry(country)) {
     throw new Error(
-      `País no soportado: "${country}". Países disponibles: ${Object.keys(FISCAL_CONFIGS).join(", ")}`,
+      `País no soportado: "${country}". Países disponibles: ${Object.keys(FISCAL_CONFIGS).join(", ")}`
     );
   }
   return FISCAL_CONFIGS[country];
@@ -103,17 +103,14 @@ export function getTaxLineRate(cfg: FiscalConfig, taxLineType: string): TaxLineR
   if (!info) {
     throw new Error(
       `Alícuota "${taxLineType}" no definida para ${cfg.countryCode}. ` +
-        `Disponibles: ${Object.keys(cfg.taxLineRates).join(", ")}`,
+        `Disponibles: ${Object.keys(cfg.taxLineRates).join(", ")}`
     );
   }
   return info;
 }
 
 /** ¿El país tiene esta figura fiscal? (ADR-042 D-5) */
-export function hasCapability(
-  country: string,
-  capability: keyof FiscalCapabilities,
-): boolean {
+export function hasCapability(country: string, capability: keyof FiscalCapabilities): boolean {
   return Boolean(getFiscalConfig(country).capabilities[capability]);
 }
 
@@ -124,7 +121,7 @@ export const FiscalProviderFactory = {
   forCountry(country: string): FiscalProvider {
     if (!isSupportedCountry(country)) {
       throw new Error(
-        `País no soportado: "${country}". Países disponibles: ${Object.keys(PROVIDERS).join(", ")}`,
+        `País no soportado: "${country}". Países disponibles: ${Object.keys(PROVIDERS).join(", ")}`
       );
     }
     return PROVIDERS[country]();
@@ -175,9 +172,7 @@ export function toClientFiscalConfig(cfg: FiscalConfig): ClientFiscalConfig {
  *   const getInvoiceSchemas = memoizePerCountry((cfg) => ({ create: build(cfg) }));
  *   getInvoiceSchemas(cfg)  // mismo objeto en llamadas sucesivas
  */
-export function memoizePerCountry<T>(
-  build: (cfg: FiscalConfig) => T,
-): (cfg: FiscalConfig) => T {
+export function memoizePerCountry<T>(build: (cfg: FiscalConfig) => T): (cfg: FiscalConfig) => T {
   const cache = new Map<CountryCode, T>();
   return (cfg: FiscalConfig): T => {
     const cached = cache.get(cfg.countryCode);

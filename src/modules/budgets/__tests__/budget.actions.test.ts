@@ -90,10 +90,34 @@ const mockVsActual = [
 
 const mockCashFlow = {
   buckets: [
-    { label: "Vencido",   cxcAmount: "1000.00", cxpAmount: "500.00", netAmount: "500.00", invoiceCount: 2 },
-    { label: "0-30 días", cxcAmount: "3000.00", cxpAmount: "1500.00", netAmount: "1500.00", invoiceCount: 4 },
-    { label: "31-60 días", cxcAmount: "0.00", cxpAmount: "0.00", netAmount: "0.00", invoiceCount: 0 },
-    { label: "61-90 días", cxcAmount: "0.00", cxpAmount: "0.00", netAmount: "0.00", invoiceCount: 0 },
+    {
+      label: "Vencido",
+      cxcAmount: "1000.00",
+      cxpAmount: "500.00",
+      netAmount: "500.00",
+      invoiceCount: 2,
+    },
+    {
+      label: "0-30 días",
+      cxcAmount: "3000.00",
+      cxpAmount: "1500.00",
+      netAmount: "1500.00",
+      invoiceCount: 4,
+    },
+    {
+      label: "31-60 días",
+      cxcAmount: "0.00",
+      cxpAmount: "0.00",
+      netAmount: "0.00",
+      invoiceCount: 0,
+    },
+    {
+      label: "61-90 días",
+      cxcAmount: "0.00",
+      cxpAmount: "0.00",
+      netAmount: "0.00",
+      invoiceCount: 0,
+    },
   ],
   totalCxC: "4000.00",
   totalCxP: "2000.00",
@@ -105,7 +129,7 @@ function setAuth(userId: string | null) {
 }
 function setMember(role: string | null) {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-    role ? ({ role } as never) : (null as never),
+    role ? ({ role } as never) : (null as never)
   );
 }
 
@@ -192,7 +216,11 @@ describe("createBudgetAction", () => {
     const r = await createBudgetAction("c1", { periodYear: 2026, name: "Presupuesto Anual" });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.periodYear).toBe(2026);
-    expect(BudgetService.create).toHaveBeenCalledWith("c1", expect.objectContaining({ periodYear: 2026 }), "user1");
+    expect(BudgetService.create).toHaveBeenCalledWith(
+      "c1",
+      expect.objectContaining({ periodYear: 2026 }),
+      "user1"
+    );
   });
 
   it("rechaza año inválido", async () => {
@@ -276,7 +304,10 @@ describe("upsertBudgetLineAction", () => {
 
   it("retorna error si cuenta no pertenece a empresa (ADR-004)", async () => {
     vi.mocked(BudgetService.upsertLine).mockResolvedValue(null as never);
-    const r = await upsertBudgetLineAction("c1", "bgt1", { accountId: "acc-ajena", amount: "1000" });
+    const r = await upsertBudgetLineAction("c1", "bgt1", {
+      accountId: "acc-ajena",
+      amount: "1000",
+    });
     expect(r.success).toBe(false);
     if (!r.success) expect(r.error).toContain("no válidos");
   });
@@ -318,7 +349,7 @@ describe("createBudgetAction — P2002 nombre duplicado", () => {
 
   it("devuelve mensaje de negocio si ya existe el nombre para ese año", async () => {
     vi.mocked(BudgetService.create).mockRejectedValueOnce(
-      Object.assign(new Error("Unique constraint"), { code: "P2002" }),
+      Object.assign(new Error("Unique constraint"), { code: "P2002" })
     );
     const r = await createBudgetAction("c1", { periodYear: 2026, name: "Dup" });
     expect(r.success).toBe(false);

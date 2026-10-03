@@ -36,15 +36,15 @@ export function InvoiceOcrBanners({ ocrLoaded, ocrHasCriticalRisks, setOcrLoaded
       {/* ALERTA 13/14/15: banner de alto riesgo cuando OCR detectó problemas en campos fiscales */}
       {ocrLoaded && ocrHasCriticalRisks && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
-          <AlertTriangleIcon className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" aria-hidden />
+          <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
           <div className="flex-1">
             <p className="font-semibold text-amber-800">
               Datos OCR con campos fiscales en revisión
             </p>
             <p className="mt-0.5 text-amber-700">
-              El RIF o N° de Control extraídos podrían contener errores de lectura.
-              Verifica <strong>ambos campos</strong> contra la factura física antes de guardar.
-              Un RIF incorrecto invalida el crédito fiscal (PA-00071 Art. 15).
+              El RIF o N° de Control extraídos podrían contener errores de lectura. Verifica{" "}
+              <strong>ambos campos</strong> contra la factura física antes de guardar. Un RIF
+              incorrecto invalida el crédito fiscal (PA-00071 Art. 15).
             </p>
           </div>
         </div>

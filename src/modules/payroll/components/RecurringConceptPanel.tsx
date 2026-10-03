@@ -47,7 +47,12 @@ const NATURE_STYLE: Record<string, string> = {
 };
 
 export function RecurringConceptPanel({
-  companyId, employeeId, rows, concepts, canWrite, todayISO,
+  companyId,
+  employeeId,
+  rows,
+  concepts,
+  canWrite,
+  todayISO,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -63,7 +68,11 @@ export function RecurringConceptPanel({
     e.preventDefault();
     startTransition(async () => {
       const result = await createRecurringConceptAction(companyId, {
-        employeeId, conceptId, amount, currency, effectiveFrom,
+        employeeId,
+        conceptId,
+        amount,
+        currency,
+        effectiveFrom,
         notes: notes.trim() || undefined,
       });
       if (result.success) {
@@ -99,9 +108,8 @@ export function RecurringConceptPanel({
           <div>
             <h3 className="text-sm font-semibold text-zinc-700">Nueva asignación fija</h3>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Se aplica sola en cada proceso de nómina mientras esté vigente. Si la
-              moneda no es la del proceso, se convierte a la tasa BCV del período y
-              se guarda el importe original.
+              Se aplica sola en cada proceso de nómina mientras esté vigente. Si la moneda no es la
+              del proceso, se convierte a la tasa BCV del período y se guarda el importe original.
             </p>
           </div>
 
@@ -114,7 +122,9 @@ export function RecurringConceptPanel({
                 className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
               >
                 {concepts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -139,7 +149,7 @@ export function RecurringConceptPanel({
                 onChange={(e) => setAmount(e.target.value)}
                 required
                 placeholder="0,00"
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500"
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500"
               />
             </label>
 
@@ -173,9 +183,9 @@ export function RecurringConceptPanel({
             // El contador debe saber en qué se está metiendo: un concepto con
             // incidencia salarial engorda la base de IVSS, FAOV e INCES.
             <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              <strong>{elegido.name}</strong> tiene incidencia salarial
-              ({NATURE_LABEL[elegido.salaryNature]}): este monto entrará en la base
-              de cotizaciones de IVSS, FAOV e INCES.
+              <strong>{elegido.name}</strong> tiene incidencia salarial (
+              {NATURE_LABEL[elegido.salaryNature]}): este monto entrará en la base de cotizaciones
+              de IVSS, FAOV e INCES.
             </p>
           )}
 
@@ -214,7 +224,14 @@ export function RecurringConceptPanel({
   );
 }
 
-function Tabla({ titulo, rows, canWrite, onEnd, isPending, vacia }: {
+function Tabla({
+  titulo,
+  rows,
+  canWrite,
+  onEnd,
+  isPending,
+  vacia,
+}: {
   titulo: string;
   rows: RecurringConceptRow[];
   canWrite: boolean;
@@ -228,7 +245,9 @@ function Tabla({ titulo, rows, canWrite, onEnd, isPending, vacia }: {
     <div className="space-y-2">
       <h3 className="text-sm font-semibold text-zinc-700">{titulo}</h3>
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-gray-500">{vacia}</p>
+        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-gray-500">
+          {vacia}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
@@ -245,7 +264,9 @@ function Tabla({ titulo, rows, canWrite, onEnd, isPending, vacia }: {
                 <tr key={r.id}>
                   <td className="px-3 py-2">
                     <span className="font-medium">{r.conceptName}</span>
-                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[11px] font-semibold ${NATURE_STYLE[r.salaryNature] ?? ""}`}>
+                    <span
+                      className={`ml-2 rounded px-1.5 py-0.5 text-[11px] font-semibold ${NATURE_STYLE[r.salaryNature] ?? ""}`}
+                    >
                       {NATURE_LABEL[r.salaryNature] ?? r.salaryNature}
                     </span>
                     {r.notes && <p className="mt-0.5 text-xs text-gray-500">{r.notes}</p>}

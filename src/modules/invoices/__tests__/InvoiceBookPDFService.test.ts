@@ -1,6 +1,6 @@
 // src/modules/invoices/__tests__/InvoiceBookPDFService.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest"
-import type { InvoiceBookPDFParams } from "../services/InvoiceBookPDFService"
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { InvoiceBookPDFParams } from "../services/InvoiceBookPDFService";
 
 // ─── Mock de @react-pdf/renderer ───────────────────────────────────────────────
 vi.mock("@react-pdf/renderer", () => ({
@@ -10,11 +10,11 @@ vi.mock("@react-pdf/renderer", () => ({
   View: ({ children }: { children: unknown }) => children,
   StyleSheet: { create: (s: Record<string, unknown>) => s },
   renderToBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-pdf")),
-}))
+}));
 
 // Importar DESPUÉS del mock
-import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService"
-import { renderToBuffer } from "@react-pdf/renderer"
+import { generateInvoiceBookPDF } from "../services/InvoiceBookPDFService";
+import { renderToBuffer } from "@react-pdf/renderer";
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────────
 const baseParams: InvoiceBookPDFParams = {
@@ -40,7 +40,7 @@ const baseParams: InvoiceBookPDFParams = {
     totalIva: "160.00",
     totalAmount: "1160.00",
   },
-}
+};
 
 const sampleInvoice = {
   id: "inv-1",
@@ -77,27 +77,27 @@ const sampleInvoice = {
       description: null,
     },
   ],
-}
+};
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 describe("generateInvoiceBookPDF", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(renderToBuffer).mockResolvedValue(Buffer.from("fake-pdf"))
-  })
+    vi.clearAllMocks();
+    vi.mocked(renderToBuffer).mockResolvedValue(Buffer.from("fake-pdf"));
+  });
 
   it("cuando se llama con datos válidos, retorna un Buffer no vacío", async () => {
     // Arrange
-    const params = { ...baseParams }
+    const params = { ...baseParams };
 
     // Act
-    const result = await generateInvoiceBookPDF(params)
+    const result = await generateInvoiceBookPDF(params);
 
     // Assert
-    expect(result).toBeInstanceOf(Buffer)
-    expect(result.length).toBeGreaterThan(0)
-    expect(renderToBuffer).toHaveBeenCalledTimes(1)
-  })
+    expect(result).toBeInstanceOf(Buffer);
+    expect(result.length).toBeGreaterThan(0);
+    expect(renderToBuffer).toHaveBeenCalledTimes(1);
+  });
 
   it("cuando invoiceType es SALE, llama a renderToBuffer sin lanzar error", async () => {
     // Arrange
@@ -105,23 +105,23 @@ describe("generateInvoiceBookPDF", () => {
       ...baseParams,
       invoiceType: "SALE",
       invoices: [sampleInvoice],
-    }
+    };
 
     // Act
-    const result = await generateInvoiceBookPDF(params)
+    const result = await generateInvoiceBookPDF(params);
 
     // Assert
-    expect(result).toBeInstanceOf(Buffer)
-    expect(renderToBuffer).toHaveBeenCalledTimes(1)
+    expect(result).toBeInstanceOf(Buffer);
+    expect(renderToBuffer).toHaveBeenCalledTimes(1);
 
     // Verificar que el elemento pasado a renderToBuffer corresponde al documento
-    const callArg = (vi.mocked(renderToBuffer).mock.calls[0][0] as unknown) as {
-      type: unknown
-      props: { params: InvoiceBookPDFParams }
-    }
-    expect(callArg.props.params.invoiceType).toBe("SALE")
-    expect(callArg.props.params.periodLabel).toBe("Enero 2026")
-  })
+    const callArg = vi.mocked(renderToBuffer).mock.calls[0][0] as unknown as {
+      type: unknown;
+      props: { params: InvoiceBookPDFParams };
+    };
+    expect(callArg.props.params.invoiceType).toBe("SALE");
+    expect(callArg.props.params.periodLabel).toBe("Enero 2026");
+  });
 
   it("cuando invoiceType es PURCHASE, llama a renderToBuffer con invoiceType PURCHASE", async () => {
     // Arrange
@@ -137,21 +137,21 @@ describe("generateInvoiceBookPDF", () => {
         totalAmount: "0.00",
         totalIslrRetention: "50.00",
       },
-    }
+    };
 
     // Act
-    const result = await generateInvoiceBookPDF(params)
+    const result = await generateInvoiceBookPDF(params);
 
     // Assert
-    expect(result).toBeInstanceOf(Buffer)
-    expect(renderToBuffer).toHaveBeenCalledTimes(1)
+    expect(result).toBeInstanceOf(Buffer);
+    expect(renderToBuffer).toHaveBeenCalledTimes(1);
 
-    const callArg = (vi.mocked(renderToBuffer).mock.calls[0][0] as unknown) as {
-      type: unknown
-      props: { params: InvoiceBookPDFParams }
-    }
-    expect(callArg.props.params.invoiceType).toBe("PURCHASE")
-  })
+    const callArg = vi.mocked(renderToBuffer).mock.calls[0][0] as unknown as {
+      type: unknown;
+      props: { params: InvoiceBookPDFParams };
+    };
+    expect(callArg.props.params.invoiceType).toBe("PURCHASE");
+  });
 
   it("cuando no hay facturas, genera PDF sin lanzar error", async () => {
     // Arrange
@@ -173,29 +173,29 @@ describe("generateInvoiceBookPDF", () => {
         totalIva: "0.00",
         totalAmount: "0.00",
       },
-    }
+    };
 
     // Act
-    const result = await generateInvoiceBookPDF(params)
+    const result = await generateInvoiceBookPDF(params);
 
     // Assert
-    expect(result).toBeInstanceOf(Buffer)
-    expect(renderToBuffer).toHaveBeenCalledTimes(1)
-  })
+    expect(result).toBeInstanceOf(Buffer);
+    expect(renderToBuffer).toHaveBeenCalledTimes(1);
+  });
 
   it("cuando hay facturas sin taxLines, genera PDF sin lanzar error", async () => {
     // Arrange
-    const invoiceWithoutTaxLines = { ...sampleInvoice, taxLines: [] }
+    const invoiceWithoutTaxLines = { ...sampleInvoice, taxLines: [] };
     const params: InvoiceBookPDFParams = {
       ...baseParams,
       invoices: [invoiceWithoutTaxLines],
-    }
+    };
 
     // Act
-    const result = await generateInvoiceBookPDF(params)
+    const result = await generateInvoiceBookPDF(params);
 
     // Assert
-    expect(result).toBeInstanceOf(Buffer)
-    expect(renderToBuffer).toHaveBeenCalledTimes(1)
-  })
-})
+    expect(result).toBeInstanceOf(Buffer);
+    expect(renderToBuffer).toHaveBeenCalledTimes(1);
+  });
+});

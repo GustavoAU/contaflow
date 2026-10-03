@@ -128,30 +128,46 @@ function SummaryBar({ summary, currency }: { summary: Summary; currency: string 
     : differenceNum > 0
       ? "text-amber-700"
       : "text-red-700";
-  const diffLabelColor = isZero ? "text-green-600" : differenceNum > 0 ? "text-amber-600" : "text-red-600";
+  const diffLabelColor = isZero
+    ? "text-green-600"
+    : differenceNum > 0
+      ? "text-amber-600"
+      : "text-red-600";
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div className="rounded-lg border bg-white p-3 text-center">
-        <div className="text-2xl font-bold tabular-nums text-zinc-900" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <div
+          className="text-2xl font-bold text-zinc-900 tabular-nums"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
           {summary.total}
         </div>
         <div className="mt-0.5 text-xs text-zinc-500">Total</div>
       </div>
       <div className="rounded-lg border bg-green-50 p-3 text-center">
-        <div className="text-2xl font-bold tabular-nums text-green-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <div
+          className="text-2xl font-bold text-green-700 tabular-nums"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
           {summary.reconciled}
         </div>
         <div className="mt-0.5 text-xs text-green-600">Conciliadas</div>
       </div>
       <div className="rounded-lg border bg-amber-50 p-3 text-center">
-        <div className="text-2xl font-bold tabular-nums text-amber-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <div
+          className="text-2xl font-bold text-amber-700 tabular-nums"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
           {summary.pending}
         </div>
         <div className="mt-0.5 text-xs text-amber-600">Pendientes</div>
       </div>
       <div className={`rounded-lg border-2 p-3 text-center ${diffCardClass}`}>
-        <div className={`text-xl font-bold tabular-nums ${diffColor}`} style={{ fontVariantNumeric: "tabular-nums" }}>
+        <div
+          className={`text-xl font-bold tabular-nums ${diffColor}`}
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
           {fmtAmount(summary.difference)} {currency}
         </div>
         <div className={`mt-0.5 text-xs font-medium ${diffLabelColor}`}>Diferencia</div>
@@ -162,7 +178,11 @@ function SummaryBar({ summary, currency }: { summary: Summary; currency: string 
 
 // ─── Match type tabs ──────────────────────────────────────────────────────────
 
-const MATCH_TABS: { type: MatchType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const MATCH_TABS: {
+  type: MatchType;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { type: "INVOICE_PAYMENT", label: "Pago de Factura", icon: ReceiptIcon },
   { type: "JOURNAL_ENTRY", label: "Asiento Contable", icon: FileTextIcon },
   { type: "PAYMENT_RECORD", label: "Pago Digital", icon: CreditCardIcon },
@@ -200,7 +220,10 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
   // Load summary on mount
   useEffect(() => {
     async function loadSummary() {
-      const result = await getReconciliationSummaryAction({ bankStatementId: statement.id, companyId });
+      const result = await getReconciliationSummaryAction({
+        bankStatementId: statement.id,
+        companyId,
+      });
       if (result.success) setSummary(result.data);
     }
     void loadSummary();
@@ -212,7 +235,10 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
     void (async () => {
       setLoadingPayments(true);
       setPaymentsError(null);
-      const result = await getUnreconciledTransactionsAction({ bankAccountId: statement.bankAccountId, companyId });
+      const result = await getUnreconciledTransactionsAction({
+        bankAccountId: statement.bankAccountId,
+        companyId,
+      });
       setLoadingPayments(false);
       if (result.success) {
         setInvoicePayments(result.data as InvoicePaymentItem[]);
@@ -229,7 +255,10 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
     void (async () => {
       setLoadingJournal(true);
       setJournalError(null);
-      const result = await searchJournalEntriesAction({ companyId, query: journalQuery || undefined });
+      const result = await searchJournalEntriesAction({
+        companyId,
+        query: journalQuery || undefined,
+      });
       setLoadingJournal(false);
       if (result.success) {
         setJournalEntries(result.data);
@@ -291,8 +320,10 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
                   ...t,
                   isReconciled: true,
                   matchedPaymentId: matchType === "INVOICE_PAYMENT" ? targetId : t.matchedPaymentId,
-                  matchedTransactionId: matchType === "JOURNAL_ENTRY" ? targetId : t.matchedTransactionId,
-                  matchedPaymentRecordId: matchType === "PAYMENT_RECORD" ? targetId : t.matchedPaymentRecordId,
+                  matchedTransactionId:
+                    matchType === "JOURNAL_ENTRY" ? targetId : t.matchedTransactionId,
+                  matchedPaymentRecordId:
+                    matchType === "PAYMENT_RECORD" ? targetId : t.matchedPaymentRecordId,
                 }
               : t
           )
@@ -338,7 +369,10 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
     if (!selectedTx || selectedTx.isReconciled) return;
     setLoadingJournal(true);
     setJournalError(null);
-    const result = await searchJournalEntriesAction({ companyId, query: journalQuery || undefined });
+    const result = await searchJournalEntriesAction({
+      companyId,
+      query: journalQuery || undefined,
+    });
     setLoadingJournal(false);
     if (result.success) {
       setJournalEntries(result.data);
@@ -378,7 +412,10 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
               <div className="space-y-1 pl-6 text-xs text-green-700">
                 <div>
                   Monto:{" "}
-                  <span className="font-mono font-semibold" style={{ fontVariantNumeric: "tabular-nums", fontSize: "14px" }}>
+                  <span
+                    className="font-mono font-semibold"
+                    style={{ fontVariantNumeric: "tabular-nums", fontSize: "14px" }}
+                  >
                     {fmtAmount(selectedTx.matchedPayment.amount as string)}{" "}
                     {selectedTx.matchedPayment.currency}
                   </span>
@@ -401,8 +438,8 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
         <div className="border-b px-4 pt-3">
           <p className="mb-2 text-xs text-zinc-400">
             Selecciona el tipo de contrapartida para{" "}
-            <strong className="text-zinc-600">{selectedTx.description}</strong>{" "}
-            ({fmtAmount(selectedTx.amount)} {statement.bankAccount.currency})
+            <strong className="text-zinc-600">{selectedTx.description}</strong> (
+            {fmtAmount(selectedTx.amount)} {statement.bankAccount.currency})
           </p>
           <div className="flex gap-1 pb-0" role="tablist">
             {MATCH_TABS.map(({ type, label, icon: Icon }) => (
@@ -412,7 +449,7 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
                 aria-selected={matchType === type}
                 onClick={() => handleMatchTypeChange(type)}
                 className={[
-                  "flex items-center gap-1.5 rounded-t-md border border-b-0 px-3 py-2 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500",
+                  "flex items-center gap-1.5 rounded-t-md border border-b-0 px-3 py-2 text-xs font-medium transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none",
                   matchType === type
                     ? "border-zinc-200 bg-white text-blue-700"
                     : "border-transparent bg-zinc-50 text-zinc-500 hover:text-zinc-700",
@@ -469,13 +506,19 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
       <div className="flex flex-wrap gap-4 rounded-lg border bg-zinc-50 px-4 py-3 text-sm">
         <span className="text-zinc-500">
           Saldo inicial:{" "}
-          <span className="font-mono font-semibold text-zinc-800" style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}>
+          <span
+            className="font-mono font-semibold text-zinc-800"
+            style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}
+          >
             {fmtAmount(statement.openingBalance)} {statement.bankAccount.currency}
           </span>
         </span>
         <span className="text-zinc-500">
           Saldo final:{" "}
-          <span className="font-mono font-semibold text-zinc-800" style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}>
+          <span
+            className="font-mono font-semibold text-zinc-800"
+            style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}
+          >
             {fmtAmount(statement.closingBalance)} {statement.bankAccount.currency}
           </span>
         </span>
@@ -497,7 +540,9 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
             </p>
           </div>
           {transactions.length === 0 ? (
-            <div className="p-8 text-center text-sm text-zinc-400">No hay transacciones en este extracto</div>
+            <div className="p-8 text-center text-sm text-zinc-400">
+              No hay transacciones en este extracto
+            </div>
           ) : (
             <ul className="divide-y" role="listbox" aria-label="Transacciones del extracto">
               {transactions.map((tx) => (
@@ -518,9 +563,15 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       {tx.isReconciled ? (
-                        <CheckCircleIcon className="h-4 w-4 shrink-0 text-green-500" aria-label="Conciliada" />
+                        <CheckCircleIcon
+                          className="h-4 w-4 shrink-0 text-green-500"
+                          aria-label="Conciliada"
+                        />
                       ) : (
-                        <ClockIcon className="h-4 w-4 shrink-0 text-amber-400" aria-label="Pendiente" />
+                        <ClockIcon
+                          className="h-4 w-4 shrink-0 text-amber-400"
+                          aria-label="Pendiente"
+                        />
                       )}
                       <span className="truncate font-medium text-zinc-800">{tx.description}</span>
                     </div>
@@ -528,7 +579,9 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
                       <span className="font-mono">{fmtDate(tx.date)}</span>
                       <span
                         className={`rounded-full px-1.5 py-0.5 font-medium ${
-                          tx.type === "CREDIT" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                          tx.type === "CREDIT"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
                         }`}
                       >
                         {tx.type === "CREDIT" ? "Crédito" : "Débito"}
@@ -550,7 +603,10 @@ export function ReconciliationWorkbench({ statement, companyId }: Props) {
                       <button
                         type="button"
                         disabled={isPending}
-                        onClick={(e) => { e.stopPropagation(); handleUnreconcile(tx.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnreconcile(tx.id);
+                        }}
                         className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-zinc-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                         aria-label="Desconciliar transacción"
                       >
@@ -588,7 +644,7 @@ function MatchButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-60"
       aria-label={label}
     >
       <LinkIcon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -631,7 +687,12 @@ function InvoicePaymentPanel({
   onMatch: (id: string) => void;
 }) {
   if (loading) return <LoadingSkeleton />;
-  if (error) return <p className="p-4 text-sm text-red-600" role="alert">{error}</p>;
+  if (error)
+    return (
+      <p className="p-4 text-sm text-red-600" role="alert">
+        {error}
+      </p>
+    );
   if (items.length === 0)
     return <EmptyState message="No hay pagos de factura pendientes de conciliación" />;
 
@@ -654,11 +715,17 @@ function InvoicePaymentPanel({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className="font-mono font-semibold text-zinc-800" style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}>
-                {fmtVen(payment.amount)}{" "}
-                {payment.currency as string}
+              <span
+                className="font-mono font-semibold text-zinc-800"
+                style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}
+              >
+                {fmtVen(payment.amount)} {payment.currency as string}
               </span>
-              <MatchButton disabled={isPending} onClick={() => onMatch(payment.id)} label={`Conciliar con pago ${payment.id}`} />
+              <MatchButton
+                disabled={isPending}
+                onClick={() => onMatch(payment.id)}
+                label={`Conciliar con pago ${payment.id}`}
+              />
             </div>
           </div>
         </li>
@@ -698,7 +765,7 @@ function JournalEntryPanel({
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onSearch()}
             placeholder="Buscar por número o descripción…"
-            className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="flex-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
           <button
             type="button"
@@ -714,7 +781,9 @@ function JournalEntryPanel({
       {loading ? (
         <LoadingSkeleton />
       ) : error ? (
-        <p className="p-4 text-sm text-red-600" role="alert">{error}</p>
+        <p className="p-4 text-sm text-red-600" role="alert">
+          {error}
+        </p>
       ) : items.length === 0 ? (
         <EmptyState message="No se encontraron asientos contables. Usa el buscador para filtrar." />
       ) : (
@@ -725,7 +794,9 @@ function JournalEntryPanel({
                 <div className="min-w-0 flex-1 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-semibold text-zinc-700">{entry.number}</span>
-                    <span className="text-xs text-zinc-400">{new Date(entry.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}</span>
+                    <span className="text-xs text-zinc-400">
+                      {new Date(entry.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
+                    </span>
                   </div>
                   <div className="mt-0.5 truncate text-xs text-zinc-500">{entry.description}</div>
                 </div>
@@ -759,7 +830,12 @@ function PaymentRecordPanel({
   onMatch: (id: string) => void;
 }) {
   if (loading) return <LoadingSkeleton />;
-  if (error) return <p className="p-4 text-sm text-red-600" role="alert">{error}</p>;
+  if (error)
+    return (
+      <p className="p-4 text-sm text-red-600" role="alert">
+        {error}
+      </p>
+    );
   if (items.length === 0)
     return <EmptyState message="No hay pagos digitales disponibles para conciliación" />;
 
@@ -776,7 +852,9 @@ function PaymentRecordPanel({
                 )}
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-xs text-zinc-400">
-                <span>{new Date(record.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}</span>
+                <span>
+                  {new Date(record.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
+                </span>
                 {record.currency !== "VES" && record.amountOriginal && (
                   <span className="text-green-600">
                     {record.amountOriginal} {record.currency}
@@ -785,7 +863,10 @@ function PaymentRecordPanel({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              <span className="font-mono font-semibold text-zinc-800" style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}>
+              <span
+                className="font-mono font-semibold text-zinc-800"
+                style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}
+              >
                 {record.amountVes} VES
               </span>
               <MatchButton

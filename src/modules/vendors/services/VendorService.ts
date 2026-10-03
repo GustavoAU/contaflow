@@ -1,7 +1,11 @@
 // src/modules/vendors/services/VendorService.ts
 import prisma from "@/lib/prisma";
 import { normalizeRifOrNull } from "@/lib/tax-config";
-import type { CreateVendorInput, UpdateVendorInput, ContactCategory } from "../schemas/vendor.schemas";
+import type {
+  CreateVendorInput,
+  UpdateVendorInput,
+  ContactCategory,
+} from "../schemas/vendor.schemas";
 
 export type VendorRow = {
   id: string;
@@ -59,7 +63,11 @@ export const VendorService = {
     }) as Promise<VendorRow>;
   },
 
-  async update(companyId: string, vendorId: string, data: UpdateVendorInput): Promise<VendorRow | null> {
+  async update(
+    companyId: string,
+    vendorId: string,
+    data: UpdateVendorInput
+  ): Promise<VendorRow | null> {
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
     if (!vendor || vendor.companyId !== companyId || vendor.deletedAt !== null) return null;
     return prisma.vendor.update({
@@ -75,7 +83,10 @@ export const VendorService = {
     }) as Promise<VendorRow>;
   },
 
-  async softDelete(companyId: string, vendorId: string): Promise<{ deleted: boolean; linkedCount: number }> {
+  async softDelete(
+    companyId: string,
+    vendorId: string
+  ): Promise<{ deleted: boolean; linkedCount: number }> {
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
     if (!vendor || vendor.companyId !== companyId || vendor.deletedAt !== null) {
       return { deleted: false, linkedCount: 0 };

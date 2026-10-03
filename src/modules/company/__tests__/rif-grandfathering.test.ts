@@ -30,9 +30,7 @@ describe("assertRifEditable — grandfathering de RIF legacy (MP-1)", () => {
   });
 
   it("rechaza CAMBIAR el RIF a un valor con formato inválido", () => {
-    expect(assertRifEditable("J-99999999", "J-12345678")).toBe(
-      "RIF inválido (ej: J-12345678-9)",
-    );
+    expect(assertRifEditable("J-99999999", "J-12345678")).toBe("RIF inválido (ej: J-12345678-9)");
   });
 
   it("permite corregir un RIF legacy a formato canónico", () => {
@@ -55,9 +53,7 @@ describe("assertRifEditable — grandfathering de RIF legacy (MP-1)", () => {
   });
 
   it("no deja pasar basura arbitraria aprovechando el grandfathering", () => {
-    expect(assertRifEditable("<script>", "J-12345678")).toBe(
-      "RIF inválido (ej: J-12345678-9)",
-    );
+    expect(assertRifEditable("<script>", "J-12345678")).toBe("RIF inválido (ej: J-12345678-9)");
     expect(assertRifEditable("X-12345678-9", null)).toBe("RIF inválido (ej: J-12345678-9)");
   });
 
@@ -67,7 +63,7 @@ describe("assertRifEditable — grandfathering de RIF legacy (MP-1)", () => {
     const soloNumeros = /^\d{4}$/;
     expect(assertRifEditableWith("1234", null, soloNumeros)).toBeNull();
     expect(assertRifEditableWith("J-12345678-9", null, soloNumeros)).toBe(
-      "RIF inválido (ej: J-12345678-9)",
+      "RIF inválido (ej: J-12345678-9)"
     );
   });
 });

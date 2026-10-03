@@ -61,17 +61,20 @@ export function InvoiceFormDialogs({
               Hay un borrador guardado{" "}
               {draft
                 ? `el ${new Date(draft.savedAt).toLocaleString("es-VE", { dateStyle: "short", timeStyle: "short" })}`
-                : ""}
-              {" "}con líneas de impuesto y datos de la contraparte. ¿Deseas continuar donde lo dejaste?
+                : ""}{" "}
+              con líneas de impuesto y datos de la contraparte. ¿Deseas continuar donde lo dejaste?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setShowDraftAlert(false); clearDraft(); }}>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowDraftAlert(false);
+                clearDraft();
+              }}
+            >
               Descartar
             </AlertDialogCancel>
-            <AlertDialogAction onClick={restoreDraft}>
-              Restaurar borrador
-            </AlertDialogAction>
+            <AlertDialogAction onClick={restoreDraft}>Restaurar borrador</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

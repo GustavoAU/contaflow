@@ -10,7 +10,12 @@ import type { InvoiceLineInput } from "../schemas/invoice.schema";
 import { VEN_TAX_RATES } from "@/lib/tax-config";
 
 export class StockConfirmRequiredError extends Error {
-  readonly insufficient: Array<{ itemId: string; name: string; available: string; requested: string }>;
+  readonly insufficient: Array<{
+    itemId: string;
+    name: string;
+    available: string;
+    requested: string;
+  }>;
   constructor(insufficient: StockConfirmRequiredError["insufficient"]) {
     super("STOCK_CONFIRM_REQUIRED");
     this.name = "StockConfirmRequiredError";
@@ -56,9 +61,8 @@ export function computeLineTotals(lines: InvoiceLineInput[]): ComputedLine[] {
     const rate = IVA_RATES[line.ivaRate];
     const ivaAmount = line.ivaRate === "EXENTO" ? new Decimal(0) : subtotal.mul(rate);
     const total = subtotal.plus(ivaAmount);
-    const luxuryGroupId = line.ivaRate === "ADICIONAL_31"
-      ? `luxury-${idx}-${Date.now()}`
-      : undefined;
+    const luxuryGroupId =
+      line.ivaRate === "ADICIONAL_31" ? `luxury-${idx}-${Date.now()}` : undefined;
     return { input: line, quantity, unitPriceVes, subtotal, ivaAmount, total, luxuryGroupId };
   });
 }
@@ -84,14 +88,22 @@ export function deriveInvoiceTaxLines(computed: ComputedLine[]): DerivedTaxLineI
         existing.base = existing.base.plus(c.subtotal);
         existing.amount = existing.amount.plus(generalAmt);
       } else {
-        map.set(generalKey, { base: c.subtotal, amount: generalAmt, luxuryGroupId: c.luxuryGroupId });
+        map.set(generalKey, {
+          base: c.subtotal,
+          amount: generalAmt,
+          luxuryGroupId: c.luxuryGroupId,
+        });
       }
       const existingAdditional = map.get(additionalKey);
       if (existingAdditional) {
         existingAdditional.base = existingAdditional.base.plus(c.subtotal);
         existingAdditional.amount = existingAdditional.amount.plus(additionalAmt);
       } else {
-        map.set(additionalKey, { base: c.subtotal, amount: additionalAmt, luxuryGroupId: c.luxuryGroupId });
+        map.set(additionalKey, {
+          base: c.subtotal,
+          amount: additionalAmt,
+          luxuryGroupId: c.luxuryGroupId,
+        });
       }
       continue;
     }
@@ -140,25 +152,37 @@ export function deriveInvoiceTaxLines(computed: ComputedLine[]): DerivedTaxLineI
 
 function rateTaxType(rate: IvaLineRate): "IVA_GENERAL" | "IVA_REDUCIDO" | "EXENTO" {
   switch (rate) {
-    case "GENERAL_16": return "IVA_GENERAL";
-    case "REDUCIDO_8": return "IVA_REDUCIDO";
-    case "EXENTO": return "EXENTO";
-    default: return "IVA_GENERAL";
+    case "GENERAL_16":
+      return "IVA_GENERAL";
+    case "REDUCIDO_8":
+      return "IVA_REDUCIDO";
+    case "EXENTO":
+      return "EXENTO";
+    default:
+      return "IVA_GENERAL";
   }
 }
 
 function ratePercent(taxType: "IVA_GENERAL" | "IVA_REDUCIDO" | "EXENTO"): Decimal {
   switch (taxType) {
-    case "IVA_GENERAL": return new Decimal(VEN_TAX_RATES.ivaGeneral).times(100);
-    case "IVA_REDUCIDO": return new Decimal(VEN_TAX_RATES.ivaReduced).times(100);
-    case "EXENTO": return new Decimal("0");
+    case "IVA_GENERAL":
+      return new Decimal(VEN_TAX_RATES.ivaGeneral).times(100);
+    case "IVA_REDUCIDO":
+      return new Decimal(VEN_TAX_RATES.ivaReduced).times(100);
+    case "EXENTO":
+      return new Decimal("0");
   }
 }
 
 // ─── Validación de stock pre-$transaction (ADR-024 D-2.3) ────────────────────
 // Lee stockQuantity fuera de la transacción (Read Committed, no Serializable)
 // Retorna resultado por línea: si hay stock insuficiente y qué hacer
-export type StockWarningItem = { itemId: string; name: string; available: string; requested: string };
+export type StockWarningItem = {
+  itemId: string;
+  name: string;
+  available: string;
+  requested: string;
+};
 
 export type StockCheckResult =
   | { ok: true; warnings?: StockWarningItem[] }
@@ -182,7 +206,12 @@ export async function validateStockForLines(
   });
   const itemMap = new Map(fetchedItems.map((i) => [i.id, i]));
 
-  const insufficient: Array<{ itemId: string; name: string; available: string; requested: string }> = [];
+  const insufficient: Array<{
+    itemId: string;
+    name: string;
+    available: string;
+    requested: string;
+  }> = [];
 
   for (const line of linesWithItem) {
     const itemId = line.inventoryItemId!;
@@ -250,7 +279,7 @@ export async function createInvoiceLinesInTx(
   createdBy: string,
   stockLevel: StockControlLevel,
   tx: Prisma.TransactionClient,
-  invoiceType: "SALE" | "PURCHASE" = "SALE"  // OM-01: default SALE para compatibilidad
+  invoiceType: "SALE" | "PURCHASE" = "SALE" // OM-01: default SALE para compatibilidad
 ): Promise<void> {
   for (const c of computed) {
     const line = c.input;
@@ -274,9 +303,16 @@ export async function createInvoiceLinesInTx(
       // Leer item (post-lock para SALIDA; lectura directa para ENTRADA)
       const item = await tx.inventoryItem.findFirstOrThrow({
         where: { id: line.inventoryItemId, companyId },
-        select: { averageCost: true, sku: true, name: true, baseUnitId: true,
-                  itemType: true, accountId: true, cogsAccountId: true,
-                  stockQuantity: true },  // M1: re-verificar BLOCK bajo lock
+        select: {
+          averageCost: true,
+          sku: true,
+          name: true,
+          baseUnitId: true,
+          itemType: true,
+          accountId: true,
+          cogsAccountId: true,
+          stockQuantity: true,
+        }, // M1: re-verificar BLOCK bajo lock
       });
 
       // A8: ítems físicos DEBEN tener cuentas GL antes de facturar (auto-COGS OM-01 las requiere)
@@ -285,13 +321,13 @@ export async function createInvoiceLinesInTx(
         if (!item.accountId) {
           throw new Error(
             `El ítem "${item.name}" (${item.sku}) no tiene cuenta de inventario configurada. ` +
-            `Configúrela en Inventario → Ítems antes de facturar.`,
+              `Configúrela en Inventario → Ítems antes de facturar.`
           );
         }
         if (!isPurchase && !item.cogsAccountId) {
           throw new Error(
             `El ítem "${item.name}" (${item.sku}) no tiene cuenta de costo (COGS) configurada. ` +
-            `Configúrela en Inventario → Ítems antes de facturar.`,
+              `Configúrela en Inventario → Ítems antes de facturar.`
           );
         }
       }
@@ -322,8 +358,8 @@ export async function createInvoiceLinesInTx(
       // SALIDA  → CPP actual del ítem (averageCost)
       // ENTRADA → precio facturado (unitPriceVes)
       const unitCost = isPurchase
-        ? c.unitPriceVes                              // costo de compra
-        : new Decimal(item.averageCost.toString());   // CPP vigente para COGS
+        ? c.unitPriceVes // costo de compra
+        : new Decimal(item.averageCost.toString()); // CPP vigente para COGS
 
       const movementType = isPurchase ? "ENTRADA" : "SALIDA";
 

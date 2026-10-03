@@ -122,9 +122,7 @@ export class ExchangeDifferentialService {
         if (ip.amountOriginal) {
           paidForeign = paidForeign.plus(new Decimal(ip.amountOriginal.toString()));
         } else {
-          paidForeign = paidForeign.plus(
-            new Decimal(ip.amount.toString()).dividedBy(originalRate)
-          );
+          paidForeign = paidForeign.plus(new Decimal(ip.amount.toString()).dividedBy(originalRate));
         }
       }
 
@@ -138,12 +136,14 @@ export class ExchangeDifferentialService {
       if (differential.isZero()) continue;
 
       const normalizedRif = normalizeRifOrNull(inv.counterpartRif);
-      const customerId = inv.type === "SALE"
-        ? (inv.customerId ?? (normalizedRif ? customerIdByRif.get(normalizedRif) : undefined))
-        : undefined;
-      const vendorId = inv.type === "PURCHASE"
-        ? (inv.vendorId ?? (normalizedRif ? vendorIdByRif.get(normalizedRif) : undefined))
-        : undefined;
+      const customerId =
+        inv.type === "SALE"
+          ? (inv.customerId ?? (normalizedRif ? customerIdByRif.get(normalizedRif) : undefined))
+          : undefined;
+      const vendorId =
+        inv.type === "PURCHASE"
+          ? (inv.vendorId ?? (normalizedRif ? vendorIdByRif.get(normalizedRif) : undefined))
+          : undefined;
 
       lines.push({
         invoiceId: inv.id,
@@ -238,7 +238,13 @@ export class ExchangeDifferentialService {
     const yyyy = revaluationDate.getUTCFullYear();
     const desc = `Revaluación diferencial cambiario ${mm}/${yyyy} (NIC 21)`;
 
-    const entries: Array<{ accountId: string; amount: Decimal; description: string; customerId?: string; vendorId?: string }> = [];
+    const entries: Array<{
+      accountId: string;
+      amount: Decimal;
+      description: string;
+      customerId?: string;
+      vendorId?: string;
+    }> = [];
 
     // ADR-054: una línea CxC por CLIENTE (no un neto agregado sin tercero) — necesario para
     // no bloquear la revaluación si arAccountId se marca requiresThirdParty. La suma de estas

@@ -51,7 +51,7 @@ function emulateInvoiceGroupBy(rows: AgingFixture[]) {
       [...byType.entries()].map(([type, sum]) => ({
         type,
         _sum: { pendingAmount: sum },
-      })),
+      }))
     );
   }) as never);
 }
@@ -68,8 +68,18 @@ describe("DashboardAnalyticsService.getRevenueExpenseTrend", () => {
     const result = await DashboardAnalyticsService.getRevenueExpenseTrend("co-1", 2026);
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ year: 2026, month: 1, revenue: "5000.0000", expenses: "3200.0000" });
-    expect(result[1]).toEqual({ year: 2026, month: 2, revenue: "6500.0000", expenses: "4100.0000" });
+    expect(result[0]).toEqual({
+      year: 2026,
+      month: 1,
+      revenue: "5000.0000",
+      expenses: "3200.0000",
+    });
+    expect(result[1]).toEqual({
+      year: 2026,
+      month: 2,
+      revenue: "6500.0000",
+      expenses: "4100.0000",
+    });
   });
 
   it("convierte bigint a number", async () => {
@@ -129,7 +139,7 @@ describe("DashboardAnalyticsService.getIvaComposition", () => {
             },
           }),
         }),
-      }),
+      })
     );
   });
 });
@@ -219,9 +229,7 @@ describe("DashboardAnalyticsService.getBankReconciliationRatio", () => {
   });
 
   it("retorna ratio 0 cuando no hay transacciones", async () => {
-    vi.mocked(prisma.bankTransaction.count)
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(0);
+    vi.mocked(prisma.bankTransaction.count).mockResolvedValueOnce(0).mockResolvedValueOnce(0);
 
     const result = await DashboardAnalyticsService.getBankReconciliationRatio("co-1");
     expect(result.ratioPercent).toBe(0);
@@ -229,9 +237,7 @@ describe("DashboardAnalyticsService.getBankReconciliationRatio", () => {
   });
 
   it("redondea al entero más cercano", async () => {
-    vi.mocked(prisma.bankTransaction.count)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(1);
+    vi.mocked(prisma.bankTransaction.count).mockResolvedValueOnce(3).mockResolvedValueOnce(1);
 
     const result = await DashboardAnalyticsService.getBankReconciliationRatio("co-1");
     expect(result.ratioPercent).toBe(33); // round(1/3 * 100)
@@ -263,7 +269,7 @@ describe("DashboardAnalyticsService.getBcvRateTrend", () => {
       expect.objectContaining({
         where: expect.objectContaining({ companyId: "co-1", currency: "USD" }),
         orderBy: { date: "asc" },
-      }),
+      })
     );
   });
 

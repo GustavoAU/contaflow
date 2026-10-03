@@ -281,11 +281,11 @@ export async function postDepreciation(
  * @param periods  Períodos pendientes (ya ordenados cronológicamente, ya filtrados sin existing entry)
  */
 export async function postClosedYearCatchUpDepreciation(
-  assetId:   string,
+  assetId: string,
   companyId: string,
-  periods:   { year: number; month: number }[],
-  userId:    string,
-  tx:        Tx,
+  periods: { year: number; month: number }[],
+  userId: string,
+  tx: Tx
 ): Promise<{ processed: number }> {
   if (periods.length === 0) return { processed: 0 };
 
@@ -298,11 +298,17 @@ export async function postClosedYearCatchUpDepreciation(
   });
   let runningAccumulated = new Decimal(prevAgg._sum.amount?.toString() ?? "0");
 
-  const acqDate  = new Date(asset.acquisitionDate);
-  const acqYear  = acqDate.getUTCFullYear();
+  const acqDate = new Date(asset.acquisitionDate);
+  const acqYear = acqDate.getUTCFullYear();
   const acqMonth = acqDate.getUTCMonth() + 1;
 
-  type EntryCalc = { year: number; month: number; amount: Decimal; accumulated: Decimal; bookValue: Decimal };
+  type EntryCalc = {
+    year: number;
+    month: number;
+    amount: Decimal;
+    accumulated: Decimal;
+    bookValue: Decimal;
+  };
   const entryCalcs: EntryCalc[] = [];
   let totalAmount = new Decimal(0);
 
@@ -313,7 +319,13 @@ export async function postClosedYearCatchUpDepreciation(
     const calc = calcDepreciationForPeriod(asset, month1, runningAccumulated, 0);
     if (calc.amount.equals(0)) break; // totalmente depreciado
 
-    entryCalcs.push({ year: y, month: m, amount: calc.amount, accumulated: calc.accumulated, bookValue: calc.bookValue });
+    entryCalcs.push({
+      year: y,
+      month: m,
+      amount: calc.amount,
+      accumulated: calc.accumulated,
+      bookValue: calc.bookValue,
+    });
     runningAccumulated = calc.accumulated;
     totalAmount = totalAmount.plus(calc.amount);
   }
@@ -328,13 +340,13 @@ export async function postClosedYearCatchUpDepreciation(
 
   const vnf8Entries = [
     {
-      accountId:   asset.depreciationAccountId,
-      amount:      totalAmount,
+      accountId: asset.depreciationAccountId,
+      amount: totalAmount,
       description: `Dep. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
     },
     {
-      accountId:   asset.accDepreciationAccountId,
-      amount:      totalAmount.negated(),
+      accountId: asset.accDepreciationAccountId,
+      amount: totalAmount.negated(),
       description: `Dep. Acum. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
     },
   ];
@@ -342,10 +354,10 @@ export async function postClosedYearCatchUpDepreciation(
   const glTx = await tx.transaction.create({
     data: {
       companyId,
-      number:      txNumber,
-      date:        today,
+      number: txNumber,
+      date: today,
       description: `Ajuste depreciación ejercicios anteriores (${years}) — VEN-NIF 8 / ${asset.name}`,
-      type:        "AJUSTE",
+      type: "AJUSTE",
       userId,
       entries: {
         create: vnf8Entries,
@@ -358,14 +370,14 @@ export async function postClosedYearCatchUpDepreciation(
     await tx.depreciationEntry.create({
       data: {
         companyId,
-        fixedAssetId:           assetId,
-        periodYear:             e.year,
-        periodMonth:            e.month,
-        amount:                 e.amount,
+        fixedAssetId: assetId,
+        periodYear: e.year,
+        periodMonth: e.month,
+        amount: e.amount,
         accumulatedDepreciation: e.accumulated,
-        bookValue:              e.bookValue,
-        transactionId:          glTx.id, // todos vinculados al mismo asiento GL
-        postedAt:               new Date(),
+        bookValue: e.bookValue,
+        transactionId: glTx.id, // todos vinculados al mismo asiento GL
+        postedAt: new Date(),
       },
     });
   }
@@ -400,14 +412,7 @@ export async function postMonthlyDepreciation(
 
   for (const asset of assets) {
     try {
-      const result = await postDepreciation(
-        asset.id,
-        companyId,
-        year,
-        month,
-        userId,
-        tx
-      );
+      const result = await postDepreciation(asset.id, companyId, year, month, userId, tx);
       if (result.created) processed++;
       else skipped++;
     } catch (e) {
@@ -443,8 +448,11 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
   // (todas opcionales, elegidas en el modal de baja) no verificaban
   // pertenecer a esta empresa antes de guardarse.
   await assertAccountsBelongToCompany(tx, input.companyId, [
-    input.proceedsAccountId, input.ivaDFAccountId, input.gainLossAccountId,
-    input.art66ExpenseAccountId, input.ivaCFAccountId,
+    input.proceedsAccountId,
+    input.ivaDFAccountId,
+    input.gainLossAccountId,
+    input.art66ExpenseAccountId,
+    input.ivaCFAccountId,
   ]);
 
   const prevEntries = await tx.depreciationEntry.aggregate({
@@ -532,15 +540,15 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
   //    HABER IVA Crédito Fiscal     (ivaCFAccountId, ASSET 1.1.x.x)  → amount: −reintegro
   //    R-5: servidor recalcula con Decimal.js — nunca confiar en el valor del cliente (D-3)
   if (input.applyArt66 && input.art66ExpenseAccountId && input.ivaCFAccountId) {
-    const acqDate  = asset.acquisitionDate;
+    const acqDate = asset.acquisitionDate;
     const dispDate = input.disposalDate;
     // MEDIUM-3: getters UTC — las fechas de negocio son medianoche UTC. Debe dar
     // EXACTAMENTE lo mismo que monthsBetween() de disposal-preview.ts, que es lo
     // que ve el usuario antes de confirmar (paridad fijada por test).
-    const mUsed    = Math.max(
+    const mUsed = Math.max(
       0,
       (dispDate.getUTCFullYear() - acqDate.getUTCFullYear()) * 12 +
-      (dispDate.getUTCMonth()    - acqDate.getUTCMonth()),
+        (dispDate.getUTCMonth() - acqDate.getUTCMonth())
     );
     if (mUsed < 36) {
       const art66Amount = cost

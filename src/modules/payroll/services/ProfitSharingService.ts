@@ -49,7 +49,7 @@ export interface CalculateProfitSharingInput {
   // periodStart/End para calcular meses trabajados en el año fiscal.
   // Si no se proveen, se usa hireDate → 31-dic del año fiscal.
   periodStart?: string; // YYYY-MM-DD
-  periodEnd?: string;   // YYYY-MM-DD (terminationDate si es fraccionado)
+  periodEnd?: string; // YYYY-MM-DD (terminationDate si es fraccionado)
   // F-07: cálculo dinámico desde utilidad neta (LOTTT Art. 131)
   // Cuando ambos se proveen, profitDays se calcula en el servidor — nunca del cliente.
   netProfitVes?: string;
@@ -121,22 +121,22 @@ export const ProfitSharingService = {
     const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
     if (!config) throw new Error("Configure la nómina antes de calcular utilidades");
     if (!config.profitSharingPayableAccountId || !config.benefitsExpenseAccountId) {
-      throw new Error("Configure las cuentas contables de utilidades en la configuración de nómina");
+      throw new Error(
+        "Configure las cuentas contables de utilidades en la configuración de nómina"
+      );
     }
 
-    const fiscalYearStart = new Date(input.fiscalYear, 0, 1);    // 1-ene
-    const fiscalYearEnd   = new Date(input.fiscalYear, 11, 31);  // 31-dic
+    const fiscalYearStart = new Date(input.fiscalYear, 0, 1); // 1-ene
+    const fiscalYearEnd = new Date(input.fiscalYear, 11, 31); // 31-dic
 
     // Período de cálculo
     const periodStart = input.periodStart
       ? new Date(input.periodStart)
       : employee.hireDate > fiscalYearStart
-      ? employee.hireDate
-      : fiscalYearStart;
+        ? employee.hireDate
+        : fiscalYearStart;
 
-    const periodEnd = input.periodEnd
-      ? new Date(input.periodEnd)
-      : fiscalYearEnd;
+    const periodEnd = input.periodEnd ? new Date(input.periodEnd) : fiscalYearEnd;
 
     // Meses completos trabajados en el año fiscal (ADR-014 Dec. 8)
     const monthsWorked = countCompleteMonths(periodStart, periodEnd);
@@ -162,9 +162,7 @@ export const ProfitSharingService = {
     // Promedio ponderado simple: tomamos el promedio de los montos registrados
     // en el rango. Para cada mes del período, el salario vigente = max(effectiveFrom) <= mes.
     // Versión simplificada: promedio aritmético de los salarios únicos en el período.
-    const salariesInPeriod = salaryRows.filter(
-      (r) => r.effectiveFrom <= periodEnd
-    );
+    const salariesInPeriod = salaryRows.filter((r) => r.effectiveFrom <= periodEnd);
 
     // Cada fila se lleva a bolívares ANTES de promediar. Antes se sumaba
     // `amount` sin mirar `currency`: un historial con un tramo en USD y otro en
@@ -179,8 +177,9 @@ export const ProfitSharingService = {
       : null;
     const avgSalary = salariesInPeriod
       .reduce(
-        (sum, r) => sum.add(salaryAmountToVes(new Decimal(r.amount.toString()), r.currency, bcvRate)),
-        new Decimal(0),
+        (sum, r) =>
+          sum.add(salaryAmountToVes(new Decimal(r.amount.toString()), r.currency, bcvRate)),
+        new Decimal(0)
       )
       .div(salariesInPeriod.length);
 
@@ -201,7 +200,8 @@ export const ProfitSharingService = {
       } else {
         const dynamic = netProfit.mul("0.15").mul("365").div(totalPayroll).toDecimalPlaces(2);
         profitDays = Decimal.max(
-          LEGAL_MIN_PROFIT_DAYS, Decimal.min(LEGAL_MAX_PROFIT_DAYS, dynamic),
+          LEGAL_MIN_PROFIT_DAYS,
+          Decimal.min(LEGAL_MAX_PROFIT_DAYS, dynamic)
         );
       }
     } else {
@@ -235,8 +235,8 @@ export const ProfitSharingService = {
     if (incesApplies && !config.incesPayableAccountId) {
       throw new Error(
         "Falta la cuenta contable de INCES por Pagar. La Ley INCES Art. 50 obliga " +
-        "a retener el 0,5% de las utilidades, y sin esa cuenta el asiento no se " +
-        "puede cuadrar. Configúrala en Configuración de Nómina antes de liquidar."
+          "a retener el 0,5% de las utilidades, y sin esa cuenta el asiento no se " +
+          "puede cuadrar. Configúrala en Configuración de Nómina antes de liquidar."
       );
     }
 
@@ -264,95 +264,98 @@ export const ProfitSharingService = {
     }
 
     try {
-      return await prisma.$transaction(async (tx) => {
-        // Asiento contable de causación (VEN-NIF / NIC 19)
-        // Convención: positivo = Débito, negativo = Crédito
-        const profitEntries = [
-          {
-            accountId: config.benefitsExpenseAccountId!,
-            amount: profitAmount.toDecimalPlaces(4), // Débito
-            description: `Accrual utilidades LOTTT Art.131 — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-          },
-          {
-            accountId: config.profitSharingPayableAccountId!,
-            // El trabajador cobra el neto: el pasivo con él baja por la retención.
-            amount: profitAmount.minus(incesRetention).negated().toDecimalPlaces(4), // Crédito
-            description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
-          },
-        ];
-        if (incesRetention.greaterThan(0)) {
-          profitEntries.push({
-            accountId: config.incesPayableAccountId!,
-            amount: incesRetention.negated().toDecimalPlaces(4), // Crédito
-            description: `Retención INCES 0,5% s/utilidades (Art. 50) — ${input.fiscalYear} — ${employee.firstName} ${employee.lastName}`,
-          });
-        }
-        assertBalancedGLEntries(profitEntries); // N4: invariante partida doble
-        const transaction = await tx.transaction.create({
-          data: {
-            companyId,
-            periodId: period.id,
-            number: `NOM-D-UTIL-${input.fiscalYear}-${employeeId.slice(-6)}${isFractional ? "-F" : ""}`,
-            date: today,
-            description: `Utilidades ${input.fiscalYear}${isFractional ? " (fraccionadas)" : ""} — ${employee.firstName} ${employee.lastName}`,
-            userId,
-            type: "DIARIO",
-            entries: {
-              create: profitEntries,
+      return await prisma.$transaction(
+        async (tx) => {
+          // Asiento contable de causación (VEN-NIF / NIC 19)
+          // Convención: positivo = Débito, negativo = Crédito
+          const profitEntries = [
+            {
+              accountId: config.benefitsExpenseAccountId!,
+              amount: profitAmount.toDecimalPlaces(4), // Débito
+              description: `Accrual utilidades LOTTT Art.131 — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
             },
-          },
-        });
+            {
+              accountId: config.profitSharingPayableAccountId!,
+              // El trabajador cobra el neto: el pasivo con él baja por la retención.
+              amount: profitAmount.minus(incesRetention).negated().toDecimalPlaces(4), // Crédito
+              description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
+            },
+          ];
+          if (incesRetention.greaterThan(0)) {
+            profitEntries.push({
+              accountId: config.incesPayableAccountId!,
+              amount: incesRetention.negated().toDecimalPlaces(4), // Crédito
+              description: `Retención INCES 0,5% s/utilidades (Art. 50) — ${input.fiscalYear} — ${employee.firstName} ${employee.lastName}`,
+            });
+          }
+          assertBalancedGLEntries(profitEntries); // N4: invariante partida doble
+          const transaction = await tx.transaction.create({
+            data: {
+              companyId,
+              periodId: period.id,
+              number: `NOM-D-UTIL-${input.fiscalYear}-${employeeId.slice(-6)}${isFractional ? "-F" : ""}`,
+              date: today,
+              description: `Utilidades ${input.fiscalYear}${isFractional ? " (fraccionadas)" : ""} — ${employee.firstName} ${employee.lastName}`,
+              userId,
+              type: "DIARIO",
+              entries: {
+                create: profitEntries,
+              },
+            },
+          });
 
-        // ProfitSharingRecord — guard doble-pago vía @@unique
-        const record = await tx.profitSharingRecord.create({
-          data: {
-            companyId,
-            employeeId,
-            fiscalYear: input.fiscalYear,
-            profitDays: profitDays.toFixed(2),
-            fractionalDays: fractionalDays.toFixed(2),
-            monthsWorked,
-            baseSalarySnapshot: avgSalary.toFixed(4),
-            profitAmount: profitAmount.toFixed(4),
-            incesRetention: incesRetention.toFixed(4),
-            isFractional,
-            transactionId: transaction.id,
-            createdByUserId: userId,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            companyId,
-            entityName: "ProfitSharingRecord",
-            entityId: record.id,
-            action: "CREATE_PROFIT_SHARING_RECORD",
-            userId,
-            ipAddress,
-            userAgent,
-            oldValue: Prisma.JsonNull,
-            newValue: {
+          // ProfitSharingRecord — guard doble-pago vía @@unique
+          const record = await tx.profitSharingRecord.create({
+            data: {
+              companyId,
               employeeId,
               fiscalYear: input.fiscalYear,
               profitDays: profitDays.toFixed(2),
               fractionalDays: fractionalDays.toFixed(2),
               monthsWorked,
+              baseSalarySnapshot: avgSalary.toFixed(4),
               profitAmount: profitAmount.toFixed(4),
+              incesRetention: incesRetention.toFixed(4),
               isFractional,
-              ...(input.netProfitVes
-                ? { netProfitVes: input.netProfitVes, totalAnnualPayrollVes: input.totalAnnualPayrollVes ?? null }
-                : {}),
+              transactionId: transaction.id,
+              createdByUserId: userId,
             },
-          },
-        });
+          });
 
-        return serializeProfitSharing(record);
-      }, { timeout: 15000, maxWait: 15000 });
+          await tx.auditLog.create({
+            data: {
+              companyId,
+              entityName: "ProfitSharingRecord",
+              entityId: record.id,
+              action: "CREATE_PROFIT_SHARING_RECORD",
+              userId,
+              ipAddress,
+              userAgent,
+              oldValue: Prisma.JsonNull,
+              newValue: {
+                employeeId,
+                fiscalYear: input.fiscalYear,
+                profitDays: profitDays.toFixed(2),
+                fractionalDays: fractionalDays.toFixed(2),
+                monthsWorked,
+                profitAmount: profitAmount.toFixed(4),
+                isFractional,
+                ...(input.netProfitVes
+                  ? {
+                      netProfitVes: input.netProfitVes,
+                      totalAnnualPayrollVes: input.totalAnnualPayrollVes ?? null,
+                    }
+                  : {}),
+              },
+            },
+          });
+
+          return serializeProfitSharing(record);
+        },
+        { timeout: 15000, maxWait: 15000 }
+      );
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         throw new Error(
           `Ya existe un registro de utilidades para el año fiscal ${input.fiscalYear} de este empleado`
         );
@@ -362,10 +365,7 @@ export const ProfitSharingService = {
   },
 
   // ── listByEmployee — historial de utilidades del empleado ─────────────────
-  async listByEmployee(
-    companyId: string,
-    employeeId: string
-  ): Promise<ProfitSharingRecordRow[]> {
+  async listByEmployee(companyId: string, employeeId: string): Promise<ProfitSharingRecordRow[]> {
     // IDOR: companyId en findMany
     const records = await prisma.profitSharingRecord.findMany({
       where: { companyId, employeeId },

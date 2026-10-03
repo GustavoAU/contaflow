@@ -76,35 +76,34 @@ export function ExportJobList({ jobs }: Props) {
 
   return (
     <div className="space-y-3">
-      <h2 className="font-semibold text-lg">Historial de exportaciones</h2>
-      <div className="rounded-lg border divide-y">
+      <h2 className="text-lg font-semibold">Historial de exportaciones</h2>
+      <div className="divide-y rounded-lg border">
         {jobs.map((job) => {
-          const expired =
-            job.expiresAt && new Date(job.expiresAt) < new Date();
+          const expired = job.expiresAt && new Date(job.expiresAt) < new Date();
           const downloadable = job.status === "DONE" && !expired;
 
           return (
-            <div key={job.id} className="flex items-center justify-between px-4 py-3 gap-4">
+            <div key={job.id} className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="text-sm font-medium">
                   {formatDateUTC(job.dateFrom)} — {formatDateUTC(job.dateTo)}
                 </p>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <p className="text-muted-foreground flex items-center gap-1 text-xs">
                   <ClockIcon className="h-3 w-3" />
                   {formatDate(job.createdAt)}
                   {job.fileSize && ` · ${formatBytes(job.fileSize)}`}
                   {expired && " · Enlace expirado"}
                 </p>
                 {job.status === "ERROR" && job.errorMsg && (
-                  <p className="text-xs text-destructive">{job.errorMsg}</p>
+                  <p className="text-destructive text-xs">{job.errorMsg}</p>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex shrink-0 items-center gap-2">
                 <StatusBadge status={job.status} />
                 {downloadable && (
                   <a
                     href={`/api/export/download?jobId=${job.id}`}
-                    className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted"
+                    className="hover:bg-muted inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium"
                     download
                   >
                     <DownloadIcon className="h-3 w-3" />

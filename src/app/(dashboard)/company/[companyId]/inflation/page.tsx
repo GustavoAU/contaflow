@@ -39,10 +39,10 @@ export default async function InflationPage({ params }: Props) {
   const isAdmin = role === "ADMIN";
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8 p-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Ajuste por Inflación (INPC)</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-gray-500">
           VEN-NIF 3 — Reexpresión de estados financieros en economía hiperinflacionaria
         </p>
       </div>
@@ -66,14 +66,14 @@ export default async function InflationPage({ params }: Props) {
       {/* Índices INPC */}
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-gray-800">Índices INPC Cargados</h2>
-        {isAdmin && (
-          <INPCRateForm companyId={companyId} />
-        )}
-        <INPCRateTable rates={rates.map((r) => ({
-          ...r,
-          indexValue: r.indexValue.toFixed(6),
-          createdAt: r.createdAt.toISOString(),
-        }))} />
+        {isAdmin && <INPCRateForm companyId={companyId} />}
+        <INPCRateTable
+          rates={rates.map((r) => ({
+            ...r,
+            indexValue: r.indexValue.toFixed(6),
+            createdAt: r.createdAt.toISOString(),
+          }))}
+        />
       </section>
 
       {/* Panel de ajuste — solo ADMIN */}
@@ -81,12 +81,13 @@ export default async function InflationPage({ params }: Props) {
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-gray-800">Ejecutar Ajuste por Inflación</h2>
           <p className="text-xs text-gray-500">
-            Genera un asiento contable (tipo AJUSTE) que reexpresa todos los saldos de cuentas
-            al poder adquisitivo del período seleccionado.
+            Genera un asiento contable (tipo AJUSTE) que reexpresa todos los saldos de cuentas al
+            poder adquisitivo del período seleccionado.
           </p>
           {equityAccounts.length === 0 ? (
-            <p className="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-4 py-2">
-              No hay cuentas de Patrimonio (EQUITY) disponibles como cuenta actualizadora. Cree una primero.
+            <p className="rounded border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-700">
+              No hay cuentas de Patrimonio (EQUITY) disponibles como cuenta actualizadora. Cree una
+              primero.
             </p>
           ) : (
             <InflationAdjustmentPanel

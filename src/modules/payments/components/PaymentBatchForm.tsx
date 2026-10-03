@@ -32,7 +32,9 @@ function fmtVes(v: string) {
   const n = parseFloat(v);
   return isNaN(n)
     ? v
-    : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
+        n
+      );
 }
 
 let lineKeySeq = 0;
@@ -117,10 +119,12 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
       // Por ahora actualiza solo si hay una línea vacía
       const totalVes = (usd * bcvRate).toFixed(2);
       if (lines.length === 1 && lines[0].amountVes === "") {
-        setLines((prev) => prev.map((l) => l.key === prev[0].key ? { ...l, amountVes: totalVes } : l));
+        setLines((prev) =>
+          prev.map((l) => (l.key === prev[0].key ? { ...l, amountVes: totalVes } : l))
+        );
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zelleUsd, bcvRate]);
 
   function handleMethodChange(m: PaymentMethodType) {
@@ -158,7 +162,9 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
     const inv = invoiceMap.get(invoiceId);
     if (!inv) return;
     setLines((prev) =>
-      prev.map((l) => (l.key === key ? { ...l, amountVes: new Decimal(inv.pendingAmount).toFixed(2) } : l))
+      prev.map((l) =>
+        l.key === key ? { ...l, amountVes: new Decimal(inv.pendingAmount).toFixed(2) } : l
+      )
     );
   }
 
@@ -175,15 +181,18 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
   const commAmount = totalVes.gt(0)
     ? totalVes.mul(commPct).div(100).toDecimalPlaces(2).toString()
     : "0.00";
-  const igtfCashea = casheaIgtf && totalVes.gt(0)
-    ? totalVes.mul("0.03").toDecimalPlaces(2).toString()
-    : "0.00";
+  const igtfCashea =
+    casheaIgtf && totalVes.gt(0) ? totalVes.mul("0.03").toDecimalPlaces(2).toString() : "0.00";
 
   const canSubmit =
     !isPending &&
     lines.length > 0 &&
     lines.every((l) => {
-      try { return l.invoiceId && new Decimal(l.amountVes || "0").gt(0); } catch { return false; }
+      try {
+        return l.invoiceId && new Decimal(l.amountVes || "0").gt(0);
+      } catch {
+        return false;
+      }
     }) &&
     totalVes.gt(0);
 
@@ -246,7 +255,8 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
     });
   }
 
-  const inputCls = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  const inputCls =
+    "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 rounded-lg border bg-white p-5 shadow-sm">
@@ -259,13 +269,25 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">Fecha</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className={inputCls} />
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            className={inputCls}
+          />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">Medio de pago</label>
-          <select value={method} onChange={(e) => handleMethodChange(e.target.value as PaymentMethodType)} className={inputCls}>
+          <select
+            value={method}
+            onChange={(e) => handleMethodChange(e.target.value as PaymentMethodType)}
+            className={inputCls}
+          >
             {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethodType[]).map((m) => (
-              <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+              <option key={m} value={m}>
+                {PAYMENT_METHOD_LABELS[m]}
+              </option>
             ))}
           </select>
         </div>
@@ -279,21 +301,42 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
               Referencia{method === "PAGOMOVIL" && <span className="text-red-500"> *</span>}
               {method === "TRANSFERENCIA" && <span className="text-red-500"> *</span>}
             </label>
-            <input type="text" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)}
-              placeholder="REF-00123456" className={inputCls} />
+            <input
+              type="text"
+              value={referenceNumber}
+              onChange={(e) => setReferenceNumber(e.target.value)}
+              placeholder="REF-00123456"
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Banco origen</label>
-            <select value={originBank} onChange={(e) => setOriginBank(e.target.value)} className={inputCls}>
+            <select
+              value={originBank}
+              onChange={(e) => setOriginBank(e.target.value)}
+              className={inputCls}
+            >
               <option value="">— Seleccionar —</option>
-              {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+              {VENEZUELA_BANKS.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
             </select>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">Banco destino</label>
-            <select value={destBank} onChange={(e) => setDestBank(e.target.value)} className={inputCls}>
+            <select
+              value={destBank}
+              onChange={(e) => setDestBank(e.target.value)}
+              className={inputCls}
+            >
               <option value="">— Seleccionar —</option>
-              {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+              {VENEZUELA_BANKS.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -306,18 +349,37 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Monto total en USD <span className="text-red-500">*</span>
-              {bcvLoading && <span className="ml-2 text-xs font-normal text-zinc-400">Cargando tasa BCV...</span>}
-              {!bcvLoading && bcvRate && <span className="ml-2 text-xs font-normal text-zinc-400">Tasa BCV: {formatAmount(bcvRate)} Bs.D/USD</span>}
-              {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — ingrese los montos VES manualmente</span>}
+              {bcvLoading && (
+                <span className="ml-2 text-xs font-normal text-zinc-400">Cargando tasa BCV...</span>
+              )}
+              {!bcvLoading && bcvRate && (
+                <span className="ml-2 text-xs font-normal text-zinc-400">
+                  Tasa BCV: {formatAmount(bcvRate)} Bs.D/USD
+                </span>
+              )}
+              {!bcvLoading && !bcvRate && (
+                <span className="ml-2 text-xs font-normal text-amber-600">
+                  Sin tasa BCV — ingrese los montos VES manualmente
+                </span>
+              )}
             </label>
-            <input type="number" min="0.01" step="0.01" value={zelleUsd}
-              onChange={(e) => setZelleUsd(e.target.value)} placeholder="0.00" required
-              className={`${inputCls} font-mono`} />
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={zelleUsd}
+              onChange={(e) => setZelleUsd(e.target.value)}
+              placeholder="0.00"
+              required
+              className={`${inputCls} font-mono`}
+            />
           </div>
           {totalVes.gt(0) && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               IGTF 3% (aplica automáticamente por ser pago en USD):
-              <span className="ml-1 font-mono font-semibold">Bs.D {fmtVes(totalVes.mul("0.03").toDecimalPlaces(2).toString())}</span>
+              <span className="ml-1 font-mono font-semibold">
+                Bs.D {fmtVes(totalVes.mul("0.03").toDecimalPlaces(2).toString())}
+              </span>
             </div>
           )}
         </div>
@@ -332,9 +394,14 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
               Comisión Cashea (%) <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-2">
-              <input type="number" min="0" step="0.01" value={commissionPct}
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={commissionPct}
                 onChange={(e) => setCommissionPct(e.target.value)}
-                className="w-28 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" />
+                className="w-28 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              />
               {totalVes.gt(0) && (
                 <span className="text-sm text-zinc-600">
                   = <span className="font-mono font-semibold">Bs.D {fmtVes(commAmount)}</span>
@@ -343,7 +410,12 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
             </div>
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
-            <input type="checkbox" checked={casheaIgtf} onChange={(e) => setCasheaIgtf(e.target.checked)} className="rounded" />
+            <input
+              type="checkbox"
+              checked={casheaIgtf}
+              onChange={(e) => setCasheaIgtf(e.target.checked)}
+              className="rounded"
+            />
             Cashea liquida en USD (aplica IGTF 3%)
           </label>
           {casheaIgtf && totalVes.gt(0) && (
@@ -360,20 +432,29 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
           <label className="text-sm font-medium text-zinc-700">
             Facturas a pagar <span className="text-red-500">*</span>
           </label>
-          <button type="button" onClick={addLine}
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50">
-            <PlusIcon className="size-3" />Agregar factura
+          <button
+            type="button"
+            onClick={addLine}
+            className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50"
+          >
+            <PlusIcon className="size-3" />
+            Agregar factura
           </button>
         </div>
 
         {/* Filtro por proveedor (#15) */}
         {suppliers.length > 1 && (
           <div className="mb-3">
-            <select value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}
-              className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-700 focus:border-blue-400 focus:outline-none">
+            <select
+              value={supplierFilter}
+              onChange={(e) => setSupplierFilter(e.target.value)}
+              className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-700 focus:border-blue-400 focus:outline-none"
+            >
               <option value="">— Todos los proveedores ({invoices.length}) —</option>
               {suppliers.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </select>
           </div>
@@ -390,15 +471,21 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
               return (
                 <div key={line.key} className="flex items-start gap-2">
                   <div className="flex-1">
-                    <select value={line.invoiceId}
+                    <select
+                      value={line.invoiceId}
                       onChange={(e) => updateLine(line.key, "invoiceId", e.target.value)}
                       required
-                      className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                      className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    >
                       <option value="">— Seleccionar factura —</option>
                       {filteredInvoices.map((inv) => (
-                        <option key={inv.id} value={inv.id}
-                          disabled={usedInvoiceIds.has(inv.id) && inv.id !== line.invoiceId}>
-                          {inv.invoiceNumber} — {inv.counterpartName} (Bs.D {fmtVes(inv.pendingAmount)})
+                        <option
+                          key={inv.id}
+                          value={inv.id}
+                          disabled={usedInvoiceIds.has(inv.id) && inv.id !== line.invoiceId}
+                        >
+                          {inv.invoiceNumber} — {inv.counterpartName} (Bs.D{" "}
+                          {fmtVes(inv.pendingAmount)})
                         </option>
                       ))}
                     </select>
@@ -409,20 +496,32 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
                     )}
                   </div>
                   <div className="w-36">
-                    <input type="number" min="0.01" step="0.01" value={line.amountVes}
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={line.amountVes}
                       onChange={(e) => updateLine(line.key, "amountVes", e.target.value)}
-                      placeholder="0.00" required
-                      className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      placeholder="0.00"
+                      required
+                      className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    />
                     {inv && (
-                      <button type="button" onClick={() => fillMaxAmount(line.key, line.invoiceId)}
-                        className="mt-0.5 text-xs text-blue-500 hover:underline">
+                      <button
+                        type="button"
+                        onClick={() => fillMaxAmount(line.key, line.invoiceId)}
+                        className="mt-0.5 text-xs text-blue-500 hover:underline"
+                      >
                         Máximo
                       </button>
                     )}
                   </div>
-                  <button type="button" onClick={() => removeLine(line.key)}
+                  <button
+                    type="button"
+                    onClick={() => removeLine(line.key)}
                     disabled={lines.length === 1}
-                    className="mt-1.5 rounded p-1 text-zinc-400 hover:text-red-500 disabled:opacity-30">
+                    className="mt-1.5 rounded p-1 text-zinc-400 hover:text-red-500 disabled:opacity-30"
+                  >
                     <TrashIcon className="size-4" />
                   </button>
                 </div>
@@ -437,7 +536,9 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
         <div className="flex justify-end rounded-md bg-zinc-50 px-4 py-3">
           <span className="text-sm font-medium text-zinc-700">
             Total lote:{" "}
-            <span className="font-mono font-bold text-zinc-900">Bs.D {fmtVes(totalVes.toFixed(2))}</span>
+            <span className="font-mono font-bold text-zinc-900">
+              Bs.D {fmtVes(totalVes.toFixed(2))}
+            </span>
             {method === "ZELLE" && (
               <span className="ml-2 text-xs font-normal text-zinc-400">
                 + IGTF {fmtVes(totalVes.mul("0.03").toDecimalPlaces(2).toString())}
@@ -450,19 +551,27 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
       {/* Notas */}
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">Notas (opcional)</label>
-        <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
-          placeholder="Observaciones..." className={inputCls} />
+        <input
+          type="text"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Observaciones..."
+          className={inputCls}
+        />
       </div>
 
       {/* ─── Cuenta Bancaria para GL auto-posting (ADR-030) ─── */}
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700">
           Cuenta bancaria{" "}
-          <span className="text-xs font-normal text-zinc-400">(opcional — asiento automático si hay cuentas GL configuradas)</span>
+          <span className="text-xs font-normal text-zinc-400">
+            (opcional — asiento automático si hay cuentas GL configuradas)
+          </span>
         </label>
         {bankAccounts.length === 0 ? (
           <p className="text-xs text-zinc-400">
-            No hay cuentas bancarias configuradas. Configure una en Conciliación Bancaria para habilitar el asiento automático.
+            No hay cuentas bancarias configuradas. Configure una en Conciliación Bancaria para
+            habilitar el asiento automático.
           </p>
         ) : (
           <select
@@ -481,15 +590,23 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
       </div>
 
       {/* Feedback */}
-      {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
       {success && (
         <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
           Lote aplicado correctamente. Las facturas fueron actualizadas.
         </div>
       )}
 
-      <button type="submit" disabled={!canSubmit} aria-busy={isPending}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50">
+      <button
+        type="submit"
+        disabled={!canSubmit}
+        aria-busy={isPending}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+      >
         {isPending && <Loader2Icon className="size-4 animate-spin" />}
         {isPending ? "Aplicando lote..." : "Crear y Aplicar Lote"}
       </button>

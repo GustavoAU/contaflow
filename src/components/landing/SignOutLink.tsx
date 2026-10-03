@@ -22,11 +22,7 @@ const plainLinkStyle: React.CSSProperties = {
 export function SignOutLink({ className, label = "Cerrar sesión" }: Props) {
   return (
     <SignOutButton redirectUrl="/">
-      <button
-        type="button"
-        className={className}
-        style={className ? undefined : plainLinkStyle}
-      >
+      <button type="button" className={className} style={className ? undefined : plainLinkStyle}>
         {label}
       </button>
     </SignOutButton>

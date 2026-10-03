@@ -34,8 +34,8 @@ function base64urlDecode(str: string): string {
 }
 
 export interface EmployeeTokenPayload {
-  sub: string;  // employeeId
-  cid: string;  // companyId
+  sub: string; // employeeId
+  cid: string; // companyId
   iat: number;
   exp: number;
 }
@@ -54,7 +54,12 @@ function sign(headerPayload: string, secret: string): string {
 export function signEmployeeToken(employeeId: string, companyId: string): string {
   const secret = getSecret();
   const iat = Math.floor(Date.now() / 1000);
-  const payload: EmployeeTokenPayload = { sub: employeeId, cid: companyId, iat, exp: iat + TTL_SECONDS };
+  const payload: EmployeeTokenPayload = {
+    sub: employeeId,
+    cid: companyId,
+    iat,
+    exp: iat + TTL_SECONDS,
+  };
   const encodedPayload = base64url(JSON.stringify(payload));
   const unsigned = `${HEADER}.${encodedPayload}`;
   const signature = sign(unsigned, secret);

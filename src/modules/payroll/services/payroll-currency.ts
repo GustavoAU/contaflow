@@ -41,10 +41,7 @@ export const MIXED_SALARY_MESSAGE =
  * Se expone aparte de la conversión para que un llamador que convierte muchas
  * filas —el promedio salarial de utilidades, por ejemplo— haga una sola consulta.
  */
-export async function bcvRateAt(
-  companyId: string,
-  atDate: Date,
-): Promise<Decimal | null> {
+export async function bcvRateAt(companyId: string, atDate: Date): Promise<Decimal | null> {
   const row = await prisma.exchangeRate.findFirst({
     where: { companyId, currency: "USD", date: { lte: atDate } },
     orderBy: { date: "desc" },
@@ -62,7 +59,7 @@ export async function bcvRateAt(
 export function salaryAmountToVes(
   amount: Decimal,
   currency: PayrollPaymentCurrency,
-  bcvRate: Decimal | null,
+  bcvRate: Decimal | null
 ): Decimal {
   if (currency === "VES") return amount;
   if (currency === "MIXED") throw new Error(MIXED_SALARY_MESSAGE);
@@ -81,7 +78,7 @@ export function salaryAmountToVes(
 export async function monthlyWageToVes(
   companyId: string,
   salary: { amount: { toString(): string }; currency: PayrollPaymentCurrency },
-  atDate: Date,
+  atDate: Date
 ): Promise<Decimal> {
   const amount = new Decimal(salary.amount.toString());
   if (salary.currency === "VES") return amount;

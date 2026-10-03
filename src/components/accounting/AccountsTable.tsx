@@ -120,7 +120,14 @@ export function AccountsTable({
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(AccountFormSchema),
-    defaultValues: { name: "", code: "", type: "ASSET", description: "", isMonetary: false, isCurrent: false },
+    defaultValues: {
+      name: "",
+      code: "",
+      type: "ASSET",
+      description: "",
+      isMonetary: false,
+      isCurrent: false,
+    },
   });
 
   const watchedType = useWatch({ control: form.control, name: "type" });
@@ -140,7 +147,14 @@ export function AccountsTable({
 
   async function openCreate() {
     setEditing(null);
-    form.reset({ name: "", code: "", type: "ASSET", description: "", isMonetary: false, isCurrent: false });
+    form.reset({
+      name: "",
+      code: "",
+      type: "ASSET",
+      description: "",
+      isMonetary: false,
+      isCurrent: false,
+    });
     setDialogOpen(true);
     await new Promise((resolve) => setTimeout(resolve, 50));
     const result = await getNextAccountCodeAction("ASSET", companyId);
@@ -150,12 +164,14 @@ export function AccountsTable({
   function handleDelete(account: Account) {
     // Confirmación explícita: quitar una cuenta cambia lo que se ve en todos los
     // desplegables de la aplicación.
-    if (!window.confirm(
-      `¿Eliminar la cuenta ${account.code} — ${account.name}?
+    if (
+      !window.confirm(
+        `¿Eliminar la cuenta ${account.code} — ${account.name}?
 
-` +
-      "Si tiene asientos contables el sistema lo impedirá."
-    )) return;
+` + "Si tiene asientos contables el sistema lo impedirá."
+      )
+    )
+      return;
 
     setDeletingId(account.id);
     startTransition(async () => {
@@ -220,7 +236,9 @@ export function AccountsTable({
             updatedAt: new Date(),
           };
           setAccounts((prev) =>
-            [...prev, optimistic].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+            [...prev, optimistic].sort((a, b) =>
+              a.code.localeCompare(b.code, undefined, { numeric: true })
+            )
           );
         } else {
           setAccounts((prev) =>
@@ -275,13 +293,13 @@ export function AccountsTable({
               <TableHead>Tipo</TableHead>
               <TableHead>Descripcion</TableHead>
               <TableHead
-                className="text-center cursor-help"
+                className="cursor-help text-center"
                 title="Partida monetaria (VEN-NIF 3): Caja, Bancos, CxC, CxP. No se reexpresa por INPC."
               >
                 Monetaria ⓘ
               </TableHead>
               <TableHead
-                className="text-center cursor-help"
+                className="cursor-help text-center"
                 title="Corriente (VEN-NIF BA-10 / IAS 1): realizable o exigible en ≤12 meses. Solo aplica a Activos y Pasivos."
               >
                 Corriente ⓘ
@@ -295,14 +313,18 @@ export function AccountsTable({
                 <TableCell className="font-mono font-medium">{account.code}</TableCell>
                 <TableCell>{account.name}</TableCell>
                 <TableCell>
-                  <Badge className={TYPE_BADGE_CLASS[account.type]}>{TYPE_LABELS[account.type]}</Badge>
+                  <Badge className={TYPE_BADGE_CLASS[account.type]}>
+                    {TYPE_LABELS[account.type]}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground max-w-xs truncate">
                   {account.description ?? "—"}
                 </TableCell>
                 <TableCell className="text-center">
                   {account.isMonetary ? (
-                    <Badge variant="secondary" className="text-xs">Monetaria</Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      Monetaria
+                    </Badge>
                   ) : (
                     <span className="text-muted-foreground text-xs">—</span>
                   )}
@@ -310,7 +332,9 @@ export function AccountsTable({
                 <TableCell className="text-center">
                   {BALANCE_TYPES.has(account.type) ? (
                     account.isCurrent ? (
-                      <Badge variant="secondary" className="text-xs">Corriente</Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        Corriente
+                      </Badge>
                     ) : (
                       <span className="text-muted-foreground text-xs">No corriente</span>
                     )
@@ -445,8 +469,8 @@ export function AccountsTable({
                     <div className="space-y-0.5">
                       <FormLabel className="font-medium">Partida Monetaria (VEN-NIF 3)</FormLabel>
                       <p className="text-muted-foreground text-xs">
-                        Marcar para Caja, Bancos, CxC, CxP y similares. Estas cuentas no se reexpresan
-                        por inflación INPC — su efecto se registra como REPOMO.
+                        Marcar para Caja, Bancos, CxC, CxP y similares. Estas cuentas no se
+                        reexpresan por inflación INPC — su efecto se registra como REPOMO.
                       </p>
                     </div>
                   </FormItem>
@@ -467,7 +491,9 @@ export function AccountsTable({
                         />
                       </FormControl>
                       <div className="space-y-0.5">
-                        <FormLabel className="font-medium">Corriente (VEN-NIF BA-10 / IAS 1)</FormLabel>
+                        <FormLabel className="font-medium">
+                          Corriente (VEN-NIF BA-10 / IAS 1)
+                        </FormLabel>
                         <p className="text-muted-foreground text-xs">
                           Marcar si el activo se realizará o el pasivo se liquidará en ≤12 meses.
                           Afecta la clasificación en el Balance General.

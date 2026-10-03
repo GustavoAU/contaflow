@@ -98,13 +98,13 @@ const mockCompany = {
 /** Proyecta como haría Prisma ante un `select`. Sin `select`, la fila entera. */
 function project(
   row: Record<string, unknown>,
-  args?: { select?: Record<string, boolean> },
+  args?: { select?: Record<string, boolean> }
 ): Record<string, unknown> {
   if (!args?.select) return row;
   return Object.fromEntries(
     Object.entries(args.select)
       .filter(([, on]) => on)
-      .map(([k]) => [k, row[k]]),
+      .map(([k]) => [k, row[k]])
   );
 }
 
@@ -168,7 +168,7 @@ beforeEach(() => {
 
   vi.mocked(prisma.$transaction).mockImplementation(((
     fn: (tx: unknown) => unknown,
-    options?: Record<string, unknown>,
+    options?: Record<string, unknown>
   ) => {
     lastTxOptions = options;
     return fn({
@@ -207,9 +207,7 @@ describe("createCompanyAction — camino feliz", () => {
 
     // El guard de límite es write skew: en Read Committed dos POST simultáneos
     // leen 0 y ambos crean. Sin Serializable, el invariante no existe.
-    expect(lastTxOptions).toEqual(
-      expect.objectContaining({ isolationLevel: "Serializable" }),
-    );
+    expect(lastTxOptions).toEqual(expect.objectContaining({ isolationLevel: "Serializable" }));
   });
 
   it("ADR-043 D-3: la creación va envuelta en withDbRetry (cold start de Neon)", async () => {
@@ -339,7 +337,7 @@ describe("createCompanyAction — país (MP-4 / ADR-042 D-13)", () => {
 
     expect(result.success).toBe(true);
     expect(prisma.company.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ country: "VEN" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ country: "VEN" }) })
     );
   });
 
@@ -351,7 +349,7 @@ describe("createCompanyAction — país (MP-4 / ADR-042 D-13)", () => {
     });
 
     expect(prisma.company.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ country: "VEN" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ country: "VEN" }) })
     );
   });
 
@@ -484,7 +482,7 @@ describe("updateScopeProfileAction", () => {
 
     expect(result.success).toBe(true);
     expect(prisma.company.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { scopeProfile: "DESPACHO" } }),
+      expect.objectContaining({ data: { scopeProfile: "DESPACHO" } })
     );
     const audit = auditData();
     expect(audit.ipAddress).toBe(IP);
@@ -605,7 +603,6 @@ describe("reactivateCompanyAction", () => {
   });
 });
 
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Condición de caducidad escrita en ADR-043 D-3 (test estático)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -623,7 +620,7 @@ describe("ADR-043 D-3 — caducidad de withDbRetry sobre una mutación no idempo
 
     const source = readFileSync(
       path.join(process.cwd(), "src/modules/company/actions/company.actions.ts"),
-      "utf-8",
+      "utf-8"
     );
     const createBlock = source.slice(source.indexOf("export async function createCompanyAction"));
     const usesBlindRetry = /withDbRetry\(/.test(createBlock);
@@ -631,11 +628,10 @@ describe("ADR-043 D-3 — caducidad de withDbRetry sobre una mutación no idempo
 
     expect(
       !usesBlindRetry || hasIdempotencyKey,
-      "COMPANY_LIMIT_PER_USER > 1: quitar withDbRetry del alta o darle idempotencyKey (ADR-043 D-3)",
+      "COMPANY_LIMIT_PER_USER > 1: quitar withDbRetry del alta o darle idempotencyKey (ADR-043 D-3)"
     ).toBe(true);
   });
 });
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Ramas de error de los actions (Zod vs. error de negocio del servicio)
@@ -679,7 +675,7 @@ describe("updateScopeProfileAction — manejo de errores", () => {
 
   it("fallo en la transacción → error saneado (nunca el mensaje crudo de Postgres)", async () => {
     vi.mocked(prisma.$transaction).mockRejectedValue(
-      new Error("permission denied for schema public") as never,
+      new Error("permission denied for schema public") as never
     );
 
     const result = await updateScopeProfileAction({
@@ -694,7 +690,6 @@ describe("updateScopeProfileAction — manejo de errores", () => {
     }
   });
 });
-
 
 describe("Rol en acciones destructivas (ADR-006 D-1)", () => {
   beforeEach(() => {
@@ -765,7 +760,7 @@ describe("updateCompanySeniatDataAction — RIF con grandfathering (MP-1)", () =
           ciiu: null,
           actividad: null,
         }),
-      }),
+      })
     );
   });
 });

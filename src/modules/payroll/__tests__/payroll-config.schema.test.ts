@@ -34,9 +34,15 @@ describe("PayrollConfigSchema — cobertura de campos", () => {
 
   it("acepta las cuentas patronales, que es lo que se perdia", () => {
     const r = PayrollConfigSchema.safeParse({
-      sizeRange: "SMALL", lottRegime: "POST_2012",
-      ivssEnabled: true, incesEnabled: true, banavihEnabled: true, rpeEnabled: true,
-      cestaTicketType: "CARD", paymentCurrency: "USD", frequency: "BIWEEKLY",
+      sizeRange: "SMALL",
+      lottRegime: "POST_2012",
+      ivssEnabled: true,
+      incesEnabled: true,
+      banavihEnabled: true,
+      rpeEnabled: true,
+      cestaTicketType: "CARD",
+      paymentCurrency: "USD",
+      frequency: "BIWEEKLY",
       fideicomiso: "INTERNAL",
       ivssPatronalAccountId: "acc-1",
       incesPatronalAccountId: "acc-2",
@@ -58,9 +64,15 @@ describe("PayrollConfigSchema — cobertura de campos", () => {
     // SEMANAL faltaba: elegirla rechazaba el guardado ENTERO con "Datos
     // invalidos", sin decir cual era el campo.
     const base = {
-      sizeRange: "SMALL", lottRegime: "POST_2012",
-      ivssEnabled: true, incesEnabled: true, banavihEnabled: true, rpeEnabled: true,
-      cestaTicketType: "CARD", paymentCurrency: "VES", fideicomiso: "INTERNAL",
+      sizeRange: "SMALL",
+      lottRegime: "POST_2012",
+      ivssEnabled: true,
+      incesEnabled: true,
+      banavihEnabled: true,
+      rpeEnabled: true,
+      cestaTicketType: "CARD",
+      paymentCurrency: "VES",
+      fideicomiso: "INTERNAL",
     };
     for (const frequency of ["BIWEEKLY", "MONTHLY", "SEMANAL"]) {
       expect(PayrollConfigSchema.safeParse({ ...base, frequency }).success).toBe(true);
@@ -73,12 +85,18 @@ describe("PayrollConfigSchema — cobertura de campos", () => {
     const delEnum = [...m![1].matchAll(/^\s{2}(\w+)/gm)].map((x) => x[1]).sort();
 
     const base = {
-      sizeRange: "SMALL", lottRegime: "POST_2012",
-      ivssEnabled: true, incesEnabled: true, banavihEnabled: true, rpeEnabled: true,
-      cestaTicketType: "CARD", paymentCurrency: "VES", fideicomiso: "INTERNAL",
+      sizeRange: "SMALL",
+      lottRegime: "POST_2012",
+      ivssEnabled: true,
+      incesEnabled: true,
+      banavihEnabled: true,
+      rpeEnabled: true,
+      cestaTicketType: "CARD",
+      paymentCurrency: "VES",
+      fideicomiso: "INTERNAL",
     };
     const aceptadas = delEnum.filter(
-      (f) => PayrollConfigSchema.safeParse({ ...base, frequency: f }).success,
+      (f) => PayrollConfigSchema.safeParse({ ...base, frequency: f }).success
     );
     expect(aceptadas).toEqual(delEnum);
   });

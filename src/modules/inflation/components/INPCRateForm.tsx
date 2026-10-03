@@ -5,8 +5,18 @@ import { Loader2Icon } from "lucide-react";
 import { upsertINPCRateAction } from "../actions/inpc.actions";
 
 const MONTHS = [
-  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 type Props = {
@@ -16,12 +26,12 @@ type Props = {
 
 export function INPCRateForm({ companyId, onSaved }: Props) {
   const now = new Date();
-  const [year, setYear]   = useState(now.getFullYear());
+  const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [value, setValue] = useState("");
   const [source, setSource] = useState("BCV");
-  const [error, setError]   = useState<string | null>(null);
-  const [isPending, start]  = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, start] = useTransition();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,32 +48,38 @@ export function INPCRateForm({ companyId, onSaved }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
+    >
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Año</label>
+        <label className="mb-1 block text-xs font-medium text-gray-600">Año</label>
         <input
           type="number"
           value={year}
           onChange={(e) => setYear(parseInt(e.target.value))}
-          min={2000} max={2100}
+          min={2000}
+          max={2100}
           className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm"
           required
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Mes</label>
+        <label className="mb-1 block text-xs font-medium text-gray-600">Mes</label>
         <select
           value={month}
           onChange={(e) => setMonth(parseInt(e.target.value))}
           className="rounded border border-gray-300 px-2 py-1.5 text-sm"
         >
           {MONTHS.map((m, i) => (
-            <option key={i + 1} value={i + 1}>{m}</option>
+            <option key={i + 1} value={i + 1}>
+              {m}
+            </option>
           ))}
         </select>
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Índice INPC</label>
+        <label className="mb-1 block text-xs font-medium text-gray-600">Índice INPC</label>
         <input
           type="number"
           step="0.000001"
@@ -71,12 +87,12 @@ export function INPCRateForm({ companyId, onSaved }: Props) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="ej. 1850.523410"
-          className="w-40 rounded border border-gray-300 px-2 py-1.5 text-sm font-mono"
+          className="w-40 rounded border border-gray-300 px-2 py-1.5 font-mono text-sm"
           required
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Fuente</label>
+        <label className="mb-1 block text-xs font-medium text-gray-600">Fuente</label>
         <input
           type="text"
           value={source}

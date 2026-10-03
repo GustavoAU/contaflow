@@ -15,66 +15,68 @@ export const BankReconciliationService = {
     companyId: string,
     matchedBy: string
   ): Promise<BankTransaction> {
-    return prisma.$transaction(async (tx) => withCompanyContext(companyId, tx, async (tx) => {
-      // ADR-004: verify bankTx belongs to company via companyId directo (Fase 13D)
-      const bankTx = await tx.bankTransaction.findFirst({
-        where: { id: bankTransactionId, companyId },
-      });
-
-      if (!bankTx) {
-        throw new Error("BankTransaction no encontrada o no pertenece a la empresa");
-      }
-
-      if (bankTx.isReconciled) {
-        throw new Error("La transacción ya está conciliada");
-      }
-
-      // Verify counterpart belongs to same company
-      let matchData: Record<string, unknown>;
-
-      if (target.type === "INVOICE_PAYMENT") {
-        const payment = await tx.invoicePayment.findFirst({
-          where: { id: target.id, companyId },
+    return prisma.$transaction(async (tx) =>
+      withCompanyContext(companyId, tx, async (tx) => {
+        // ADR-004: verify bankTx belongs to company via companyId directo (Fase 13D)
+        const bankTx = await tx.bankTransaction.findFirst({
+          where: { id: bankTransactionId, companyId },
         });
-        if (!payment) throw new Error("La contrapartida no pertenece a la empresa");
-        matchData = { matchedPaymentId: target.id };
-      } else if (target.type === "JOURNAL_ENTRY") {
-        const journal = await tx.transaction.findFirst({
-          where: { id: target.id, companyId },
+
+        if (!bankTx) {
+          throw new Error("BankTransaction no encontrada o no pertenece a la empresa");
+        }
+
+        if (bankTx.isReconciled) {
+          throw new Error("La transacción ya está conciliada");
+        }
+
+        // Verify counterpart belongs to same company
+        let matchData: Record<string, unknown>;
+
+        if (target.type === "INVOICE_PAYMENT") {
+          const payment = await tx.invoicePayment.findFirst({
+            where: { id: target.id, companyId },
+          });
+          if (!payment) throw new Error("La contrapartida no pertenece a la empresa");
+          matchData = { matchedPaymentId: target.id };
+        } else if (target.type === "JOURNAL_ENTRY") {
+          const journal = await tx.transaction.findFirst({
+            where: { id: target.id, companyId },
+          });
+          if (!journal) throw new Error("La contrapartida no pertenece a la empresa");
+          matchData = { matchedTransactionId: target.id };
+        } else {
+          const paymentRecord = await tx.paymentRecord.findFirst({
+            where: { id: target.id, companyId },
+          });
+          if (!paymentRecord) throw new Error("La contrapartida no pertenece a la empresa");
+          matchData = { matchedPaymentRecordId: target.id };
+        }
+
+        const updated = await tx.bankTransaction.update({
+          where: { id: bankTransactionId },
+          data: {
+            ...matchData,
+            isReconciled: true,
+            matchedAt: new Date(),
+            matchedBy,
+          },
         });
-        if (!journal) throw new Error("La contrapartida no pertenece a la empresa");
-        matchData = { matchedTransactionId: target.id };
-      } else {
-        const paymentRecord = await tx.paymentRecord.findFirst({
-          where: { id: target.id, companyId },
+
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            action: "BANK_TRANSACTION_MATCHED",
+            entityName: "BankTransaction",
+            entityId: bankTransactionId,
+            userId: matchedBy,
+            newValue: { target, matchedBy, matchedAt: new Date().toISOString() },
+          },
         });
-        if (!paymentRecord) throw new Error("La contrapartida no pertenece a la empresa");
-        matchData = { matchedPaymentRecordId: target.id };
-      }
 
-      const updated = await tx.bankTransaction.update({
-        where: { id: bankTransactionId },
-        data: {
-          ...matchData,
-          isReconciled: true,
-          matchedAt: new Date(),
-          matchedBy,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          action: "BANK_TRANSACTION_MATCHED",
-          entityName: "BankTransaction",
-          entityId: bankTransactionId,
-          userId: matchedBy,
-          newValue: { target, matchedBy, matchedAt: new Date().toISOString() },
-        },
-      });
-
-      return updated;
-    }));
+        return updated;
+      })
+    );
   },
 
   detectIgtfCandidate(

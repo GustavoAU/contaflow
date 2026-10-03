@@ -29,7 +29,8 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const BLOB_URL = "https://store.private.blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-09-abc.pdf";
+const BLOB_URL =
+  "https://store.private.blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-09-abc.pdf";
 const REPORT = {
   blobUrl: BLOB_URL,
   reportType: "LIBRO_VENTAS",
@@ -38,12 +39,20 @@ const REPORT = {
   contentHash: "a".repeat(64),
 };
 
-function call(companyId = "company-1", reportId = "rep-1", req: Request = new Request("http://localhost/x")) {
+function call(
+  companyId = "company-1",
+  reportId = "rep-1",
+  req: Request = new Request("http://localhost/x")
+) {
   return GET(req, { params: Promise.resolve({ companyId, reportId }) });
 }
 
 function blobResult(text = "%PDF-fake") {
-  return { statusCode: 200, stream: new Response(text).body, blob: { contentType: "application/pdf" } };
+  return {
+    statusCode: 200,
+    stream: new Response(text).body,
+    blob: { contentType: "application/pdf" },
+  };
 }
 
 describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () => {
@@ -65,7 +74,9 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("%PDF-fake");
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
-    expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="libro-ventas-2026-09.pdf"');
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="libro-ventas-2026-09.pdf"'
+    );
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("X-Content-SHA256")).toBe("a".repeat(64));
@@ -91,7 +102,8 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
   it("pide el blob por pathname, no por la URL guardada: la petición queda anclada a nuestro store", async () => {
     vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({
       ...REPORT,
-      blobUrl: "https://otro-store.private.blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-09-abc.pdf",
+      blobUrl:
+        "https://otro-store.private.blob.vercel-storage.com/fiscal/company-1/libro-ventas-2026-09-abc.pdf",
     } as never);
 
     await call();
@@ -104,7 +116,8 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
   it("un blobUrl fuera del prefijo de la empresa da 404, avisa a Sentry y no toca el store", async () => {
     vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({
       ...REPORT,
-      blobUrl: "https://store.private.blob.vercel-storage.com/fiscal/company-2/libro-ventas-2026-09-abc.pdf",
+      blobUrl:
+        "https://store.private.blob.vercel-storage.com/fiscal/company-2/libro-ventas-2026-09-abc.pdf",
     } as never);
 
     const res = await call();
@@ -115,7 +128,10 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
   });
 
   it("un blobUrl que no es una URL da 404 sin tocar el store", async () => {
-    vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({ ...REPORT, blobUrl: "no-es-una-url" } as never);
+    vi.mocked(prisma.fiscalReport.findFirst).mockResolvedValue({
+      ...REPORT,
+      blobUrl: "no-es-una-url",
+    } as never);
 
     expect((await call()).status).toBe(404);
     expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
@@ -132,7 +148,10 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
   });
 
   it("con el límite de lecturas agotado responde 429", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes" } as never);
+    vi.mocked(checkRateLimit).mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes",
+    } as never);
 
     const res = await call();
 
@@ -170,7 +189,7 @@ describe("GET /api/company/[companyId]/fiscal-reports/[reportId]/download", () =
 
     expect(res.status).toBe(404);
     expect(vi.mocked(prisma.fiscalReport.findFirst)).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "rep-de-otra-empresa", companyId: "company-1" } }),
+      expect.objectContaining({ where: { id: "rep-de-otra-empresa", companyId: "company-1" } })
     );
     expect(vi.mocked(getPrivateBlob)).not.toHaveBeenCalled();
   });

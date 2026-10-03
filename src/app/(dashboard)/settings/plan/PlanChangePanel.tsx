@@ -63,7 +63,7 @@ export function PlanChangePanel({
   preselectedPlan,
 }: Props) {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(
-    preselectedPlan && preselectedPlan !== currentPlan ? preselectedPlan : null,
+    preselectedPlan && preselectedPlan !== currentPlan ? preselectedPlan : null
   );
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{
@@ -86,7 +86,10 @@ export function PlanChangePanel({
         window.location.href = res.data.invoiceUrl;
         return;
       }
-      setResult({ effectiveDate: res.data.effectiveDate, newPriceUsdCents: res.data.newPriceUsdCents });
+      setResult({
+        effectiveDate: res.data.effectiveDate,
+        newPriceUsdCents: res.data.newPriceUsdCents,
+      });
       toast.success("Solicitud registrada. Usa “Pagar ahora” para completar el pago.");
     });
   }
@@ -120,7 +123,7 @@ export function PlanChangePanel({
       <Toaster richColors position="top-right" />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+        <p className="mb-1 text-xs font-medium tracking-wide text-slate-400 uppercase">
           {companyName}
         </p>
         <h2 className="mb-4 text-lg font-bold text-slate-900">Tu suscripción</h2>
@@ -147,14 +150,13 @@ export function PlanChangePanel({
           <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-blue-800">
-                  Cambio de plan pendiente
-                </p>
+                <p className="text-sm font-semibold text-blue-800">Cambio de plan pendiente</p>
                 <p className="mt-0.5 text-xs text-blue-700">
                   Pasarás al{" "}
                   <span className="font-semibold">
-                    {PLAN_LABELS[(pendingChange ?? result as unknown as typeof pendingChange)!.toPlan!] ??
-                      (pendingChange ?? result as unknown as typeof pendingChange)!.toPlan}
+                    {PLAN_LABELS[
+                      (pendingChange ?? (result as unknown as typeof pendingChange))!.toPlan!
+                    ] ?? (pendingChange ?? (result as unknown as typeof pendingChange))!.toPlan}
                   </span>{" "}
                   el{" "}
                   <span className="font-semibold">
@@ -172,7 +174,7 @@ export function PlanChangePanel({
                   </p>
                 )}
                 {pendingChange?.status === "CONFIRMED" && (
-                  <p className="mt-2 text-xs text-emerald-700 font-semibold">
+                  <p className="mt-2 text-xs font-semibold text-emerald-700">
                     ✓ Pago confirmado — se aplicará automáticamente en la fecha efectiva.
                   </p>
                 )}
@@ -222,9 +224,9 @@ export function PlanChangePanel({
             </div>
 
             {selectedPlan && (
-              <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
-                El cambio al <span className="font-semibold">{PLAN_LABELS[selectedPlan]}</span> se hará
-                efectivo el{" "}
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                El cambio al <span className="font-semibold">{PLAN_LABELS[selectedPlan]}</span> se
+                hará efectivo el{" "}
                 <span className="font-semibold">
                   1 de{" "}
                   {new Date(
@@ -233,9 +235,13 @@ export function PlanChangePanel({
                         ? new Date().getUTCFullYear() + 1
                         : new Date().getUTCFullYear(),
                       (new Date().getUTCMonth() + 1) % 12,
-                      1,
-                    ),
-                  ).toLocaleDateString("es-VE", { month: "long", year: "numeric", timeZone: "UTC" })}
+                      1
+                    )
+                  ).toLocaleDateString("es-VE", {
+                    month: "long",
+                    year: "numeric",
+                    timeZone: "UTC",
+                  })}
                 </span>
                 . Deberás enviar el pago USDT antes de esa fecha.
               </div>

@@ -41,9 +41,7 @@ export {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function serialize(
-  row: import("@prisma/client").PaymentAttachment,
-): AttachmentSummary {
+function serialize(row: import("@prisma/client").PaymentAttachment): AttachmentSummary {
   return {
     id: row.id,
     fileName: row.fileName,
@@ -65,14 +63,14 @@ export const PaymentAttachmentService = {
    *
    * Idempotente: P2002 en @@unique([companyId, blobKey]) → "ya registrado".
    */
-  async persistAttachmentMetadata(
-    payload: AttachmentUploadPayload,
-  ): Promise<AttachmentSummary> {
+  async persistAttachmentMetadata(payload: AttachmentUploadPayload): Promise<AttachmentSummary> {
     return await prisma.$transaction(async (tx) => {
       // ADR-029 D-5 también aquí: un token reutilizado dentro de su vigencia sube otro blob y dispara otro callback.
       // Bloqueo de fila del pago: bajo ReadCommitted dos callbacks simultáneos verían "ninguno activo" e insertarían ambos.
       // El bloqueo también revalida el pago: si se anuló mientras se subía el archivo, no se adjunta a un pago anulado.
-      const locked = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "PaymentRecord" WHERE id = ${payload.paymentRecordId} AND "companyId" = ${payload.companyId} AND "deletedAt" IS NULL FOR UPDATE`;
+      const locked = await tx.$queryRaw<
+        { id: string }[]
+      >`SELECT id FROM "PaymentRecord" WHERE id = ${payload.paymentRecordId} AND "companyId" = ${payload.companyId} AND "deletedAt" IS NULL FOR UPDATE`;
       if (locked.length === 0) throw new Error("El pago no existe o fue anulado");
       const active = await tx.paymentAttachment.findFirst({
         where: {
@@ -89,7 +87,7 @@ export const PaymentAttachmentService = {
       });
       if (registered >= MAX_ATTACHMENTS_PER_PAYMENT) {
         throw new Error(
-          `Este pago alcanzó el máximo de ${MAX_ATTACHMENTS_PER_PAYMENT} comprobantes registrados (se cuentan también los eliminados).`,
+          `Este pago alcanzó el máximo de ${MAX_ATTACHMENTS_PER_PAYMENT} comprobantes registrados (se cuentan también los eliminados).`
         );
       }
 
@@ -145,7 +143,7 @@ export const PaymentAttachmentService = {
    */
   async getAttachmentsByPaymentRecord(
     paymentRecordId: string,
-    companyId: string,
+    companyId: string
   ): Promise<AttachmentSummary[]> {
     const rows = await prisma.paymentAttachment.findMany({
       where: { paymentRecordId, companyId, deletedAt: null },
@@ -163,7 +161,7 @@ export const PaymentAttachmentService = {
     companyId: string,
     deletedByUserId: string,
     ipAddress: string | null,
-    userAgent: string | null,
+    userAgent: string | null
   ): Promise<void> {
     await prisma.$transaction(async (tx) => {
       const existing = await tx.paymentAttachment.findFirst({
@@ -171,9 +169,7 @@ export const PaymentAttachmentService = {
       });
 
       if (!existing) {
-        throw new Error(
-          "Comprobante no encontrado o no pertenece a esta empresa",
-        );
+        throw new Error("Comprobante no encontrado o no pertenece a esta empresa");
       }
       if (existing.deletedAt !== null) {
         throw new Error("El comprobante ya fue eliminado");

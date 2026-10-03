@@ -114,19 +114,25 @@ function fakeIvaSequenceTx() {
   const rows = new Map<string, { lastNumber: number }>();
   return {
     ivaRetentionSequence: {
-      upsert: vi.fn(async ({ where, create, update }: {
-        where: { companyId: string };
-        create: { lastNumber: number };
-        update: { lastNumber: { increment: number } };
-      }) => {
-        const key = where.companyId;
-        const existing = rows.get(key);
-        const row = existing
-          ? { lastNumber: existing.lastNumber + update.lastNumber.increment }
-          : { lastNumber: create.lastNumber };
-        rows.set(key, row);
-        return row;
-      }),
+      upsert: vi.fn(
+        async ({
+          where,
+          create,
+          update,
+        }: {
+          where: { companyId: string };
+          create: { lastNumber: number };
+          update: { lastNumber: { increment: number } };
+        }) => {
+          const key = where.companyId;
+          const existing = rows.get(key);
+          const row = existing
+            ? { lastNumber: existing.lastNumber + update.lastNumber.increment }
+            : { lastNumber: create.lastNumber };
+          rows.set(key, row);
+          return row;
+        }
+      ),
     },
   } as unknown as Prisma.TransactionClient;
 }
@@ -135,20 +141,26 @@ function fakeIslrSequenceTx() {
   const rows = new Map<string, { lastNumber: number }>();
   return {
     islrRetentionSequence: {
-      upsert: vi.fn(async ({ where, create, update }: {
-        where: { companyId_year_month: { companyId: string; year: number; month: number } };
-        create: { lastNumber: number };
-        update: { lastNumber: { increment: number } };
-      }) => {
-        const { companyId, year, month } = where.companyId_year_month;
-        const key = `${companyId}:${year}:${month}`;
-        const existing = rows.get(key);
-        const row = existing
-          ? { lastNumber: existing.lastNumber + update.lastNumber.increment }
-          : { lastNumber: create.lastNumber };
-        rows.set(key, row);
-        return row;
-      }),
+      upsert: vi.fn(
+        async ({
+          where,
+          create,
+          update,
+        }: {
+          where: { companyId_year_month: { companyId: string; year: number; month: number } };
+          create: { lastNumber: number };
+          update: { lastNumber: { increment: number } };
+        }) => {
+          const { companyId, year, month } = where.companyId_year_month;
+          const key = `${companyId}:${year}:${month}`;
+          const existing = rows.get(key);
+          const row = existing
+            ? { lastNumber: existing.lastNumber + update.lastNumber.increment }
+            : { lastNumber: create.lastNumber };
+          rows.set(key, row);
+          return row;
+        }
+      ),
     },
   } as unknown as Prisma.TransactionClient;
 }

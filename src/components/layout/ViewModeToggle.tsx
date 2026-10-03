@@ -34,31 +34,31 @@ export function ViewModeToggle({ current, collapsed }: Props) {
     <button
       onClick={toggle}
       disabled={isPending}
-      aria-label={isGerente ? "Cambiar a Modo Sistema (contador)" : "Cambiar a Modo Gerencial (vista simplificada)"}
-      title={
-        collapsed
-          ? isGerente ? "Modo Gerencial" : "Modo Sistema"
-          : undefined
+      aria-label={
+        isGerente
+          ? "Cambiar a Modo Sistema (contador)"
+          : "Cambiar a Modo Gerencial (vista simplificada)"
       }
+      title={collapsed ? (isGerente ? "Modo Gerencial" : "Modo Sistema") : undefined}
       className={cn(
-        "flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium",
-        "transition-colors overflow-hidden whitespace-nowrap",
-        "disabled:opacity-60 disabled:cursor-wait",
+        "text-13 flex w-full items-center gap-2.5 rounded-md px-2 py-1.75 font-medium",
+        "overflow-hidden whitespace-nowrap transition-colors",
+        "disabled:cursor-wait disabled:opacity-60",
         // WCAG 2.4.7: indicador de foco visible
         "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1",
         collapsed && "justify-center",
         isGerente
-          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/70"
-          : "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
+          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:bg-emerald-950/70"
+          : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
       )}
     >
       {isGerente ? (
-        <BriefcaseIcon className="w-3.75 h-3.75 shrink-0" />
+        <BriefcaseIcon className="h-3.75 w-3.75 shrink-0" />
       ) : (
-        <LayoutDashboardIcon className="w-3.75 h-3.75 shrink-0" />
+        <LayoutDashboardIcon className="h-3.75 w-3.75 shrink-0" />
       )}
       {!collapsed && (
-        <span className="overflow-hidden text-ellipsis flex-1 text-left">
+        <span className="flex-1 overflow-hidden text-left text-ellipsis">
           {isGerente ? "Modo Gerencial" : "Modo Sistema"}
         </span>
       )}

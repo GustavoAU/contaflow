@@ -69,9 +69,7 @@ export function InvoiceHeaderFields({
       {/* Tipo de documento y categoría fiscal */}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">
-            Tipo de Documento
-          </label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">Tipo de Documento</label>
           <select
             value={docType}
             onChange={(e) => setDocType(e.target.value)}
@@ -85,9 +83,7 @@ export function InvoiceHeaderFields({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">
-            Categoría Fiscal
-          </label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">Categoría Fiscal</label>
           <select
             value={taxCategory}
             onChange={(e) => {
@@ -130,13 +126,14 @@ export function InvoiceHeaderFields({
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600">
-            Número de Control{" "}
-            {type === "PURCHASE" && <span className="text-red-500">*</span>}
+            Número de Control {type === "PURCHASE" && <span className="text-red-500">*</span>}
           </label>
           {type === "SALE" ? (
             <div className="flex w-full items-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-400">
               <span>Se asignará automáticamente</span>
-              <span className="ml-auto rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600">Prov. 0071 Art. 14</span>
+              <span className="ml-auto rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-600">
+                Prov. 0071 Art. 14
+              </span>
             </div>
           ) : (
             <input
@@ -253,8 +250,8 @@ export function InvoiceHeaderFields({
       {currency !== "VES" && (
         <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
           Los montos se ingresan en VES (conversión a la tasa BCV del día). Use el widget{" "}
-          <strong>BCV</strong> en el encabezado para actualizar la tasa del día. Si no existe
-          tasa para la fecha seleccionada, la factura no podrá guardarse.
+          <strong>BCV</strong> en el encabezado para actualizar la tasa del día. Si no existe tasa
+          para la fecha seleccionada, la factura no podrá guardarse.
         </div>
       )}
 
@@ -262,8 +259,7 @@ export function InvoiceHeaderFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600">
-            {type === "PURCHASE" ? "Proveedor" : "Cliente"}{" "}
-            <span className="text-red-500">*</span>
+            {type === "PURCHASE" ? "Proveedor" : "Cliente"} <span className="text-red-500">*</span>
           </label>
           <input
             ref={counterpartNameRef}
@@ -301,9 +297,19 @@ export function InvoiceHeaderFields({
       <div>
         <label className="mb-1 block text-xs font-medium text-zinc-600">
           Dirección Fiscal{" "}
-          <span className="font-normal text-zinc-400" title="Art. 57 Ley IVA: el libro debe registrar la dirección del contribuyente">(recomendada)</span>
+          <span
+            className="font-normal text-zinc-400"
+            title="Art. 57 Ley IVA: el libro debe registrar la dirección del contribuyente"
+          >
+            (recomendada)
+          </span>
           {counterpartIsSpecialContributor && (
-            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-10 font-bold text-amber-700 uppercase" title="Contribuyente Especial — aplica retención IVA (Prov. 0049)">CE</span>
+            <span
+              className="text-10 ml-2 rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700 uppercase"
+              title="Contribuyente Especial — aplica retención IVA (Prov. 0049)"
+            >
+              CE
+            </span>
           )}
         </label>
         <input

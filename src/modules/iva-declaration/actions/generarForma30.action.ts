@@ -46,7 +46,12 @@ export type SerializedForma30Result = {
     totalRetenciones: string;
   };
   seccionD: { igtfBase: string; igtfTotal: string };
-  seccionE: { creditoFiscalPeriodoAnterior: string; cuotaPeriodo: string; esSaldoAFavor: boolean; excedenteCreditoFiscal: string };
+  seccionE: {
+    creditoFiscalPeriodoAnterior: string;
+    cuotaPeriodo: string;
+    esSaldoAFavor: boolean;
+    excedenteCreditoFiscal: string;
+  };
 };
 
 function stl(tl: TaxLineRow): SerializedTaxLine {
@@ -117,11 +122,19 @@ export async function generarForma30Action(
   creditoFiscalPeriodoAnterior?: number
 ): Promise<ActionResult<Forma30ActionResult>> {
   // 1. Auth + rate limit + membresía (cualquier rol puede generar reportes) — ADR-041
-  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: "MEMBER_ANY",
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   // 2. Validar input
-  const parsed = GenerarForma30Schema.safeParse({ companyId, year, month, creditoFiscalPeriodoAnterior });
+  const parsed = GenerarForma30Schema.safeParse({
+    companyId,
+    year,
+    month,
+    creditoFiscalPeriodoAnterior,
+  });
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -168,7 +181,7 @@ export type RetenciónSufridaRow = {
 export async function getRetencionesSufridas(
   companyId: string,
   year: number,
-  month: number,
+  month: number
 ): Promise<ActionResult<RetenciónSufridaRow[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
   if (!ctx.ok) return ctx.error;

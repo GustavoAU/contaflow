@@ -159,7 +159,10 @@ describe("createConceptAction", () => {
 
   it("P2002 → código duplicado", async () => {
     vi.mocked(PayrollConceptService.create).mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", { code: "P2002", clientVersion: "7.0.0" })
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "7.0.0",
+      })
     );
     const result = await createConceptAction(COMPANY_ID, {
       code: "BONO_ESP",

@@ -6,12 +6,26 @@
 
 import { Fragment, useState, useTransition, useMemo } from "react";
 import {
-  PlusIcon, TagIcon, Trash2Icon, SearchIcon, XIcon, Edit2Icon,
-  MessageSquarePlusIcon, ChevronDownIcon, ChevronUpIcon, StickyNoteIcon,
+  PlusIcon,
+  TagIcon,
+  Trash2Icon,
+  SearchIcon,
+  XIcon,
+  Edit2Icon,
+  MessageSquarePlusIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  StickyNoteIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { createVendorAction, updateVendorAction, deleteVendorAction,
-         addVendorNoteAction, listVendorNotesAction, deleteVendorNoteAction } from "../actions/vendor.actions";
+import {
+  createVendorAction,
+  updateVendorAction,
+  deleteVendorAction,
+  addVendorNoteAction,
+  listVendorNotesAction,
+  deleteVendorNoteAction,
+} from "../actions/vendor.actions";
 import { createVendorGroupAction, deleteVendorGroupAction } from "../actions/contact-group.actions";
 import type { VendorRow } from "../services/VendorService";
 import type { ContactNoteRow } from "../services/ContactNoteService";
@@ -63,7 +77,10 @@ function VendorNoteTimeline({ companyId, vendorId, canWrite }: NoteTimelineProps
     if (!newContent.trim()) return;
     startTransition(async () => {
       const r = await addVendorNoteAction(companyId, vendorId, { content: newContent.trim() });
-      if (!r.success) { toast.error(r.error); return; }
+      if (!r.success) {
+        toast.error(r.error);
+        return;
+      }
       setNotes((prev) => [r.data, ...prev]);
       setNewContent("");
     });
@@ -72,7 +89,10 @@ function VendorNoteTimeline({ companyId, vendorId, canWrite }: NoteTimelineProps
   function handleDelete(noteId: string) {
     startTransition(async () => {
       const r = await deleteVendorNoteAction(companyId, noteId);
-      if (!r.success) { toast.error(r.error); return; }
+      if (!r.success) {
+        toast.error(r.error);
+        return;
+      }
       setNotes((prev) => prev.filter((n) => n.id !== noteId));
     });
   }
@@ -82,7 +102,7 @@ function VendorNoteTimeline({ companyId, vendorId, canWrite }: NoteTimelineProps
       {canWrite && (
         <div className="flex gap-2">
           <input
-            className="flex-1 rounded border border-zinc-200 px-2 py-1 text-xs placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            className="flex-1 rounded border border-zinc-200 px-2 py-1 text-xs placeholder:text-zinc-400 focus:ring-1 focus:ring-indigo-400 focus:outline-none"
             placeholder="Nueva nota de interacción…"
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
@@ -92,7 +112,7 @@ function VendorNoteTimeline({ companyId, vendorId, canWrite }: NoteTimelineProps
           <button
             onClick={handleAdd}
             disabled={!newContent.trim() || isPending}
-            className="rounded bg-indigo-600 px-2 py-1 text-xs text-white disabled:opacity-40 hover:bg-indigo-700"
+            className="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700 disabled:opacity-40"
           >
             <MessageSquarePlusIcon className="size-3" />
           </button>
@@ -105,19 +125,26 @@ function VendorNoteTimeline({ companyId, vendorId, canWrite }: NoteTimelineProps
       )}
       <ul className="space-y-1.5">
         {notes.map((n) => (
-          <li key={n.id} className="group flex items-start gap-2 rounded bg-zinc-50 border border-zinc-100 px-2.5 py-1.5">
-            <StickyNoteIcon className="size-3 text-zinc-400 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-zinc-700 wrap-break-word">{n.content}</p>
-              <p className="text-10 text-zinc-400 mt-0.5">
-                {new Date(n.createdAt).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" })}
+          <li
+            key={n.id}
+            className="group flex items-start gap-2 rounded border border-zinc-100 bg-zinc-50 px-2.5 py-1.5"
+          >
+            <StickyNoteIcon className="mt-0.5 size-3 shrink-0 text-zinc-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs wrap-break-word text-zinc-700">{n.content}</p>
+              <p className="text-10 mt-0.5 text-zinc-400">
+                {new Date(n.createdAt).toLocaleDateString("es-VE", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
               </p>
             </div>
             {canWrite && (
               <button
                 onClick={() => handleDelete(n.id)}
                 disabled={isPending}
-                className="opacity-0 group-hover:opacity-100 text-zinc-300 hover:text-red-500 shrink-0 disabled:opacity-30"
+                className="shrink-0 text-zinc-300 opacity-0 group-hover:opacity-100 hover:text-red-500 disabled:opacity-30"
                 title="Eliminar nota"
               >
                 <XIcon className="size-3" />
@@ -142,7 +169,13 @@ type GroupsPanelProps = {
   onDeleteGroup: (groupId: string, name: string) => void;
 };
 
-function GroupsPanel({ groups, canDelete, isPending, onCreateGroup, onDeleteGroup }: GroupsPanelProps) {
+function GroupsPanel({
+  groups,
+  canDelete,
+  isPending,
+  onCreateGroup,
+  onDeleteGroup,
+}: GroupsPanelProps) {
   const [newGroupName, setNewGroupName] = useState("");
 
   function handleCreate() {
@@ -151,13 +184,13 @@ function GroupsPanel({ groups, canDelete, isPending, onCreateGroup, onDeleteGrou
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
       <p className="text-sm font-medium text-zinc-700">Grupos de proveedores</p>
       {groups.length === 0 ? (
         <p className="text-sm text-zinc-400">Sin grupos creados.</p>
       ) : (
         <ul className="divide-y divide-zinc-100 rounded border bg-white">
-          {groups.map(g => (
+          {groups.map((g) => (
             <li key={g.id} className="flex items-center justify-between px-3 py-2 text-sm">
               <span className="font-medium text-zinc-800">{g.name}</span>
               <span className="flex items-center gap-2 text-zinc-400">
@@ -182,8 +215,8 @@ function GroupsPanel({ groups, canDelete, isPending, onCreateGroup, onDeleteGrou
           className="flex-1 rounded border px-2 py-1.5 text-sm"
           placeholder="Nombre del grupo"
           value={newGroupName}
-          onChange={e => setNewGroupName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && handleCreate()}
+          onChange={(e) => setNewGroupName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
         />
         <button
           onClick={handleCreate}
@@ -207,7 +240,13 @@ type Props = {
   canDelete: boolean;
 };
 
-export function VendorList({ companyId, initialVendors, initialGroups, canWrite, canDelete }: Props) {
+export function VendorList({
+  companyId,
+  initialVendors,
+  initialGroups,
+  canWrite,
+  canDelete,
+}: Props) {
   const [vendors, setVendors] = useState(initialVendors);
   const [groups, setGroups] = useState(initialGroups);
   const [showCreate, setShowCreate] = useState(false);
@@ -235,8 +274,11 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
     setError(null);
     startTransition(async () => {
       const r = await createVendorAction(companyId, values);
-      if (!r.success) { setError(r.error); return; }
-      setVendors(prev => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
+      if (!r.success) {
+        setError(r.error);
+        return;
+      }
+      setVendors((prev) => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
       setShowCreate(false);
     });
   }
@@ -255,9 +297,14 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
     setError(null);
     startTransition(async () => {
       const r = await updateVendorAction(companyId, vendorId, values);
-      if (!r.success) { setError(r.error); return; }
-      setVendors(prev =>
-        prev.map(v => v.id === vendorId ? r.data : v).sort((a, b) => a.name.localeCompare(b.name))
+      if (!r.success) {
+        setError(r.error);
+        return;
+      }
+      setVendors((prev) =>
+        prev
+          .map((v) => (v.id === vendorId ? r.data : v))
+          .sort((a, b) => a.name.localeCompare(b.name))
       );
       setEditingId(null);
     });
@@ -267,8 +314,13 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
     if (!canWrite) return;
     startTransition(async () => {
       const r = await updateVendorAction(companyId, vendorId, { isSpecialContributor: !current });
-      if (!r.success) { setError(r.error); return; }
-      setVendors(prev => prev.map(v => v.id === vendorId ? { ...v, isSpecialContributor: !current } : v));
+      if (!r.success) {
+        setError(r.error);
+        return;
+      }
+      setVendors((prev) =>
+        prev.map((v) => (v.id === vendorId ? { ...v, isSpecialContributor: !current } : v))
+      );
     });
   }
 
@@ -277,16 +329,22 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
     setError(null);
     startTransition(async () => {
       const r = await deleteVendorAction(companyId, vendorId);
-      if (!r.success) { setError(r.error); return; }
-      setVendors(prev => prev.filter(v => v.id !== vendorId));
+      if (!r.success) {
+        setError(r.error);
+        return;
+      }
+      setVendors((prev) => prev.filter((v) => v.id !== vendorId));
     });
   }
 
   function handleCreateGroup(name: string, onSuccess: () => void) {
     startTransition(async () => {
       const r = await createVendorGroupAction(companyId, name);
-      if (!r.success) { setError(r.error); return; }
-      setGroups(prev => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
+      if (!r.success) {
+        setError(r.error);
+        return;
+      }
+      setGroups((prev) => [...prev, r.data].sort((a, b) => a.name.localeCompare(b.name)));
       onSuccess();
     });
   }
@@ -295,16 +353,22 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
     if (!confirm(`¿Eliminar grupo "${name}"? Los proveedores quedarán sin grupo.`)) return;
     startTransition(async () => {
       const r = await deleteVendorGroupAction(companyId, groupId);
-      if (!r.success) { setError(r.error); return; }
-      setGroups(prev => prev.filter(g => g.id !== groupId));
-      setVendors(prev => prev.map(v => v.groupId === groupId ? { ...v, groupId: null, group: null } : v));
+      if (!r.success) {
+        setError(r.error);
+        return;
+      }
+      setGroups((prev) => prev.filter((g) => g.id !== groupId));
+      setVendors((prev) =>
+        prev.map((v) => (v.groupId === groupId ? { ...v, groupId: null, group: null } : v))
+      );
     });
   }
 
   function toggleNotes(id: string) {
-    setExpandedNotes(prev => {
+    setExpandedNotes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -357,25 +421,23 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
         />
       )}
 
-      {error && (
-        <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
+      {error && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
       {/* Search */}
       {vendors.length > 0 && (
         <div className="relative max-w-xs">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre, RIF o código…"
-            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-8 pr-8 text-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pr-8 pl-8 text-sm placeholder:text-zinc-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              className="absolute top-1/2 right-2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               aria-label="Limpiar"
             >
               <XIcon className="h-3.5 w-3.5" />
@@ -389,172 +451,226 @@ export function VendorList({ companyId, initialVendors, initialGroups, canWrite,
           illustration="list"
           title="No hay proveedores registrados."
           description="Agrega tu primer proveedor para comenzar a registrar facturas de compra."
-          action={canWrite ? { label: "+ Nuevo proveedor", onClick: () => setShowCreate(true), Icon: PlusIcon } : undefined}
+          action={
+            canWrite
+              ? { label: "+ Nuevo proveedor", onClick: () => setShowCreate(true), Icon: PlusIcon }
+              : undefined
+          }
         />
       ) : (
-        <div className="overflow-x-auto overflow-hidden rounded-lg border">
+        <div className="overflow-hidden overflow-x-auto rounded-lg border">
           {filteredVendors.length === 0 && search ? (
             <p className="py-8 text-center text-sm text-zinc-400">
               No hay proveedores que coincidan con &ldquo;{search}&rdquo;
             </p>
           ) : (
-          <table className="stack-card-table min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Proveedor</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">Código</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">RIF</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Email</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600 whitespace-nowrap">Teléfono</th>
-                <th scope="col" className="px-4 py-3 text-center font-medium text-gray-600">C.E.</th>
-                <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
-                {canWrite && <th scope="col" className="px-4 py-3" />}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
-              {filteredVendors.map(v => {
-                const initials = v.name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
-                const notesOpen = expandedNotes.has(v.id);
+            <table className="stack-card-table min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                    Proveedor
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium whitespace-nowrap text-gray-600"
+                  >
+                    Código
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium whitespace-nowrap text-gray-600"
+                  >
+                    RIF
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                    Email
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium whitespace-nowrap text-gray-600"
+                  >
+                    Teléfono
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-center font-medium text-gray-600">
+                    C.E.
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                    Estado
+                  </th>
+                  {canWrite && <th scope="col" className="px-4 py-3" />}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {filteredVendors.map((v) => {
+                  const initials = v.name
+                    .split(" ")
+                    .slice(0, 2)
+                    .map((w) => w[0])
+                    .join("")
+                    .toUpperCase();
+                  const notesOpen = expandedNotes.has(v.id);
 
-                // ── Edit row ────────────────────────────────────────────────
-                if (editingId === v.id) {
+                  // ── Edit row ────────────────────────────────────────────────
+                  if (editingId === v.id) {
+                    return (
+                      <VendorForm
+                        key={v.id}
+                        variant="edit"
+                        canWrite={canWrite}
+                        defaultValues={{
+                          name: v.name,
+                          rif: v.rif ?? "",
+                          email: v.email ?? "",
+                          phone: v.phone ?? "",
+                          code: v.code ?? "",
+                          groupId: v.groupId ?? "",
+                          isSpecialContributor: v.isSpecialContributor,
+                          category: v.category ?? "REGULAR",
+                          notes: v.notes ?? "",
+                        }}
+                        groups={groups}
+                        isPending={isPending}
+                        submitLabel="Guardar"
+                        onSubmit={(values) => handleSaveEdit(v.id, values)}
+                        onCancel={handleCancelEdit}
+                      />
+                    );
+                  }
+
+                  // ── Display row ─────────────────────────────────────────────
                   return (
-                    <VendorForm
-                      key={v.id}
-                      variant="edit"
-                      canWrite={canWrite}
-                      defaultValues={{
-                        name: v.name,
-                        rif: v.rif ?? "",
-                        email: v.email ?? "",
-                        phone: v.phone ?? "",
-                        code: v.code ?? "",
-                        groupId: v.groupId ?? "",
-                        isSpecialContributor: v.isSpecialContributor,
-                        category: v.category ?? "REGULAR",
-                        notes: v.notes ?? "",
-                      }}
-                      groups={groups}
-                      isPending={isPending}
-                      submitLabel="Guardar"
-                      onSubmit={(values) => handleSaveEdit(v.id, values)}
-                      onCancel={handleCancelEdit}
-                    />
-                  );
-                }
-
-                // ── Display row ─────────────────────────────────────────────
-                return (
-                  <Fragment key={v.id}>
-                    <tr className="hover:bg-gray-50">
-                      <td data-label="Proveedor" className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold shrink-0">
-                            {initials}
-                          </span>
-                          <div className="min-w-0">
-                            <span className="font-medium text-gray-900 block">{v.name}</span>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              {v.group && (
-                                <span className="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-10 font-medium text-zinc-500">
-                                  {v.group.name}
+                    <Fragment key={v.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td data-label="Proveedor" className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700">
+                              {initials}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="block font-medium text-gray-900">{v.name}</span>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                {v.group && (
+                                  <span className="text-10 inline-block rounded bg-zinc-100 px-1.5 py-0.5 font-medium text-zinc-500">
+                                    {v.group.name}
+                                  </span>
+                                )}
+                                {/* Badge categoría */}
+                                <span
+                                  className={`text-10 inline-flex items-center rounded-full border px-1.5 py-0.5 font-medium ${CATEGORY_COLORS[v.category ?? "REGULAR"]}`}
+                                >
+                                  {CATEGORY_LABELS[v.category ?? "REGULAR"]}
                                 </span>
-                              )}
-                              {/* Badge categoría */}
-                              <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-10 font-medium ${CATEGORY_COLORS[v.category ?? "REGULAR"]}`}>
-                                {CATEGORY_LABELS[v.category ?? "REGULAR"]}
-                              </span>
-                              {/* Nota rápida si existe */}
-                              {v.notes && (
-                                <span className="inline-flex items-center gap-0.5 text-10 text-zinc-400" title={v.notes}>
-                                  <StickyNoteIcon className="size-2.5" />
-                                  <span className="truncate max-w-24">{v.notes}</span>
-                                </span>
-                              )}
+                                {/* Nota rápida si existe */}
+                                {v.notes && (
+                                  <span
+                                    className="text-10 inline-flex items-center gap-0.5 text-zinc-400"
+                                    title={v.notes}
+                                  >
+                                    <StickyNoteIcon className="size-2.5" />
+                                    <span className="max-w-24 truncate">{v.notes}</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td data-label="Código" className="px-4 py-3 whitespace-nowrap">
-                        {v.code
-                          ? <span className="font-mono text-xs text-zinc-600 bg-zinc-100 rounded px-1.5 py-0.5 whitespace-nowrap">{v.code}</span>
-                          : <span className="text-zinc-300">—</span>}
-                      </td>
-                      <td data-label="RIF" className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.rif ?? "—"}</td>
-                      <td data-label="Email" className="px-4 py-3 text-gray-600">{v.email ?? "—"}</td>
-                      <td data-label="Teléfono" className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.phone ?? "—"}</td>
-                      <td data-label="C.E." className="px-4 py-3 text-center">
-                        {canWrite ? (
-                          <input
-                            type="checkbox"
-                            checked={v.isSpecialContributor}
-                            onChange={() => handleToggleCE(v.id, v.isSpecialContributor)}
-                            disabled={isPending}
-                            aria-label="Contribuyente Especial"
-                            className="rounded border-gray-300 disabled:opacity-50 cursor-pointer"
-                            title="Contribuyente Especial — aplican retenciones IVA/ISLR"
-                          />
-                        ) : (
-                          v.isSpecialContributor ? (
-                            <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">C.E.</span>
+                        </td>
+                        <td data-label="Código" className="px-4 py-3 whitespace-nowrap">
+                          {v.code ? (
+                            <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs whitespace-nowrap text-zinc-600">
+                              {v.code}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-300">—</span>
+                          )}
+                        </td>
+                        <td data-label="RIF" className="px-4 py-3 whitespace-nowrap text-gray-600">
+                          {v.rif ?? "—"}
+                        </td>
+                        <td data-label="Email" className="px-4 py-3 text-gray-600">
+                          {v.email ?? "—"}
+                        </td>
+                        <td
+                          data-label="Teléfono"
+                          className="px-4 py-3 whitespace-nowrap text-gray-600"
+                        >
+                          {v.phone ?? "—"}
+                        </td>
+                        <td data-label="C.E." className="px-4 py-3 text-center">
+                          {canWrite ? (
+                            <input
+                              type="checkbox"
+                              checked={v.isSpecialContributor}
+                              onChange={() => handleToggleCE(v.id, v.isSpecialContributor)}
+                              disabled={isPending}
+                              aria-label="Contribuyente Especial"
+                              className="cursor-pointer rounded border-gray-300 disabled:opacity-50"
+                              title="Contribuyente Especial — aplican retenciones IVA/ISLR"
+                            />
+                          ) : v.isSpecialContributor ? (
+                            <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
+                              C.E.
+                            </span>
                           ) : (
                             <span className="text-gray-400">—</span>
-                          )
-                        )}
-                      </td>
-                      <td data-label="Estado" className="px-4 py-3">
-                        <StatusBadge status="ACTIVE" />
-                      </td>
-                      {canWrite && (
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            {/* Toggle historial notas */}
-                            <button
-                              onClick={() => toggleNotes(v.id)}
-                              className="flex items-center gap-0.5 text-zinc-400 hover:text-indigo-600 text-xs"
-                              title="Historial de interacciones"
-                            >
-                              <MessageSquarePlusIcon className="h-3.5 w-3.5" />
-                              {notesOpen ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
-                            </button>
-                            <button
-                              onClick={() => handleStartEdit(v.id)}
-                              disabled={isPending}
-                              className="text-zinc-400 hover:text-indigo-600 disabled:opacity-40"
-                              title="Editar proveedor"
-                            >
-                              <Edit2Icon className="h-3.5 w-3.5" />
-                            </button>
-                            {canDelete && (
+                          )}
+                        </td>
+                        <td data-label="Estado" className="px-4 py-3">
+                          <StatusBadge status="ACTIVE" />
+                        </td>
+                        {canWrite && (
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              {/* Toggle historial notas */}
                               <button
-                                onClick={() => handleDelete(v.id, v.name)}
-                                disabled={isPending}
-                                className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                                onClick={() => toggleNotes(v.id)}
+                                className="flex items-center gap-0.5 text-xs text-zinc-400 hover:text-indigo-600"
+                                title="Historial de interacciones"
                               >
-                                Desactivar
+                                <MessageSquarePlusIcon className="h-3.5 w-3.5" />
+                                {notesOpen ? (
+                                  <ChevronUpIcon className="h-3 w-3" />
+                                ) : (
+                                  <ChevronDownIcon className="h-3 w-3" />
+                                )}
                               </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                    {/* Timeline de notas — fila expandible */}
-                    {notesOpen && (
-                      <tr className="bg-zinc-50/80">
-                        <td colSpan={canWrite ? 8 : 7} className="px-6 py-3">
-                          <VendorNoteTimeline
-                            companyId={companyId}
-                            vendorId={v.id}
-                            canWrite={canWrite}
-                          />
-                        </td>
+                              <button
+                                onClick={() => handleStartEdit(v.id)}
+                                disabled={isPending}
+                                className="text-zinc-400 hover:text-indigo-600 disabled:opacity-40"
+                                title="Editar proveedor"
+                              >
+                                <Edit2Icon className="h-3.5 w-3.5" />
+                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleDelete(v.id, v.name)}
+                                  disabled={isPending}
+                                  className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                                >
+                                  Desactivar
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+                      {/* Timeline de notas — fila expandible */}
+                      {notesOpen && (
+                        <tr className="bg-zinc-50/80">
+                          <td colSpan={canWrite ? 8 : 7} className="px-6 py-3">
+                            <VendorNoteTimeline
+                              companyId={companyId}
+                              vendorId={v.id}
+                              canWrite={canWrite}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       )}

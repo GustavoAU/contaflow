@@ -67,7 +67,10 @@ function setupHappyPath() {
   mockAuth.mockResolvedValue({ userId: USER_ID });
   mockCheckRateLimit.mockResolvedValue({ allowed: true });
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
-  vi.mocked(prisma.company.findFirst).mockResolvedValue({ name: "Empresa Test C.A.", rif: "J-12345678-9" } as never);
+  vi.mocked(prisma.company.findFirst).mockResolvedValue({
+    name: "Empresa Test C.A.",
+    rif: "J-12345678-9",
+  } as never);
   vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
   mockGetBalanceSheetAction.mockResolvedValue({ success: true, data: BALANCED_SHEET });
   mockGetIncomeStatementAction.mockResolvedValue({ success: true, data: { current: INCOME_STMT } });
@@ -118,7 +121,10 @@ describe("exportBalanceSheetPDFAction", () => {
   });
 
   it("retorna error si rate limit excedido", async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false, error: "Demasiadas solicitudes. Intente más tarde." });
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: false,
+      error: "Demasiadas solicitudes. Intente más tarde.",
+    });
     const result = await exportBalanceSheetPDFAction(COMPANY_ID);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas");

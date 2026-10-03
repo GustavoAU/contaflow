@@ -19,40 +19,44 @@ interface Props {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  SALARY_MIN_VES:  "Salario Mínimo (Bs/mes)",
-  UT_VALUE:        "Unidad Tributaria (Bs)",
-  IVSS_OBR_RATE:   "IVSS Obrero (%)",
-  IVSS_PAT_RATE:   "IVSS Patronal (%)",
-  INCES_OBR_RATE:  "INCES Obrero (%)",
-  INCES_PAT_RATE:  "INCES Patronal (%)",
-  FAOV_OBR_RATE:   "FAOV/Banavih Obrero (%)",
-  FAOV_PAT_RATE:   "FAOV/Banavih Patronal (%)",
-  RPE_OBR_RATE:    "RPE/Paro Forzoso Obrero (%)",
-  RPE_PAT_RATE:    "RPE/Paro Forzoso Patronal (%)",
+  SALARY_MIN_VES: "Salario Mínimo (Bs/mes)",
+  UT_VALUE: "Unidad Tributaria (Bs)",
+  IVSS_OBR_RATE: "IVSS Obrero (%)",
+  IVSS_PAT_RATE: "IVSS Patronal (%)",
+  INCES_OBR_RATE: "INCES Obrero (%)",
+  INCES_PAT_RATE: "INCES Patronal (%)",
+  FAOV_OBR_RATE: "FAOV/Banavih Obrero (%)",
+  FAOV_PAT_RATE: "FAOV/Banavih Patronal (%)",
+  RPE_OBR_RATE: "RPE/Paro Forzoso Obrero (%)",
+  RPE_PAT_RATE: "RPE/Paro Forzoso Patronal (%)",
   PENSIONES_PAT_RATE: "Protección de Pensiones Patronal (%)",
   INGRESO_MINIMO_INTEGRAL_USD: "Ingreso Mínimo Integral (USD)",
 };
 
 const TYPE_DEFAULTS: Record<string, string> = {
-  SALARY_MIN_VES:  "",
-  UT_VALUE:        "",
-  IVSS_OBR_RATE:   "4.00",
-  IVSS_PAT_RATE:   "9.00",
-  INCES_OBR_RATE:  "0.50",
-  INCES_PAT_RATE:  "2.00",
-  FAOV_OBR_RATE:   "1.00",
-  FAOV_PAT_RATE:   "2.00",
-  RPE_OBR_RATE:    "0.50",
-  RPE_PAT_RATE:    "2.00",
+  SALARY_MIN_VES: "",
+  UT_VALUE: "",
+  IVSS_OBR_RATE: "4.00",
+  IVSS_PAT_RATE: "9.00",
+  INCES_OBR_RATE: "0.50",
+  INCES_PAT_RATE: "2.00",
+  FAOV_OBR_RATE: "1.00",
+  FAOV_PAT_RATE: "2.00",
+  RPE_OBR_RATE: "0.50",
+  RPE_PAT_RATE: "2.00",
   PENSIONES_PAT_RATE: "9.00",
   INGRESO_MINIMO_INTEGRAL_USD: "",
 };
 
 const RATE_TYPES = new Set([
-  "IVSS_OBR_RATE", "IVSS_PAT_RATE",
-  "INCES_OBR_RATE", "INCES_PAT_RATE",
-  "FAOV_OBR_RATE", "FAOV_PAT_RATE",
-  "RPE_OBR_RATE", "RPE_PAT_RATE",
+  "IVSS_OBR_RATE",
+  "IVSS_PAT_RATE",
+  "INCES_OBR_RATE",
+  "INCES_PAT_RATE",
+  "FAOV_OBR_RATE",
+  "FAOV_PAT_RATE",
+  "RPE_OBR_RATE",
+  "RPE_PAT_RATE",
   "PENSIONES_PAT_RATE",
 ]);
 
@@ -63,10 +67,14 @@ const USD_TYPES = new Set(["INGRESO_MINIMO_INTEGRAL_USD"]);
 
 const MONETARY_TYPES = ["SALARY_MIN_VES", "UT_VALUE", "INGRESO_MINIMO_INTEGRAL_USD"] as const;
 const PARAFISCAL_RATE_TYPES = [
-  "IVSS_OBR_RATE", "IVSS_PAT_RATE",
-  "INCES_OBR_RATE", "INCES_PAT_RATE",
-  "FAOV_OBR_RATE", "FAOV_PAT_RATE",
-  "RPE_OBR_RATE", "RPE_PAT_RATE",
+  "IVSS_OBR_RATE",
+  "IVSS_PAT_RATE",
+  "INCES_OBR_RATE",
+  "INCES_PAT_RATE",
+  "FAOV_OBR_RATE",
+  "FAOV_PAT_RATE",
+  "RPE_OBR_RATE",
+  "RPE_PAT_RATE",
   "PENSIONES_PAT_RATE",
 ] as const;
 
@@ -77,17 +85,15 @@ const EMPTY_FORM = {
   notes: "",
 };
 
-export default function LegalThresholdsPanel({
-  companyId,
-  initialThresholds,
-  isAdmin,
-}: Props) {
+export default function LegalThresholdsPanel({ companyId, initialThresholds, isAdmin }: Props) {
   const [thresholds, setThresholds] = useState<LegalThresholdRow[]>(initialThresholds);
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
@@ -108,7 +114,10 @@ export default function LegalThresholdsPanel({
   function handleDelete(id: string) {
     startTransition(async () => {
       const res = await deleteLegalThresholdAction(companyId, id);
-      if (!res.success) { setError(res.error); return; }
+      if (!res.success) {
+        setError(res.error);
+        return;
+      }
       setThresholds((prev) => prev.filter((t) => t.id !== id));
     });
   }
@@ -119,9 +128,12 @@ export default function LegalThresholdsPanel({
     // revise cada mes y contar desde esa revisión.
     startTransition(async () => {
       const res = await confirmThresholdStillValidAction(companyId, id);
-      if (!res.success) { setError(res.error); return; }
+      if (!res.success) {
+        setError(res.error);
+        return;
+      }
       setThresholds((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, verifiedAt: res.data.verifiedAt } : t)),
+        prev.map((t) => (t.id === id ? { ...t, verifiedAt: res.data.verifiedAt } : t))
       );
     });
   }
@@ -141,37 +153,72 @@ export default function LegalThresholdsPanel({
   // siempre. Ver utils/sal-min-alert.ts — mismo fix que PayrollRunForm.
   const salMinAlert = computeSalMinAlert(
     lastSalMin?.value ?? null,
-    lastSalMin?.verifiedAt ?? lastSalMin?.effectiveFrom ?? null,
+    lastSalMin?.verifiedAt ?? lastSalMin?.effectiveFrom ?? null
   );
   const salMinEsError = salMinAlert.severity === "error";
 
   return (
     <div className="space-y-6">
       {salMinAlert.tieneAviso && (
-        <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-          salMinEsError
-            ? "border-red-300 bg-red-50 text-red-800"
-            : "border-amber-300 bg-amber-50 text-amber-900"
-        }`}>
-          <svg className={`mt-0.5 h-4 w-4 shrink-0 ${salMinEsError ? "text-red-600" : "text-amber-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        <div
+          className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            salMinEsError
+              ? "border-red-300 bg-red-50 text-red-800"
+              : "border-amber-300 bg-amber-50 text-amber-900"
+          }`}
+        >
+          <svg
+            className={`mt-0.5 h-4 w-4 shrink-0 ${salMinEsError ? "text-red-600" : "text-amber-600"}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
           </svg>
           <div className="space-y-1.5">
             <p className="font-semibold">{salMinAlert.titulo}</p>
-            <p className={salMinEsError ? "text-red-700" : "text-amber-800"}>{salMinAlert.mensaje}</p>
+            <p className={salMinEsError ? "text-red-700" : "text-amber-800"}>
+              {salMinAlert.mensaje}
+            </p>
             {salMinEsError && lastSalMin && (
               <>
-                <p className="text-red-700">Mientras no se actualice, los topes de cotización usados son:</p>
-                <ul className="mt-1 space-y-0.5 text-xs font-mono text-red-700">
-                  <li>· IVSS obrero (4%): base máx. Bs {(Number(lastSalMin.value) * 5).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (5 × salMin)</li>
-                  <li>· INCES obrero (0,5%): base máx. Bs {(Number(lastSalMin.value) * 5).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (5 × salMin)</li>
-                  <li>· FAOV/Banavih obrero (1%): base máx. Bs {(Number(lastSalMin.value) * 10).toLocaleString("es-VE", { minimumFractionDigits: 2 })} (10 × salMin)</li>
+                <p className="text-red-700">
+                  Mientras no se actualice, los topes de cotización usados son:
+                </p>
+                <ul className="mt-1 space-y-0.5 font-mono text-xs text-red-700">
+                  <li>
+                    · IVSS obrero (4%): base máx. Bs{" "}
+                    {(Number(lastSalMin.value) * 5).toLocaleString("es-VE", {
+                      minimumFractionDigits: 2,
+                    })}{" "}
+                    (5 × salMin)
+                  </li>
+                  <li>
+                    · INCES obrero (0,5%): base máx. Bs{" "}
+                    {(Number(lastSalMin.value) * 5).toLocaleString("es-VE", {
+                      minimumFractionDigits: 2,
+                    })}{" "}
+                    (5 × salMin)
+                  </li>
+                  <li>
+                    · FAOV/Banavih obrero (1%): base máx. Bs{" "}
+                    {(Number(lastSalMin.value) * 10).toLocaleString("es-VE", {
+                      minimumFractionDigits: 2,
+                    })}{" "}
+                    (10 × salMin)
+                  </li>
                 </ul>
               </>
             )}
             {salMinEsError && (
               <p className="text-red-700">
-                Esto genera <strong>subpagos a los organismos fiscales</strong>. Verifica el decreto vigente en{" "}
+                Esto genera <strong>subpagos a los organismos fiscales</strong>. Verifica el decreto
+                vigente en{" "}
                 <a
                   href="https://www.minpptrass.gob.ve"
                   target="_blank"
@@ -188,30 +235,37 @@ export default function LegalThresholdsPanel({
       )}
       {/* Tabla — valores monetarios */}
       {MONETARY_TYPES.map((type) => (
-        <div key={type} className="border rounded-lg overflow-hidden">
-          <div className="bg-muted px-4 py-2 font-medium text-sm">{TYPE_LABELS[type]}</div>
+        <div key={type} className="overflow-hidden rounded-lg border">
+          <div className="bg-muted px-4 py-2 text-sm font-medium">{TYPE_LABELS[type]}</div>
           {byType[type].length === 0 ? (
-            <p className="text-sm text-muted-foreground px-4 py-3">
-              Sin registros. Agrega el valor actual para que el motor de nómina aplique el tope correcto.
+            <p className="text-muted-foreground px-4 py-3 text-sm">
+              Sin registros. Agrega el valor actual para que el motor de nómina aplique el tope
+              correcto.
             </p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/50">
+              <thead className="bg-muted/50 border-b">
                 <tr>
-                  <th scope="col" className="text-left px-4 py-2">Vigente desde</th>
-                  <th scope="col" className="text-right px-4 py-2">Valor ({USD_TYPES.has(type) ? "USD" : "Bs"})</th>
-                  <th scope="col" className="text-left px-4 py-2">Notas</th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Vigente desde
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-right">
+                    Valor ({USD_TYPES.has(type) ? "USD" : "Bs"})
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Notas
+                  </th>
                   {isAdmin && <th scope="col" className="px-4 py-2" />}
                 </tr>
               </thead>
               <tbody>
                 {byType[type].map((t) => (
-                  <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <tr key={t.id} className="hover:bg-muted/30 border-b last:border-0">
                     <td className="px-4 py-2 font-mono">{t.effectiveFrom}</td>
                     <td className="px-4 py-2 text-right font-mono">
                       {Number(t.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-2 text-muted-foreground">
+                    <td className="text-muted-foreground px-4 py-2">
                       {t.notes ?? "—"}
                       {/* Un tope puede llevar años sin cambiar y seguir vigente:
                           el salario mínimo venezolano está en Bs. 130 desde
@@ -237,8 +291,11 @@ export default function LegalThresholdsPanel({
                     </td>
                     {isAdmin && (
                       <td className="px-4 py-2 text-right">
-                        <button onClick={() => handleDelete(t.id)} disabled={isPending}
-                          className="text-red-500 hover:text-red-700 text-xs disabled:opacity-50">
+                        <button
+                          onClick={() => handleDelete(t.id)}
+                          disabled={isPending}
+                          className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                        >
                           Eliminar
                         </button>
                       </td>
@@ -252,19 +309,25 @@ export default function LegalThresholdsPanel({
       ))}
 
       {/* Tabla — alícuotas parafiscales */}
-      <div className="border rounded-lg overflow-hidden">
-        <div className="bg-muted px-4 py-2 font-medium text-sm flex items-center justify-between">
+      <div className="overflow-hidden rounded-lg border">
+        <div className="bg-muted flex items-center justify-between px-4 py-2 text-sm font-medium">
           <span>Alícuotas parafiscales (%)</span>
-          <span className="text-xs font-normal text-muted-foreground">
+          <span className="text-muted-foreground text-xs font-normal">
             Valor en %; sin registro = default legal vigente
           </span>
         </div>
         <table className="w-full text-sm">
-          <thead className="border-b bg-muted/50">
+          <thead className="bg-muted/50 border-b">
             <tr>
-              <th scope="col" className="text-left px-4 py-2">Organismo</th>
-              <th scope="col" className="text-right px-4 py-2">Default</th>
-              <th scope="col" className="text-right px-4 py-2">Vigente (desde)</th>
+              <th scope="col" className="px-4 py-2 text-left">
+                Organismo
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                Default
+              </th>
+              <th scope="col" className="px-4 py-2 text-right">
+                Vigente (desde)
+              </th>
               {isAdmin && <th scope="col" className="px-4 py-2" />}
             </tr>
           </thead>
@@ -272,21 +335,31 @@ export default function LegalThresholdsPanel({
             {PARAFISCAL_RATE_TYPES.map((type) => {
               const latest = byType[type]?.[0];
               return (
-                <tr key={type} className="border-b last:border-0 hover:bg-muted/30">
+                <tr key={type} className="hover:bg-muted/30 border-b last:border-0">
                   <td className="px-4 py-2">{TYPE_LABELS[type]}</td>
-                  <td className="px-4 py-2 text-right font-mono text-muted-foreground">
+                  <td className="text-muted-foreground px-4 py-2 text-right font-mono">
                     {TYPE_DEFAULTS[type]}%
                   </td>
                   <td className="px-4 py-2 text-right font-mono">
-                    {latest
-                      ? <span className="font-semibold text-blue-700">{Number(latest.value).toFixed(2)}% <span className="text-xs font-normal text-muted-foreground">desde {latest.effectiveFrom}</span></span>
-                      : <span className="text-muted-foreground text-xs">usando default</span>}
+                    {latest ? (
+                      <span className="font-semibold text-blue-700">
+                        {Number(latest.value).toFixed(2)}%{" "}
+                        <span className="text-muted-foreground text-xs font-normal">
+                          desde {latest.effectiveFrom}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">usando default</span>
+                    )}
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-2 text-right">
                       {latest && (
-                        <button onClick={() => handleDelete(latest.id)} disabled={isPending}
-                          className="text-red-500 hover:text-red-700 text-xs disabled:opacity-50">
+                        <button
+                          onClick={() => handleDelete(latest.id)}
+                          disabled={isPending}
+                          className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                        >
                           Eliminar
                         </button>
                       )}
@@ -301,18 +374,18 @@ export default function LegalThresholdsPanel({
 
       {/* Formulario — solo ADMIN */}
       {isAdmin && (
-        <form onSubmit={handleAdd} className="border rounded-lg p-4 space-y-4">
-          <h2 className="font-medium text-sm">Agregar nuevo tope</h2>
+        <form onSubmit={handleAdd} className="space-y-4 rounded-lg border p-4">
+          <h2 className="text-sm font-medium">Agregar nuevo tope</h2>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
               {error}
             </p>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Tipo</label>
+              <label className="text-muted-foreground text-xs font-medium">Tipo</label>
               <select
                 name="type"
                 value={form.type}
@@ -324,7 +397,7 @@ export default function LegalThresholdsPanel({
                     value: RATE_TYPES.has(newType) ? (TYPE_DEFAULTS[newType] ?? "") : "",
                   }));
                 }}
-                className="w-full border rounded px-3 py-2 text-sm bg-white"
+                className="w-full rounded border bg-white px-3 py-2 text-sm"
               >
                 <optgroup label="Valores monetarios">
                   <option value="SALARY_MIN_VES">Salario Mínimo (Bs)</option>
@@ -346,20 +419,24 @@ export default function LegalThresholdsPanel({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Vigente desde</label>
+              <label className="text-muted-foreground text-xs font-medium">Vigente desde</label>
               <input
                 type="date"
                 name="effectiveFrom"
                 value={form.effectiveFrom}
                 onChange={handleChange}
                 required
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full rounded border px-3 py-2 text-sm"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                {RATE_TYPES.has(form.type) ? "Alícuota (%)" : USD_TYPES.has(form.type) ? "Valor (USD)" : "Valor (Bs)"}
+              <label className="text-muted-foreground text-xs font-medium">
+                {RATE_TYPES.has(form.type)
+                  ? "Alícuota (%)"
+                  : USD_TYPES.has(form.type)
+                    ? "Valor (USD)"
+                    : "Valor (Bs)"}
               </label>
               <div className="relative">
                 <input
@@ -367,25 +444,34 @@ export default function LegalThresholdsPanel({
                   name="value"
                   value={form.value}
                   onChange={handleChange}
-                  placeholder={RATE_TYPES.has(form.type)
-                    ? `Ej: ${TYPE_DEFAULTS[form.type] ?? "4.00"}`
-                    : USD_TYPES.has(form.type) ? "Ej: 240.00" : "Ej: 130.00"}
+                  placeholder={
+                    RATE_TYPES.has(form.type)
+                      ? `Ej: ${TYPE_DEFAULTS[form.type] ?? "4.00"}`
+                      : USD_TYPES.has(form.type)
+                        ? "Ej: 240.00"
+                        : "Ej: 130.00"
+                  }
                   required
-                  className="w-full border rounded px-3 py-2 text-sm font-mono pr-8"
+                  className="w-full rounded border px-3 py-2 pr-8 font-mono text-sm"
                 />
                 {RATE_TYPES.has(form.type) && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                  <span className="text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2 text-sm">
+                    %
+                  </span>
                 )}
               </div>
               {RATE_TYPES.has(form.type) && (
-                <p className="text-xs text-muted-foreground">
-                  Default actual: {TYPE_DEFAULTS[form.type]}% — solo registra si hay un decreto que modifique la alícuota.
+                <p className="text-muted-foreground text-xs">
+                  Default actual: {TYPE_DEFAULTS[form.type]}% — solo registra si hay un decreto que
+                  modifique la alícuota.
                 </p>
               )}
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Notas / Gaceta Oficial (opcional)</label>
+              <label className="text-muted-foreground text-xs font-medium">
+                Notas / Gaceta Oficial (opcional)
+              </label>
               <input
                 type="text"
                 name="notes"
@@ -393,7 +479,7 @@ export default function LegalThresholdsPanel({
                 onChange={handleChange}
                 placeholder="Ej: Decreto 5.163 Gaceta Oficial 43.050"
                 maxLength={200}
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full rounded border px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -401,7 +487,7 @@ export default function LegalThresholdsPanel({
           <button
             type="submit"
             disabled={isPending}
-            className="bg-primary text-primary-foreground px-4 py-2 rounded text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {isPending ? "Guardando…" : "Agregar"}
           </button>

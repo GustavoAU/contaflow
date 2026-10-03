@@ -63,14 +63,15 @@ Responde ÚNICAMENTE con el resumen en español.`;
 
 type DashboardTasksResult = ActionResult<PendingTasksData & { aiSummary: string | null }>;
 
-export async function getPendingTasksAction(
-  companyId: string,
-): Promise<DashboardTasksResult> {
+export async function getPendingTasksAction(companyId: string): Promise<DashboardTasksResult> {
   try {
     // Auth (26B-01) + IDOR guard + Role guard (26B-05 MEDIUM, mínimo ACCOUNTING) +
     // rate limit base: lectura de tareas pendientes del dashboard — limiter de lecturas
     // (120/min por empresa×usuario), no el fiscal (10/min). El resumen IA (abajo) mantiene `ocr`.
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.read,
+    });
     if (!ctx.ok) return ctx.error;
 
     // Obtener tareas (queries determinísticas)

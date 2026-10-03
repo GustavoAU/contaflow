@@ -1,9 +1,9 @@
 // src/modules/retentions/__tests__/RetentionVoucherPDFService.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest"
-import type { RetentionVoucherParams } from "../services/RetentionVoucherPDFService"
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { RetentionVoucherParams } from "../services/RetentionVoucherPDFService";
 
 // ─── Mock de @react-pdf/renderer ───────────────────────────────────────────────
-type WithChildren = { children?: unknown }
+type WithChildren = { children?: unknown };
 vi.mock("@react-pdf/renderer", () => ({
   Document: ({ children }: WithChildren) => children,
   Page: ({ children }: WithChildren) => children,
@@ -11,10 +11,10 @@ vi.mock("@react-pdf/renderer", () => ({
   View: ({ children }: WithChildren) => children,
   StyleSheet: { create: <T extends Record<string, unknown>>(s: T) => s },
   renderToBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-pdf")),
-}))
+}));
 
 // Importar DESPUÉS del mock
-import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService"
+import { generateRetentionVoucherPDF } from "../services/RetentionVoucherPDFService";
 
 // ─── Fixture ───────────────────────────────────────────────────────────────────
 const validParams: RetentionVoucherParams = {
@@ -32,31 +32,31 @@ const validParams: RetentionVoucherParams = {
   invoiceAmount: "1500.00",
   taxableBase: "1500.00",
   retainedAmount: "180.00", // 1500 * 16% * 75% = 180
-}
+};
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 describe("generateRetentionVoucherPDF", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   it("cuando se llama con datos válidos, retorna Buffer no vacío", async () => {
-    const result = await generateRetentionVoucherPDF(validParams)
-    expect(result).toBeInstanceOf(Buffer)
-    expect(result.length).toBeGreaterThan(0)
-  })
+    const result = await generateRetentionVoucherPDF(validParams);
+    expect(result).toBeInstanceOf(Buffer);
+    expect(result.length).toBeGreaterThan(0);
+  });
 
   it("cuando retentionType es IVA, llama renderToBuffer una vez", async () => {
-    const { renderToBuffer } = await import("@react-pdf/renderer")
-    await generateRetentionVoucherPDF({ ...validParams, retentionType: "IVA", retentionRate: 75 })
-    expect(vi.mocked(renderToBuffer)).toHaveBeenCalledTimes(1)
-  })
+    const { renderToBuffer } = await import("@react-pdf/renderer");
+    await generateRetentionVoucherPDF({ ...validParams, retentionType: "IVA", retentionRate: 75 });
+    expect(vi.mocked(renderToBuffer)).toHaveBeenCalledTimes(1);
+  });
 
   it("cuando retentionType es ISLR, llama renderToBuffer una vez", async () => {
-    const { renderToBuffer } = await import("@react-pdf/renderer")
-    await generateRetentionVoucherPDF({ ...validParams, retentionType: "ISLR", retentionRate: 2 })
-    expect(vi.mocked(renderToBuffer)).toHaveBeenCalledTimes(1)
-  })
+    const { renderToBuffer } = await import("@react-pdf/renderer");
+    await generateRetentionVoucherPDF({ ...validParams, retentionType: "ISLR", retentionRate: 2 });
+    expect(vi.mocked(renderToBuffer)).toHaveBeenCalledTimes(1);
+  });
 
   it("cuando los montos son strings (Decimal serializado), no lanza error", async () => {
     const params = {
@@ -64,9 +64,9 @@ describe("generateRetentionVoucherPDF", () => {
       invoiceAmount: "1500.00",
       taxableBase: "1500.00",
       retainedAmount: "22.50",
-    }
-    await expect(generateRetentionVoucherPDF(params)).resolves.toBeInstanceOf(Buffer)
-  })
+    };
+    await expect(generateRetentionVoucherPDF(params)).resolves.toBeInstanceOf(Buffer);
+  });
 
   // ── ADR-052: AMBAS con dos correlativos independientes ─────────────────────
   it("ADR-052: retentionType AMBAS con islrVoucherNumber no lanza error", async () => {
@@ -79,7 +79,7 @@ describe("generateRetentionVoucherPDF", () => {
       ivaRetentionPct: 75,
       islrAmount: "20.00",
       islrRetentionPct: 2,
-    }
-    await expect(generateRetentionVoucherPDF(params)).resolves.toBeInstanceOf(Buffer)
-  })
-})
+    };
+    await expect(generateRetentionVoucherPDF(params)).resolves.toBeInstanceOf(Buffer);
+  });
+});

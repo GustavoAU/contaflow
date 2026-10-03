@@ -53,12 +53,18 @@ export default async function TransactionDetailPage({ params }: Props) {
 
   const debits = tx.entries.filter((e) => new Decimal(e.amount.toString()).gt(0));
   const credits = tx.entries.filter((e) => new Decimal(e.amount.toString()).lt(0));
-  const totalDebit = debits.reduce((s, e) => s.plus(new Decimal(e.amount.toString())), new Decimal(0));
-  const totalCredit = credits.reduce((s, e) => s.plus(new Decimal(e.amount.toString()).abs()), new Decimal(0));
+  const totalDebit = debits.reduce(
+    (s, e) => s.plus(new Decimal(e.amount.toString())),
+    new Decimal(0)
+  );
+  const totalCredit = credits.reduce(
+    (s, e) => s.plus(new Decimal(e.amount.toString()).abs()),
+    new Decimal(0)
+  );
   const isBalanced = totalDebit.minus(totalCredit).abs().lt(new Decimal("0.01"));
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       {/* Breadcrumb */}
       <Link
         href={`/company/${companyId}/transactions`}
@@ -69,11 +75,11 @@ export default async function TransactionDetailPage({ params }: Props) {
       </Link>
 
       {/* Header */}
-      <div className="rounded-lg border bg-white p-6 space-y-4">
+      <div className="space-y-4 rounded-lg border bg-white p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-bold font-mono">{tx.number}</h1>
-            <p className="text-zinc-600 mt-1">{tx.description}</p>
+            <h1 className="font-mono text-xl font-bold">{tx.number}</h1>
+            <p className="mt-1 text-zinc-600">{tx.description}</p>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant={tx.status === "POSTED" ? "default" : "destructive"}>
@@ -90,22 +96,24 @@ export default async function TransactionDetailPage({ params }: Props) {
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
           <div>
-            <p className="text-zinc-400 text-xs">Fecha</p>
-            <p className="font-medium">{new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}</p>
+            <p className="text-xs text-zinc-400">Fecha</p>
+            <p className="font-medium">
+              {new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
+            </p>
           </div>
           <div>
-            <p className="text-zinc-400 text-xs">Tipo</p>
+            <p className="text-xs text-zinc-400">Tipo</p>
             <p className="font-medium">{TYPE_LABELS[tx.type] ?? tx.type}</p>
           </div>
           {tx.reference && (
             <div>
-              <p className="text-zinc-400 text-xs">Referencia</p>
+              <p className="text-xs text-zinc-400">Referencia</p>
               <p className="font-medium">{tx.reference}</p>
             </div>
           )}
           {tx.notes && (
             <div className="col-span-2 sm:col-span-3">
-              <p className="text-zinc-400 text-xs">Notas</p>
+              <p className="text-xs text-zinc-400">Notas</p>
               <p className="font-medium">{tx.notes}</p>
             </div>
           )}
@@ -113,7 +121,7 @@ export default async function TransactionDetailPage({ params }: Props) {
       </div>
 
       {/* Partidas */}
-      <div className="rounded-lg border bg-white overflow-hidden">
+      <div className="overflow-hidden rounded-lg border bg-white">
         <div className="border-b bg-zinc-50 px-4 py-2">
           <h2 className="text-sm font-semibold text-zinc-700">Partidas del Asiento</h2>
         </div>
@@ -130,7 +138,7 @@ export default async function TransactionDetailPage({ params }: Props) {
             {debits.map((e) => (
               <tr key={e.id} className="hover:bg-zinc-50">
                 <td className="px-4 py-3">
-                  <span className="font-mono text-xs text-zinc-400 mr-2">{e.account.code}</span>
+                  <span className="mr-2 font-mono text-xs text-zinc-400">{e.account.code}</span>
                   <span className="text-zinc-800">{e.account.name}</span>
                   <span className="ml-2 text-xs text-zinc-400">
                     ({ACCOUNT_TYPE_LABELS[e.account.type] ?? e.account.type})
@@ -139,20 +147,20 @@ export default async function TransactionDetailPage({ params }: Props) {
                 <td className="px-4 py-3 text-right font-mono font-medium tabular-nums">
                   {fmt(Number(e.amount))}
                 </td>
-                <td className="px-4 py-3 text-right text-zinc-300 font-mono tabular-nums">—</td>
+                <td className="px-4 py-3 text-right font-mono text-zinc-300 tabular-nums">—</td>
               </tr>
             ))}
             {/* Créditos */}
             {credits.map((e) => (
               <tr key={e.id} className="hover:bg-zinc-50">
                 <td className="px-4 py-3 pl-10">
-                  <span className="font-mono text-xs text-zinc-400 mr-2">{e.account.code}</span>
+                  <span className="mr-2 font-mono text-xs text-zinc-400">{e.account.code}</span>
                   <span className="text-zinc-800">{e.account.name}</span>
                   <span className="ml-2 text-xs text-zinc-400">
                     ({ACCOUNT_TYPE_LABELS[e.account.type] ?? e.account.type})
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right text-zinc-300 font-mono tabular-nums">—</td>
+                <td className="px-4 py-3 text-right font-mono text-zinc-300 tabular-nums">—</td>
                 <td className="px-4 py-3 text-right font-mono font-medium tabular-nums">
                   {fmt(new Decimal(e.amount.toString()).abs().toFixed(2))}
                 </td>
@@ -172,11 +180,11 @@ export default async function TransactionDetailPage({ params }: Props) {
           </tfoot>
         </table>
         {isBalanced ? (
-          <div className="px-4 py-2 text-xs text-green-600 bg-green-50 border-t">
+          <div className="border-t bg-green-50 px-4 py-2 text-xs text-green-600">
             Asiento cuadrado — Débitos = Créditos
           </div>
         ) : (
-          <div className="px-4 py-2 text-xs text-red-600 bg-red-50 border-t">
+          <div className="border-t bg-red-50 px-4 py-2 text-xs text-red-600">
             Advertencia: asiento desbalanceado
           </div>
         )}

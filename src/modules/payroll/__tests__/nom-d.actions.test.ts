@@ -226,7 +226,12 @@ describe("Zod validation", () => {
 
     // Zod schema passes (strips annualRate), service is called
     expect(vi.mocked(BenefitAccrualService.postBenefitInterest)).toHaveBeenCalledWith(
-      COMPANY, "user-1", 2026, 3, null, null  // annualRate NOT passed to service; null/null = IP/UA
+      COMPANY,
+      "user-1",
+      2026,
+      3,
+      null,
+      null // annualRate NOT passed to service; null/null = IP/UA
     );
     expect(result.success).toBe(true);
   });
@@ -246,7 +251,9 @@ describe("Service delegation — happy path", () => {
 
     const result = await accrueQuarterAction(COMPANY, { year: 2026, quarter: 1 });
     expect(result.success).toBe(true);
-    expect((result as { success: true; data: { employeesProcessed: number } }).data.employeesProcessed).toBe(5);
+    expect(
+      (result as { success: true; data: { employeesProcessed: number } }).data.employeesProcessed
+    ).toBe(5);
   });
 
   it("createTerminationAction delegates to TerminationService", async () => {

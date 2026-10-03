@@ -125,7 +125,7 @@ function setAuth(userId: string | null) {
 }
 function setMember(role: string | null) {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-    role ? ({ role } as never) : (null as never),
+    role ? ({ role } as never) : (null as never)
   );
 }
 
@@ -218,7 +218,11 @@ describe("addContactNoteAction", () => {
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.content).toBe("Llamó para consultar precio");
     expect(ContactNoteService.create).toHaveBeenCalledWith(
-      "c1", "CUSTOMER", "cust1", "Llamó para consultar precio", "user1",
+      "c1",
+      "CUSTOMER",
+      "cust1",
+      "Llamó para consultar precio",
+      "user1"
     );
   });
 
@@ -258,7 +262,11 @@ describe("addVendorNoteAction", () => {
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.entityType).toBe("VENDOR");
     expect(ContactNoteService.create).toHaveBeenCalledWith(
-      "c1", "VENDOR", "vend1", "Envió catálogo actualizado", "user1",
+      "c1",
+      "VENDOR",
+      "vend1",
+      "Envió catálogo actualizado",
+      "user1"
     );
   });
 

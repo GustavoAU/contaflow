@@ -23,13 +23,11 @@ export default async function DespachoRifsPage({ params }: Props) {
   if (!result.success) redirect(`/company/${companyId}`);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
       <div className="flex items-center gap-3">
         <BriefcaseIcon className="h-6 w-6 text-violet-600" aria-hidden="true" />
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            Clientes del Despacho
-          </h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Clientes del Despacho</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             RIFs que gestionas desde esta cuenta
           </p>

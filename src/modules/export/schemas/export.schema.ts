@@ -23,7 +23,11 @@ export const CreateExportJobSchema = z
       return;
     }
     if (d.dateTo < d.dateFrom) {
-      ctx.addIssue({ code: "custom", message: "La fecha de fin debe ser igual o posterior a la de inicio", path: ["dateTo"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "La fecha de fin debe ser igual o posterior a la de inicio",
+        path: ["dateTo"],
+      });
       return;
     }
     const diffDays = (d.dateTo.getTime() - d.dateFrom.getTime()) / (1000 * 60 * 60 * 24);

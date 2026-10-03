@@ -9,15 +9,15 @@ import type { CashFlowBucket, CashFlowProjection } from "./BudgetService";
 
 type Bucket = {
   label: string;
-  maxDays: number | null;   // null = overdue (negative days)
+  maxDays: number | null; // null = overdue (negative days)
   minDays: number;
 };
 
 const BUCKETS: Bucket[] = [
-  { label: "Vencido",     minDays: -9999, maxDays: -1   },
-  { label: "0-30 días",   minDays: 0,     maxDays: 30   },
-  { label: "31-60 días",  minDays: 31,    maxDays: 60   },
-  { label: "61-90 días",  minDays: 61,    maxDays: 90   },
+  { label: "Vencido", minDays: -9999, maxDays: -1 },
+  { label: "0-30 días", minDays: 0, maxDays: 30 },
+  { label: "31-60 días", minDays: 31, maxDays: 60 },
+  { label: "61-90 días", minDays: 61, maxDays: 90 },
 ];
 
 function daysFromNow(date: Date): number {
@@ -26,7 +26,7 @@ function daysFromNow(date: Date): number {
 }
 
 function bucketIndex(daysUntilDue: number): number {
-  if (daysUntilDue < 0) return 0;  // Vencido
+  if (daysUntilDue < 0) return 0; // Vencido
   if (daysUntilDue <= 30) return 1;
   if (daysUntilDue <= 60) return 2;
   return 3;
@@ -39,8 +39,8 @@ export const CashFlowProjectionService = {
    * (o ya vencidas). Usa pendingAmount cuando existe, o totalAmountVes como fallback.
    */
   async project(companyId: string): Promise<CashFlowProjection> {
-    const now     = new Date();
-    const cutoff  = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     const overdue = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); // 1 año atrás
 
     // CxC: SALE invoices unpaid/partial with dueDate
@@ -76,7 +76,10 @@ export const CashFlowProjectionService = {
     };
 
     const acc: Accumulator[] = BUCKETS.map(() => ({
-      cxc: new Decimal(0), cxp: new Decimal(0), cxcCount: 0, cxpCount: 0,
+      cxc: new Decimal(0),
+      cxp: new Decimal(0),
+      cxcCount: 0,
+      cxpCount: 0,
     }));
 
     for (const inv of cxcInvoices) {

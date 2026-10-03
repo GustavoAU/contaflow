@@ -51,7 +51,7 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
     vi.mocked(prisma.$queryRaw).mockResolvedValue([] as never);
 
     await expect(PaymentAttachmentService.persistAttachmentMetadata(PAYLOAD)).rejects.toThrow(
-      "El pago no existe o fue anulado",
+      "El pago no existe o fue anulado"
     );
 
     expect(vi.mocked(prisma.paymentAttachment.create)).not.toHaveBeenCalled();
@@ -63,7 +63,7 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
     vi.mocked(prisma.paymentAttachment.count).mockResolvedValue(10 as never);
 
     await expect(PaymentAttachmentService.persistAttachmentMetadata(PAYLOAD)).rejects.toThrow(
-      "alcanzó el máximo de 10 comprobantes",
+      "alcanzó el máximo de 10 comprobantes"
     );
 
     expect(vi.mocked(prisma.paymentAttachment.count)).toHaveBeenCalledWith({
@@ -87,7 +87,7 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
     vi.mocked(prisma.paymentAttachment.findFirst).mockResolvedValue({ id: "att-previo" } as never);
 
     await expect(PaymentAttachmentService.persistAttachmentMetadata(PAYLOAD)).rejects.toThrow(
-      "Este pago ya tiene un comprobante adjunto",
+      "Este pago ya tiene un comprobante adjunto"
     );
 
     expect(vi.mocked(prisma.paymentAttachment.create)).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
     expect(vi.mocked(prisma.paymentAttachment.findFirst)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { paymentRecordId: "pay-1", companyId: "company-1", deletedAt: null },
-      }),
+      })
     );
   });
 
@@ -109,7 +109,7 @@ describe("PaymentAttachmentService.persistAttachmentMetadata", () => {
     expect(lock).toHaveBeenCalledOnce();
     expect(lock.mock.calls[0].slice(1)).toEqual(["pay-1", "company-1"]);
     expect(lock.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(prisma.paymentAttachment.findFirst).mock.invocationCallOrder[0],
+      vi.mocked(prisma.paymentAttachment.findFirst).mock.invocationCallOrder[0]
     );
   });
 });

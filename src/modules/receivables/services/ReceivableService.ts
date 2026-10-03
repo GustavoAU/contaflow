@@ -571,8 +571,6 @@ export class ReceivableService {
       source: "canonical" as const,
     }));
 
-    return [...legacyRows, ...canonicalRows].sort(
-      (a, b) => a.date.getTime() - b.date.getTime()
-    );
+    return [...legacyRows, ...canonicalRows].sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 }

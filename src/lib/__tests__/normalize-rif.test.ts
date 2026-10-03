@@ -23,7 +23,7 @@ describe("normalizeRif — forma canónica", () => {
     const canonicas = new Set(variantes.map(normalizeRif));
     expect(
       canonicas,
-      `Se esperaba UNA sola forma canónica, salieron: ${[...canonicas].join(" | ")}`,
+      `Se esperaba UNA sola forma canónica, salieron: ${[...canonicas].join(" | ")}`
     ).toEqual(new Set(["J-12345678-9"]));
   });
 

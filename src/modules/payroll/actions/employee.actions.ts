@@ -79,7 +79,13 @@ export async function createEmployeeAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const emp = await EmployeeService.create(companyId, ctx.userId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const emp = await EmployeeService.create(
+      companyId,
+      ctx.userId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -108,7 +114,14 @@ export async function updateEmployeeAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const emp = await EmployeeService.update(companyId, ctx.userId, employeeId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const emp = await EmployeeService.update(
+      companyId,
+      ctx.userId,
+      employeeId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -137,7 +150,12 @@ export async function setEmployeeActiveStatusAction(
 
   try {
     const emp = await EmployeeService.setActiveStatus(
-      companyId, ctx.userId, employeeId, parsed.data.status, ctx.ipAddress, ctx.userAgent,
+      companyId,
+      ctx.userId,
+      employeeId,
+      parsed.data.status,
+      ctx.ipAddress,
+      ctx.userAgent
     );
     revalidate(companyId);
     revalidatePath(`/company/${companyId}/payroll/employees/${employeeId}`);
@@ -164,7 +182,14 @@ export async function terminateEmployeeAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const emp = await EmployeeService.terminate(companyId, ctx.userId, employeeId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const emp = await EmployeeService.terminate(
+      companyId,
+      ctx.userId,
+      employeeId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: emp };
   } catch (err) {
@@ -190,7 +215,14 @@ export async function addSalaryAction(
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
-    const entry = await EmployeeService.addSalary(companyId, ctx.userId, employeeId, parsed.data, ctx.ipAddress, ctx.userAgent);
+    const entry = await EmployeeService.addSalary(
+      companyId,
+      ctx.userId,
+      employeeId,
+      parsed.data,
+      ctx.ipAddress,
+      ctx.userAgent
+    );
     revalidate(companyId);
     return { success: true, data: entry };
   } catch (err) {

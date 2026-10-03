@@ -22,13 +22,13 @@ const fmtCurrency = (code: string, amount: string) =>
 interface Props {
   companyId: string;
   quotations: QuotationRow[];
-  canApprove: boolean;   // ACCOUNTANT+
-  canOperate: boolean;   // ADMINISTRATIVE+
+  canApprove: boolean; // ACCOUNTANT+
+  canOperate: boolean; // ADMINISTRATIVE+
 }
 
 const TYPE_BADGE: Record<string, string> = {
   PURCHASE: "bg-purple-100 text-purple-700",
-  SALE:     "bg-teal-100 text-teal-700",
+  SALE: "bg-teal-100 text-teal-700",
 };
 
 export function QuotationList({ companyId, quotations, canApprove, canOperate }: Props) {
@@ -67,7 +67,13 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
   }
 
   if (quotations.length === 0) {
-    return <EmptyState illustration="invoices" title="No hay cotizaciones registradas." description="Las cotizaciones de compra y venta aparecerán aquí." />;
+    return (
+      <EmptyState
+        illustration="invoices"
+        title="No hay cotizaciones registradas."
+        description="Las cotizaciones de compra y venta aparecerán aquí."
+      />
+    );
   }
 
   return (
@@ -76,18 +82,24 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
         <thead className="bg-gray-50">
           <tr>
             {["N°", "Tipo", "Contraparte"].map((h) => (
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <th
+                key={h}
+                className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
+              >
                 {h}
               </th>
             ))}
             <th
-              className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"
+              className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
               title="Fecha límite de validez de la oferta económica"
             >
               Válida hasta
             </th>
             {["Total", "Estado", "Acciones"].map((h) => (
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <th
+                key={h}
+                className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
+              >
                 {h}
               </th>
             ))}
@@ -102,9 +114,13 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
               (q.status === "DRAFT" || q.status === "PENDING_APPROVAL" || q.status === "APPROVED");
             return (
               <tr key={q.id} className="hover:bg-gray-50">
-                <td data-label="N°" className="px-4 py-3 font-mono text-xs text-blue-700">{q.number}</td>
+                <td data-label="N°" className="px-4 py-3 font-mono text-xs text-blue-700">
+                  {q.number}
+                </td>
                 <td data-label="Tipo" className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE[q.type] ?? ""}`}>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE[q.type] ?? ""}`}
+                  >
                     {q.type === "PURCHASE" ? "Compra" : "Venta"}
                   </span>
                 </td>
@@ -114,7 +130,10 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                     <div className="text-xs text-gray-400">{q.counterpartRif}</div>
                   )}
                 </td>
-                <td data-label="Válida hasta" className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}>
+                <td
+                  data-label="Válida hasta"
+                  className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}
+                >
                   {q.validUntil ? fmtDate(q.validUntil) : "—"}
                   {isExpired && (
                     <span className="ml-1.5 text-xs font-normal text-red-500">(venc.)</span>
@@ -122,7 +141,7 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                 </td>
                 <td
                   data-label="Total"
-                  className="px-4 py-3 font-mono text-right cursor-help"
+                  className="cursor-help px-4 py-3 text-right font-mono"
                   title={`Base: ${fmtCurrency(q.currency, q.subtotal)} + IVA: ${fmtCurrency(q.currency, q.taxAmount)} = Total: ${fmtCurrency(q.currency, q.total)}`}
                 >
                   {fmtCurrency(q.currency, q.total)}
@@ -131,14 +150,17 @@ export function QuotationList({ companyId, quotations, canApprove, canOperate }:
                   <div className="flex flex-col gap-1">
                     <StatusBadge status={q.status} />
                     {q.approvedAt && (
-                      <span className="text-xs text-zinc-400" title={`Aprobado por ${q.approvedBy ?? "—"}`}>
+                      <span
+                        className="text-xs text-zinc-400"
+                        title={`Aprobado por ${q.approvedBy ?? "—"}`}
+                      >
                         Aprobado {new Date(q.approvedAt).toLocaleDateString("es-VE")}
                       </span>
                     )}
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex flex-wrap gap-2">
                     {canOperate && q.status === "DRAFT" && (
                       <button
                         onClick={() => handleSubmit(q.id)}

@@ -23,7 +23,8 @@ vi.mock("@/lib/prisma", () => ({
     // GL pedidas existen y son de esta empresa.
     account: {
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.map((id) => ({ id }))),
+        where.id.in.map((id) => ({ id }))
+      ),
     },
     $transaction: vi.fn(),
   },
@@ -42,10 +43,7 @@ import {
   saveGLConfigAction,
   postUnbookedInvoicesAction,
 } from "./gl-config.actions";
-import {
-  getStockControlLevelAction,
-  updateStockControlLevelAction,
-} from "./stock-config.actions";
+import { getStockControlLevelAction, updateStockControlLevelAction } from "./stock-config.actions";
 
 const COMPANY_ID = "co-1";
 const ADMIN_MEMBER = { role: "ADMIN" };
@@ -69,13 +67,18 @@ const GL_SETTINGS = {
 beforeEach(() => {
   vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
-  vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({ ...GL_SETTINGS, stockControlLevel: "WARN" } as never);
+  vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({
+    ...GL_SETTINGS,
+    stockControlLevel: "WARN",
+  } as never);
   vi.mocked(prisma.invoice.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.invoice.count).mockResolvedValue(0 as never);
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({ companySettings: prisma.companySettings, auditLog: prisma.auditLog, account: prisma.account })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({
+      companySettings: prisma.companySettings,
+      auditLog: prisma.auditLog,
+      account: prisma.account,
+    })) as never);
 });
 
 // ─── getGLConfigAction ────────────────────────────────────────────────────────

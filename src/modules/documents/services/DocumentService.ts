@@ -26,10 +26,10 @@ export type DocumentRow = {
 };
 
 export type DocumentFilters = {
-  docType?: string;    // "" | "FACTURA_VENTA" | "FACTURA_COMPRA" | "RETENCION_IVA" | "RETENCION_ISLR"
-  dateFrom?: string;   // YYYY-MM-DD
-  dateTo?: string;     // YYYY-MM-DD
-  search?: string;     // número o contraparte
+  docType?: string; // "" | "FACTURA_VENTA" | "FACTURA_COMPRA" | "RETENCION_IVA" | "RETENCION_ISLR"
+  dateFrom?: string; // YYYY-MM-DD
+  dateTo?: string; // YYYY-MM-DD
+  search?: string; // número o contraparte
 };
 
 const PAGE_SIZE = 50;
@@ -45,13 +45,13 @@ export class DocumentService {
   static async list(
     companyId: string,
     filters: DocumentFilters,
-    page = 1,
+    page = 1
   ): Promise<{ items: DocumentRow[]; total: number }> {
     const offset = (page - 1) * PAGE_SIZE;
 
     const dateFrom = filters.dateFrom ? new Date(filters.dateFrom + "T00:00:00Z") : undefined;
-    const dateTo   = filters.dateTo   ? new Date(filters.dateTo   + "T23:59:59Z") : undefined;
-    const search   = filters.search?.trim();
+    const dateTo = filters.dateTo ? new Date(filters.dateTo + "T23:59:59Z") : undefined;
+    const search = filters.search?.trim();
 
     // ── Facturas ──────────────────────────────────────────────────────────────
     const wantInvoices =
@@ -136,7 +136,9 @@ export class DocumentService {
           deletedAt: null,
           ...(retTypeFilter ? { type: retTypeFilter } : {}),
           ...(dateFrom || dateTo
-            ? { invoiceDate: { ...(dateFrom && { gte: dateFrom }), ...(dateTo && { lte: dateTo }) } }
+            ? {
+                invoiceDate: { ...(dateFrom && { gte: dateFrom }), ...(dateTo && { lte: dateTo }) },
+              }
             : {}),
           ...(search
             ? {
@@ -162,11 +164,11 @@ export class DocumentService {
 
       retentionRows = retentions.map((ret) => ({
         id: ret.id,
-        documentType: (
-          ret.type === "IVA" ? "RETENCION_IVA"
-          : ret.type === "ISLR" ? "RETENCION_ISLR"
-          : "RETENCION_AMBAS"
-        ) as DocumentType,
+        documentType: (ret.type === "IVA"
+          ? "RETENCION_IVA"
+          : ret.type === "ISLR"
+            ? "RETENCION_ISLR"
+            : "RETENCION_AMBAS") as DocumentType,
         number: ret.voucherNumber ?? ret.id.slice(-8).toUpperCase(),
         counterpart: ret.providerName,
         date: ret.invoiceDate,
@@ -177,7 +179,7 @@ export class DocumentService {
 
     // ── Merge + sort + paginate ───────────────────────────────────────────────
     const all = [...invoiceRows, ...retentionRows].sort(
-      (a, b) => b.date.getTime() - a.date.getTime(),
+      (a, b) => b.date.getTime() - a.date.getTime()
     );
 
     return {
@@ -193,18 +195,15 @@ export class DocumentService {
    */
   static async generateInvoicePDFBuffer(
     invoiceId: string,
-    companyId: string,
+    companyId: string
   ): Promise<Buffer | null> {
     // Import lazy para evitar que @react-pdf/renderer se cargue en todos los módulos
-    const [
-      { generateInvoiceVoucherPDF },
-      { SeniatXMLService },
-      { default: qrcode },
-    ] = await Promise.all([
-      import("@/modules/invoices/services/InvoiceVoucherPDFService"),
-      import("@/modules/invoices/services/SeniatXMLService"),
-      import("qrcode"),
-    ]);
+    const [{ generateInvoiceVoucherPDF }, { SeniatXMLService }, { default: qrcode }] =
+      await Promise.all([
+        import("@/modules/invoices/services/InvoiceVoucherPDFService"),
+        import("@/modules/invoices/services/SeniatXMLService"),
+        import("qrcode"),
+      ]);
 
     const invoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, companyId, deletedAt: null }, // ADR-004 guard
@@ -264,11 +263,10 @@ export class DocumentService {
    */
   static async generateRetentionPDFBuffer(
     retentionId: string,
-    companyId: string,
+    companyId: string
   ): Promise<Buffer | null> {
-    const { generateRetentionVoucherPDF } = await import(
-      "@/modules/retentions/services/RetentionVoucherPDFService"
-    );
+    const { generateRetentionVoucherPDF } =
+      await import("@/modules/retentions/services/RetentionVoucherPDFService");
 
     const retention = await prisma.retencion.findFirst({
       where: { id: retentionId, companyId, deletedAt: null }, // ADR-004 guard
@@ -308,9 +306,7 @@ export class DocumentService {
       ivaRetention: retention.ivaRetention,
       ivaRetentionPct: Number(retention.ivaRetentionPct),
       islrAmount: retention.islrAmount ?? undefined,
-      islrRetentionPct: retention.islrRetentionPct
-        ? Number(retention.islrRetentionPct)
-        : undefined,
+      islrRetentionPct: retention.islrRetentionPct ? Number(retention.islrRetentionPct) : undefined,
     });
   }
 }

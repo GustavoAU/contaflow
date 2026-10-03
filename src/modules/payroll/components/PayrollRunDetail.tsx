@@ -8,7 +8,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2Icon, TriangleAlertIcon } from "lucide-react";
 import type { PayrollRunDetailRow, PayrollRunStaleness } from "../services/PayrollRunService";
-import { approvePayrollRunAction, cancelPayrollRunAction, exportPayrollBankTxtAction } from "../actions/payroll-run.actions";
+import {
+  approvePayrollRunAction,
+  cancelPayrollRunAction,
+  exportPayrollBankTxtAction,
+} from "../actions/payroll-run.actions";
 import { formatAmount, currencySymbol } from "@/lib/format";
 import { AUTO_DRAFT_ACTOR } from "../utils/auto-draft";
 import { ManualLineForm } from "./ManualLineForm";
@@ -45,22 +49,22 @@ const STATUS_COLORS: Record<string, string> = {
 
 // Nombres amigables para conceptos del sistema
 const CONCEPT_LABELS: Record<string, string> = {
-  SAL_BASE:    "Salario Básico",
-  IVSS_OBR:   "Seg. Social IVSS (4%)",
-  FAOV_OBR:   "Banavih FAOV (1%)",
-  INCES_OBR:  "INCES Trabajador (0.5%)",
-  RPE_OBR:    "Paro Forzoso RPE (0.5%)",
-  HE_DIA:     "Horas Extra Diurnas",
-  HE_NOC:     "Horas Extra Nocturnas",
-  CESTA:      "Cesta Ticket",
-  BONO_RESP:  "Bono de Responsabilidad",
+  SAL_BASE: "Salario Básico",
+  IVSS_OBR: "Seg. Social IVSS (4%)",
+  FAOV_OBR: "Banavih FAOV (1%)",
+  INCES_OBR: "INCES Trabajador (0.5%)",
+  RPE_OBR: "Paro Forzoso RPE (0.5%)",
+  HE_DIA: "Horas Extra Diurnas",
+  HE_NOC: "Horas Extra Nocturnas",
+  CESTA: "Cesta Ticket",
+  BONO_RESP: "Bono de Responsabilidad",
   UTILIDADES: "Utilidades",
   VACACIONES: "Vacaciones",
   // C-04: aportes patronales
-  IVSS_PAT:   "IVSS Patronal (9%)",
-  INCES_PAT:  "INCES Patronal (2%)",
-  FAOV_PAT:   "Banavih FAOV Patronal (2%)",
-  RPE_PAT:    "Paro Forzoso Patronal (2%)",
+  IVSS_PAT: "IVSS Patronal (9%)",
+  INCES_PAT: "INCES Patronal (2%)",
+  FAOV_PAT: "Banavih FAOV Patronal (2%)",
+  RPE_PAT: "Paro Forzoso Patronal (2%)",
 };
 
 function conceptLabel(code: string): string {
@@ -70,7 +74,14 @@ function conceptLabel(code: string): string {
 // Fila con LINEA GUIA: en pantalla ancha el concepto quedaba en un extremo y su
 // importe en el otro, y seguir cual monto pertenece a cual linea era un ejercicio
 // de vista. El punteado los une y el hover marca la fila entera.
-function ConceptRow({ label, detail, sign, symbol, amount, tone }: {
+function ConceptRow({
+  label,
+  detail,
+  sign,
+  symbol,
+  amount,
+  tone,
+}: {
   label: string;
   detail?: React.ReactNode;
   /** "+", "-" o "" — se separa del importe para que el signo no se pegue al símbolo. */
@@ -80,13 +91,17 @@ function ConceptRow({ label, detail, sign, symbol, amount, tone }: {
   tone: "earning" | "deduction" | "employer";
 }) {
   const color =
-    tone === "earning" ? "text-green-700"
-    : tone === "deduction" ? "text-red-600"
-    : "text-orange-700";
+    tone === "earning"
+      ? "text-green-700"
+      : tone === "deduction"
+        ? "text-red-600"
+        : "text-orange-700";
   const labelColor =
-    tone === "earning" ? "text-gray-600"
-    : tone === "deduction" ? "text-gray-500"
-    : "text-orange-700";
+    tone === "earning"
+      ? "text-gray-600"
+      : tone === "deduction"
+        ? "text-gray-500"
+        : "text-orange-700";
 
   return (
     <tr className="group">
@@ -108,7 +123,16 @@ function ConceptRow({ label, detail, sign, symbol, amount, tone }: {
   );
 }
 
-export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMinCap, usdRate, manualConcepts, staleness }: Props) {
+export function PayrollRunDetail({
+  companyId,
+  run,
+  canAdmin,
+  currency,
+  salaryMinCap,
+  usdRate,
+  manualConcepts,
+  staleness,
+}: Props) {
   // Un importe suelto ("-12,38") no se lee como dinero. El símbolo va en cada
   // línea, atenuado, en vez del código completo: repetir "USD" sesenta veces
   // pesaba más que la ambigüedad que resolvía.
@@ -131,7 +155,10 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
   const fxRate = usdRate ? parseFloat(usdRate) : null;
   function toUsd(ves: number): string | null {
     if (!fxRate || currency !== "VES" || fxRate <= 0) return null;
-    return (ves / fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (ves / fxRate).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   }
 
   // Agrupar líneas por empleado
@@ -199,7 +226,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
       const { txt, warningCount } = res.data;
       if (warningCount > 0) {
         toast.warning(
-          `${warningCount} empleado(s) sin datos bancarios — revisa la sección Empleados antes de enviar al banco.`,
+          `${warningCount} empleado(s) sin datos bancarios — revisa la sección Empleados antes de enviar al banco.`
         );
       }
       const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
@@ -249,17 +276,17 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
   return (
     <div className="space-y-6">
       {/* Cabecera */}
-      <div className="bg-white rounded-lg border p-6">
+      <div className="rounded-lg border bg-white p-6">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
               Nómina {run.periodStart} — {run.periodEnd}
             </h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="mt-1 text-sm text-gray-500">
               {run.employeeCount} empleados · {currency}
               {run.bcvRateAtRun && (
                 <span
-                  className="ml-3 inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600"
+                  className="ml-3 inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600"
                   title="Tasa BCV anual aplicada para el cálculo de intereses sobre prestaciones en este período (C-05)"
                 >
                   Tasa BCV prestaciones: {Number(run.bcvRateAtRun).toFixed(2)}%
@@ -267,15 +294,16 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               )}
               {salaryMinCap && (
                 <span
-                  className="ml-3 inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600"
+                  className="ml-3 inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-600"
                   title="Salario mínimo vigente al período — tope base cotización IVSS/INCES/RPE (5×) y FAOV (10×)"
                 >
-                  Sal. mín.: Bs. {Number(salaryMinCap).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                  Sal. mín.: Bs.{" "}
+                  {Number(salaryMinCap).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
                 </span>
               )}
               {fxRate && currency === "VES" && (
                 <span
-                  className="ml-3 inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-xs font-mono text-emerald-700"
+                  className="ml-3 inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 font-mono text-xs text-emerald-700"
                   title="Tasa BCV USD/VES — se muestra el equivalente en dólares en cada tarjeta"
                 >
                   1 USD = Bs. {fxRate.toLocaleString("es-VE", { minimumFractionDigits: 2 })}
@@ -286,10 +314,15 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
           <div className="flex items-center gap-3">
             <button
               onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-zinc-50 text-zinc-700"
+              className="inline-flex items-center gap-1.5 rounded-md border bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
               </svg>
               Exportar Excel
             </button>
@@ -298,19 +331,26 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                 onClick={handleExportBankTxt}
                 disabled={isExportingTxt}
                 title="Descarga archivo TXT compatible con portales de pago masivo de bancos venezolanos (pipe-delimited)"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md bg-white hover:bg-zinc-50 text-zinc-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md border bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
               >
                 {isExportingTxt ? (
                   <Loader2Icon className="h-4 w-4 animate-spin" />
                 ) : (
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
                 )}
                 TXT Banco
               </button>
             )}
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[run.status] ?? ""}`}>
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLORS[run.status] ?? ""}`}
+            >
               {STATUS_LABELS[run.status] ?? run.status}
             </span>
             {esAutomatico && (
@@ -325,40 +365,66 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
         </div>
 
         {/* Totales — C-04: 4 tarjetas cuando hay costo patronal */}
-        <div className={`mt-6 grid gap-4 ${Number(run.totalEmployerCosts) > 0 ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-3"}`}>
-          <div className="bg-green-50 rounded-lg p-4">
-            <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Total Asignaciones</p>
-            <p className="mt-1 text-2xl font-bold text-green-900 font-mono">
+        <div
+          className={`mt-6 grid gap-4 ${Number(run.totalEmployerCosts) > 0 ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-3"}`}
+        >
+          <div className="rounded-lg bg-green-50 p-4">
+            <p className="text-xs font-medium tracking-wide text-green-700 uppercase">
+              Total Asignaciones
+            </p>
+            <p className="mt-1 font-mono text-2xl font-bold text-green-900">
               <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalEarnings))}
             </p>
-            {toUsd(Number(run.totalEarnings)) && <p className="mt-0.5 text-xs text-green-600 font-mono">≈ ${toUsd(Number(run.totalEarnings))} USD</p>}
+            {toUsd(Number(run.totalEarnings)) && (
+              <p className="mt-0.5 font-mono text-xs text-green-600">
+                ≈ ${toUsd(Number(run.totalEarnings))} USD
+              </p>
+            )}
           </div>
-          <div className="bg-red-50 rounded-lg p-4">
-            <p className="text-xs font-medium text-red-700 uppercase tracking-wide">Total Deducciones</p>
-            <p className="mt-1 text-2xl font-bold text-red-900 font-mono">
+          <div className="rounded-lg bg-red-50 p-4">
+            <p className="text-xs font-medium tracking-wide text-red-700 uppercase">
+              Total Deducciones
+            </p>
+            <p className="mt-1 font-mono text-2xl font-bold text-red-900">
               <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalDeductions))}
             </p>
-            {toUsd(Number(run.totalDeductions)) && <p className="mt-0.5 text-xs text-red-600 font-mono">≈ ${toUsd(Number(run.totalDeductions))} USD</p>}
+            {toUsd(Number(run.totalDeductions)) && (
+              <p className="mt-0.5 font-mono text-xs text-red-600">
+                ≈ ${toUsd(Number(run.totalDeductions))} USD
+              </p>
+            )}
           </div>
-          <div className="bg-blue-50 rounded-lg p-4">
-            <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Neto a Pagar</p>
-            <p className="mt-1 text-2xl font-bold text-blue-900 font-mono">
+          <div className="rounded-lg bg-blue-50 p-4">
+            <p className="text-xs font-medium tracking-wide text-blue-700 uppercase">
+              Neto a Pagar
+            </p>
+            <p className="mt-1 font-mono text-2xl font-bold text-blue-900">
               <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
               {formatAmount(Number(run.totalNet))}
             </p>
-            {toUsd(Number(run.totalNet)) && <p className="mt-0.5 text-xs text-blue-600 font-mono">≈ ${toUsd(Number(run.totalNet))} USD</p>}
+            {toUsd(Number(run.totalNet)) && (
+              <p className="mt-0.5 font-mono text-xs text-blue-600">
+                ≈ ${toUsd(Number(run.totalNet))} USD
+              </p>
+            )}
           </div>
           {Number(run.totalEmployerCosts) > 0 && (
-            <div className="bg-orange-50 rounded-lg p-4">
-              <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">Costo Patronal</p>
-              <p className="mt-1 text-2xl font-bold text-orange-900 font-mono">
+            <div className="rounded-lg bg-orange-50 p-4">
+              <p className="text-xs font-medium tracking-wide text-orange-700 uppercase">
+                Costo Patronal
+              </p>
+              <p className="mt-1 font-mono text-2xl font-bold text-orange-900">
                 <span className="mr-1 text-sm font-semibold opacity-70">{currency}</span>
                 {formatAmount(Number(run.totalEmployerCosts))}
               </p>
               <p className="mt-0.5 text-xs text-orange-600">IVSS/INCES/FAOV/RPE patronal</p>
-              {toUsd(Number(run.totalEmployerCosts)) && <p className="mt-0.5 text-xs text-orange-600 font-mono">≈ ${toUsd(Number(run.totalEmployerCosts))} USD</p>}
+              {toUsd(Number(run.totalEmployerCosts)) && (
+                <p className="mt-0.5 font-mono text-xs text-orange-600">
+                  ≈ ${toUsd(Number(run.totalEmployerCosts))} USD
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -375,8 +441,11 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
             </p>
             <p className="mt-1 text-xs text-amber-800">
               Se calculo el{" "}
-              {new Date(staleness.calculatedAt).toLocaleString("es-VE", { dateStyle: "medium", timeStyle: "short" })}
-              {" "}y los importes quedaron congelados en ese momento. Desde entonces:
+              {new Date(staleness.calculatedAt).toLocaleString("es-VE", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}{" "}
+              y los importes quedaron congelados en ese momento. Desde entonces:
             </p>
             <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-xs text-amber-800">
               {staleness.signals.map((sig) => (
@@ -384,19 +453,19 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               ))}
             </ul>
             <p className="mt-2 text-xs text-amber-800">
-              Nada de eso esta en estos importes. Usa <strong>Recalcular</strong> antes de
-              aprobar, o comprueba que el cambio no debia entrar en este periodo.
+              Nada de eso esta en estos importes. Usa <strong>Recalcular</strong> antes de aprobar,
+              o comprueba que el cambio no debia entrar en este periodo.
             </p>
           </div>
         )}
 
         {/* Acciones */}
         {canAdmin && run.status === "DRAFT" && (
-          <div className="mt-6 flex flex-wrap gap-3 items-center">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={() => setShowConfirm(true)}
               disabled={isPending || isRecalculating}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
               {isPending && <Loader2Icon className="size-4 animate-spin" />}
               {isPending ? "Aprobando…" : "Aprobar Nómina"}
@@ -405,7 +474,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               onClick={handleRecalculate}
               disabled={isPending || isRecalculating}
               title="Cancela este borrador y abre el formulario con las mismas fechas para recalcular"
-              className="inline-flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 rounded-md text-sm font-medium hover:bg-orange-50 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-orange-300 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
             >
               {isRecalculating && <Loader2Icon className="size-4 animate-spin" />}
               {isRecalculating ? "Cancelando…" : "Recalcular"}
@@ -435,7 +504,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
         )}
 
         {error && (
-          <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <p className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
             {error}
           </p>
         )}
@@ -443,9 +512,9 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
         {/* IV: alerta cuando no hay aportes patronales — posible config incompleta */}
         {run.employeeCount > 0 && Number(run.totalEmployerCosts) === 0 && (
           <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
-            <strong>Sin aportes patronales registrados.</strong>{" "}
-            Si la empresa está obligada a cotizar IVSS/INCES/FAOV/RPE, verifica que los conceptos patronales
-            estén activos en <em>Configuración → Conceptos de Nómina</em>.
+            <strong>Sin aportes patronales registrados.</strong> Si la empresa está obligada a
+            cotizar IVSS/INCES/FAOV/RPE, verifica que los conceptos patronales estén activos en{" "}
+            <em>Configuración → Conceptos de Nómina</em>.
           </div>
         )}
       </div>
@@ -453,26 +522,29 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
       {/* U-03: Modal de confirmación con checklist pre-aprobación */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-lg w-full mx-4">
+          <div className="mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900">Confirmar aprobación de nómina</h3>
             <p className="mt-1 text-sm text-gray-500">
               Esta acción generará el asiento contable y no podrá revertirse directamente.
             </p>
             {esAutomatico && (
               <p className="mt-3 rounded border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
-                <strong>Este proceso lo calculó el sistema</strong> en el corte del
-                período. Revisa los montos antes de aprobar: nadie los ha
-                verificado todavía.
+                <strong>Este proceso lo calculó el sistema</strong> en el corte del período. Revisa
+                los montos antes de aprobar: nadie los ha verificado todavía.
               </p>
             )}
 
             {/* Checklist de prerrequisitos — U-03 */}
             <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Verificación previa</p>
+              <p className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
+                Verificación previa
+              </p>
 
               {/* Tasa BCV prestaciones */}
-              <div className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${run.bcvRateAtRun ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"}`}>
-                <span className="shrink-0 mt-0.5">{run.bcvRateAtRun ? "✓" : "⚠"}</span>
+              <div
+                className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${run.bcvRateAtRun ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"}`}
+              >
+                <span className="mt-0.5 shrink-0">{run.bcvRateAtRun ? "✓" : "⚠"}</span>
                 <span>
                   <strong>Tasa BCV prestaciones:</strong>{" "}
                   {run.bcvRateAtRun
@@ -482,8 +554,12 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               </div>
 
               {/* Aportes patronales */}
-              <div className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${Number(run.totalEmployerCosts) > 0 ? "bg-green-50 text-green-800" : "bg-gray-50 text-gray-600"}`}>
-                <span className="shrink-0 mt-0.5">{Number(run.totalEmployerCosts) > 0 ? "✓" : "·"}</span>
+              <div
+                className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${Number(run.totalEmployerCosts) > 0 ? "bg-green-50 text-green-800" : "bg-gray-50 text-gray-600"}`}
+              >
+                <span className="mt-0.5 shrink-0">
+                  {Number(run.totalEmployerCosts) > 0 ? "✓" : "·"}
+                </span>
                 <span>
                   <strong>Aportes patronales (IVSS/INCES/FAOV/RPE):</strong>{" "}
                   {Number(run.totalEmployerCosts) > 0
@@ -493,7 +569,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
               </div>
 
               {/* Checkbox obligatorio — salario mínimo (manual, no derivable del run) */}
-              <label className="flex items-start gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 cursor-pointer hover:bg-gray-50">
+              <label className="flex cursor-pointer items-start gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50">
                 <input
                   type="checkbox"
                   checked={salMinChecked}
@@ -502,42 +578,55 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                 />
                 <span>
                   <strong>Confirmo</strong> que el salario mínimo vigente en{" "}
-                  <em>Nómina → Topes Legales</em> está actualizado al decreto presidencial vigente
-                  y que las prestaciones del trimestre han sido acumuladas.
+                  <em>Nómina → Topes Legales</em> está actualizado al decreto presidencial vigente y
+                  que las prestaciones del trimestre han sido acumuladas.
                 </span>
               </label>
             </div>
 
             {/* Resumen de impacto contable */}
-            <div className="mt-4 rounded-md border bg-gray-50 divide-y text-sm">
+            <div className="mt-4 divide-y rounded-md border bg-gray-50 text-sm">
               <div className="flex justify-between px-4 py-2">
                 <span className="text-gray-600">Empleados</span>
                 <span className="font-medium">{run.employeeCount}</span>
               </div>
               <div className="flex justify-between px-4 py-2">
                 <span className="text-gray-600">Total asignaciones</span>
-                <span className="font-medium font-mono">{currency} {formatAmount(Number(run.totalEarnings))}</span>
+                <span className="font-mono font-medium">
+                  {currency} {formatAmount(Number(run.totalEarnings))}
+                </span>
               </div>
               <div className="flex justify-between px-4 py-2">
                 <span className="text-gray-600">Total deducciones</span>
-                <span className="font-medium font-mono text-red-700">{currency} {formatAmount(Number(run.totalDeductions))}</span>
+                <span className="font-mono font-medium text-red-700">
+                  {currency} {formatAmount(Number(run.totalDeductions))}
+                </span>
               </div>
-              <div className="flex justify-between px-4 py-2 bg-blue-50">
+              <div className="flex justify-between bg-blue-50 px-4 py-2">
                 <span className="font-medium text-blue-800">Neto a pagar</span>
-                <span className="font-bold font-mono text-blue-900">{currency} {formatAmount(Number(run.totalNet))}</span>
+                <span className="font-mono font-bold text-blue-900">
+                  {currency} {formatAmount(Number(run.totalNet))}
+                </span>
               </div>
               {Number(run.totalEmployerCosts) > 0 && (
-                <div className="flex justify-between px-4 py-2 bg-orange-50">
-                  <span className="text-orange-700 text-xs">Aportes patronales (IVSS/INCES/FAOV/RPE)</span>
-                  <span className="font-medium font-mono text-orange-900 text-xs">{currency} {formatAmount(Number(run.totalEmployerCosts))}</span>
+                <div className="flex justify-between bg-orange-50 px-4 py-2">
+                  <span className="text-xs text-orange-700">
+                    Aportes patronales (IVSS/INCES/FAOV/RPE)
+                  </span>
+                  <span className="font-mono text-xs font-medium text-orange-900">
+                    {currency} {formatAmount(Number(run.totalEmployerCosts))}
+                  </span>
                 </div>
               )}
             </div>
 
-            <div className="mt-5 flex gap-3 justify-end">
+            <div className="mt-5 flex justify-end gap-3">
               <button
-                onClick={() => { setShowConfirm(false); setSalMinChecked(false); }}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  setShowConfirm(false);
+                  setSalMinChecked(false);
+                }}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Cancelar
               </button>
@@ -545,8 +634,10 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                 onClick={handleApprove}
                 disabled={isPending || !salMinChecked}
                 aria-busy={isPending}
-                title={!salMinChecked ? "Debes confirmar la verificación del salario mínimo" : undefined}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={
+                  !salMinChecked ? "Debes confirmar la verificación del salario mínimo" : undefined
+                }
+                className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isPending && <Loader2Icon className="size-4 animate-spin" />}
                 {isPending ? "Aprobando…" : "Confirmar aprobación"}
@@ -557,8 +648,8 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
       )}
 
       {/* Líneas por empleado */}
-      <div className="bg-white rounded-lg border">
-        <div className="px-6 py-4 border-b">
+      <div className="rounded-lg border bg-white">
+        <div className="border-b px-6 py-4">
           <h3 className="text-lg font-medium text-gray-900">Detalle por Empleado</h3>
         </div>
         <div className="divide-y">
@@ -575,20 +666,23 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
             return (
               <div key={empId} className="px-6 py-4">
                 {/* Cabecera empleado */}
-                <div className="flex items-center justify-between mb-3">
+                <div className="mb-3 flex items-center justify-between">
                   <p className="font-medium text-gray-900">{name}</p>
                   <div className="flex gap-6 text-sm">
                     <span className="text-green-700">
-                      <span className="mr-0.5 text-xs opacity-60">{currency}</span>+{formatAmount(totalEarnings)}
+                      <span className="mr-0.5 text-xs opacity-60">{currency}</span>+
+                      {formatAmount(totalEarnings)}
                     </span>
                     <span className="text-red-600">
-                      <span className="mr-0.5 text-xs opacity-60">{currency}</span>-{formatAmount(totalDeductions)}
+                      <span className="mr-0.5 text-xs opacity-60">{currency}</span>-
+                      {formatAmount(totalDeductions)}
                     </span>
                     <span className="font-semibold text-gray-900">
-                      <span className="mr-0.5 text-xs font-normal opacity-60">{currency}</span>={formatAmount(net)}
+                      <span className="mr-0.5 text-xs font-normal opacity-60">{currency}</span>=
+                      {formatAmount(net)}
                     </span>
                     {totalPatronal > 0 && (
-                      <span className="text-orange-600 text-xs">
+                      <span className="text-xs text-orange-600">
                         <span className="mr-0.5 opacity-60">{currency}</span>
                         {formatAmount(totalPatronal)} pat.
                       </span>
@@ -598,18 +692,21 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
 
                 {/* Asignaciones primero */}
                 {earnings.length > 0 && (
-                  <table className="w-full text-xs mb-1">
+                  <table className="mb-1 w-full text-xs">
                     <tbody>
                       {earnings.map((l) => (
                         <ConceptRow
                           key={l.id}
                           tone="earning"
                           label={conceptLabel(l.conceptCode)}
-                          detail={l.basis && l.rate ? (
-                            <span className="ml-1.5 font-normal text-gray-400">
-                              ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
-                            </span>
-                          ) : undefined}
+                          detail={
+                            l.basis && l.rate ? (
+                              <span className="ml-1.5 font-normal text-gray-400">
+                                ({(Number(l.rate) * 100).toFixed(2)}% s/{" "}
+                                {formatAmount(Number(l.basis))})
+                              </span>
+                            ) : undefined
+                          }
                           sign="+"
                           symbol={sym}
                           amount={formatAmount(Number(l.amount))}
@@ -621,7 +718,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
 
                 {/* Separador visual si hay ambos */}
                 {earnings.length > 0 && deductions.length > 0 && (
-                  <div className="border-t border-dashed border-gray-200 my-1.5" />
+                  <div className="my-1.5 border-t border-dashed border-gray-200" />
                 )}
 
                 {/* Deducciones del trabajador */}
@@ -633,11 +730,14 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                           key={l.id}
                           tone="deduction"
                           label={conceptLabel(l.conceptCode)}
-                          detail={l.basis && l.rate ? (
-                            <span className="ml-1.5 font-normal text-gray-400">
-                              ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
-                            </span>
-                          ) : undefined}
+                          detail={
+                            l.basis && l.rate ? (
+                              <span className="ml-1.5 font-normal text-gray-400">
+                                ({(Number(l.rate) * 100).toFixed(2)}% s/{" "}
+                                {formatAmount(Number(l.basis))})
+                              </span>
+                            ) : undefined
+                          }
                           sign="-"
                           symbol={sym}
                           amount={formatAmount(Number(l.amount))}
@@ -650,7 +750,7 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                 {/* C-04: Aportes patronales — costo del empleador, no del trabajador */}
                 {employerCosts.length > 0 && (
                   <>
-                    <div className="border-t border-dashed border-orange-200 my-1.5" />
+                    <div className="my-1.5 border-t border-dashed border-orange-200" />
                     <table className="w-full text-xs">
                       <tbody>
                         {employerCosts.map((l) => (
@@ -658,11 +758,14 @@ export function PayrollRunDetail({ companyId, run, canAdmin, currency, salaryMin
                             key={l.id}
                             tone="employer"
                             label={conceptLabel(l.conceptCode)}
-                            detail={l.basis && l.rate ? (
-                              <span className="ml-1.5 font-normal text-orange-400">
-                                ({(Number(l.rate) * 100).toFixed(2)}% s/ {formatAmount(Number(l.basis))})
-                              </span>
-                            ) : undefined}
+                            detail={
+                              l.basis && l.rate ? (
+                                <span className="ml-1.5 font-normal text-orange-400">
+                                  ({(Number(l.rate) * 100).toFixed(2)}% s/{" "}
+                                  {formatAmount(Number(l.basis))})
+                                </span>
+                              ) : undefined
+                            }
                             sign=""
                             symbol={sym}
                             amount={formatAmount(Number(l.amount))}

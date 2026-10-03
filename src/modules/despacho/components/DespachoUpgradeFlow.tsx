@@ -91,10 +91,10 @@ export function DespachoUpgradeFlow({
   }
 
   return (
-    <div className="mx-auto max-w-5xl py-8 px-4">
+    <div className="mx-auto max-w-5xl px-4 py-8">
       <Link
         href={`/company/${companyId}/despacho/rifs`}
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="text-muted-foreground hover:text-foreground mb-6 inline-flex items-center gap-1 text-sm transition-colors"
       >
         <ChevronLeftIcon className="h-4 w-4" />
         Volver a Clientes del Despacho
@@ -102,11 +102,11 @@ export function DespachoUpgradeFlow({
 
       <div className="mb-10 text-center">
         <h1 className="text-3xl font-bold tracking-tight">Plan Despacho</h1>
-        <p className="mt-2 text-muted-foreground">
-          Gestiona los RIFs de tus clientes desde una sola cuenta. Todo incluido —
-          sin módulos separados ni límites de facturas.
+        <p className="text-muted-foreground mt-2">
+          Gestiona los RIFs de tus clientes desde una sola cuenta. Todo incluido — sin módulos
+          separados ni límites de facturas.
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-1 text-sm">
           Pago mensual en USDT (Tether) vía NOWPayments. 1 USDT = 1 USD.
         </p>
       </div>
@@ -124,7 +124,7 @@ export function DespachoUpgradeFlow({
               key={t.tier}
               className={`relative flex flex-col rounded-xl border p-6 shadow-sm ${
                 t.highlighted
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  ? "border-primary bg-primary/5 ring-primary ring-1"
                   : "border-border bg-background"
               }`}
             >
@@ -138,24 +138,23 @@ export function DespachoUpgradeFlow({
               )}
 
               <div className="mb-5">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+                <div className="bg-primary/10 mb-3 flex h-10 w-10 items-center justify-center rounded-lg">
+                  <Icon className="text-primary h-5 w-5" aria-hidden="true" />
                 </div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Despacho {t.name}
-                </p>
+                <p className="text-muted-foreground text-sm font-medium">Despacho {t.name}</p>
                 <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">
-                    ${(t.priceUsdCents / 100).toFixed(0)}
-                  </span>
-                  <span className="text-sm text-muted-foreground">/mes</span>
+                  <span className="text-3xl font-bold">${(t.priceUsdCents / 100).toFixed(0)}</span>
+                  <span className="text-muted-foreground text-sm">/mes</span>
                 </div>
               </div>
 
               <ul className="mb-6 flex-1 space-y-2">
                 {t.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm">
-                    <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <CheckIcon
+                      className="text-primary mt-0.5 h-4 w-4 shrink-0"
+                      aria-hidden="true"
+                    />
                     <span>{f}</span>
                   </li>
                 ))}
@@ -188,9 +187,9 @@ export function DespachoUpgradeFlow({
         })}
       </div>
 
-      <div className="mt-8 rounded-lg border border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-        Serás redirigido a NOWPayments para completar el pago en USDT. Tu tier se
-        activa automáticamente al confirmar el pago en la blockchain.
+      <div className="border-border bg-muted/30 text-muted-foreground mt-8 rounded-lg border p-4 text-center text-sm">
+        Serás redirigido a NOWPayments para completar el pago en USDT. Tu tier se activa
+        automáticamente al confirmar el pago en la blockchain.
       </div>
     </div>
   );

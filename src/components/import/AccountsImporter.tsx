@@ -21,7 +21,10 @@ import {
   parseAccountsFileAction,
   downloadTemplateAction,
 } from "@/modules/import/actions/import.actions";
-import type { ImportAccountRow, ImportAccountRowError } from "@/modules/import/schemas/import.schema";
+import type {
+  ImportAccountRow,
+  ImportAccountRowError,
+} from "@/modules/import/schemas/import.schema";
 
 type Props = {
   companyId: string;
@@ -79,7 +82,7 @@ export function AccountsImporter({ companyId, userId }: Props) {
 
     if (isLegacyXls) {
       toast.error(
-        "El formato .xls (Excel antiguo) no es compatible. Abre el archivo en Excel, Google Sheets o LibreOffice y usa \"Guardar como\" → Excel (.xlsx) o CSV, y vuelve a subirlo.",
+        'El formato .xls (Excel antiguo) no es compatible. Abre el archivo en Excel, Google Sheets o LibreOffice y usa "Guardar como" → Excel (.xlsx) o CSV, y vuelve a subirlo.',
         { duration: 10000 }
       );
       return;
@@ -256,9 +259,9 @@ export function AccountsImporter({ companyId, userId }: Props) {
           <p className="mt-2 text-xs text-blue-600">
             ¿Ya tienes tu plan de cuentas en Excel de otro sistema? También puedes subirlo
             directamente: se acepta &quot;Código&quot;/&quot;Descripción&quot; con tilde, columna
-            &quot;G/M&quot; (G = cuenta de título, sin movimientos) y &quot;Ter.&quot; = &quot;SI&quot;
-            para marcar cuentas que exigen indicar cliente/proveedor en cada asiento. No debe haber
-            título ni filas en blanco antes de la fila de encabezados.
+            &quot;G/M&quot; (G = cuenta de título, sin movimientos) y &quot;Ter.&quot; =
+            &quot;SI&quot; para marcar cuentas que exigen indicar cliente/proveedor en cada asiento.
+            No debe haber título ni filas en blanco antes de la fila de encabezados.
           </p>
           <Button
             variant="outline"
@@ -314,7 +317,9 @@ export function AccountsImporter({ companyId, userId }: Props) {
             <div className="flex flex-col items-center gap-2">
               <UploadIcon className="h-10 w-10 text-zinc-400" />
               <p className="font-medium text-zinc-600">Haz click para subir tu archivo</p>
-              <p className="text-xs text-zinc-400">Excel (.xlsx) o CSV — el .xls antiguo no es compatible</p>
+              <p className="text-xs text-zinc-400">
+                Excel (.xlsx) o CSV — el .xls antiguo no es compatible
+              </p>
             </div>
           )}
         </div>
@@ -359,7 +364,8 @@ export function AccountsImporter({ companyId, userId }: Props) {
 
             <Button onClick={handleImport} disabled={isPending} className="mt-4 w-full gap-2">
               <UploadIcon className="h-4 w-4" />
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Importando..." : `Importar ${preview.length} cuentas`}
+              {isPending && <Loader2Icon className="animate-spin" />}
+              {isPending ? "Importando..." : `Importar ${preview.length} cuentas`}
             </Button>
           </div>
         )}
@@ -390,7 +396,10 @@ export function AccountsImporter({ companyId, userId }: Props) {
                 <div className="mt-2 space-y-2">
                   <p className="mb-1 text-sm font-medium text-red-600">Errores:</p>
                   {result.errors.map((err) => (
-                    <div key={err.row.codigo} className="rounded border border-red-100 bg-red-50/50 p-2">
+                    <div
+                      key={err.row.codigo}
+                      className="rounded border border-red-100 bg-red-50/50 p-2"
+                    >
                       <div className="flex items-start gap-2 text-xs text-red-600">
                         <XCircleIcon className="mt-0.5 h-3 w-3 shrink-0" />
                         <span>{err.message}</span>
@@ -401,7 +410,10 @@ export function AccountsImporter({ companyId, userId }: Props) {
                           <Input
                             value={editedNames[err.row.codigo] ?? ""}
                             onChange={(e) =>
-                              setEditedNames((prev) => ({ ...prev, [err.row.codigo]: e.target.value }))
+                              setEditedNames((prev) => ({
+                                ...prev,
+                                [err.row.codigo]: e.target.value,
+                              }))
                             }
                             placeholder="Nombre nuevo para esta cuenta"
                             disabled={isRetrying && retryingCode === err.row.codigo}

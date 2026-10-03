@@ -54,18 +54,20 @@ export const EmployeeRecurringConceptService = {
    * Incluye las ya vencidas: el histórico explica por qué una nómina de hace
    * tres meses tiene una línea que hoy no aparece.
    */
-  async list(
-    companyId: string,
-    filters?: { employeeId?: string },
-  ): Promise<RecurringConceptRow[]> {
+  async list(companyId: string, filters?: { employeeId?: string }): Promise<RecurringConceptRow[]> {
     const rows = await prisma.employeeRecurringConcept.findMany({
       where: {
         companyId,
         ...(filters?.employeeId ? { employeeId: filters.employeeId } : {}),
       },
       select: {
-        id: true, employeeId: true, amount: true, currency: true,
-        effectiveFrom: true, effectiveTo: true, notes: true,
+        id: true,
+        employeeId: true,
+        amount: true,
+        currency: true,
+        effectiveFrom: true,
+        effectiveTo: true,
+        notes: true,
         employee: { select: { firstName: true, lastName: true } },
         concept: { select: { id: true, code: true, name: true, salaryNature: true } },
       },
@@ -93,7 +95,7 @@ export const EmployeeRecurringConceptService = {
     userId: string,
     input: CreateRecurringConceptInput,
     ipAddress: string | null,
-    userAgent: string | null,
+    userAgent: string | null
   ): Promise<RecurringConceptRow> {
     // Guard de tenant explícito sobre AMBAS referencias. La RLS no cubre esto
     // (ADR-044: la app conecta con BYPASSRLS), así que un id de otra empresa
@@ -135,8 +137,8 @@ export const EmployeeRecurringConceptService = {
       const fin = solapada.effectiveTo ? toISO(solapada.effectiveTo) : "sin fecha de fin";
       throw new Error(
         `Este trabajador ya tiene ese concepto asignado desde el ` +
-        `${toISO(solapada.effectiveFrom)} (${fin}), y las fechas se solapan. ` +
-        "Cierra la asignación anterior antes de crear la nueva."
+          `${toISO(solapada.effectiveFrom)} (${fin}), y las fechas se solapan. ` +
+          "Cierra la asignación anterior antes de crear la nueva."
       );
     }
 
@@ -154,8 +156,13 @@ export const EmployeeRecurringConceptService = {
           createdByUserId: userId,
         },
         select: {
-          id: true, employeeId: true, amount: true, currency: true,
-          effectiveFrom: true, effectiveTo: true, notes: true,
+          id: true,
+          employeeId: true,
+          amount: true,
+          currency: true,
+          effectiveFrom: true,
+          effectiveTo: true,
+          notes: true,
           employee: { select: { firstName: true, lastName: true } },
           concept: { select: { id: true, code: true, name: true, salaryNature: true } },
         },
@@ -213,7 +220,7 @@ export const EmployeeRecurringConceptService = {
     userId: string,
     input: EndRecurringConceptInput,
     ipAddress: string | null,
-    userAgent: string | null,
+    userAgent: string | null
   ): Promise<RecurringConceptRow> {
     const hasta = toDateUTC(input.effectiveTo);
 
@@ -231,8 +238,13 @@ export const EmployeeRecurringConceptService = {
       const row = await tx.employeeRecurringConcept.findFirstOrThrow({
         where: { id: input.id, companyId },
         select: {
-          id: true, employeeId: true, amount: true, currency: true,
-          effectiveFrom: true, effectiveTo: true, notes: true,
+          id: true,
+          employeeId: true,
+          amount: true,
+          currency: true,
+          effectiveFrom: true,
+          effectiveTo: true,
+          notes: true,
           employee: { select: { firstName: true, lastName: true } },
           concept: { select: { id: true, code: true, name: true, salaryNature: true } },
         },
@@ -241,7 +253,7 @@ export const EmployeeRecurringConceptService = {
       if (row.effectiveTo && row.effectiveTo < row.effectiveFrom) {
         throw new Error(
           "La fecha de fin no puede ser anterior a la de inicio de la asignación " +
-          `(${toISO(row.effectiveFrom)}).`
+            `(${toISO(row.effectiveFrom)}).`
         );
       }
 

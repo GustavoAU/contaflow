@@ -102,7 +102,7 @@ describe("monthsBetween", () => {
       Math.max(
         0,
         (disp.getUTCFullYear() - acq.getUTCFullYear()) * 12 +
-          (disp.getUTCMonth() - acq.getUTCMonth()),
+          (disp.getUTCMonth() - acq.getUTCMonth())
       );
     const casos: Array<[string, string]> = [
       ["2026-01-15", "2026-03-01"],

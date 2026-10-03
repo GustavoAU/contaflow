@@ -33,10 +33,6 @@ export default async function IncomeDistributionPage({ params }: Props) {
   const companies = memberships.map((m) => m.company);
 
   return (
-    <IncomeDistributionPageClient
-      companyId={companyId}
-      accounts={accounts}
-      companies={companies}
-    />
+    <IncomeDistributionPageClient companyId={companyId} accounts={accounts} companies={companies} />
   );
 }

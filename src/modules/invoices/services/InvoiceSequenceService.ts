@@ -1,5 +1,5 @@
 // src/modules/invoices/services/InvoiceSequenceService.ts
-import { Prisma, InvoiceType } from "@prisma/client"
+import { Prisma, InvoiceType } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 
 /**
@@ -41,11 +41,11 @@ export async function getNextControlNumber(
         where: { companyId_invoiceType: { companyId, invoiceType } },
         create: { companyId, invoiceType, lastNumber: 1 },
         update: { lastNumber: { increment: 1 } },
-      })
+      });
 
       // Formato 00-XXXXXXXX con zero-padding a 8 dígitos
-      const padded = String(sequence.lastNumber).padStart(8, "0")
-      return `00-${padded}`
+      const padded = String(sequence.lastNumber).padStart(8, "0");
+      return `00-${padded}`;
     }
   );
 }

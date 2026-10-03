@@ -63,7 +63,6 @@ export default async function AIAssistantPage({ params }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
-
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
@@ -71,14 +70,10 @@ export default async function AIAssistantPage({ params }: Props) {
             <SparklesIcon className="h-5 w-5 text-white" aria-hidden />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-              Asistente IA
-            </h1>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Asistente IA</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Análisis fiscal inteligente ·{" "}
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                {company.name}
-              </span>
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">{company.name}</span>
             </p>
           </div>
         </div>
@@ -117,7 +112,7 @@ export default async function AIAssistantPage({ params }: Props) {
             </p>
             <p className="mt-0.5 text-xs text-red-700 dark:text-red-400">
               Escribe{" "}
-              <code className="rounded bg-red-100 px-1 py-0.5 text-10 dark:bg-red-900">
+              <code className="text-10 rounded bg-red-100 px-1 py-0.5 dark:bg-red-900">
                 Auditar el período actual
               </code>{" "}
               en el chat para ver el informe completo.
@@ -136,7 +131,7 @@ export default async function AIAssistantPage({ params }: Props) {
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 dark:bg-violet-950">
               <Icon className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
             </div>
-            <p className="text-xs font-semibold leading-tight text-zinc-700 dark:text-zinc-300">
+            <p className="text-xs leading-tight font-semibold text-zinc-700 dark:text-zinc-300">
               {label}
             </p>
             <p className="text-10 leading-snug text-zinc-400 dark:text-zinc-500">{hint}</p>

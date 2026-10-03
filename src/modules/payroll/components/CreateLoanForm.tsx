@@ -9,7 +9,10 @@ import { toast } from "sonner";
 import { createLoanAction } from "../actions/employee-loan.actions";
 import type { EmployeeLoanRow } from "../services/EmployeeLoanService";
 
-interface EmployeeOption { id: string; name: string }
+interface EmployeeOption {
+  id: string;
+  name: string;
+}
 
 interface Props {
   companyId: string;
@@ -19,7 +22,11 @@ interface Props {
 }
 
 // Método francés client-side (preview)
-function calcFrenchInstallment(principal: number, installments: number, annualRate: number): number {
+function calcFrenchInstallment(
+  principal: number,
+  installments: number,
+  annualRate: number
+): number {
   if (annualRate === 0 || !annualRate) {
     return Math.ceil((principal / installments) * 100) / 100;
   }
@@ -29,7 +36,8 @@ function calcFrenchInstallment(principal: number, installments: number, annualRa
   return Math.ceil(cuota * 100) / 100;
 }
 
-const INPUT = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+const INPUT =
+  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
 export default function CreateLoanForm({ companyId, employees, onCreated, onCancel }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -53,7 +61,10 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
   // tiene que leer el que corresponde o no aparece nunca en prestamos USD.
   const principalForPreview = currency === "USD" ? principalUsd : principal;
   const installmentPreview =
-    !isNaN(principalForPreview) && principalForPreview > 0 && !isNaN(installmentsNum) && installmentsNum > 0
+    !isNaN(principalForPreview) &&
+    principalForPreview > 0 &&
+    !isNaN(installmentsNum) &&
+    installmentsNum > 0
       ? calcFrenchInstallment(principalForPreview, installmentsNum, annualRateDecimal)
       : null;
 
@@ -84,25 +95,38 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Empleado */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Empleado</label>
-        <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} required className={INPUT}>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Empleado</label>
+        <select
+          value={employeeId}
+          onChange={(e) => setEmployeeId(e.target.value)}
+          required
+          className={INPUT}
+        >
           <option value="">Seleccione un empleado...</option>
-          {employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+          {employees.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.name}
+            </option>
+          ))}
         </select>
       </div>
 
       {/* Tipo de moneda */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de préstamo</label>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Tipo de préstamo</label>
         <div className="flex gap-3">
           {(["VES", "USD"] as const).map((c) => (
-            <label key={c} className="flex items-center gap-2 cursor-pointer">
+            <label key={c} className="flex cursor-pointer items-center gap-2">
               <input
                 type="radio"
                 name="currency"
                 value={c}
                 checked={currency === c}
-                onChange={() => { setCurrency(c); setTotalAmount(""); setAmountUsd(""); }}
+                onChange={() => {
+                  setCurrency(c);
+                  setTotalAmount("");
+                  setAmountUsd("");
+                }}
                 className="accent-blue-600"
               />
               <span className="text-sm font-medium text-gray-700">
@@ -117,43 +141,65 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
       <div className="flex gap-3">
         {currency === "VES" && (
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1 block text-sm font-medium text-gray-700">
               Monto total (Bs.)
             </label>
-            <input type="number" min="0.01" step="0.01" value={totalAmount}
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={totalAmount}
               onChange={(e) => setTotalAmount(e.target.value)}
               required
-              placeholder="0.00" className={INPUT} />
+              placeholder="0.00"
+              className={INPUT}
+            />
           </div>
         )}
         {currency === "USD" && (
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1 block text-sm font-medium text-gray-700">
               Monto total (USD)
             </label>
-            <input type="number" min="0.01" step="0.01" value={amountUsd}
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={amountUsd}
               onChange={(e) => setAmountUsd(e.target.value)}
               required
-              placeholder="0.00" className={INPUT} />
+              placeholder="0.00"
+              className={INPUT}
+            />
           </div>
         )}
       </div>
 
       {/* Cuotas */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Número de Cuotas</label>
-        <input type="number" min="1" max="120" step="1" value={installments}
+        <label className="mb-1 block text-sm font-medium text-gray-700">Número de Cuotas</label>
+        <input
+          type="number"
+          min="1"
+          max="120"
+          step="1"
+          value={installments}
           onChange={(e) => setInstallments(e.target.value)}
-          required className={INPUT} />
+          required
+          className={INPUT}
+        />
       </div>
 
       {/* Interés */}
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
-        <label className="flex items-center gap-3 cursor-pointer">
+      <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+        <label className="flex cursor-pointer items-center gap-3">
           <input
             type="checkbox"
             checked={hasInterest}
-            onChange={(e) => { setHasInterest(e.target.checked); if (!e.target.checked) setInterestRate(""); }}
+            onChange={(e) => {
+              setHasInterest(e.target.checked);
+              if (!e.target.checked) setInterestRate("");
+            }}
             className="h-4 w-4 accent-blue-600"
           />
           <span className="text-sm font-medium text-gray-700">Préstamo con interés</span>
@@ -175,11 +221,11 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
               placeholder="ej: 30"
               className={INPUT}
             />
-            <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded p-2">
-              <InfoIcon className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <div className="flex items-start gap-2 rounded border border-blue-100 bg-blue-50 p-2 text-xs text-blue-700">
+              <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
-                Tasa activa BCV referencial: ~59% anual. No hay tope legal específico para préstamos patronales (LOTTT Art. 154
-                limita el descuento a 1/3 del salario, no la tasa).
+                Tasa activa BCV referencial: ~59% anual. No hay tope legal específico para préstamos
+                patronales (LOTTT Art. 154 limita el descuento a 1/3 del salario, no la tasa).
               </span>
             </div>
           </div>
@@ -188,42 +234,56 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
 
       {/* Preview cuota */}
       {installmentPreview !== null && (
-        <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm space-y-1">
+        <div className="space-y-1 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm">
           <p className="font-medium text-blue-800">Cuota estimada (método francés)</p>
           <p className="text-blue-700">
             {currency === "USD" ? "USD: " : "Bs.: "}
             <span className="font-mono font-semibold">{installmentPreview.toFixed(2)}</span>
             {hasInterest && annualRateDecimal > 0 && (
-              <span className="text-blue-500 ml-1">(incluye interés)</span>
+              <span className="ml-1 text-blue-500">(incluye interés)</span>
             )}
           </p>
           <p className="text-xs text-blue-500">
-            Se descontará en {currency === "USD" ? "dólares" : "bolívares"}, la misma moneda del préstamo.
+            Se descontará en {currency === "USD" ? "dólares" : "bolívares"}, la misma moneda del
+            préstamo.
           </p>
-          <p className="text-xs text-blue-500 mt-1">
-            Primera cuota se descuenta en la siguiente nómina aprobada.
-            Verificar que no exceda 1/3 del salario neto (LOTTT Art. 154).
+          <p className="mt-1 text-xs text-blue-500">
+            Primera cuota se descuenta en la siguiente nómina aprobada. Verificar que no exceda 1/3
+            del salario neto (LOTTT Art. 154).
           </p>
         </div>
       )}
 
       {/* Descripción */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="mb-1 block text-sm font-medium text-gray-700">
           Descripción <span className="text-gray-400">(opcional)</span>
         </label>
-        <input type="text" maxLength={255} value={description}
+        <input
+          type="text"
+          maxLength={255}
+          value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Motivo del préstamo..." className={INPUT} />
+          placeholder="Motivo del préstamo..."
+          className={INPUT}
+        />
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} disabled={isPending}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isPending}
+          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
           Cancelar
         </button>
-        <button type="submit" disabled={isPending} aria-busy={isPending}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+        <button
+          type="submit"
+          disabled={isPending}
+          aria-busy={isPending}
+          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
           {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
           Enviar a Aprobación
         </button>

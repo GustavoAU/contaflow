@@ -26,8 +26,8 @@ export type KpiSummary = {
 export type CashFlowBucket = {
   label: "0-30d" | "31-60d" | "61-90d";
   collections: string; // cobros esperados (SALE invoices con dueDate en la ventana)
-  payments: string;    // pagos comprometidos (PURCHASE invoices con dueDate en la ventana)
-  net: string;         // collections − payments
+  payments: string; // pagos comprometidos (PURCHASE invoices con dueDate en la ventana)
+  net: string; // collections − payments
 };
 
 export type CashFlowProjection = CashFlowBucket[];
@@ -89,10 +89,7 @@ export class KpiDashboardService {
       ? new Decimal(recentSales._sum.totalAmountVes.toString())
       : new Decimal(0);
 
-    const dso =
-      sales30d.isZero()
-        ? null
-        : Math.round(cxc.dividedBy(sales30d).times(30).toNumber());
+    const dso = sales30d.isZero() ? null : Math.round(cxc.dividedBy(sales30d).times(30).toNumber());
 
     return {
       cxcTotal: cxc.toFixed(2),
@@ -118,7 +115,7 @@ export class KpiDashboardService {
     // el bucketing anterior por ceil((dueDate−hoy)/día): ceil(y)≤30 ⇔ y≤30 →
     // [hoy, +30d] · (＋30d, +60d] · (+60d, +90d]. Un rango sobre dueDate excluye NULL.
     const windows = [
-      { label: "0-30d" as const,  range: { gte: now, lte: d30 } },
+      { label: "0-30d" as const, range: { gte: now, lte: d30 } },
       { label: "31-60d" as const, range: { gt: d30, lte: d60 } },
       { label: "61-90d" as const, range: { gt: d60, lte: d90 } },
     ];
@@ -134,8 +131,8 @@ export class KpiDashboardService {
             dueDate: w.range,
           },
           _sum: { pendingAmount: true },
-        }),
-      ),
+        })
+      )
     );
 
     return windows.map((w, i) => {

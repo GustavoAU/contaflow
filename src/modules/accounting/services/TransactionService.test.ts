@@ -78,7 +78,7 @@ describe("generateTransactionNumber", () => {
     const number = await TransactionService.generateTransactionNumber(
       "company-1",
       new Date("2026-03-10"),
-      prisma as never,
+      prisma as never
     );
     expect(number).toBe("2026-03-000001");
   });
@@ -90,7 +90,7 @@ describe("generateTransactionNumber", () => {
     const number = await TransactionService.generateTransactionNumber(
       "company-1",
       new Date("2026-03-10"),
-      prisma as never,
+      prisma as never
     );
     expect(number).toBe("2026-03-000006");
   });
@@ -100,7 +100,7 @@ describe("generateTransactionNumber", () => {
     const number = await TransactionService.generateTransactionNumber(
       "company-1",
       new Date("2026-04-01"),
-      prisma as never,
+      prisma as never
     );
     expect(number).toBe("2026-04-000001");
   });
@@ -110,7 +110,7 @@ describe("generateTransactionNumber", () => {
     const number = await TransactionService.generateTransactionNumber(
       "company-2",
       new Date("2026-03-10"),
-      prisma as never,
+      prisma as never
     );
     expect(number).toBe("2026-03-000001");
     expect(prisma.transaction.findFirst).toHaveBeenCalledWith(
@@ -223,7 +223,9 @@ describe("createBalancedTransaction", () => {
       { id: "acc-2", code: "1105", name: "Caja", requiresThirdParty: false },
     ] as never);
 
-    await expect(TransactionService.createBalancedTransaction(BASE_INPUT)).rejects.toThrow(/tercero/i);
+    await expect(TransactionService.createBalancedTransaction(BASE_INPUT)).rejects.toThrow(
+      /tercero/i
+    );
   });
 
   it("acepta la línea cuando la cuenta exige tercero y se indica el customerId", async () => {
@@ -275,7 +277,13 @@ describe("createBalancedTransaction", () => {
       TransactionService.createBalancedTransaction({
         ...BASE_INPUT,
         entries: [
-          { accountId: "acc-1", debit: "1000", credit: "0", customerId: "cust-1", vendorId: "vend-1" },
+          {
+            accountId: "acc-1",
+            debit: "1000",
+            credit: "0",
+            customerId: "cust-1",
+            vendorId: "vend-1",
+          },
           { accountId: "acc-2", debit: "0", credit: "1000" },
         ],
       })
@@ -328,9 +336,18 @@ describe("voidTransaction", () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(ORIGINAL_TX as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+      fiscalYear: { status: "OPEN" },
+    } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+    } as never);
 
     const voidTx = { id: "tx-void", number: "2026-03-000002", entries: [] };
     vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
@@ -357,22 +374,53 @@ describe("voidTransaction", () => {
     const originalWithParty = {
       ...ORIGINAL_TX,
       entries: [
-        { id: "entry-1", accountId: "acc-1", amount: { toString: () => "1000" }, customerId: "cust-1", vendorId: null, partnerId: null, employeeId: null },
-        { id: "entry-2", accountId: "acc-2", amount: { toString: () => "-1000" }, customerId: null, vendorId: null, partnerId: null, employeeId: null },
+        {
+          id: "entry-1",
+          accountId: "acc-1",
+          amount: { toString: () => "1000" },
+          customerId: "cust-1",
+          vendorId: null,
+          partnerId: null,
+          employeeId: null,
+        },
+        {
+          id: "entry-2",
+          accountId: "acc-2",
+          amount: { toString: () => "-1000" },
+          customerId: null,
+          vendorId: null,
+          partnerId: null,
+          employeeId: null,
+        },
       ],
     };
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(originalWithParty as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+      fiscalYear: { status: "OPEN" },
+    } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+    } as never);
 
-    const createSpy = vi.fn().mockResolvedValue({ id: "tx-void", number: "2026-03-000002", entries: [] });
+    const createSpy = vi
+      .fn()
+      .mockResolvedValue({ id: "tx-void", number: "2026-03-000002", entries: [] });
     vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
       fn({
         ...prisma,
-        transaction: { ...prisma.transaction, create: createSpy, update: vi.fn().mockResolvedValue({}) },
+        transaction: {
+          ...prisma.transaction,
+          create: createSpy,
+          update: vi.fn().mockResolvedValue({}),
+        },
         auditLog: { create: vi.fn() },
       } as never)
     );
@@ -383,7 +431,9 @@ describe("voidTransaction", () => {
     );
 
     const createCall = createSpy.mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }).data.entries.create;
+    const entries = (
+      createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }
+    ).data.entries.create;
     expect(entries.find((e) => e.accountId === "acc-1")?.customerId).toBe("cust-1");
   });
 
@@ -427,9 +477,18 @@ describe("voidTransaction", () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(ORIGINAL_TX as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+      fiscalYear: { status: "OPEN" },
+    } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+    } as never);
 
     const createMock = vi.fn().mockResolvedValue({ id: "tx-void", entries: [] });
     const updateMock = vi.fn().mockResolvedValue({});
@@ -504,12 +563,21 @@ describe("voidTransaction", () => {
 
   it("hard-lock: lanza error si el año fiscal del período de anulación está cerrado", async () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce(ORIGINAL_TX as never);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3 } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+    } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue({ id: "fyc-1" } as never);
 
     await expect(
       TransactionService.voidTransaction(
-        { transactionId: "tx-original", userId: "user-1", reason: "Intento con año fiscal cerrado" },
+        {
+          transactionId: "tx-original",
+          userId: "user-1",
+          reason: "Intento con año fiscal cerrado",
+        },
         "company-1"
       )
     ).rejects.toThrow("año fiscal");
@@ -533,9 +601,18 @@ describe("voidTransaction", () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce(ORIGINAL_TX as never)
       .mockResolvedValueOnce(null);
-    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({ id: "period-1", status: "OPEN", year: 2026, month: 3, fiscalYear: { status: "OPEN" } } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+      fiscalYear: { status: "OPEN" },
+    } as never);
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1", status: "OPEN" } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+    } as never);
 
     const voidTx = { id: "tx-void", number: "2026-03-000002", entries: [] };
     vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>

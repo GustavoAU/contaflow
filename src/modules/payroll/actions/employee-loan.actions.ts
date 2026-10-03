@@ -36,17 +36,28 @@ function revalidateLoans(companyId: string) {
 
 export async function createLoanAction(
   companyId: string,
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<EmployeeLoanRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: "MEMBER_ANY",
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
   if (!ctx.ok) return ctx.error;
-  if (!canAccess(ctx.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
+  if (!canAccess(ctx.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Permisos insuficientes." };
 
   const parsed = createLoanSchema.safeParse(rawInput);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   try {
-    const loan = await EmployeeLoanService.create(companyId, parsed.data, ctx.userId, auditMeta(ctx));
+    const loan = await EmployeeLoanService.create(
+      companyId,
+      parsed.data,
+      ctx.userId,
+      auditMeta(ctx)
+    );
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
@@ -58,11 +69,16 @@ export async function createLoanAction(
 
 export async function approveLoanAction(
   companyId: string,
-  loanId: string,
+  loanId: string
 ): Promise<ActionResult<EmployeeLoanRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: "MEMBER_ANY",
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
   if (!ctx.ok) return ctx.error;
-  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden aprobar préstamos." };
+  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY))
+    return { success: false, error: "Solo ADMIN u OWNER pueden aprobar préstamos." };
 
   try {
     const loan = await EmployeeLoanService.approve(companyId, loanId, ctx.userId, auditMeta(ctx));
@@ -78,17 +94,29 @@ export async function approveLoanAction(
 export async function rejectLoanAction(
   companyId: string,
   loanId: string,
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<EmployeeLoanRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: "MEMBER_ANY",
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
   if (!ctx.ok) return ctx.error;
-  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Solo ADMIN u OWNER pueden rechazar préstamos." };
+  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY))
+    return { success: false, error: "Solo ADMIN u OWNER pueden rechazar préstamos." };
 
   const parsed = rejectLoanSchema.safeParse(rawInput);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
 
   try {
-    const loan = await EmployeeLoanService.reject(companyId, loanId, ctx.userId, parsed.data.rejectionReason, auditMeta(ctx));
+    const loan = await EmployeeLoanService.reject(
+      companyId,
+      loanId,
+      ctx.userId,
+      parsed.data.rejectionReason,
+      auditMeta(ctx)
+    );
     revalidateLoans(companyId);
     return { success: true, data: loan };
   } catch (err) {
@@ -100,11 +128,12 @@ export async function rejectLoanAction(
 
 export async function listLoansAction(
   companyId: string,
-  filters?: { employeeId?: string; status?: LoanStatus },
+  filters?: { employeeId?: string; status?: LoanStatus }
 ): Promise<ActionResult<EmployeeLoanRow[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });
   if (!ctx.ok) return ctx.error;
-  if (!canAccess(ctx.role, ROLES.ACCOUNTING)) return { success: false, error: "Permisos insuficientes." };
+  if (!canAccess(ctx.role, ROLES.ACCOUNTING))
+    return { success: false, error: "Permisos insuficientes." };
 
   try {
     const loans = await EmployeeLoanService.list(companyId, filters);
@@ -118,11 +147,16 @@ export async function listLoansAction(
 
 export async function cancelLoanAction(
   companyId: string,
-  loanId: string,
+  loanId: string
 ): Promise<ActionResult<void>> {
-  const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.fiscal, captureNet: true });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: "MEMBER_ANY",
+    limiter: limiters.fiscal,
+    captureNet: true,
+  });
   if (!ctx.ok) return ctx.error;
-  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY)) return { success: false, error: "Permisos insuficientes." };
+  if (!canAccess(ctx.role, ROLES.ADMIN_ONLY))
+    return { success: false, error: "Permisos insuficientes." };
 
   try {
     await EmployeeLoanService.cancel(companyId, loanId, ctx.userId, auditMeta(ctx));

@@ -83,9 +83,9 @@ export function AgingReportTable({ report, companyId }: Props) {
       ? "No hay facturas de venta con saldo pendiente"
       : "No hay facturas de compra con saldo pendiente";
 
-  const grandTotal   = parseFloat(report.grandTotalPendingVes);
+  const grandTotal = parseFloat(report.grandTotalPendingVes);
   const overdueTotal = parseFloat(report.grandTotalOverdueVes);
-  const overdurePct  = grandTotal > 0 ? Math.round((overdueTotal / grandTotal) * 100) : 0;
+  const overdurePct = grandTotal > 0 ? Math.round((overdueTotal / grandTotal) * 100) : 0;
 
   // Ordenar bucketSummary por BUCKET_ORDER
   const orderedSummary = BUCKET_ORDER.map(
@@ -94,24 +94,20 @@ export function AgingReportTable({ report, companyId }: Props) {
 
   return (
     <div className="space-y-5">
-
       {/* ─── Tarjetas de antigüedad ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {orderedSummary.map((b) => {
           const cfg = BUCKET_CONFIG[b.bucket];
           return (
-            <div
-              key={b.bucket}
-              className={`rounded-lg border p-3 ${cfg.cardBg} ${cfg.cardBorder}`}
-            >
+            <div key={b.bucket} className={`rounded-lg border p-3 ${cfg.cardBg} ${cfg.cardBorder}`}>
               <p className={`text-xs font-semibold ${cfg.cardText}`}>{b.label}</p>
-              <p className={`mt-1.5 text-2xl font-bold tabular-nums ${cfg.cardText}`}>
-                {b.count}
-              </p>
+              <p className={`mt-1.5 text-2xl font-bold tabular-nums ${cfg.cardText}`}>{b.count}</p>
               <p className={`mt-0.5 text-xs tabular-nums ${cfg.cardText} opacity-80`}>
-                {b.count === 0
-                  ? "—"
-                  : <MoneyBadge amount={b.totalPendingVes} currency="VES" className="text-xs" />}
+                {b.count === 0 ? (
+                  "—"
+                ) : (
+                  <MoneyBadge amount={b.totalPendingVes} currency="VES" className="text-xs" />
+                )}
               </p>
             </div>
           );
@@ -119,7 +115,7 @@ export function AgingReportTable({ report, companyId }: Props) {
       </div>
 
       {/* ─── Resumen total + barra de vencimiento ───────────────────────── */}
-      <div className="rounded-lg border bg-white p-4 space-y-3">
+      <div className="space-y-3 rounded-lg border bg-white p-4">
         <div className="flex flex-wrap items-center gap-6 text-sm">
           <div>
             <span className="text-zinc-500">Total cartera </span>
@@ -139,9 +135,7 @@ export function AgingReportTable({ report, companyId }: Props) {
               <MoneyBadge amount={report.grandTotalOverdueVes} currency="VES" />
             </span>
           </div>
-          <span className="text-zinc-400 text-xs">
-            Corte: {formatDate(report.asOf)}
-          </span>
+          <span className="text-xs text-zinc-400">Corte: {formatDate(report.asOf)}</span>
           <div className="ml-auto">
             <ExportAgingPDFButton
               companyId={companyId}
@@ -175,18 +169,18 @@ export function AgingReportTable({ report, companyId }: Props) {
       ) : (
         <div className="overflow-hidden rounded-lg border bg-white">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-separate border-spacing-0">
+            <table className="min-w-full border-separate border-spacing-0 text-sm">
               <thead className="bg-zinc-50 text-xs font-medium text-zinc-500">
                 <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                  <th className="px-4 py-3 text-left min-w-45">
+                  <th className="min-w-45 px-4 py-3 text-left">
                     {report.type === "CXC" ? "Cliente" : "Proveedor"}
                   </th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Factura</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Fecha</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Vencimiento</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">Total</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">Pagado</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap min-w-44">Pendiente</th>
+                  <th className="min-w-44 px-4 py-3 text-right whitespace-nowrap">Total</th>
+                  <th className="min-w-44 px-4 py-3 text-right whitespace-nowrap">Pagado</th>
+                  <th className="min-w-44 px-4 py-3 text-right whitespace-nowrap">Pendiente</th>
                   <th className="px-4 py-3 text-left whitespace-nowrap">Antigüedad</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -204,25 +198,25 @@ export function AgingReportTable({ report, companyId }: Props) {
                       <td className="px-4 py-3">
                         <p className="font-medium text-zinc-900">{row.counterpartName}</p>
                         {row.counterpartRif && (
-                          <p className="text-xs text-zinc-400 font-mono">{row.counterpartRif}</p>
+                          <p className="font-mono text-xs text-zinc-400">{row.counterpartRif}</p>
                         )}
                       </td>
 
                       {/* Factura */}
                       <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
                         <p>{row.invoiceNumber}</p>
-                        {row.controlNumber && (
-                          <p className="text-zinc-400">{row.controlNumber}</p>
-                        )}
+                        {row.controlNumber && <p className="text-zinc-400">{row.controlNumber}</p>}
                       </td>
 
                       {/* Fecha emisión */}
-                      <td className="px-4 py-3 text-zinc-600 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap text-zinc-600">
                         {formatDate(row.invoiceDate)}
                       </td>
 
                       {/* Vencimiento */}
-                      <td className={`px-4 py-3 whitespace-nowrap font-medium ${isOverdue ? cfg.cardText : "text-zinc-600"}`}>
+                      <td
+                        className={`px-4 py-3 font-medium whitespace-nowrap ${isOverdue ? cfg.cardText : "text-zinc-600"}`}
+                      >
                         {formatDate(row.dueDate)}
                       </td>
 
@@ -248,7 +242,9 @@ export function AgingReportTable({ report, companyId }: Props) {
 
                       {/* Badge antigüedad */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.badgeCls}`}>
+                        <span
+                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${cfg.badgeCls}`}
+                        >
                           {cfg.label}
                           {row.daysOverdue > 0 && (
                             <span className="ml-1 opacity-70">({row.daysOverdue}d)</span>

@@ -24,26 +24,27 @@ type Props = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  DIARIO:   "Diario",
+  DIARIO: "Diario",
   APERTURA: "Apertura",
-  AJUSTE:   "Ajuste",
-  CIERRE:   "Cierre",
+  AJUSTE: "Ajuste",
+  CIERRE: "Cierre",
 };
 
-const ALL_TYPES   = ["DIARIO", "APERTURA", "AJUSTE", "CIERRE"] as const;
+const ALL_TYPES = ["DIARIO", "APERTURA", "AJUSTE", "CIERRE"] as const;
 const ALL_STATUSES = ["POSTED", "VOIDED"] as const;
 
 export function TransactionList({ companyId, transactions }: Props) {
-  const [search, setSearch]         = useState("");
-  const [typeFilter, setTypeFilter]  = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return transactions.filter((tx) => {
-      if (typeFilter   && tx.type   !== typeFilter)   return false;
+      if (typeFilter && tx.type !== typeFilter) return false;
       if (statusFilter && tx.status !== statusFilter) return false;
-      if (q && !tx.number.toLowerCase().includes(q) && !tx.description.toLowerCase().includes(q)) return false;
+      if (q && !tx.number.toLowerCase().includes(q) && !tx.description.toLowerCase().includes(q))
+        return false;
       return true;
     });
   }, [transactions, search, typeFilter, statusFilter]);
@@ -61,19 +62,19 @@ export function TransactionList({ companyId, transactions }: Props) {
       {/* ─── Barra de filtros ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Búsqueda */}
-        <div className="relative flex-1 min-w-50 max-w-xs">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+        <div className="relative max-w-xs min-w-50 flex-1">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por número o descripción…"
-            className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-ring"
+            className="focus:ring-ring w-full rounded-md border border-zinc-200 bg-white py-1.5 pr-3 pl-8 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              className="absolute top-1/2 right-2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
               aria-label="Limpiar búsqueda"
             >
               <XIcon className="h-3.5 w-3.5" />
@@ -82,7 +83,7 @@ export function TransactionList({ companyId, transactions }: Props) {
         </div>
 
         {/* Tipo */}
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex flex-wrap gap-1">
           {ALL_TYPES.map((t) => (
             <button
               key={t}
@@ -148,32 +149,65 @@ export function TransactionList({ companyId, transactions }: Props) {
       ) : (
         <div className="overflow-hidden rounded-lg border bg-white">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-separate border-spacing-0">
+            <table className="min-w-full border-separate border-spacing-0 text-sm">
               <thead className="bg-zinc-50">
                 <tr className="[&>th]:border-b [&>th]:border-zinc-200">
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Número</th>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Fecha</th>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 min-w-50">Descripción</th>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Tipo</th>
-                  <th scope="col" className="px-4 py-3 text-right font-medium text-zinc-500 whitespace-nowrap min-w-44">Débito</th>
-                  <th scope="col" className="px-4 py-3 text-left font-medium text-zinc-500 whitespace-nowrap">Estado</th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium whitespace-nowrap text-zinc-500"
+                  >
+                    Número
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium whitespace-nowrap text-zinc-500"
+                  >
+                    Fecha
+                  </th>
+                  <th
+                    scope="col"
+                    className="min-w-50 px-4 py-3 text-left font-medium text-zinc-500"
+                  >
+                    Descripción
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium whitespace-nowrap text-zinc-500"
+                  >
+                    Tipo
+                  </th>
+                  <th
+                    scope="col"
+                    className="min-w-44 px-4 py-3 text-right font-medium whitespace-nowrap text-zinc-500"
+                  >
+                    Débito
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left font-medium whitespace-nowrap text-zinc-500"
+                  >
+                    Estado
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((tx) => (
-                  <tr key={tx.id} className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100">
+                  <tr
+                    key={tx.id}
+                    className="bg-white hover:bg-zinc-50 [&>td]:border-b [&>td]:border-zinc-100"
+                  >
                     <td className="px-4 py-2.5 font-mono font-medium whitespace-nowrap">
                       <Link
                         href={`/company/${companyId}/transactions/${tx.id}`}
-                        className="text-zinc-900 hover:text-primary hover:underline"
+                        className="hover:text-primary text-zinc-900 hover:underline"
                       >
                         {tx.number}
                       </Link>
                     </td>
-                    <td className="px-4 py-2.5 text-zinc-600 whitespace-nowrap">
+                    <td className="px-4 py-2.5 whitespace-nowrap text-zinc-600">
                       {new Date(tx.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                     </td>
-                    <td className="px-4 py-2.5 max-w-xs truncate">{tx.description}</td>
+                    <td className="max-w-xs truncate px-4 py-2.5">{tx.description}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap">
                       <span className="text-zinc-500">{TYPE_LABELS[tx.type] ?? tx.type}</span>
                     </td>

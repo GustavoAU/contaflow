@@ -21,7 +21,10 @@ const CreateAccountSchema = z.object({
     .string()
     .min(1, "El codigo es requerido")
     .max(20)
-    .regex(/^\d+([.\-]\d+)*$/, "El codigo debe ser numérico o jerárquico (ej: 1105, 1-1-05, 1.1.05)"),
+    .regex(
+      /^\d+([.\-]\d+)*$/,
+      "El codigo debe ser numérico o jerárquico (ej: 1105, 1-1-05, 1.1.05)"
+    ),
   type: z.enum(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
     error: "Tipo de cuenta invalido",
   }),
@@ -65,7 +68,10 @@ export async function getAccountsAction(
   companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof prisma.account.findMany>>>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.read });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.read,
+    });
     if (!ctx.ok) return ctx.error;
     const accounts = await prisma.account.findMany({
       where: { companyId, deletedAt: null },
@@ -262,7 +268,10 @@ export async function getNextAccountCodeAction(
   companyId: string
 ): Promise<ActionResult<{ code: string }>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY", limiter: limiters.read });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: "MEMBER_ANY",
+      limiter: limiters.read,
+    });
     if (!ctx.ok) return ctx.error;
     const range = RANGES[type];
 

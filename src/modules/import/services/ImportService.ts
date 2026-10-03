@@ -9,7 +9,14 @@ import {
   type ImportAccountRowError,
 } from "../schemas/import.schema";
 
-const ACCOUNT_TYPES = new Set(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]);
+const ACCOUNT_TYPES = new Set([
+  "ASSET",
+  "CONTRA_ASSET",
+  "LIABILITY",
+  "EQUITY",
+  "REVENUE",
+  "EXPENSE",
+]);
 
 // Mismas etiquetas en español que ya usa AccountsTable.tsx (TYPE_LABELS) — un contador
 // que no lee inglés no sabe qué es "ASSET". El archivo puede seguir trayendo el nombre
@@ -32,16 +39,39 @@ const TIPO_ES_TO_EN: Record<string, string> = {
 // explícita.
 function inferAccountTypeFromCode(codigo: string): string | undefined {
   switch (codigo.trim()[0]) {
-    case "1": return "ASSET";
-    case "2": return "LIABILITY";
-    case "3": return "EQUITY";
-    case "4": return "REVENUE";
-    case "5": case "6": case "7": case "8": case "9": return "EXPENSE";
-    default: return undefined;
+    case "1":
+      return "ASSET";
+    case "2":
+      return "LIABILITY";
+    case "3":
+      return "EQUITY";
+    case "4":
+      return "REVENUE";
+    case "5":
+    case "6":
+    case "7":
+    case "8":
+    case "9":
+      return "EXPENSE";
+    default:
+      return undefined;
   }
 }
 
-const ACCENT_MAP: Record<string, string> = { "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u", "ñ": "n", "Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U", "Ñ": "N" };
+const ACCENT_MAP: Record<string, string> = {
+  á: "a",
+  é: "e",
+  í: "i",
+  ó: "o",
+  ú: "u",
+  ñ: "n",
+  Á: "A",
+  É: "E",
+  Í: "I",
+  Ó: "O",
+  Ú: "U",
+  Ñ: "N",
+};
 const stripAccents = (s: string) => s.replace(/[áéíóúñÁÉÍÓÚÑ]/g, (c) => ACCENT_MAP[c] ?? c);
 
 // Fila CSV cruda respetando comillas ("valor, con coma" no se parte en dos columnas) y
@@ -90,7 +120,9 @@ function findHeaderRowIndex(allRows: unknown[][]): number {
   const limit = Math.min(allRows.length, MAX_HEADER_SCAN_ROWS);
   for (let i = 0; i < limit; i++) {
     const normalized = (allRows[i] as (string | null)[]).map((h) =>
-      stripAccents(String(h ?? "")).toLowerCase().trim()
+      stripAccents(String(h ?? ""))
+        .toLowerCase()
+        .trim()
     );
     if (normalized.includes("codigo")) return i;
   }
@@ -113,7 +145,9 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
   // stripAccents primero: "Código"/"Descripción" (archivo real venezolano) deben matchear
   // "codigo"/"descripcion" igual que la plantilla simple sin tilde.
   const headers = (allRows[headerIndex] as (string | null)[]).map((h) =>
-    stripAccents(String(h ?? "")).toLowerCase().trim()
+    stripAccents(String(h ?? ""))
+      .toLowerCase()
+      .trim()
   );
   // Filas separadoras totalmente en blanco entre secciones (común en un plan de cuentas
   // real exportado de otro sistema, p.ej. un espacio entre "CAJAS" y "BANCOS") no son una
@@ -129,7 +163,12 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
   // fila). Se descarta aquí cualquier fila que sea ELLA MISMA un encabezado, con el
   // mismo criterio que detecta la primera (findHeaderRowIndex).
   const isHeaderLikeRow = (arr: unknown[]) =>
-    arr.some((v) => stripAccents(String(v ?? "")).toLowerCase().trim() === "codigo");
+    arr.some(
+      (v) =>
+        stripAccents(String(v ?? ""))
+          .toLowerCase()
+          .trim() === "codigo"
+    );
   const dataRows = allRows
     .slice(headerIndex + 1)
     .filter((arr) => (arr as unknown[]).some((v) => String(v ?? "").trim() !== ""))
@@ -148,9 +187,7 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
   // columna, sin combinar) el tramo mide 1 columna → mismo comportamiento de siempre.
   const headerSpans = new Map<string, [number, number]>();
   {
-    const labeled = headers
-      .map((h, i) => ({ h, i }))
-      .filter(({ h }) => h !== "");
+    const labeled = headers.map((h, i) => ({ h, i })).filter(({ h }) => h !== "");
     labeled.forEach(({ h, i }, pos) => {
       const end = pos + 1 < labeled.length ? labeled[pos + 1].i : headers.length;
       if (!headerSpans.has(h)) headerSpans.set(h, [i, end]);
@@ -188,7 +225,9 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
     let descripcion: string | undefined;
     if (hasCol("nombre")) {
       nombre = String(get("nombre") ?? "").trim();
-      descripcion = hasCol("descripcion") ? (String(get("descripcion") ?? "").trim() || undefined) : undefined;
+      descripcion = hasCol("descripcion")
+        ? String(get("descripcion") ?? "").trim() || undefined
+        : undefined;
     } else {
       nombre = String(get("descripcion") ?? "").trim();
       descripcion = undefined;
@@ -201,7 +240,11 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
     // normaliza al MISMO nombre de encabezado que la "tipo" ASSET/LIABILITY de la plantilla
     // vieja — un código de 1-2 letras ("O", "C") nunca puede ser un AccountType, así que se
     // ignora y se infiere del dígito, igual que si la columna no existiera.
-    const explicitTipoRaw = hasCol("tipo") ? stripAccents(String(get("tipo") ?? "")).trim().toUpperCase() : "";
+    const explicitTipoRaw = hasCol("tipo")
+      ? stripAccents(String(get("tipo") ?? ""))
+          .trim()
+          .toUpperCase()
+      : "";
     // Acepta "Activo"/"Pasivo"/etc (español, lo que ve el usuario en la plantilla) y también
     // "ASSET"/"LIABILITY"/etc (inglés, nombre real del enum) — TIPO_ES_TO_EN no toca lo que
     // ya es un nombre de enum válido, solo traduce si reconoce la palabra en español.
@@ -221,19 +264,31 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
     // G/M: "G" = cuenta de título (no admite movimientos); cualquier otro valor, vacío o
     // columna ausente = detalle/movimiento (default seguro — nunca bloquear una cuenta por una
     // columna rara o ausente, rompería la plantilla simple actual).
-    const gm = hasCol("g/m") ? String(get("g/m") ?? "").trim().toUpperCase() : "";
+    const gm = hasCol("g/m")
+      ? String(get("g/m") ?? "")
+          .trim()
+          .toUpperCase()
+      : "";
     const isPostable = gm !== "G";
 
     // Pre.: "SI" = la cuenta se puede usar en líneas de presupuesto (BudgetLine). Confirmado
     // por el dueño 2026-09-26. Cualquier otro valor, vacío o columna ausente = false (default
     // seguro). El header conserva el punto tras stripAccents+lowercase+trim ("pre.").
-    const pre = hasCol("pre.") ? String(get("pre.") ?? "").trim().toUpperCase() : "";
+    const pre = hasCol("pre.")
+      ? String(get("pre.") ?? "")
+          .trim()
+          .toUpperCase()
+      : "";
     const isBudgetable = pre === "SI";
 
     // Ter.: "SI" = cuenta "pote" que exige tercero (Customer/Vendor/Partner/Employee) en cada
     // línea de asiento — decisión del dueño 2026-09-26 (ADR-054). Cualquier otro valor, vacío
     // o columna ausente = false (default seguro, misma convención que Pre./isBudgetable).
-    const ter = hasCol("ter.") ? String(get("ter.") ?? "").trim().toUpperCase() : "";
+    const ter = hasCol("ter.")
+      ? String(get("ter.") ?? "")
+          .trim()
+          .toUpperCase()
+      : "";
     const requiresThirdParty = ter === "SI";
 
     // Nivel, C/C, Clase, Tipo(O/C) — significado sin confirmar o pendiente de otra tanda, se
@@ -287,7 +342,10 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
 // Fila de importación tal como llega a `importAccounts` — `isPostable` es opcional aquí (a
 // diferencia de `ImportAccountRow`, cuya salida de Zod siempre lo resuelve a boolean) para no
 // forzar a cada caller/test existente a proveerlo; se asume `true` (detalle) si falta.
-type ImportAccountRowInput = Omit<ImportAccountRow, "isPostable" | "isBudgetable" | "requiresThirdParty"> & {
+type ImportAccountRowInput = Omit<
+  ImportAccountRow,
+  "isPostable" | "isBudgetable" | "requiresThirdParty"
+> & {
   isPostable?: boolean;
   isBudgetable?: boolean;
   requiresThirdParty?: boolean;
@@ -361,7 +419,13 @@ export class ImportService {
           data: {
             code: row.codigo,
             name: row.nombre,
-            type: row.tipo as "ASSET" | "CONTRA_ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
+            type: row.tipo as
+              | "ASSET"
+              | "CONTRA_ASSET"
+              | "LIABILITY"
+              | "EQUITY"
+              | "REVENUE"
+              | "EXPENSE",
             description: row.descripcion,
             isPostable: row.isPostable ?? true,
             isBudgetable: row.isBudgetable ?? false,
@@ -405,7 +469,11 @@ export class ImportService {
             message: `Fila ${row.codigo}: ya existe una cuenta con ese código`,
           });
         } else {
-          errors.push({ row: fullRow, reason: "unknown", message: `Fila ${row.codigo}: error al importar` });
+          errors.push({
+            row: fullRow,
+            reason: "unknown",
+            message: `Fila ${row.codigo}: error al importar`,
+          });
         }
       }
     }

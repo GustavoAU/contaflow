@@ -35,7 +35,7 @@ export default async function PayrollConfigEditPage({ params }: Props) {
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 py-8 px-4">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <div className="flex items-center gap-3">
         <Link
           href={`/company/${companyId}/payroll`}

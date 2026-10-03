@@ -104,7 +104,15 @@ describe("buildInvoiceBookTXT — el pie suma las líneas impresas", () => {
     expect(lines).toHaveLength(2);
     expect(lines[1]![5]).toBe("03");
     // TOTAL|||||| base16|iva16|base8|iva8|exento|ivaRet|islr
-    expect(footer.slice(6)).toEqual(["1100.00", "176.00", "0.00", "0.00", "0.00", "132.00", "11.00"]);
+    expect(footer.slice(6)).toEqual([
+      "1100.00",
+      "176.00",
+      "0.00",
+      "0.00",
+      "0.00",
+      "132.00",
+      "11.00",
+    ]);
   });
 
   it("el pie coincide columna por columna con la suma de las líneas (mixto + lujo + NC)", () => {
@@ -120,7 +128,11 @@ describe("buildInvoiceBookTXT — el pie suma las líneas impresas", () => {
           ],
         }),
         row({ invoiceNumber: "4", lines: [["EXENTO", "500.00", "0.00", "0.00"]] }),
-        row({ invoiceNumber: "5", docType: "NOTA_CREDITO", lines: [["IVA_GENERAL", "50.00", "16.00", "8.00"]] }),
+        row({
+          invoiceNumber: "5",
+          docType: "NOTA_CREDITO",
+          lines: [["IVA_GENERAL", "50.00", "16.00", "8.00"]],
+        }),
       ],
       summary: nettedSummary,
     };

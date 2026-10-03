@@ -3,7 +3,11 @@
 
 import { useTransition, useState } from "react";
 import { toast } from "sonner";
-import { approveOrderAction, convertOrderToInvoiceAction, cloneOrderAction } from "../actions/order.actions";
+import {
+  approveOrderAction,
+  convertOrderToInvoiceAction,
+  cloneOrderAction,
+} from "../actions/order.actions";
 import type { OrderRow } from "../services/OrderService";
 import { formatAmount, fmtDate } from "@/lib/format";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -18,8 +22,8 @@ const fmtCurrency = (code: string, amount: string) =>
 interface Props {
   companyId: string;
   orders: OrderRow[];
-  canApprove: boolean;   // ACCOUNTANT+
-  canOperate: boolean;   // ADMINISTRATIVE+
+  canApprove: boolean; // ACCOUNTANT+
+  canOperate: boolean; // ADMINISTRATIVE+
   // E-14: fecha por defecto del modal de conversión, dentro del período contable
   // abierto (calculada server-side). Evita proponer una fecha fuera de período.
   defaultInvoiceDate: string;
@@ -27,7 +31,7 @@ interface Props {
 
 const TYPE_BADGE: Record<string, string> = {
   PURCHASE: "bg-purple-100 text-purple-700",
-  SALE:     "bg-teal-100 text-teal-700",
+  SALE: "bg-teal-100 text-teal-700",
 };
 
 function ConvertModal({
@@ -48,7 +52,8 @@ function ConvertModal({
   const [date, setDate] = useState(defaultInvoiceDate);
   const [dueDate, setDueDate] = useState("");
 
-  const inputCls = "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const inputCls =
+    "w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const labelCls = "block text-xs font-medium text-gray-600 mb-1";
 
   // E-16 (auditoría CV 2026-07): el RIF viene heredado de la orden y no era visible aquí.
@@ -61,7 +66,9 @@ function ConvertModal({
   function handleConvert(e: React.FormEvent) {
     e.preventDefault();
     if (!rifValid) {
-      toast.error("El RIF de la contraparte no es válido para emitir una factura. Clona la orden con el RIF corregido antes de convertir.");
+      toast.error(
+        "El RIF de la contraparte no es válido para emitir una factura. Clona la orden con el RIF corregido antes de convertir."
+      );
       return;
     }
     startTransition(async () => {
@@ -129,22 +136,39 @@ function ConvertModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Fecha *</label>
-              <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} required />
+              <input
+                type="date"
+                className={inputCls}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
             </div>
             <div>
               <label className={labelCls}>Fecha de vencimiento</label>
-              <input type="date" className={inputCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <input
+                type="date"
+                className={inputCls}
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isPending || !rifValid}
-              title={!rifValid ? "RIF de la contraparte inválido — no se puede facturar" : undefined}
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={
+                !rifValid ? "RIF de la contraparte inválido — no se puede facturar" : undefined
+              }
+              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPending ? "Convirtiendo…" : "Convertir"}
             </button>
@@ -155,7 +179,13 @@ function ConvertModal({
   );
 }
 
-export function OrderList({ companyId, orders, canApprove, canOperate, defaultInvoiceDate }: Props) {
+export function OrderList({
+  companyId,
+  orders,
+  canApprove,
+  canOperate,
+  defaultInvoiceDate,
+}: Props) {
   const [isPending, startTransition] = useTransition();
   const [convertingOrder, setConvertingOrder] = useState<OrderRow | null>(null);
 
@@ -176,7 +206,13 @@ export function OrderList({ companyId, orders, canApprove, canOperate, defaultIn
   }
 
   if (orders.length === 0) {
-    return <EmptyState illustration="invoices" title="No hay órdenes registradas." description="Las órdenes de compra y venta aprobadas aparecerán aquí." />;
+    return (
+      <EmptyState
+        illustration="invoices"
+        title="No hay órdenes registradas."
+        description="Las órdenes de compra y venta aprobadas aparecerán aquí."
+      />
+    );
   }
 
   return (
@@ -195,18 +231,24 @@ export function OrderList({ companyId, orders, canApprove, canOperate, defaultIn
           <thead className="bg-gray-50">
             <tr>
               {["N°", "Tipo", "Contraparte"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <th
+                  key={h}
+                  className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                >
                   {h}
                 </th>
               ))}
               <th
-                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
                 title="Fecha estimada de entrega o recepción del pedido"
               >
                 Entrega est.
               </th>
               {["Total", "Estado", "Acciones"].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <th
+                  key={h}
+                  className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                >
                   {h}
                 </th>
               ))}
@@ -221,9 +263,13 @@ export function OrderList({ companyId, orders, canApprove, canOperate, defaultIn
                 (o.status === "DRAFT" || o.status === "APPROVED");
               return (
                 <tr key={o.id} className="hover:bg-gray-50">
-                  <td data-label="N°" className="px-4 py-3 font-mono text-xs text-blue-700">{o.number}</td>
+                  <td data-label="N°" className="px-4 py-3 font-mono text-xs text-blue-700">
+                    {o.number}
+                  </td>
                   <td data-label="Tipo" className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE[o.type] ?? ""}`}>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_BADGE[o.type] ?? ""}`}
+                    >
                       {o.type === "PURCHASE" ? "OC" : "OV"}
                     </span>
                   </td>
@@ -233,7 +279,10 @@ export function OrderList({ companyId, orders, canApprove, canOperate, defaultIn
                       <div className="text-xs text-gray-400">{o.counterpartRif}</div>
                     )}
                   </td>
-                  <td data-label="Entrega est." className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}>
+                  <td
+                    data-label="Entrega est."
+                    className={`px-4 py-3 text-sm ${isExpired ? "font-medium text-red-600" : "text-gray-600"}`}
+                  >
                     {o.expectedDate ? fmtDate(o.expectedDate) : "—"}
                     {isExpired && (
                       <span className="ml-1.5 text-xs font-normal text-red-500">(venc.)</span>
@@ -241,7 +290,7 @@ export function OrderList({ companyId, orders, canApprove, canOperate, defaultIn
                   </td>
                   <td
                     data-label="Total"
-                    className="px-4 py-3 font-mono text-right cursor-help"
+                    className="cursor-help px-4 py-3 text-right font-mono"
                     title={`Base: ${formatAmount(o.subtotal)} + IVA: ${formatAmount(o.taxAmount)} = Total: ${fmtCurrency(o.currency, o.total)}`}
                   >
                     {fmtCurrency(o.currency, o.total)}
@@ -250,14 +299,17 @@ export function OrderList({ companyId, orders, canApprove, canOperate, defaultIn
                     <div className="flex flex-col gap-1">
                       <StatusBadge status={o.status} />
                       {o.approvedAt && (
-                        <span className="text-xs text-zinc-400" title={`Aprobado por ${o.approvedBy ?? "—"}`}>
+                        <span
+                          className="text-xs text-zinc-400"
+                          title={`Aprobado por ${o.approvedBy ?? "—"}`}
+                        >
                           Aprobado {new Date(o.approvedAt).toLocaleDateString("es-VE")}
                         </span>
                       )}
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex flex-wrap gap-2">
                       {canApprove && o.status === "DRAFT" && (
                         <button
                           onClick={() => handleApprove(o.id)}

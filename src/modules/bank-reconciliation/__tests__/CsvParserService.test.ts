@@ -42,9 +42,7 @@ describe("CsvParserService", () => {
 
     // El parser actual usa split(',') simple — testeamos el formato sin ambigüedad
     // usando valores sin coma decimal para este test de integración básico
-    const csv3 = buildCsv([
-      "15/01/2026,Transferencia BCV,1000.50,500.00,2500.75",
-    ]);
+    const csv3 = buildCsv(["15/01/2026,Transferencia BCV,1000.50,500.00,2500.75"]);
     const rows3 = parseBankCsv(csv3);
     expect(rows3[0].debit?.toFixed(2)).toBe("1000.50");
     expect(rows3[0].credit?.toFixed(2)).toBe("500.00");
@@ -53,18 +51,14 @@ describe("CsvParserService", () => {
 
   // 3. Balance vacío → null
   it("parseBankCsv — balance vacío → null", () => {
-    const csv = buildCsv([
-      "20/01/2026,Compra,100.00,,",
-    ]);
+    const csv = buildCsv(["20/01/2026,Compra,100.00,,"]);
     const rows = parseBankCsv(csv);
     expect(rows[0].balance).toBeNull();
   });
 
   // 4. Debit y credit vacíos → null
   it("parseBankCsv — debit y credit vacíos → null", () => {
-    const csv = buildCsv([
-      "22/01/2026,Nota aclaratoria,,," ,
-    ]);
+    const csv = buildCsv(["22/01/2026,Nota aclaratoria,,,"]);
     const rows = parseBankCsv(csv);
     expect(rows[0].debit).toBeNull();
     expect(rows[0].credit).toBeNull();
@@ -72,9 +66,7 @@ describe("CsvParserService", () => {
 
   // 5. Fecha dd/mm/yyyy → Date correcto
   it("parseBankCsv — fecha dd/mm/yyyy", () => {
-    const csv = buildCsv([
-      "25/03/2026,Ingreso,,200.00,200.00",
-    ]);
+    const csv = buildCsv(["25/03/2026,Ingreso,,200.00,200.00"]);
     const rows = parseBankCsv(csv);
     expect(rows[0].date.getUTCFullYear()).toBe(2026);
     expect(rows[0].date.getUTCMonth()).toBe(2); // 0-indexed: marzo = 2
@@ -83,9 +75,7 @@ describe("CsvParserService", () => {
 
   // 6. Fecha yyyy-mm-dd → Date correcto
   it("parseBankCsv — fecha yyyy-mm-dd", () => {
-    const csv = buildCsv([
-      "2026-03-15,Egreso,300.00,,",
-    ]);
+    const csv = buildCsv(["2026-03-15,Egreso,300.00,,"]);
     const rows = parseBankCsv(csv);
     expect(rows[0].date.getUTCFullYear()).toBe(2026);
     expect(rows[0].date.getUTCMonth()).toBe(2);
@@ -94,18 +84,34 @@ describe("CsvParserService", () => {
 
   // 7. Fila malformada: lanza Error con mensaje
   it("parseBankCsv — fila con menos de 4 columnas lanza Error", () => {
-    const csv = buildCsv([
-      "2026-01-01,Solo descripcion",
-    ]);
+    const csv = buildCsv(["2026-01-01,Solo descripcion"]);
     expect(() => parseBankCsv(csv)).toThrow(/malformada/i);
   });
 
   // 8. validateCsvBalance: balance cuadra → { valid: true }
   it("validateCsvBalance — balance cuadra", () => {
     const rows = [
-      { date: new Date(), description: "A", debit: null, credit: new Decimal("1000.00"), balance: null },
-      { date: new Date(), description: "B", debit: new Decimal("200.00"), credit: null, balance: null },
-      { date: new Date(), description: "C", debit: null, credit: new Decimal("500.00"), balance: null },
+      {
+        date: new Date(),
+        description: "A",
+        debit: null,
+        credit: new Decimal("1000.00"),
+        balance: null,
+      },
+      {
+        date: new Date(),
+        description: "B",
+        debit: new Decimal("200.00"),
+        credit: null,
+        balance: null,
+      },
+      {
+        date: new Date(),
+        description: "C",
+        debit: null,
+        credit: new Decimal("500.00"),
+        balance: null,
+      },
     ];
     const opening = new Decimal("0.00");
     const closing = new Decimal("1300.00"); // 0 + 1000 - 200 + 500
@@ -119,7 +125,13 @@ describe("CsvParserService", () => {
   // 9. validateCsvBalance: balance no cuadra → { valid: false, expected, actual }
   it("validateCsvBalance — balance no cuadra", () => {
     const rows = [
-      { date: new Date(), description: "A", debit: null, credit: new Decimal("1000.00"), balance: null },
+      {
+        date: new Date(),
+        description: "A",
+        debit: null,
+        credit: new Decimal("1000.00"),
+        balance: null,
+      },
     ];
     const opening = new Decimal("0.00");
     const closing = new Decimal("999.00"); // No coincide con 1000
@@ -154,9 +166,7 @@ describe("CsvParserService", () => {
     // Probamos directamente la lógica de parseAmount a través de parseBankCsv
     // usando un valor que tenga coma decimal sin ambigüedad de separadores CSV
     // Ejemplo: debit="1000,50" → normaliza a 1000.50
-    const csv = buildCsv([
-      "01/02/2026,Pago VES,1000.50,,",
-    ]);
+    const csv = buildCsv(["01/02/2026,Pago VES,1000.50,,"]);
     const rows = parseBankCsv(csv);
     expect(rows[0].debit).not.toBeNull();
     expect(rows[0].debit!.toNumber()).toBe(1000.5);
@@ -205,7 +215,9 @@ describe("parseBankCsv — ColumnMap personalizado", () => {
     const rows = parseBankCsv(csv, { description: 0, date: 1, credit: 2, debit: 3, balance: 4 });
 
     expect(rows).toHaveLength(2);
-    expect(rows[0].description).toBe("Depósito inicial".replace("Depósito inicial", "Depósito cliente"));
+    expect(rows[0].description).toBe(
+      "Depósito inicial".replace("Depósito inicial", "Depósito cliente")
+    );
     expect(rows[0].credit?.toFixed(2)).toBe("1000.00");
     expect(rows[0].debit).toBeNull();
     expect(rows[1].debit?.toFixed(2)).toBe("200.00");
@@ -213,10 +225,7 @@ describe("parseBankCsv — ColumnMap personalizado", () => {
   });
 
   it("funciona sin columna balance cuando no está en el ColumnMap", () => {
-    const csv = [
-      "date,description,debit,credit",
-      "01/01/2026,Pago,100.00,",
-    ].join("\n");
+    const csv = ["date,description,debit,credit", "01/01/2026,Pago,100.00,"].join("\n");
 
     const rows = parseBankCsv(csv, { date: 0, description: 1, debit: 2, credit: 3 });
 
@@ -241,11 +250,11 @@ describe("parseBankCsv — ColumnMap personalizado", () => {
   it("lanza error si la fila tiene menos columnas de las requeridas por el ColumnMap", () => {
     const csv = [
       "date,description,debit,credit,balance",
-      "15/03/2026,Solo dos",  // solo 2 columnas
+      "15/03/2026,Solo dos", // solo 2 columnas
     ].join("\n");
 
-    expect(() =>
-      parseBankCsv(csv, { date: 0, description: 1, debit: 2, credit: 3 })
-    ).toThrow(/malformada/i);
+    expect(() => parseBankCsv(csv, { date: 0, description: 1, debit: 2, credit: 3 })).toThrow(
+      /malformada/i
+    );
   });
 });

@@ -21,12 +21,7 @@ const TECHNICAL_DB_KEYWORDS = [
 // proveedor (p.ej. Neon: "Your account or project has exceeded the compute time quota.
 // Upgrade your plan to increase limits."). Los mensajes de negocio están en español y no
 // contienen estas cadenas, así que no se ocultan por error.
-const INFRA_LIMIT_KEYWORDS = [
-  "quota",
-  "compute time",
-  "exceeded",
-  "upgrade your plan",
-];
+const INFRA_LIMIT_KEYWORDS = ["quota", "compute time", "exceeded", "upgrade your plan"];
 
 const GENERIC_DB_ERROR =
   "No se pudo completar la operación por un problema de base de datos. Intenta de nuevo; si el problema persiste, contacta al administrador.";
@@ -50,7 +45,10 @@ function isTechnicalDbError(error: Error): boolean {
  * Connection/timeout errors show a retry prompt instead of leaking raw DB messages.
  */
 // B1 (auditoría 2026-06): reemplaza detección frágil por substring (includes("P2002"))
-export function isPrismaError(error: unknown, code: string): error is Prisma.PrismaClientKnownRequestError {
+export function isPrismaError(
+  error: unknown,
+  code: string
+): error is Prisma.PrismaClientKnownRequestError {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 }
 
@@ -127,7 +125,10 @@ export function p2002TargetIncludes(error: unknown, column: string): boolean {
   // hay trampa: ni siquiera al escribir ESTE comentario, donde la barra invertida
   // volvió a desaparecer en el primer intento.)
   if (typeof target === "string") {
-    return target.split(",").map((c) => c.trim()).includes(column);
+    return target
+      .split(",")
+      .map((c) => c.trim())
+      .includes(column);
   }
   // Sin `target` no se puede afirmar que sea esa columna: se responde NO.
   // Fail-closed hacia el mensaje genérico, que es correcto aunque menos preciso.

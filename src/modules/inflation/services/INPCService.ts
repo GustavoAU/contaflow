@@ -8,9 +8,16 @@ import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { PrismaClient, AccountType } from "@prisma/client";
-import type { UpsertINPCRateInput, RunInflationAdjustmentInput, SetInflationBaseInput } from "../schemas/inpc.schema";
+import type {
+  UpsertINPCRateInput,
+  RunInflationAdjustmentInput,
+  SetInflationBaseInput,
+} from "../schemas/inpc.schema";
 
-type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
+type Tx = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 // ─── Tipos de salida ────────────────────────────────────────────────────────────
 
@@ -28,11 +35,11 @@ export type AdjustmentPreviewRow = {
   accountCode: string;
   accountName: string;
   accountType: AccountType;
-  originalBalance: Decimal;   // saldo actual de la cuenta
-  cumulativeIndex: Decimal;   // factor = currentIndex / baseIndex
-  adjustmentAmount: Decimal;  // originalBalance × (factor − 1)
-  periodInpc: Decimal;        // índice INPC del período ajustado
-  baseInpc: Decimal;          // índice INPC del período base
+  originalBalance: Decimal; // saldo actual de la cuenta
+  cumulativeIndex: Decimal; // factor = currentIndex / baseIndex
+  adjustmentAmount: Decimal; // originalBalance × (factor − 1)
+  periodInpc: Decimal; // índice INPC del período ajustado
+  baseInpc: Decimal; // índice INPC del período base
 };
 
 // VEN-NIF 3 §36.4: resultado por posición monetaria neta
@@ -43,16 +50,16 @@ export type RepomoPreview = {
 };
 
 export type AdjustmentPreviewResult = {
-  rows: AdjustmentPreviewRow[];   // cuentas no monetarias
-  repomo: RepomoPreview | null;   // null si no hay cuentas monetarias o PMN = 0
+  rows: AdjustmentPreviewRow[]; // cuentas no monetarias
+  repomo: RepomoPreview | null; // null si no hay cuentas monetarias o PMN = 0
 };
 
 export type InflationAdjustmentSummary = {
   adjustedAccounts: number;
-  totalAdjustment: Decimal;   // suma de abs(adjustmentAmount) de cuentas no monetarias
+  totalAdjustment: Decimal; // suma de abs(adjustmentAmount) de cuentas no monetarias
   transactionId: string;
   factor: Decimal;
-  repomo: Decimal | null;     // monto REPOMO registrado; null si no aplica
+  repomo: Decimal | null; // monto REPOMO registrado; null si no aplica
 };
 
 // ─── Pure functions (testables sin BD) ────────────────────────────────────────
@@ -112,7 +119,13 @@ export class INPCService {
    * Upsert de un índice INPC mensual.
    * Idempotente: si ya existe el registro (companyId, year, month), lo actualiza.
    */
-  static async upsertRate(input: UpsertINPCRateInput, userId: string, tx: Tx, ipAddress: string | null = null, userAgent: string | null = null): Promise<{ id: string }> {
+  static async upsertRate(
+    input: UpsertINPCRateInput,
+    userId: string,
+    tx: Tx,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<{ id: string }> {
     const rate = await tx.iNPCRate.upsert({
       where: {
         companyId_year_month: {
@@ -177,7 +190,12 @@ export class INPCService {
    * Obtiene el valor del índice INPC para un período dado.
    * Retorna null si no existe.
    */
-  static async getRate(companyId: string, year: number, month: number, tx: Tx): Promise<Decimal | null> {
+  static async getRate(
+    companyId: string,
+    year: number,
+    month: number,
+    tx: Tx
+  ): Promise<Decimal | null> {
     const rate = await tx.iNPCRate.findUnique({
       where: { companyId_year_month: { companyId, year, month } },
     });
@@ -187,7 +205,13 @@ export class INPCService {
   /**
    * Configura el período base de reexpresión para la empresa.
    */
-  static async setInflationBase(input: SetInflationBaseInput, userId: string, tx: Tx, ipAddress: string | null = null, userAgent: string | null = null): Promise<void> {
+  static async setInflationBase(
+    input: SetInflationBaseInput,
+    userId: string,
+    tx: Tx,
+    ipAddress: string | null = null,
+    userAgent: string | null = null
+  ): Promise<void> {
     await tx.company.update({
       where: { id: input.companyId },
       data: {
@@ -222,7 +246,7 @@ export class INPCService {
     companyId: string,
     year: number,
     month: number,
-    tx: Tx,
+    tx: Tx
   ): Promise<{ accountId: string; balance: Decimal }[]> {
     const endOfPeriod = lastDayOfMonth(year, month);
 
@@ -259,27 +283,32 @@ export class INPCService {
     periodYear: number,
     periodMonth: number,
     adjustmentAccountId: string,
-    tx: Tx,
+    tx: Tx
   ): Promise<AdjustmentPreviewResult> {
     const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
 
     if (!company.inflationBaseYear || !company.inflationBaseMonth) {
       throw new Error(
-        "La empresa no tiene configurado el período base de inflación. Configure inflationBaseYear e inflationBaseMonth primero.",
+        "La empresa no tiene configurado el período base de inflación. Configure inflationBaseYear e inflationBaseMonth primero."
       );
     }
 
-    const baseIndex = await INPCService.getRate(companyId, company.inflationBaseYear, company.inflationBaseMonth, tx);
+    const baseIndex = await INPCService.getRate(
+      companyId,
+      company.inflationBaseYear,
+      company.inflationBaseMonth,
+      tx
+    );
     if (!baseIndex) {
       throw new Error(
-        `No existe el índice INPC para el período base (${company.inflationBaseYear}/${String(company.inflationBaseMonth).padStart(2, "0")}). Cárguelo primero.`,
+        `No existe el índice INPC para el período base (${company.inflationBaseYear}/${String(company.inflationBaseMonth).padStart(2, "0")}). Cárguelo primero.`
       );
     }
 
     const currentIndex = await INPCService.getRate(companyId, periodYear, periodMonth, tx);
     if (!currentIndex) {
       throw new Error(
-        `No existe el índice INPC para el período ${periodYear}/${String(periodMonth).padStart(2, "0")}. Cárguelo primero.`,
+        `No existe el índice INPC para el período ${periodYear}/${String(periodMonth).padStart(2, "0")}. Cárguelo primero.`
       );
     }
 
@@ -351,7 +380,7 @@ export class INPCService {
     userId: string,
     tx: Tx,
     ipAddress: string | null = null,
-    userAgent: string | null = null,
+    userAgent: string | null = null
   ): Promise<InflationAdjustmentSummary> {
     const { companyId, periodYear, periodMonth, adjustmentAccountId, repomoAccountId } = input;
 
@@ -367,12 +396,16 @@ export class INPCService {
     });
     if (existingCount > 0) {
       throw new Error(
-        `El ajuste por inflación para ${periodYear}/${String(periodMonth).padStart(2, "0")} ya fue registrado. Para re-ejecutar, anule el asiento previo primero.`,
+        `El ajuste por inflación para ${periodYear}/${String(periodMonth).padStart(2, "0")} ya fue registrado. Para re-ejecutar, anule el asiento previo primero.`
       );
     }
 
     const { rows: preview, repomo } = await INPCService.previewAdjustment(
-      companyId, periodYear, periodMonth, adjustmentAccountId, tx,
+      companyId,
+      periodYear,
+      periodMonth,
+      adjustmentAccountId,
+      tx
     );
     if (preview.length === 0 && !repomo) {
       throw new Error("No existen cuentas con saldo en el período especificado para ajustar.");
@@ -385,7 +418,10 @@ export class INPCService {
 
     // Suma neta de ajustes de cuentas no monetarias
     const totalNet = preview.reduce((acc, r) => acc.plus(r.adjustmentAmount), new Decimal(0));
-    const totalAbsolute = preview.reduce((acc, r) => acc.plus(r.adjustmentAmount.abs()), new Decimal(0));
+    const totalAbsolute = preview.reduce(
+      (acc, r) => acc.plus(r.adjustmentAmount.abs()),
+      new Decimal(0)
+    );
 
     const factor = preview[0]?.cumulativeIndex ?? repomo?.factor ?? new Decimal(1);
 
@@ -398,15 +434,27 @@ export class INPCService {
         amount: r.adjustmentAmount,
         description: `Reexpresión INPC — ${r.accountName} — factor ${factor.toFixed(4)} — ${periodLabel}`,
       })),
-      { accountId: adjustmentAccountId, amount: totalNet.negated(), description: `Diferencial reexpresión INPC — ${periodLabel}` },
+      {
+        accountId: adjustmentAccountId,
+        amount: totalNet.negated(),
+        description: `Diferencial reexpresión INPC — ${periodLabel}`,
+      },
     ];
 
     // Asiento REPOMO si aplica (VEN-NIF 3 §36.4)
     let repomoRegistered: Decimal | null = null;
     if (repomo && !repomo.repomoAmount.isZero() && repomoAccountId) {
       journalEntries.push(
-        { accountId: repomoAccountId, amount: repomo.repomoAmount, description: `REPOMO — posición monetaria neta — ${periodLabel}` },
-        { accountId: adjustmentAccountId, amount: repomo.repomoAmount.negated(), description: `REPOMO contrapartida — ${periodLabel}` },
+        {
+          accountId: repomoAccountId,
+          amount: repomo.repomoAmount,
+          description: `REPOMO — posición monetaria neta — ${periodLabel}`,
+        },
+        {
+          accountId: adjustmentAccountId,
+          amount: repomo.repomoAmount.negated(),
+          description: `REPOMO contrapartida — ${periodLabel}`,
+        }
       );
       repomoRegistered = repomo.repomoAmount;
     }

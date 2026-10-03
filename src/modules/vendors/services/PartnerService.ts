@@ -42,7 +42,11 @@ export const PartnerService = {
     });
   },
 
-  async update(companyId: string, partnerId: string, data: UpdatePartnerInput): Promise<PartnerRow | null> {
+  async update(
+    companyId: string,
+    partnerId: string,
+    data: UpdatePartnerInput
+  ): Promise<PartnerRow | null> {
     const partner = await prisma.partner.findUnique({ where: { id: partnerId } });
     if (!partner || partner.companyId !== companyId || partner.deletedAt !== null) return null;
     return prisma.partner.update({

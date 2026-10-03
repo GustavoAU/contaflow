@@ -125,7 +125,8 @@ describe("PayrollCalculatorService — HE_NOCTURNA", () => {
 
   it("la nocturna paga mas que la diurna, y por el 30% del Art. 117", () => {
     const emp = makeEmp({
-      overtimeHoursDay: new Decimal(4), overtimeHoursNight: new Decimal(4),
+      overtimeHoursDay: new Decimal(4),
+      overtimeHoursNight: new Decimal(4),
     });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
     const dia = lines.find((l) => l.conceptCode === "HE_DIURNA")!.amount;
@@ -194,23 +195,23 @@ describe("PayrollCalculatorService — FAOV_OBR", () => {
 describe("PayrollCalculatorService — Guards", () => {
   it("lanza si horas diurnas son negativas (NOM-C-05)", () => {
     const emp = makeEmp({ overtimeHoursDay: new Decimal(-1) });
-    expect(() =>
-      PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)
-    ).toThrow("Las horas extra no pueden ser negativas");
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)).toThrow(
+      "Las horas extra no pueden ser negativas"
+    );
   });
 
   it("lanza si horas nocturnas son negativas (NOM-C-05)", () => {
     const emp = makeEmp({ overtimeHoursNight: new Decimal(-5) });
-    expect(() =>
-      PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)
-    ).toThrow("Las horas extra no pueden ser negativas");
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)).toThrow(
+      "Las horas extra no pueden ser negativas"
+    );
   });
 
   it("lanza si días de ausencia son negativos", () => {
     const emp = makeEmp({ absenceDays: new Decimal(-1) });
-    expect(() =>
-      PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)
-    ).toThrow("Los días de ausencia no pueden ser negativos");
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)).toThrow(
+      "Los días de ausencia no pueden ser negativos"
+    );
   });
 
   it("lanza si el neto calculado es negativo (NOM-C-10)", () => {
@@ -226,9 +227,9 @@ describe("PayrollCalculatorService — Guards", () => {
         salaryNature: "NO_SALARIAL",
       },
     ];
-    expect(() =>
-      PayrollCalculatorService.calculate([emp], manuals, BASE_CONFIG)
-    ).toThrow("El neto a pagar no puede ser negativo");
+    expect(() => PayrollCalculatorService.calculate([emp], manuals, BASE_CONFIG)).toThrow(
+      "El neto a pagar no puede ser negativo"
+    );
   });
 });
 
@@ -339,7 +340,7 @@ describe("PayrollCalculatorService — topes de cotización", () => {
   });
 
   it("IVSS: capped a 5×salaryMin cuando salario supera el tope", () => {
-    const salary = new Decimal("1000");  // supera 5×130=650
+    const salary = new Decimal("1000"); // supera 5×130=650
     const config: PayrollCalculatorConfig = {
       ...BASE_CONFIG,
       salaryMinimumVes: salaryMin,
@@ -399,10 +400,14 @@ describe("PayrollCalculatorService — topes de cotización", () => {
 
     const sinDias = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
     const conDiasViejos = PayrollCalculatorService.calculateEmployeeLines(emp, {
-      ...BASE_CONFIG, profitDays: 15, vacationBonusDays: 7,
+      ...BASE_CONFIG,
+      profitDays: 15,
+      vacationBonusDays: 7,
     });
     const conDiasGenerosos = PayrollCalculatorService.calculateEmployeeLines(emp, {
-      ...BASE_CONFIG, profitDays: 120, vacationBonusDays: 30,
+      ...BASE_CONFIG,
+      profitDays: 120,
+      vacationBonusDays: 30,
     });
 
     const faovBasis = (ls: typeof sinDias) =>
@@ -470,17 +475,24 @@ describe("PayrollCalculatorService — topes de cotización", () => {
     const config: PayrollCalculatorConfig = {
       ...BASE_CONFIG,
       salaryMinimumVes: salaryMin,
-      systemConcepts: [...SYSTEM_CONCEPTS, { code: "INCES_PAT", conceptId: "c-inces-pat", salaryNature: "NO_SALARIAL" as SalaryNature }],
+      systemConcepts: [
+        ...SYSTEM_CONCEPTS,
+        {
+          code: "INCES_PAT",
+          conceptId: "c-inces-pat",
+          salaryNature: "NO_SALARIAL" as SalaryNature,
+        },
+      ],
     };
     const emp = makeEmp({ salaryAmount: new Decimal("5000") });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const incesPat = lines.find((l) => l.conceptCode === "INCES_PAT")!;
     expect(incesPat.basis!.toFixed(2)).toBe("5000.00"); // antes: 650,00
-    expect(incesPat.amount.toFixed(2)).toBe("100.00");  // antes: 13,00
+    expect(incesPat.amount.toFixed(2)).toBe("100.00"); // antes: 13,00
   });
 
   it("sin tope cuando salario está por debajo del límite", () => {
-    const salary = new Decimal("500");  // menor que 5×130=650
+    const salary = new Decimal("500"); // menor que 5×130=650
     const config: PayrollCalculatorConfig = {
       ...BASE_CONFIG,
       salaryMinimumVes: salaryMin,
@@ -599,25 +611,21 @@ describe("PayrollCalculatorService.calculate — monedas mixtas (C-01)", () => {
       salaryHistoryId: "sal-usd",
       salaryCurrency: "USD",
     });
-    expect(() =>
-      PayrollCalculatorService.calculate([empVes, empUsd], [], BASE_CONFIG)
-    ).toThrow("Nómina con monedas mixtas");
+    expect(() => PayrollCalculatorService.calculate([empVes, empUsd], [], BASE_CONFIG)).toThrow(
+      "Nómina con monedas mixtas"
+    );
   });
 
   it("no lanza error cuando todos los empleados tienen la misma moneda (VES)", () => {
     const emp1 = makeEmp({ employeeId: "emp-1", salaryCurrency: "VES" });
     const emp2 = makeEmp({ employeeId: "emp-2", salaryHistoryId: "sal-2", salaryCurrency: "VES" });
-    expect(() =>
-      PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG)
-    ).not.toThrow();
+    expect(() => PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG)).not.toThrow();
   });
 
   it("no lanza error cuando todos los empleados tienen la misma moneda (USD)", () => {
     const emp1 = makeEmp({ employeeId: "emp-1", salaryCurrency: "USD" });
     const emp2 = makeEmp({ employeeId: "emp-2", salaryHistoryId: "sal-2", salaryCurrency: "USD" });
-    expect(() =>
-      PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG)
-    ).not.toThrow();
+    expect(() => PayrollCalculatorService.calculate([emp1, emp2], [], BASE_CONFIG)).not.toThrow();
   });
 });
 
@@ -671,7 +679,7 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
 
     const ivss = lines.find((l) => l.conceptCode === "IVSS_OBR")!;
     expect(ivss.amount.toFixed(2)).not.toBe("26.00"); // el bug
-    expect(ivss.amount.toFixed(2)).toBe("0.04");      // centavos, no USD 26
+    expect(ivss.amount.toFixed(2)).toBe("0.04"); // centavos, no USD 26
 
     const faov = lines.find((l) => l.conceptCode === "FAOV_OBR")!;
 
@@ -694,14 +702,17 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
       salaryMinimumVes: salaryMin,
       usdToVesRate: new Decimal("65"),
       // El fixture base sólo trae los conceptos del trabajador.
-      systemConcepts: [...SYSTEM_CONCEPTS, { code: "IVSS_PAT", conceptId: "c-ivss-pat", salaryNature: "NO_SALARIAL" as SalaryNature }],
+      systemConcepts: [
+        ...SYSTEM_CONCEPTS,
+        { code: "IVSS_PAT", conceptId: "c-ivss-pat", salaryNature: "NO_SALARIAL" as SalaryNature },
+      ],
     };
     const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
 
     const ivssPat = lines.find((l) => l.conceptCode === "IVSS_PAT")!;
     expect(ivssPat.basis!.toFixed(2)).toBe("11.54"); // mismo tope, mismas semanas
-    expect(ivssPat.amount.toFixed(2)).toBe("1.15");  // 10% - Riesgo Medio
+    expect(ivssPat.amount.toFixed(2)).toBe("1.15"); // 10% - Riesgo Medio
   });
 
   it("un sueldo en VES no se toca aunque haya tasa cargada", () => {
@@ -722,8 +733,9 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
   it("sin tasa cargada NO calcula: bloquea en vez de inventar el tope", () => {
     const config: PayrollCalculatorConfig = { ...BASE_CONFIG, salaryMinimumVes: salaryMin };
     const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
-    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
-      .toThrow(MISSING_USD_RATE_MESSAGE);
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config)).toThrow(
+      MISSING_USD_RATE_MESSAGE
+    );
   });
 
   it("una tasa cero o negativa cuenta como ausente", () => {
@@ -734,8 +746,9 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
         usdToVesRate: new Decimal(bad),
       };
       const emp = makeEmp({ salaryAmount: new Decimal("2500"), salaryCurrency: "USD" });
-      expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
-        .toThrow(MISSING_USD_RATE_MESSAGE);
+      expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config)).toThrow(
+        MISSING_USD_RATE_MESSAGE
+      );
     }
   });
 
@@ -753,16 +766,18 @@ describe("PayrollCalculatorService — topes legales con sueldo en USD (H-4)", (
 describe("PayrollCalculatorService — sueldo híbrido bloqueado (C-01-bis)", () => {
   it("calculate() rechaza un sueldo MIXED antes de producir líneas", () => {
     const emp = makeEmp({ salaryCurrency: "MIXED" });
-    expect(() => PayrollCalculatorService.calculate([emp], [], BASE_CONFIG))
-      .toThrow(MIXED_SALARY_MESSAGE);
+    expect(() => PayrollCalculatorService.calculate([emp], [], BASE_CONFIG)).toThrow(
+      MIXED_SALARY_MESSAGE
+    );
   });
 
   it("lo rechaza aunque no haya topes configurados", () => {
     // Sin tope el importe no se puede topar mal, pero el asiento de approve()
     // trataría el sueldo como bolívares. Se bloquea igual.
     const emp = makeEmp({ salaryCurrency: "MIXED", salaryAmount: new Decimal("500") });
-    expect(() => PayrollCalculatorService.calculate([emp], [], BASE_CONFIG))
-      .toThrow(MIXED_SALARY_MESSAGE);
+    expect(() => PayrollCalculatorService.calculate([emp], [], BASE_CONFIG)).toThrow(
+      MIXED_SALARY_MESSAGE
+    );
   });
 
   it("calculateEmployeeLines() también lo rechaza cuando hay topes", () => {
@@ -772,8 +787,9 @@ describe("PayrollCalculatorService — sueldo híbrido bloqueado (C-01-bis)", ()
       usdToVesRate: new Decimal("65"),
     };
     const emp = makeEmp({ salaryCurrency: "MIXED" });
-    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
-      .toThrow(MIXED_SALARY_MESSAGE);
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config)).toThrow(
+      MIXED_SALARY_MESSAGE
+    );
   });
 });
 
@@ -796,11 +812,16 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
     // LOTTT Art. 105 numeral 2. Da igual cuanto sea el cestaticket.
     const config: PayrollCalculatorConfig = { ...BASE_CONFIG, systemConcepts: CONCEPTS };
     const emp = makeEmp({ salaryAmount: new Decimal("1000") });
-    const manual: ManualConceptCalculationInput[] = [{
-      conceptId: "c-cesta", conceptCode: "CESTA_TICKET", conceptType: "EARNING",
-      employeeId: emp.employeeId, amount: new Decimal("5000"),
-      salaryNature: "NO_SALARIAL",
-    }];
+    const manual: ManualConceptCalculationInput[] = [
+      {
+        conceptId: "c-cesta",
+        conceptCode: "CESTA_TICKET",
+        conceptType: "EARNING",
+        employeeId: emp.employeeId,
+        amount: new Decimal("5000"),
+        salaryNature: "NO_SALARIAL",
+      },
+    ];
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config, manual);
     const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
     expect(rpe.basis!.toFixed(2)).toBe("1000.00"); // no 6000
@@ -828,11 +849,16 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
       ],
     };
     const emp = makeEmp({ salaryAmount: new Decimal("1000") });
-    const manual: ManualConceptCalculationInput[] = [{
-      conceptId: "c-bono", conceptCode: "BONO_PROD", conceptType: "EARNING",
-      employeeId: emp.employeeId, amount: new Decimal("500"),
-      salaryNature: "SALARIO_NORMAL",
-    }];
+    const manual: ManualConceptCalculationInput[] = [
+      {
+        conceptId: "c-bono",
+        conceptCode: "BONO_PROD",
+        conceptType: "EARNING",
+        employeeId: emp.employeeId,
+        amount: new Decimal("500"),
+        salaryNature: "SALARIO_NORMAL",
+      },
+    ];
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config, manual);
     const rpe = lines.find((l) => l.conceptCode === "RPE_OBR")!;
     expect(rpe.basis!.toFixed(2)).toBe("1500.00");
@@ -861,11 +887,20 @@ describe("PayrollCalculatorService — base de cotizaciones (ADR-045 D-4)", () =
       ],
     };
     const emp = makeEmp({ salaryAmount: new Decimal("1000") });
-    const result = PayrollCalculatorService.calculate(emp ? [emp] : [], [{
-      conceptId: "c-bono", conceptCode: "BONO_PROD", conceptType: "EARNING",
-      employeeId: emp.employeeId, amount: new Decimal("500"),
-      salaryNature: "SALARIO_NORMAL",
-    }], config);
+    const result = PayrollCalculatorService.calculate(
+      emp ? [emp] : [],
+      [
+        {
+          conceptId: "c-bono",
+          conceptCode: "BONO_PROD",
+          conceptType: "EARNING",
+          employeeId: emp.employeeId,
+          amount: new Decimal("500"),
+          salaryNature: "SALARIO_NORMAL",
+        },
+      ],
+      config
+    );
     const rpe = result.lines.find((l) => l.conceptCode === "RPE_OBR")!;
     expect(rpe.basis!.toFixed(2)).toBe("1500.00");
   });
@@ -881,7 +916,9 @@ describe("PayrollCalculatorService - clase de riesgo del IVSS", () => {
 
   function patronal(riesgo: "MINIMO" | "MEDIO" | "MAXIMO" | undefined) {
     const config: PayrollCalculatorConfig = {
-      ...BASE_CONFIG, systemConcepts: CONCEPTS, ivssRiskClass: riesgo,
+      ...BASE_CONFIG,
+      systemConcepts: CONCEPTS,
+      ivssRiskClass: riesgo,
     };
     const emp = makeEmp({ salaryAmount: new Decimal("1000") });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
@@ -913,8 +950,7 @@ describe("PayrollCalculatorService - clase de riesgo del IVSS", () => {
       const config: PayrollCalculatorConfig = { ...BASE_CONFIG, ivssRiskClass: r };
       const emp = makeEmp({ salaryAmount: new Decimal("1000") });
       const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
-      expect(lines.find((l) => l.conceptCode === "IVSS_OBR")!.amount.toFixed(2))
-        .toBe("46.15");
+      expect(lines.find((l) => l.conceptCode === "IVSS_OBR")!.amount.toFixed(2)).toBe("46.15");
     }
   });
 });
@@ -976,13 +1012,14 @@ describe("PayrollCalculatorService - el IVSS cotiza por semana", () => {
 
   function ivssDe(config: PayrollCalculatorConfig) {
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
-    return PayrollCalculatorService.calculateEmployeeLines(emp, config)
-      .find((l) => l.conceptCode === "IVSS_OBR")!;
+    return PayrollCalculatorService.calculateEmployeeLines(emp, config).find(
+      (l) => l.conceptCode === "IVSS_OBR"
+    )!;
   }
 
   it("un mes de cinco lunes cotiza mas que uno de cuatro", () => {
-    const marzo = ivssDe(BASE_CONFIG);      // 5 semanas
-    const feb = ivssDe(febrero);            // 4 semanas
+    const marzo = ivssDe(BASE_CONFIG); // 5 semanas
+    const feb = ivssDe(febrero); // 4 semanas
     expect(marzo.amount.greaterThan(feb.amount)).toBe(true);
     expect(marzo.amount.dividedBy(feb.amount).toFixed(2)).toBe("1.25");
   });
@@ -1000,10 +1037,12 @@ describe("PayrollCalculatorService - el IVSS cotiza por semana", () => {
     // "del MES inmediatamente anterior", la Ley INCES Art. 49 del salario normal
     // mensual y la LRPVH Art. 33 del aporte "mensual".
     const marzo = PayrollCalculatorService.calculateEmployeeLines(
-      makeEmp({ salaryAmount: new Decimal("30000") }), BASE_CONFIG,
+      makeEmp({ salaryAmount: new Decimal("30000") }),
+      BASE_CONFIG
     );
     const feb = PayrollCalculatorService.calculateEmployeeLines(
-      makeEmp({ salaryAmount: new Decimal("30000") }), febrero,
+      makeEmp({ salaryAmount: new Decimal("30000") }),
+      febrero
     );
     for (const code of ["RPE_OBR", "FAOV_OBR"]) {
       const a = marzo.find((l) => l.conceptCode === code)!.amount;
@@ -1027,10 +1066,8 @@ describe("PayrollCalculatorService - base del mes anterior (ADR-045 D-5)", () =>
       previousMonthNormalWage: new Decimal("1000"),
     });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
-    expect(lines.find((l) => l.conceptCode === "SAL_BASE")!.amount.toFixed(2))
-      .toBe("3000.00"); // lo que se le paga no cambia
-    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.basis!.toFixed(2))
-      .toBe("1000.00"); // lo que se cotiza, si
+    expect(lines.find((l) => l.conceptCode === "SAL_BASE")!.amount.toFixed(2)).toBe("3000.00"); // lo que se le paga no cambia
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.basis!.toFixed(2)).toBe("1000.00"); // lo que se cotiza, si
   });
 
   it("alcanza a las cuatro contribuciones, cada una con su base", () => {
@@ -1050,10 +1087,10 @@ describe("PayrollCalculatorService - base del mes anterior (ADR-045 D-5)", () =>
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, config);
     const basisOf = (c: string) => lines.find((l) => l.conceptCode === c)!.basis!;
 
-    expect(basisOf("RPE_OBR").toFixed(2)).toBe("1000.00");   // mensual
+    expect(basisOf("RPE_OBR").toFixed(2)).toBe("1000.00"); // mensual
     expect(basisOf("INCES_PAT").toFixed(2)).toBe("1000.00"); // mensual
-    expect(basisOf("FAOV_OBR").toFixed(2)).toBe("1125.00");  // integral del anterior
-    expect(basisOf("IVSS_OBR").toFixed(2)).toBe("1153.85");  // semanal del anterior
+    expect(basisOf("FAOV_OBR").toFixed(2)).toBe("1125.00"); // integral del anterior
+    expect(basisOf("IVSS_OBR").toFixed(2)).toBe("1153.85"); // semanal del anterior
   });
 
   it("sin mes anterior cotiza sobre el mes en curso, nunca sobre cero", () => {
@@ -1062,8 +1099,7 @@ describe("PayrollCalculatorService - base del mes anterior (ADR-045 D-5)", () =>
     // que uno calculado sobre la unica base que hay.
     const emp = makeEmp({ salaryAmount: new Decimal("3000") });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
-    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.basis!.toFixed(2))
-      .toBe("3000.00");
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.basis!.toFixed(2)).toBe("3000.00");
   });
 
   it("un mes anterior en cero SI cotiza cero — no es lo mismo que no tenerlo", () => {
@@ -1074,8 +1110,7 @@ describe("PayrollCalculatorService - base del mes anterior (ADR-045 D-5)", () =>
       previousMonthNormalWage: new Decimal(0),
     });
     const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG);
-    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.amount.toFixed(2))
-      .toBe("0.00");
+    expect(lines.find((l) => l.conceptCode === "RPE_OBR")!.amount.toFixed(2)).toBe("0.00");
   });
 });
 
@@ -1091,17 +1126,25 @@ describe("PayrollCalculatorService - topes de horas extra (Art. 178)", () => {
   // Marzo de 2026: cinco semanas -> 50 horas admitidas en el periodo.
   function run(overrides: Partial<EmployeeCalculationInput>) {
     return PayrollCalculatorService.calculate(
-      [makeEmp({ salaryAmount: new Decimal("30000"), ...overrides })], [], BASE_CONFIG,
+      [makeEmp({ salaryAmount: new Decimal("30000"), ...overrides })],
+      [],
+      BASE_CONFIG
     );
   }
 
   it("dentro del tope no genera aviso", () => {
-    const r = run({ overtimeHoursDay: new Decimal("40"), overtimeHoursYearToDate: new Decimal("0") });
+    const r = run({
+      overtimeHoursDay: new Decimal("40"),
+      overtimeHoursYearToDate: new Decimal("0"),
+    });
     expect(r.overtimeWarnings).toHaveLength(0);
   });
 
   it("avisa al pasar de diez horas por semana del periodo", () => {
-    const r = run({ overtimeHoursDay: new Decimal("60"), overtimeHoursYearToDate: new Decimal("0") });
+    const r = run({
+      overtimeHoursDay: new Decimal("60"),
+      overtimeHoursYearToDate: new Decimal("0"),
+    });
     const semanal = r.overtimeWarnings.filter((w) => w.kind === "SEMANAL");
     expect(semanal).toHaveLength(1);
     expect(semanal[0].limit.toFixed(0)).toBe("50"); // 10 x 5 semanas
@@ -1134,7 +1177,10 @@ describe("PayrollCalculatorService - topes de horas extra (Art. 178)", () => {
   });
 
   it("excederse NO impide pagar: las lineas y el neto salen igual", () => {
-    const r = run({ overtimeHoursDay: new Decimal("60"), overtimeHoursYearToDate: new Decimal("200") });
+    const r = run({
+      overtimeHoursDay: new Decimal("60"),
+      overtimeHoursYearToDate: new Decimal("200"),
+    });
     expect(r.overtimeWarnings.length).toBeGreaterThan(0);
     const he = r.lines.find((l) => l.conceptCode === "HE_DIURNA")!;
     expect(he.amount.greaterThan(0)).toBe(true);
@@ -1154,11 +1200,14 @@ describe("PayrollCalculatorService - umbral del INCES patronal", () => {
 
   function incesPat(activeEmployeeCount: number) {
     const config: PayrollCalculatorConfig = {
-      ...BASE_CONFIG, systemConcepts: CONCEPTS, activeEmployeeCount,
+      ...BASE_CONFIG,
+      systemConcepts: CONCEPTS,
+      activeEmployeeCount,
     };
-    return PayrollCalculatorService
-      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), config)
-      .find((l) => l.conceptCode === "INCES_PAT");
+    return PayrollCalculatorService.calculateEmployeeLines(
+      makeEmp({ salaryAmount: new Decimal("30000") }),
+      config
+    ).find((l) => l.conceptCode === "INCES_PAT");
   }
 
   it("con cinco trabajadores aplica", () => {
@@ -1180,10 +1229,14 @@ describe("PayrollCalculatorService - umbral del INCES patronal", () => {
 
   it("el umbral no toca a los otros tres organismos", () => {
     const config: PayrollCalculatorConfig = {
-      ...BASE_CONFIG, systemConcepts: CONCEPTS, activeEmployeeCount: 2,
+      ...BASE_CONFIG,
+      systemConcepts: CONCEPTS,
+      activeEmployeeCount: 2,
     };
-    const lines = PayrollCalculatorService
-      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), config);
+    const lines = PayrollCalculatorService.calculateEmployeeLines(
+      makeEmp({ salaryAmount: new Decimal("30000") }),
+      config
+    );
     for (const code of ["IVSS_OBR", "FAOV_OBR", "RPE_OBR"]) {
       expect(lines.find((l) => l.conceptCode === code)).toBeDefined();
     }
@@ -1222,12 +1275,14 @@ describe("contributableWeeks - techo del Art. 100", () => {
       periodStart: new Date("2026-08-01T00:00:00Z"),
       periodEnd: new Date("2026-10-13T00:00:00Z"),
     };
-    const ivssLargo = PayrollCalculatorService
-      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), largo)
-      .find((l) => l.conceptCode === "IVSS_OBR")!;
-    const ivssNormal = PayrollCalculatorService
-      .calculateEmployeeLines(makeEmp({ salaryAmount: new Decimal("30000") }), BASE_CONFIG)
-      .find((l) => l.conceptCode === "IVSS_OBR")!;
+    const ivssLargo = PayrollCalculatorService.calculateEmployeeLines(
+      makeEmp({ salaryAmount: new Decimal("30000") }),
+      largo
+    ).find((l) => l.conceptCode === "IVSS_OBR")!;
+    const ivssNormal = PayrollCalculatorService.calculateEmployeeLines(
+      makeEmp({ salaryAmount: new Decimal("30000") }),
+      BASE_CONFIG
+    ).find((l) => l.conceptCode === "IVSS_OBR")!;
     expect(ivssLargo.amount.toFixed(2)).toBe(ivssNormal.amount.toFixed(2));
   });
 });
@@ -1241,8 +1296,9 @@ describe("PayrollCalculatorService - jornada y autorizacion de horas extra", () 
   //   MIXTA    1000/7,5 = 133,333...
   function he(overrides: Partial<EmployeeCalculationInput>, code = "HE_DIURNA") {
     const emp = makeEmp({ salaryAmount: new Decimal("30000"), ...overrides });
-    return PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG)
-      .find((l) => l.conceptCode === code);
+    return PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG).find(
+      (l) => l.conceptCode === code
+    );
   }
 
   it("la jornada NOCTURNA divide entre 7, no entre 8 (Arts. 113 y 173)", () => {
@@ -1275,10 +1331,13 @@ describe("PayrollCalculatorService - jornada y autorizacion de horas extra", () 
   it("la nocturna sin permiso duplica SOLO el recargo de hora extra", () => {
     // El 30% nocturno del Art. 117 es otro recargo y no se duplica:
     // 1,30 x 2,00 = 2,60, no 1,95 x 2 = 3,90.
-    const sinPermiso = he({
-      overtimeHoursNight: new Decimal(0),
-      overtimeHoursNightUnauthorized: new Decimal("4"),
-    }, "HE_NOCTURNA")!;
+    const sinPermiso = he(
+      {
+        overtimeHoursNight: new Decimal(0),
+        overtimeHoursNightUnauthorized: new Decimal("4"),
+      },
+      "HE_NOCTURNA"
+    )!;
     expect(sinPermiso.rate!.toFixed(2)).toBe("2.60");
   });
 
@@ -1290,9 +1349,9 @@ describe("PayrollCalculatorService - jornada y autorizacion de horas extra", () 
       overtimeHoursDay: new Decimal("4"),
       overtimeHoursDayUnauthorized: new Decimal("2"),
     });
-    const lines = PayrollCalculatorService
-      .calculateEmployeeLines(emp, BASE_CONFIG)
-      .filter((l) => l.conceptCode === "HE_DIURNA");
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, BASE_CONFIG).filter(
+      (l) => l.conceptCode === "HE_DIURNA"
+    );
     expect(lines).toHaveLength(2);
     expect(lines.map((l) => l.rate!.toFixed(2)).sort()).toEqual(["1.50", "2.00"]);
   });
@@ -1300,12 +1359,16 @@ describe("PayrollCalculatorService - jornada y autorizacion de horas extra", () 
   it("los topes del Art. 178 cuentan las horas TENGA o no permiso la empresa", () => {
     // El permiso cambia la tarifa (Art. 182), no el limite (Art. 178).
     const r = PayrollCalculatorService.calculate(
-      [makeEmp({
-        salaryAmount: new Decimal("30000"),
-        overtimeHoursDay: new Decimal("30"),
-        overtimeHoursDayUnauthorized: new Decimal("30"),
-        overtimeHoursYearToDate: new Decimal(0),
-      })], [], BASE_CONFIG,
+      [
+        makeEmp({
+          salaryAmount: new Decimal("30000"),
+          overtimeHoursDay: new Decimal("30"),
+          overtimeHoursDayUnauthorized: new Decimal("30"),
+          overtimeHoursYearToDate: new Decimal(0),
+        }),
+      ],
+      [],
+      BASE_CONFIG
     );
     // 60 horas en un periodo de 5 semanas: el tope son 50.
     expect(r.overtimeWarnings.some((w) => w.kind === "SEMANAL")).toBe(true);
@@ -1351,9 +1414,9 @@ describe("PayrollCalculatorService — PENSIONES_PAT", () => {
 
   it("es EMPLOYER_COST — no toca el neto del trabajador", () => {
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
-    const line = PayrollCalculatorService
-      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
-      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    const line = PayrollCalculatorService.calculateEmployeeLines(emp, PENSIONES_CONFIG).find(
+      (l) => l.conceptCode === "PENSIONES_PAT"
+    )!;
     expect(line.conceptType).toBe("EMPLOYER_COST");
   });
 
@@ -1362,9 +1425,9 @@ describe("PayrollCalculatorService — PENSIONES_PAT", () => {
     // D-4), esta ley lo INCLUYE (verificado con contador). Si alguien reutiliza
     // salarioNormal por comodidad, este test lo delata.
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
-    const lines = PayrollCalculatorService.calculateEmployeeLines(
-      emp, PENSIONES_CONFIG, [CESTA_TICKET_CONCEPT],
-    );
+    const lines = PayrollCalculatorService.calculateEmployeeLines(emp, PENSIONES_CONFIG, [
+      CESTA_TICKET_CONCEPT,
+    ]);
     const pensionesPat = lines.find((l) => l.conceptCode === "PENSIONES_PAT")!;
     const rpeObr = lines.find((l) => l.conceptCode === "RPE_OBR")!;
     expect(rpeObr.basis!.toFixed(2)).toBe("30000.00"); // excluye el bono
@@ -1375,27 +1438,27 @@ describe("PayrollCalculatorService — PENSIONES_PAT", () => {
   it("sin umbral de plantilla — a diferencia de INCES, aplica con 1 solo empleado", () => {
     const config: PayrollCalculatorConfig = { ...PENSIONES_CONFIG, activeEmployeeCount: 1 };
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
-    const line = PayrollCalculatorService
-      .calculateEmployeeLines(emp, config)
-      .find((l) => l.conceptCode === "PENSIONES_PAT");
+    const line = PayrollCalculatorService.calculateEmployeeLines(emp, config).find(
+      (l) => l.conceptCode === "PENSIONES_PAT"
+    );
     expect(line).toBeDefined();
   });
 
   it("el piso (Art. 7) manda cuando la compensación real es menor — MAX, no suma", () => {
     // Sueldo de Bs. 1.000, muy por debajo del piso (240 USD x 50 Bs/USD = 12.000).
     const emp = makeEmp({ salaryAmount: new Decimal("1000") });
-    const line = PayrollCalculatorService
-      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
-      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    const line = PayrollCalculatorService.calculateEmployeeLines(emp, PENSIONES_CONFIG).find(
+      (l) => l.conceptCode === "PENSIONES_PAT"
+    )!;
     expect(line.basis!.toFixed(2)).toBe("12000.00"); // el piso, no los 1.000 reales
     expect(line.amount.toFixed(2)).toBe("1080.00"); // 12000 × 9%
   });
 
   it("NO aplica el piso cuando la compensación real ya lo supera", () => {
     const emp = makeEmp({ salaryAmount: new Decimal("50000") }); // > 12.000
-    const line = PayrollCalculatorService
-      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
-      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    const line = PayrollCalculatorService.calculateEmployeeLines(emp, PENSIONES_CONFIG).find(
+      (l) => l.conceptCode === "PENSIONES_PAT"
+    )!;
     expect(line.basis!.toFixed(2)).toBe("50000.00");
   });
 
@@ -1405,9 +1468,9 @@ describe("PayrollCalculatorService — PENSIONES_PAT", () => {
       prevMonthEndUsdToVesRate: null, // sin tasa — y no hace falta
     };
     const emp = makeEmp({ salaryAmount: new Decimal("100"), salaryCurrency: "USD" }); // < 240
-    const line = PayrollCalculatorService
-      .calculateEmployeeLines(emp, config)
-      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    const line = PayrollCalculatorService.calculateEmployeeLines(emp, config).find(
+      (l) => l.conceptCode === "PENSIONES_PAT"
+    )!;
     expect(line.basis!.toFixed(2)).toBe("240.00"); // el piso tal cual, sin ×tasa
   });
 
@@ -1417,8 +1480,9 @@ describe("PayrollCalculatorService — PENSIONES_PAT", () => {
       ingresoMinimoIntegralUsd: undefined,
     };
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
-    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
-      .toThrow(/Ingreso mínimo integral/);
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config)).toThrow(
+      /Ingreso mínimo integral/
+    );
   });
 
   it("BLOQUEA (no asume el piso en 0) si el sueldo es VES y falta la tasa BCV de fin de mes anterior", () => {
@@ -1427,8 +1491,9 @@ describe("PayrollCalculatorService — PENSIONES_PAT", () => {
       prevMonthEndUsdToVesRate: null,
     };
     const emp = makeEmp({ salaryAmount: new Decimal("30000"), salaryCurrency: "VES" });
-    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config))
-      .toThrow(MISSING_USD_RATE_MESSAGE);
+    expect(() => PayrollCalculatorService.calculateEmployeeLines(emp, config)).toThrow(
+      MISSING_USD_RATE_MESSAGE
+    );
   });
 
   it("cotiza sobre el MES ANTERIOR (total compensación), no sobre el mes en curso", () => {
@@ -1436,17 +1501,17 @@ describe("PayrollCalculatorService — PENSIONES_PAT", () => {
       salaryAmount: new Decimal("50000"), // este mes le subieron el sueldo
       previousMonthTotalCompensation: new Decimal("20000"), // pero el mes pasado ganó esto
     });
-    const line = PayrollCalculatorService
-      .calculateEmployeeLines(emp, PENSIONES_CONFIG)
-      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    const line = PayrollCalculatorService.calculateEmployeeLines(emp, PENSIONES_CONFIG).find(
+      (l) => l.conceptCode === "PENSIONES_PAT"
+    )!;
     expect(line.basis!.toFixed(2)).toBe("20000.00");
   });
 
   it("sin mes anterior cotiza sobre el mes en curso (salario + bonos), nunca cero", () => {
     const emp = makeEmp({ salaryAmount: new Decimal("30000") });
-    const line = PayrollCalculatorService
-      .calculateEmployeeLines(emp, PENSIONES_CONFIG, [CESTA_TICKET_CONCEPT])
-      .find((l) => l.conceptCode === "PENSIONES_PAT")!;
+    const line = PayrollCalculatorService.calculateEmployeeLines(emp, PENSIONES_CONFIG, [
+      CESTA_TICKET_CONCEPT,
+    ]).find((l) => l.conceptCode === "PENSIONES_PAT")!;
     expect(line.basis!.toFixed(2)).toBe("30500.00");
   });
 });

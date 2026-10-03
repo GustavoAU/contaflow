@@ -52,7 +52,9 @@ describe("getNotificationsAction", () => {
   });
 
   it("ADMINISTRATIVE es rechazado (no es ACCOUNTING)", async () => {
-    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ADMINISTRATIVE" } as never);
+    vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({
+      role: "ADMINISTRATIVE",
+    } as never);
     const result = await getNotificationsAction(COMPANY_ID);
     expect(result.success).toBe(false);
   });

@@ -51,7 +51,7 @@ export function AddRifModal({ companyId, canAdd, limitLabel }: Props) {
         title={!canAdd ? `Límite alcanzado (${limitLabel}). Mejora tu tier.` : "Agregar cliente"}
         size="sm"
       >
-        <PlusIcon className="h-4 w-4 mr-1" aria-hidden="true" />
+        <PlusIcon className="mr-1 h-4 w-4" aria-hidden="true" />
         Agregar RIF
       </Button>
 
@@ -106,12 +106,20 @@ export function AddRifModal({ companyId, canAdd, limitLabel }: Props) {
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={isPending}
+              >
                 Cancelar
               </Button>
               <Button type="submit" disabled={isPending} aria-busy={isPending}>
                 {isPending ? (
-                  <><Loader2Icon className="h-4 w-4 mr-1 animate-spin" aria-hidden="true" />Guardando…</>
+                  <>
+                    <Loader2Icon className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" />
+                    Guardando…
+                  </>
                 ) : (
                   "Guardar cliente"
                 )}

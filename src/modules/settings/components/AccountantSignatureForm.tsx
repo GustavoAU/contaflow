@@ -43,9 +43,7 @@ export function AccountantSignatureForm({ companyId, initialConfig }: Props) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">
-            Cargo / Título
-          </label>
+          <label className="mb-1 block text-sm font-medium text-zinc-700">Cargo / Título</label>
           <input
             name="accountantTitle"
             defaultValue={initialConfig.accountantTitle ?? ""}
@@ -54,9 +52,7 @@ export function AccountantSignatureForm({ companyId, initialConfig }: Props) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">
-            Nº C.P.C.
-          </label>
+          <label className="mb-1 block text-sm font-medium text-zinc-700">Nº C.P.C.</label>
           <input
             name="accountantCpcNumber"
             defaultValue={initialConfig.accountantCpcNumber ?? ""}

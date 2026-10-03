@@ -70,7 +70,11 @@ export interface CreateLoanInput {
  * Si interestRate es null o 0 → cuota = ceil(total / n, 2 dec).
  * Retorna la cuota mensual fija en Decimal.
  */
-function calcInstallment(principal: Decimal, installments: number, annualRate: Decimal | null): Decimal {
+function calcInstallment(
+  principal: Decimal,
+  installments: number,
+  annualRate: Decimal | null
+): Decimal {
   if (!annualRate || annualRate.isZero()) {
     return principal.dividedBy(installments).toDecimalPlaces(2, Decimal.ROUND_UP);
   }
@@ -81,18 +85,32 @@ function calcInstallment(principal: Decimal, installments: number, annualRate: D
 }
 
 function serializeLoan(row: {
-  id: string; companyId: string; employeeId: string;
-  totalAmount: Decimal; currency: string; installments: number;
-  installmentAmount: Decimal; paidInstallments: number; remainingBalance: Decimal;
-  amountUsd: Decimal | null; installmentAmountUsd: Decimal | null; remainingBalanceUsd: Decimal | null;
+  id: string;
+  companyId: string;
+  employeeId: string;
+  totalAmount: Decimal;
+  currency: string;
+  installments: number;
+  installmentAmount: Decimal;
+  paidInstallments: number;
+  remainingBalance: Decimal;
+  amountUsd: Decimal | null;
+  installmentAmountUsd: Decimal | null;
+  remainingBalanceUsd: Decimal | null;
   interestRate: Decimal | null;
-  status: LoanStatus; approvedByUserId: string | null; approvedAt: Date | null;
-  rejectionReason: string | null; description: string | null;
-  createdByUserId: string; createdAt: Date;
+  status: LoanStatus;
+  approvedByUserId: string | null;
+  approvedAt: Date | null;
+  rejectionReason: string | null;
+  description: string | null;
+  createdByUserId: string;
+  createdAt: Date;
   employee: { firstName: string; lastName: string };
 }): EmployeeLoanRow {
   return {
-    id: row.id, companyId: row.companyId, employeeId: row.employeeId,
+    id: row.id,
+    companyId: row.companyId,
+    employeeId: row.employeeId,
     employeeName: `${row.employee.firstName} ${row.employee.lastName}`,
     totalAmount: row.totalAmount.toString(),
     currency: row.currency,
@@ -124,7 +142,7 @@ export const EmployeeLoanService = {
     companyId: string,
     input: CreateLoanInput,
     userId: string,
-    auditMeta: { ipAddress?: string; userAgent?: string },
+    auditMeta: { ipAddress?: string; userAgent?: string }
   ): Promise<EmployeeLoanRow> {
     const employee = await prisma.employee.findFirst({
       where: { id: input.employeeId, companyId },
@@ -137,7 +155,8 @@ export const EmployeeLoanService = {
     if (input.installments < 1) throw new Error("El número de cuotas debe ser al menos 1.");
 
     const annualRate = input.interestRate ? new Decimal(input.interestRate) : null;
-    if (annualRate && annualRate.lt(0)) throw new Error("La tasa de interés no puede ser negativa.");
+    if (annualRate && annualRate.lt(0))
+      throw new Error("La tasa de interés no puede ser negativa.");
     if (annualRate && annualRate.gt(2)) throw new Error("La tasa anual no puede superar 200%.");
 
     const installmentVes = calcInstallment(principal, input.installments, annualRate);
@@ -181,7 +200,8 @@ export const EmployeeLoanService = {
 
       await tx.auditLog.create({
         data: {
-          companyId, userId,
+          companyId,
+          userId,
           action: "LOAN_CREATED",
           entityName: "EmployeeLoan",
           entityId: created.id,
@@ -207,26 +227,37 @@ export const EmployeeLoanService = {
     companyId: string,
     loanId: string,
     approverId: string,
-    auditMeta: { ipAddress?: string; userAgent?: string },
+    auditMeta: { ipAddress?: string; userAgent?: string }
   ): Promise<EmployeeLoanRow> {
     const loan = await prisma.employeeLoan.findFirst({ where: { id: loanId, companyId } });
     if (!loan) throw new Error("Préstamo no encontrado.");
-    if (loan.status !== "PENDING") throw new Error("Solo se pueden aprobar préstamos en estado PENDIENTE.");
+    if (loan.status !== "PENDING")
+      throw new Error("Solo se pueden aprobar préstamos en estado PENDIENTE.");
 
     const payrollConfig = await prisma.payrollConfig.findUnique({
       where: { companyId },
       select: { loanReceivableAccountId: true, disbursementBankAccountId: true },
     });
-    const canJournalize = !!(payrollConfig?.loanReceivableAccountId && payrollConfig?.disbursementBankAccountId);
+    const canJournalize = !!(
+      payrollConfig?.loanReceivableAccountId && payrollConfig?.disbursementBankAccountId
+    );
 
     let openPeriod: { id: string } | null = null;
     if (canJournalize) {
       const now = new Date();
       openPeriod = await prisma.accountingPeriod.findFirst({
-        where: { companyId, year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, status: "OPEN" },
+        where: {
+          companyId,
+          year: now.getUTCFullYear(),
+          month: now.getUTCMonth() + 1,
+          status: "OPEN",
+        },
         select: { id: true },
       });
-      if (!openPeriod) throw new Error("No hay período contable abierto. Abra el período antes de aprobar el préstamo.");
+      if (!openPeriod)
+        throw new Error(
+          "No hay período contable abierto. Abra el período antes de aprobar el préstamo."
+        );
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -240,8 +271,16 @@ export const EmployeeLoanService = {
         const empName = `${u.employee.firstName} ${u.employee.lastName}`;
         const vesAmount = new Decimal(loan.totalAmount.toString());
         const loanEntries = [
-          { accountId: payrollConfig!.loanReceivableAccountId!, amount: vesAmount, description: `Préstamo ${empName}` },
-          { accountId: payrollConfig!.disbursementBankAccountId!, amount: vesAmount.negated(), description: `Salida banco — préstamo ${empName}` },
+          {
+            accountId: payrollConfig!.loanReceivableAccountId!,
+            amount: vesAmount,
+            description: `Préstamo ${empName}`,
+          },
+          {
+            accountId: payrollConfig!.disbursementBankAccountId!,
+            amount: vesAmount.negated(),
+            description: `Salida banco — préstamo ${empName}`,
+          },
         ];
         assertBalancedGLEntries(loanEntries); // N4: invariante partida doble
         await tx.transaction.create({
@@ -263,7 +302,8 @@ export const EmployeeLoanService = {
 
       await tx.auditLog.create({
         data: {
-          companyId, userId: approverId,
+          companyId,
+          userId: approverId,
           action: "LOAN_APPROVED",
           entityName: "EmployeeLoan",
           entityId: loanId,
@@ -285,22 +325,29 @@ export const EmployeeLoanService = {
     loanId: string,
     reviewerId: string,
     rejectionReason: string,
-    auditMeta: { ipAddress?: string; userAgent?: string },
+    auditMeta: { ipAddress?: string; userAgent?: string }
   ): Promise<EmployeeLoanRow> {
     const loan = await prisma.employeeLoan.findFirst({ where: { id: loanId, companyId } });
     if (!loan) throw new Error("Préstamo no encontrado.");
-    if (loan.status !== "PENDING") throw new Error("Solo se pueden rechazar préstamos en estado PENDIENTE.");
+    if (loan.status !== "PENDING")
+      throw new Error("Solo se pueden rechazar préstamos en estado PENDIENTE.");
 
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.employeeLoan.update({
         where: { id: loanId },
-        data: { status: "REJECTED", rejectionReason, approvedByUserId: reviewerId, approvedAt: new Date() },
+        data: {
+          status: "REJECTED",
+          rejectionReason,
+          approvedByUserId: reviewerId,
+          approvedAt: new Date(),
+        },
         include: INCLUDE_EMP,
       });
 
       await tx.auditLog.create({
         data: {
-          companyId, userId: reviewerId,
+          companyId,
+          userId: reviewerId,
           action: "LOAN_REJECTED",
           entityName: "EmployeeLoan",
           entityId: loanId,
@@ -317,7 +364,10 @@ export const EmployeeLoanService = {
   },
 
   // ── list ─────────────────────────────────────────────────────────────────────
-  async list(companyId: string, filters?: { employeeId?: string; status?: LoanStatus }): Promise<EmployeeLoanRow[]> {
+  async list(
+    companyId: string,
+    filters?: { employeeId?: string; status?: LoanStatus }
+  ): Promise<EmployeeLoanRow[]> {
     const rows = await prisma.employeeLoan.findMany({
       where: {
         companyId,
@@ -335,7 +385,7 @@ export const EmployeeLoanService = {
     companyId: string,
     loanId: string,
     userId: string,
-    auditMeta: { ipAddress?: string; userAgent?: string },
+    auditMeta: { ipAddress?: string; userAgent?: string }
   ): Promise<void> {
     const loan = await prisma.employeeLoan.findFirst({ where: { id: loanId, companyId } });
     if (!loan) throw new Error("Préstamo no encontrado.");
@@ -347,11 +397,15 @@ export const EmployeeLoanService = {
 
       await tx.auditLog.create({
         data: {
-          companyId, userId,
+          companyId,
+          userId,
           action: "LOAN_CANCELLED",
           entityName: "EmployeeLoan",
           entityId: loanId,
-          oldValue: JSON.stringify({ status: loan.status, remainingBalance: loan.remainingBalance.toString() }),
+          oldValue: JSON.stringify({
+            status: loan.status,
+            remainingBalance: loan.remainingBalance.toString(),
+          }),
           newValue: JSON.stringify({ status: "CANCELLED" }),
           ipAddress: auditMeta.ipAddress ?? null,
           userAgent: auditMeta.userAgent ?? null,
@@ -422,7 +476,7 @@ const dec = (v: Decimal | string | null | undefined): Decimal =>
  */
 export function planLoanInstallments(
   loans: LoanForPlanning[],
-  salaryCurrency: SalaryCurrency,
+  salaryCurrency: SalaryCurrency
 ): LoanInstallmentPlan[] {
   const plans: LoanInstallmentPlan[] = [];
 
@@ -461,7 +515,11 @@ export function planLoanInstallments(
 
     // MIXED (legado): ademas baja el lado USD por su propia cuota.
     let newUsd: Decimal | null = null;
-    if (loan.currency === "MIXED" && loan.remainingBalanceUsd != null && loan.installmentAmountUsd != null) {
+    if (
+      loan.currency === "MIXED" &&
+      loan.remainingBalanceUsd != null &&
+      loan.installmentAmountUsd != null
+    ) {
       newUsd = Decimal.max(usdBalance.minus(usdInstallment), new Decimal(0));
     }
 

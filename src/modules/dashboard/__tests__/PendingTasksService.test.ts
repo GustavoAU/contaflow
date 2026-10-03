@@ -9,11 +9,11 @@ vi.mock("@/lib/prisma", () => ({
     fixedAsset: { count: vi.fn() },
     retencion: { count: vi.fn() },
     bankStatement: { count: vi.fn() },
-    order: { count: vi.fn() },               // GAP-02
-    inventoryItem: { count: vi.fn() },       // PC-03
-    company: { findFirst: vi.fn() },         // ADR-030 audit: isSpecialContributor
+    order: { count: vi.fn() }, // GAP-02
+    inventoryItem: { count: vi.fn() }, // PC-03
+    company: { findFirst: vi.fn() }, // ADR-030 audit: isSpecialContributor
     companySettings: { findUnique: vi.fn() }, // Hallazgo #5: igtfPayableAccountId
-    paymentBatch: { count: vi.fn() },         // Hallazgo #12: lotes A/P sin GL
+    paymentBatch: { count: vi.fn() }, // Hallazgo #12: lotes A/P sin GL
     $queryRaw: vi.fn(),
     // Parte VII: nómina
     employee: { count: vi.fn(), findMany: vi.fn() },
@@ -26,9 +26,9 @@ vi.mock("@/lib/prisma", () => ({
     employeeRecurringConcept: { findMany: vi.fn() },
     bcvBenefitRate: { findFirst: vi.fn() },
     // Fase 4 Caja Chica
-    cajaCajaMovement: { count: vi.fn() },        // CAJA_CHICA_GASTOS_POR_APROBAR
-    cajaCajaReimbursement: { count: vi.fn() },   // CAJA_CHICA_REEMBOLSO_BORRADOR
-    cajaCaja: { count: vi.fn() },                // CAJA_CHICA_SIN_CUSTODIO
+    cajaCajaMovement: { count: vi.fn() }, // CAJA_CHICA_GASTOS_POR_APROBAR
+    cajaCajaReimbursement: { count: vi.fn() }, // CAJA_CHICA_REEMBOLSO_BORRADOR
+    cajaCaja: { count: vi.fn() }, // CAJA_CHICA_SIN_CUSTODIO
   },
 }));
 
@@ -40,11 +40,13 @@ function mockAllZero() {
   vi.mocked(prisma.fixedAsset.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
   vi.mocked(prisma.bankStatement.count).mockResolvedValue(0 as never);
-  vi.mocked(prisma.order.count).mockResolvedValue(0 as never);           // GAP-02
-  vi.mocked(prisma.inventoryItem.count).mockResolvedValue(0 as never);   // PC-03
-  vi.mocked(prisma.company.findFirst).mockResolvedValue(null as never);  // no CE por defecto
-  vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({ igtfPayableAccountId: "acc-configured" } as never);
-  vi.mocked(prisma.paymentBatch.count).mockResolvedValue(0 as never);      // Hallazgo #12
+  vi.mocked(prisma.order.count).mockResolvedValue(0 as never); // GAP-02
+  vi.mocked(prisma.inventoryItem.count).mockResolvedValue(0 as never); // PC-03
+  vi.mocked(prisma.company.findFirst).mockResolvedValue(null as never); // no CE por defecto
+  vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({
+    igtfPayableAccountId: "acc-configured",
+  } as never);
+  vi.mocked(prisma.paymentBatch.count).mockResolvedValue(0 as never); // Hallazgo #12
   // $queryRaw: stockBajo + igtfPagosSinRegistrar + clientesInactivos + igtfGlIncompleto + cxcGlDescuadre
   // gap_ves "0.0000" → ≤ tolerancia → sin alerta; count: BigInt(0) cubre los demás
   vi.mocked(prisma.$queryRaw).mockResolvedValue([{ count: BigInt(0), gap_ves: "0.0000" }] as never);
@@ -141,7 +143,9 @@ describe("PendingTasksService.getPendingTasks", () => {
 
   it("detecta retenciones emitidas sin enterar (RETENCIONES_POR_ENTERAR) — OM-06 — severity error", async () => {
     // 1ª llamada = PENDING/sin factura → 0; 2ª llamada = ISSUED (POR_ENTERAR) → 4
-    vi.mocked(prisma.retencion.count).mockResolvedValueOnce(0 as never).mockResolvedValueOnce(4 as never);
+    vi.mocked(prisma.retencion.count)
+      .mockResolvedValueOnce(0 as never)
+      .mockResolvedValueOnce(4 as never);
     const result = await PendingTasksService.getPendingTasks("company-1");
     const task = result.tasks.find((t) => t.type === "RETENCIONES_POR_ENTERAR");
     expect(task).toBeDefined();
@@ -170,7 +174,7 @@ describe("PendingTasksService.getPendingTasks", () => {
           status: { in: ["DRAFT", "APPROVED"] },
           expectedDate: expect.objectContaining({ lt: expect.any(Date) }),
         }),
-      }),
+      })
     );
   });
 
@@ -187,13 +191,13 @@ describe("PendingTasksService.getPendingTasks", () => {
   it("pasa companyId a todas las queries (ownership scoping)", async () => {
     await PendingTasksService.getPendingTasks("company-abc");
     expect(vi.mocked(prisma.invoice.count)).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ companyId: "company-abc" }) }),
+      expect.objectContaining({ where: expect.objectContaining({ companyId: "company-abc" }) })
     );
     expect(vi.mocked(prisma.retencion.count)).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ companyId: "company-abc" }) }),
+      expect.objectContaining({ where: expect.objectContaining({ companyId: "company-abc" }) })
     );
     expect(vi.mocked(prisma.fixedAsset.count)).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ companyId: "company-abc" }) }),
+      expect.objectContaining({ where: expect.objectContaining({ companyId: "company-abc" }) })
     );
   });
 
@@ -206,7 +210,7 @@ describe("PendingTasksService.getPendingTasks", () => {
           deletedAt: null,
           type: { in: ["SALE", "PURCHASE"] },
         }),
-      }),
+      })
     );
   });
 
@@ -219,7 +223,7 @@ describe("PendingTasksService.getPendingTasks", () => {
           deletedAt: null,
           status: "PENDING",
         }),
-      }),
+      })
     );
   });
 
@@ -242,12 +246,9 @@ describe("PendingTasksService.getPendingTasks", () => {
         where: expect.objectContaining({
           deletedAt: null,
           itemType: { in: ["GOODS", "RAW_MATERIAL", "FINISHED_GOOD"] },
-          OR: expect.arrayContaining([
-            { accountId: null },
-            { cogsAccountId: null },
-          ]),
+          OR: expect.arrayContaining([{ accountId: null }, { cogsAccountId: null }]),
         }),
-      }),
+      })
     );
   });
 
@@ -319,7 +320,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     // encendida entrena a ignorarla.
     vi.mocked(prisma.employee.count).mockResolvedValue(3 as never);
     vi.mocked(prisma.legalThreshold.findFirst).mockResolvedValue({
-      effectiveFrom: new Date("2022-03-01"),          // decreto de hace años
+      effectiveFrom: new Date("2022-03-01"), // decreto de hace años
       verifiedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // confirmado hace 5 dias
       value: "130.00",
     } as never);
@@ -414,7 +415,9 @@ describe("PendingTasksService.getPendingTasks", () => {
 
   it("detecta un sueldo con vigencia a mitad de periodo (NOM_VIGENCIA_DENTRO_DEL_PERIODO)", async () => {
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
-    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "BIWEEKLY" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      frequency: "BIWEEKLY",
+    } as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
       {
         effectiveFrom: diaDesalineadoDelMes(20),
@@ -434,10 +437,20 @@ describe("PendingTasksService.getPendingTasks", () => {
 
   it("NO marca las vigencias alineadas al corte (dia 1 y 16 en quincenal)", async () => {
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
-    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "BIWEEKLY" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      frequency: "BIWEEKLY",
+    } as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
-      { effectiveFrom: diaDesalineadoDelMes(1), currency: "USD", employee: { firstName: "A", lastName: "Uno" } },
-      { effectiveFrom: diaDesalineadoDelMes(16), currency: "VES", employee: { firstName: "B", lastName: "Dos" } },
+      {
+        effectiveFrom: diaDesalineadoDelMes(1),
+        currency: "USD",
+        employee: { firstName: "A", lastName: "Uno" },
+      },
+      {
+        effectiveFrom: diaDesalineadoDelMes(16),
+        currency: "VES",
+        employee: { firstName: "B", lastName: "Dos" },
+      },
     ] as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -448,7 +461,11 @@ describe("PendingTasksService.getPendingTasks", () => {
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "MONTHLY" } as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
-      { effectiveFrom: diaDesalineadoDelMes(16), currency: "USD", employee: { firstName: "C", lastName: "Tres" } },
+      {
+        effectiveFrom: diaDesalineadoDelMes(16),
+        currency: "USD",
+        employee: { firstName: "C", lastName: "Tres" },
+      },
     ] as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -465,7 +482,9 @@ describe("PendingTasksService.getPendingTasks", () => {
     // `payrollRun.findMany` sirve DOS consultas distintas en el servicio (los
     // dias de corte historicos y los borradores del cron) — el mock debe
     // distinguirlas por `where`, igual que Postgres lo haria de verdad.
-    vi.mocked(prisma.payrollRun.findMany).mockImplementation((async (args: { where?: { createdByUserId?: string } }) =>
+    vi.mocked(prisma.payrollRun.findMany).mockImplementation((async (args: {
+      where?: { createdByUserId?: string };
+    }) =>
       args?.where?.createdByUserId
         ? []
         : [
@@ -473,7 +492,11 @@ describe("PendingTasksService.getPendingTasks", () => {
             { periodStart: new Date(Date.UTC(2026, 7, 1)) },
           ]) as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
-      { effectiveFrom: diaDesalineadoDelMes(16), currency: "USD", employee: { firstName: "E", lastName: "Cinco" } },
+      {
+        effectiveFrom: diaDesalineadoDelMes(16),
+        currency: "USD",
+        employee: { firstName: "E", lastName: "Cinco" },
+      },
     ] as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -485,7 +508,11 @@ describe("PendingTasksService.getPendingTasks", () => {
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "SEMANAL" } as never);
     vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
-      { effectiveFrom: diaDesalineadoDelMes(20), currency: "USD", employee: { firstName: "D", lastName: "Cuatro" } },
+      {
+        effectiveFrom: diaDesalineadoDelMes(20),
+        currency: "USD",
+        employee: { firstName: "D", lastName: "Cuatro" },
+      },
     ] as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -494,7 +521,9 @@ describe("PendingTasksService.getPendingTasks", () => {
 
   it("tambien mira las asignaciones fijas, no solo el sueldo", async () => {
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
-    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({ frequency: "BIWEEKLY" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      frequency: "BIWEEKLY",
+    } as never);
     vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([
       {
         effectiveFrom: diaDesalineadoDelMes(22),
@@ -546,7 +575,7 @@ describe("PendingTasksService.getPendingTasks", () => {
   it("detecta empleados con período de prueba por vencer (NOM_PRUEBA_POR_VENCER) — severity info", async () => {
     // employee.count devuelve 2 en la primera llamada (activos), 1 en la segunda (prueba)
     vi.mocked(prisma.employee.count)
-      .mockResolvedValueOnce(5 as never)  // nomActiveEmployeesCount
+      .mockResolvedValueOnce(5 as never) // nomActiveEmployeesCount
       .mockResolvedValueOnce(1 as never); // nomProbationCount
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -561,10 +590,10 @@ describe("PendingTasksService.getPendingTasks", () => {
   // Hallazgo #5: IGTF con igtfPayableAccountId no configurado
   it("detecta IGTF sin cuenta GL configurada (IGTF_SIN_CUENTA_GL) — severity error", async () => {
     vi.mocked(prisma.invoice.count)
-      .mockResolvedValueOnce(0 as never)         // invoicesSinCausarCount
-      .mockResolvedValueOnce(3 as never);        // igtfSinCuentaCount — 3 facturas con IGTF
+      .mockResolvedValueOnce(0 as never) // invoicesSinCausarCount
+      .mockResolvedValueOnce(3 as never); // igtfSinCuentaCount — 3 facturas con IGTF
     vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(
-      { igtfPayableAccountId: null } as never   // cuenta no configurada
+      { igtfPayableAccountId: null } as never // cuenta no configurada
     );
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -579,7 +608,7 @@ describe("PendingTasksService.getPendingTasks", () => {
   it("NO emite IGTF_SIN_CUENTA_GL cuando la cuenta está configurada", async () => {
     vi.mocked(prisma.invoice.count)
       .mockResolvedValueOnce(0 as never)
-      .mockResolvedValueOnce(5 as never);       // igtfSinCuentaCount = 5
+      .mockResolvedValueOnce(5 as never); // igtfSinCuentaCount = 5
     // companySettings.findUnique ya retorna igtfPayableAccountId: "acc-configured" por mockAllZero
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -622,8 +651,8 @@ describe("PendingTasksService.getPendingTasks", () => {
   it("detecta retenciones sin asiento GL (RETENCIONES_SIN_ASIENTO_GL) — severity error", async () => {
     // retencion.count se llama 3 veces en Promise.all (sinVincular, porEnterar, sinAsientoGL)
     vi.mocked(prisma.retencion.count)
-      .mockResolvedValueOnce(0 as never)  // RETENCIONES_SIN_VINCULAR
-      .mockResolvedValueOnce(0 as never)  // RETENCIONES_POR_ENTERAR
+      .mockResolvedValueOnce(0 as never) // RETENCIONES_SIN_VINCULAR
+      .mockResolvedValueOnce(0 as never) // RETENCIONES_POR_ENTERAR
       .mockResolvedValueOnce(3 as never); // RETENCIONES_SIN_ASIENTO_GL
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -670,10 +699,10 @@ describe("PendingTasksService.getPendingTasks", () => {
   it("emite CXC_GL_DESCUADRE cuando la brecha subledger↔GL supera Bs. 1 (severity error)", async () => {
     // 5 $queryRaw calls in order: stockBajo, igtfPagosSin, clientesInactivos, igtfGlIncompleto, cxcGlDescuadre
     vi.mocked(prisma.$queryRaw)
-      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // stockBajo
-      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // igtfPagosSinRegistrar
-      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // clientesInactivos
-      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)  // igtfGlIncompleto
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never) // stockBajo
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never) // igtfPagosSinRegistrar
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never) // clientesInactivos
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never) // igtfGlIncompleto
       .mockResolvedValueOnce([{ gap_ves: "1500.2500" }] as never); // cxcGlDescuadre
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -732,7 +761,7 @@ describe("PendingTasksService.getPendingTasks", () => {
           status: "PENDING",
           cajaCaja: { status: "ACTIVE" },
         }),
-      }),
+      })
     );
   });
 
@@ -754,7 +783,7 @@ describe("PendingTasksService.getPendingTasks", () => {
     expect(vi.mocked(prisma.cajaCajaReimbursement.count)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ companyId: "company-1", status: "DRAFT" }),
-      }),
+      })
     );
   });
 
@@ -779,7 +808,7 @@ describe("PendingTasksService.getPendingTasks", () => {
           status: "ACTIVE",
           custodianId: null,
         }),
-      }),
+      })
     );
   });
 
@@ -844,7 +873,9 @@ describe("PendingTasksService.getPendingTasks", () => {
     enFecha("2026-09-02T12:00:00Z");
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue(EMPLEADOS as never);
-    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([{ employeeId: "emp-jose" }] as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
+      { employeeId: "emp-jose" },
+    ] as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
     const task = result.tasks.find((t) => t.type === "NOM_PERIODO_SIN_PROCESAR");
@@ -860,7 +891,8 @@ describe("PendingTasksService.getPendingTasks", () => {
     vi.mocked(prisma.employee.count).mockResolvedValue(2 as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue(EMPLEADOS as never);
     vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([
-      { employeeId: "emp-ramon" }, { employeeId: "emp-jose" },
+      { employeeId: "emp-ramon" },
+      { employeeId: "emp-jose" },
     ] as never);
 
     const result = await PendingTasksService.getPendingTasks("company-1");
@@ -873,9 +905,15 @@ describe("PendingTasksService.getPendingTasks", () => {
   // es lo mismo que REVISADO. Severity "warning" desde el dia 0 a proposito:
   // es lo que hace que el digest diario lo mande por correo de inmediato.
 
-  function borradorAuto(overrides: Partial<{
-    id: string; periodStart: Date; periodEnd: Date; currencySegment: string; createdAt: Date;
-  }> = {}) {
+  function borradorAuto(
+    overrides: Partial<{
+      id: string;
+      periodStart: Date;
+      periodEnd: Date;
+      currencySegment: string;
+      createdAt: Date;
+    }> = {}
+  ) {
     return {
       id: "run-auto-1",
       periodStart: new Date(Date.UTC(2026, 7, 16)),
@@ -887,8 +925,9 @@ describe("PendingTasksService.getPendingTasks", () => {
   }
 
   function mockBorradoresAuto(rows: ReturnType<typeof borradorAuto>[]) {
-    vi.mocked(prisma.payrollRun.findMany).mockImplementation((async (args: { where?: { createdByUserId?: string } }) =>
-      args?.where?.createdByUserId ? rows : []) as never);
+    vi.mocked(prisma.payrollRun.findMany).mockImplementation((async (args: {
+      where?: { createdByUserId?: string };
+    }) => (args?.where?.createdByUserId ? rows : [])) as never);
   }
 
   it("un borrador automatico recien creado avisa el mismo dia (severity warning)", async () => {
@@ -932,11 +971,14 @@ describe("PendingTasksService.getPendingTasks", () => {
     mockBorradoresAuto([]);
 
     await PendingTasksService.getPendingTasks("company-1");
-    const llamadaAutoDrafts = vi.mocked(prisma.payrollRun.findMany).mock.calls.find(
-      (c) => (c[0] as { where?: { createdByUserId?: string } })?.where?.createdByUserId,
-    );
+    const llamadaAutoDrafts = vi
+      .mocked(prisma.payrollRun.findMany)
+      .mock.calls.find(
+        (c) => (c[0] as { where?: { createdByUserId?: string } })?.where?.createdByUserId
+      );
     expect(llamadaAutoDrafts).toBeDefined();
-    const where = (llamadaAutoDrafts![0] as { where: { status: string; createdByUserId: string } }).where;
+    const where = (llamadaAutoDrafts![0] as { where: { status: string; createdByUserId: string } })
+      .where;
     expect(where.status).toBe("DRAFT");
     expect(where.createdByUserId).toBe("system:payroll-auto-draft");
   });

@@ -12,7 +12,10 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({ auth: h.auth }));
-vi.mock("@sentry/nextjs", () => ({ captureMessage: h.captureMessage, captureException: h.captureException }));
+vi.mock("@sentry/nextjs", () => ({
+  captureMessage: h.captureMessage,
+  captureException: h.captureException,
+}));
 vi.mock("@/lib/prisma", () => ({ default: { paymentAttachment: { findFirst: h.find } } }));
 vi.mock("@/lib/action-guard", () => ({ requireCompanyAction: h.guard }));
 vi.mock("@/lib/ratelimit", () => ({ limiters: { read: {} }, checkRateLimit: h.rateLimit }));
@@ -29,7 +32,9 @@ const ROW = {
   contentHash: "a".repeat(64),
 };
 const call = () =>
-  GET(new Request("https://contaflow.test/x"), { params: Promise.resolve({ companyId: "co-1", attachmentId: "att-1" }) });
+  GET(new Request("https://contaflow.test/x"), {
+    params: Promise.resolve({ companyId: "co-1", attachmentId: "att-1" }),
+  });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,7 +58,10 @@ describe("GET /api/company/[companyId]/payments/attachments/[attachmentId]/downl
   });
 
   it("403 si no es miembro de la empresa", async () => {
-    h.guard.mockResolvedValue({ ok: false, error: { success: false, error: "Empresa no encontrada o acceso denegado" } });
+    h.guard.mockResolvedValue({
+      ok: false,
+      error: { success: false, error: "Empresa no encontrada o acceso denegado" },
+    });
     expect((await call()).status).toBe(403);
     expect(h.find).not.toHaveBeenCalled();
   });
@@ -62,12 +70,15 @@ describe("GET /api/company/[companyId]/payments/attachments/[attachmentId]/downl
     h.find.mockResolvedValue(null);
     expect((await call()).status).toBe(404);
     expect(h.find).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "att-1", companyId: "co-1", deletedAt: null } }),
+      expect.objectContaining({ where: { id: "att-1", companyId: "co-1", deletedAt: null } })
     );
   });
 
   it("404 y aviso a Sentry si la ruta guardada no cuelga de su empresa y su pago", async () => {
-    h.find.mockResolvedValue({ ...ROW, blobKey: "otra-empresa/payments/pay-1/0b5d1c1e-6f0a-4c33-9a57-3f2d8e9b7a10.pdf" });
+    h.find.mockResolvedValue({
+      ...ROW,
+      blobKey: "otra-empresa/payments/pay-1/0b5d1c1e-6f0a-4c33-9a57-3f2d8e9b7a10.pdf",
+    });
     expect((await call()).status).toBe(404);
     expect(h.captureMessage).toHaveBeenCalled();
     expect(h.get).not.toHaveBeenCalled();
@@ -91,7 +102,9 @@ describe("GET /api/company/[companyId]/payments/attachments/[attachmentId]/downl
     expect(res.headers.get("X-Content-SHA256")).toBe("a".repeat(64));
     const disposition = res.headers.get("Content-Disposition")!;
     expect(disposition.startsWith("attachment;")).toBe(true); // PDF: se descarga (CSP object-src 'none')
-    expect(disposition).toContain(`filename*=UTF-8''${encodeURIComponent("Transferencia ñandú.pdf")}`);
+    expect(disposition).toContain(
+      `filename*=UTF-8''${encodeURIComponent("Transferencia ñandú.pdf")}`
+    );
     expect(disposition).toContain('filename="Transferencia_and_.pdf"'); // ASCII de respaldo sin caracteres raros
   });
 

@@ -26,7 +26,7 @@ export function IvaCompositionChart({ data }: Props) {
 
   if (chartData.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex h-64 items-center justify-center text-sm">
         Sin líneas de IVA registradas
       </div>
     );

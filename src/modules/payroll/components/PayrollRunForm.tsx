@@ -41,8 +41,9 @@ function seleccionPorDefecto(elegibles: PickerEmployee[]): Set<string> {
   const monedas = [...new Set(elegibles.map((e) => e.currency))];
   if (monedas.length <= 1) return new Set(elegibles.map((e) => e.id));
   const mayoritaria = monedas.sort(
-    (a, b) => elegibles.filter((e) => e.currency === b).length
-            - elegibles.filter((e) => e.currency === a).length,
+    (a, b) =>
+      elegibles.filter((e) => e.currency === b).length -
+      elegibles.filter((e) => e.currency === a).length
   )[0];
   return new Set(elegibles.filter((e) => e.currency === mayoritaria).map((e) => e.id));
 }
@@ -104,22 +105,17 @@ export function PayrollRunForm({
   // hacía que la pantalla y el cálculo discreparan justo cuando un sueldo cambia
   // dentro del período.
   const conMoneda: PickerEmployee[] = useMemo(
-    () => (employees ?? []).map((e) => ({
-      id: e.id,
-      name: e.name,
-      currency: salaryCurrencyAt(e.salaries, periodStart),
-    })),
-    [employees, periodStart],
+    () =>
+      (employees ?? []).map((e) => ({
+        id: e.id,
+        name: e.name,
+        currency: salaryCurrencyAt(e.salaries, periodStart),
+      })),
+    [employees, periodStart]
   );
 
-  const elegibles = useMemo(
-    () => conMoneda.filter((e) => e.currency !== null),
-    [conMoneda],
-  );
-  const monedas = useMemo(
-    () => [...new Set(elegibles.map((e) => e.currency))],
-    [elegibles],
-  );
+  const elegibles = useMemo(() => conMoneda.filter((e) => e.currency !== null), [conMoneda]);
+  const monedas = useMemo(() => [...new Set(elegibles.map((e) => e.currency))], [elegibles]);
   const hayMonedasMixtas = monedas.length > 1;
 
   const [selected, setSelected] = useState<Set<string>>(() => seleccionPorDefecto(elegibles));
@@ -134,15 +130,16 @@ export function PayrollRunForm({
     setSelected(seleccionPorDefecto(elegibles));
   }
 
-  const monedasSeleccionadas = [...new Set(
-    elegibles.filter((e) => selected.has(e.id)).map((e) => e.currency),
-  )];
+  const monedasSeleccionadas = [
+    ...new Set(elegibles.filter((e) => selected.has(e.id)).map((e) => e.currency)),
+  ];
   const seleccionInvalida = monedasSeleccionadas.length > 1;
 
   function toggleEmployee(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -177,10 +174,10 @@ export function PayrollRunForm({
         // hay que pagarlas— pero la empresa tiene que enterarse de que excedió.
         const avisos = result.data.overtimeWarnings ?? [];
         if (avisos.length > 0) {
-          toast.warning(
-            `Nómina creada con ${avisos.length} exceso(s) de horas extraordinarias`,
-            { description: avisos[0], duration: 10000 },
-          );
+          toast.warning(`Nómina creada con ${avisos.length} exceso(s) de horas extraordinarias`, {
+            description: avisos[0],
+            duration: 10000,
+          });
         } else {
           toast.success("Proceso de nómina creado exitosamente");
         }
@@ -193,8 +190,11 @@ export function PayrollRunForm({
   }
 
   // C-01: ver computeSalMinAlert — el VALOR manda sobre la antigüedad.
-  const { tieneAviso: salMinTieneAviso, titulo: salMinTitulo, mensaje: salMinMensaje } =
-    computeSalMinAlert(salMinValue, salMinLastUpdate);
+  const {
+    tieneAviso: salMinTieneAviso,
+    titulo: salMinTitulo,
+    mensaje: salMinMensaje,
+  } = computeSalMinAlert(salMinValue, salMinLastUpdate);
 
   const salMinFormatted = salMinValue
     ? `Bs. ${parseFloat(salMinValue).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -212,25 +212,26 @@ export function PayrollRunForm({
   // este archivo con "Zone Allocation failed", que no es falta de heap y por
   // eso no se arregla subiendo --max-old-space-size.
   const plural = activeEmployeeCount !== 1 ? "s" : "";
-  const resumenPlantilla = activeEmployeeCount === 0
-    ? "Sin empleados activos registrados"
-    : employees === undefined
-      ? `Se procesarán ${activeEmployeeCount} empleado${plural} activo${plural}`
-      : `Se procesarán ${selected.size} de ${activeEmployeeCount} empleado${plural} activo${plural}`;
+  const resumenPlantilla =
+    activeEmployeeCount === 0
+      ? "Sin empleados activos registrados"
+      : employees === undefined
+        ? `Se procesarán ${activeEmployeeCount} empleado${plural} activo${plural}`
+        : `Se procesarán ${selected.size} de ${activeEmployeeCount} empleado${plural} activo${plural}`;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-lg">
+    <form onSubmit={handleSubmit} className="max-w-lg space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-gray-900">Nuevo Proceso de Nómina</h2>
         <p className="mt-1 text-sm text-gray-500">
           Se calcularán automáticamente todos los empleados activos con salario vigente.
         </p>
         {activeEmployeeCount !== undefined && (
-          <p className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
-            activeEmployeeCount === 0
-              ? "bg-amber-50 text-amber-700"
-              : "bg-blue-50 text-blue-700"
-          }`}>
+          <p
+            className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
+              activeEmployeeCount === 0 ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700"
+            }`}
+          >
             {resumenPlantilla}
           </p>
         )}
@@ -243,15 +244,16 @@ export function PayrollRunForm({
           <p className="mt-1 text-xs text-amber-800">{salMinMensaje}</p>
           {ivssCapFormatted && faovCapFormatted && (
             <p className="mt-1 text-xs text-amber-800">
-              Topes actuales: IVSS/INCES/RPE = <span className="font-mono">{ivssCapFormatted}</span> (5×) ·{" "}
-              FAOV = <span className="font-mono">{faovCapFormatted}</span> (10×).
-              Consulta el decreto vigente en MINPPTRASS y actualiza en{" "}
+              Topes actuales: IVSS/INCES/RPE = <span className="font-mono">{ivssCapFormatted}</span>{" "}
+              (5×) · FAOV = <span className="font-mono">{faovCapFormatted}</span> (10×). Consulta el
+              decreto vigente en MINPPTRASS y actualiza en{" "}
               <a
                 href={`/company/${companyId}/payroll/legal-thresholds`}
                 className="underline hover:text-amber-900"
               >
                 Topes Legales
-              </a>.
+              </a>
+              .
             </p>
           )}
           {!salMinFormatted && (
@@ -270,8 +272,9 @@ export function PayrollRunForm({
         <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           <p className="font-medium">Sin tasa BCV para el mes actual (Art. 143 LOTTT)</p>
           <p className="mt-0.5 text-xs text-blue-700">
-            No hay tasa BCV registrada para este período. El snapshot <span className="font-mono">bcvRateAtRun</span>{" "}
-            quedará vacío y los intereses sobre prestaciones no podrán calcularse para este proceso.{" "}
+            No hay tasa BCV registrada para este período. El snapshot{" "}
+            <span className="font-mono">bcvRateAtRun</span> quedará vacío y los intereses sobre
+            prestaciones no podrán calcularse para este proceso.{" "}
             <a
               href={`/company/${companyId}/payroll/benefits`}
               className="underline hover:text-blue-900"
@@ -284,46 +287,45 @@ export function PayrollRunForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Fecha de inicio
-          </label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Fecha de inicio</label>
           <input
             type="date"
             value={periodStart}
             onChange={(e) => handleStartChange(e.target.value)}
             required
-            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Fecha de fin
-          </label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Fecha de fin</label>
           <input
             type="date"
             value={periodEnd}
             onChange={(e) => setPeriodEnd(e.target.value)}
             required
-            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
           {error}
         </p>
       )}
 
       <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
         <strong>Incluye automáticamente:</strong>
-        <ul className="mt-1 ml-4 list-disc text-xs space-y-0.5 text-blue-700">
+        <ul className="mt-1 ml-4 list-disc space-y-0.5 text-xs text-blue-700">
           <li>Salario básico + IVSS (4%), INCES (2%), FAOV (1%) según configuración</li>
           <li>Cuotas de préstamos activos como deducciones automáticas</li>
           <li>Tasa BCV de interés del período (snapshot del registro mensual)</li>
           <li>Asiento de causación GL generado automáticamente al aprobar</li>
         </ul>
-        <p className="mt-1 text-xs text-blue-600">Las horas extra se toman del registro del período (LOTTT Art. 183). El ISLR se agrega como concepto manual en el detalle.</p>
+        <p className="mt-1 text-xs text-blue-600">
+          Las horas extra se toman del registro del período (LOTTT Art. 183). El ISLR se agrega como
+          concepto manual en el detalle.
+        </p>
       </div>
 
       <EmployeePicker
@@ -341,7 +343,7 @@ export function PayrollRunForm({
           type="submit"
           disabled={isPending || seleccionInvalida || (elegibles.length > 0 && selected.size === 0)}
           aria-busy={isPending}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {isPending && <Loader2Icon className="size-4 animate-spin" />}
           {isPending ? "Calculando…" : "Calcular Nómina"}
@@ -349,7 +351,7 @@ export function PayrollRunForm({
         <button
           type="button"
           onClick={() => router.back()}
-          className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Cancelar
         </button>

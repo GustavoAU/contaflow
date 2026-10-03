@@ -68,7 +68,13 @@ describe("validateTaxLinesBeforeSubmit — tolerancia de IVA impreso (ADR-049) s
 describe("validateTaxLinesBeforeSubmit — el resto de validaciones no cambia (docContext neutro: compra VES factura)", () => {
   it("par suntuario incompleto (IVA_ADICIONAL sin IVA_GENERAL) → rechaza", () => {
     const lines = [
-      mkLine({ id: "a", taxType: "IVA_ADICIONAL", rate: "15", amount: "150.00", luxuryGroupId: "g1" }),
+      mkLine({
+        id: "a",
+        taxType: "IVA_ADICIONAL",
+        rate: "15",
+        amount: "150.00",
+        luxuryGroupId: "g1",
+      }),
     ];
     const result = validateTaxLinesBeforeSubmit(lines, "GRAVADA", PURCHASE_VES_FACTURA);
     expect(result).not.toBeNull();
@@ -77,8 +83,22 @@ describe("validateTaxLinesBeforeSubmit — el resto de validaciones no cambia (d
 
   it("bases desiguales entre IVA General e IVA Adicional vinculados → rechaza", () => {
     const lines = [
-      mkLine({ id: "a", taxType: "IVA_GENERAL", base: "1000", rate: "16", amount: "160.00", luxuryGroupId: "g1" }),
-      mkLine({ id: "b", taxType: "IVA_ADICIONAL", base: "900", rate: "15", amount: "135.00", luxuryGroupId: "g1" }),
+      mkLine({
+        id: "a",
+        taxType: "IVA_GENERAL",
+        base: "1000",
+        rate: "16",
+        amount: "160.00",
+        luxuryGroupId: "g1",
+      }),
+      mkLine({
+        id: "b",
+        taxType: "IVA_ADICIONAL",
+        base: "900",
+        rate: "15",
+        amount: "135.00",
+        luxuryGroupId: "g1",
+      }),
     ];
     const result = validateTaxLinesBeforeSubmit(lines, "GRAVADA", PURCHASE_VES_FACTURA);
     expect(result).not.toBeNull();
@@ -139,8 +159,22 @@ describe("updateTaxLineState — H1: no pisar un Monto IVA desviado a mano al ca
   });
 
   it("GUARDA: par de lujo, ambas líneas en auto-tracking → cambiar la base de una sincroniza la base Y recalcula el amount de las DOS", () => {
-    const general = mkLine({ id: "g", taxType: "IVA_GENERAL", base: "1000", rate: "16", amount: "160.00", luxuryGroupId: "grp-1" });
-    const adicional = mkLine({ id: "a", taxType: "IVA_ADICIONAL", base: "1000", rate: "15", amount: "150.00", luxuryGroupId: "grp-1" });
+    const general = mkLine({
+      id: "g",
+      taxType: "IVA_GENERAL",
+      base: "1000",
+      rate: "16",
+      amount: "160.00",
+      luxuryGroupId: "grp-1",
+    });
+    const adicional = mkLine({
+      id: "a",
+      taxType: "IVA_ADICIONAL",
+      base: "1000",
+      rate: "15",
+      amount: "150.00",
+      luxuryGroupId: "grp-1",
+    });
     const prev = [general, adicional];
     const next = updateTaxLineState(prev, "g", "base", "2000");
     const nGeneral = next.find((l) => l.id === "g")!;
@@ -152,8 +186,22 @@ describe("updateTaxLineState — H1: no pisar un Monto IVA desviado a mano al ca
   });
 
   it("RED: par de lujo con IVA_ADICIONAL ya desviado a mano → la base se sincroniza en AMBAS, pero solo se recalcula el amount de la que seguía en auto-tracking", () => {
-    const general = mkLine({ id: "g", taxType: "IVA_GENERAL", base: "1000", rate: "16", amount: "160.00", luxuryGroupId: "grp-1" }); // auto-tracking
-    const adicional = mkLine({ id: "a", taxType: "IVA_ADICIONAL", base: "1000", rate: "15", amount: "150.75", luxuryGroupId: "grp-1" }); // calcAmount(1000,15)=150.00 ≠ 150.75: desviado a mano
+    const general = mkLine({
+      id: "g",
+      taxType: "IVA_GENERAL",
+      base: "1000",
+      rate: "16",
+      amount: "160.00",
+      luxuryGroupId: "grp-1",
+    }); // auto-tracking
+    const adicional = mkLine({
+      id: "a",
+      taxType: "IVA_ADICIONAL",
+      base: "1000",
+      rate: "15",
+      amount: "150.75",
+      luxuryGroupId: "grp-1",
+    }); // calcAmount(1000,15)=150.00 ≠ 150.75: desviado a mano
     const prev = [general, adicional];
     const next = updateTaxLineState(prev, "g", "base", "2000");
     const nGeneral = next.find((l) => l.id === "g")!;

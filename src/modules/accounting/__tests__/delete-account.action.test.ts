@@ -17,8 +17,11 @@ vi.mock("@clerk/nextjs/server", () => ({
 }));
 vi.mock("@/lib/action-guard", () => ({
   requireCompanyAction: vi.fn().mockResolvedValue({
-    ok: true, userId: "user-1", role: "ADMIN",
-    ipAddress: "1.2.3.4", userAgent: "ua",
+    ok: true,
+    userId: "user-1",
+    role: "ADMIN",
+    ipAddress: "1.2.3.4",
+    userAgent: "ua",
   }),
 }));
 vi.mock("@/lib/prisma", () => ({
@@ -31,8 +34,12 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const CUENTA = {
-  id: "acc-1", code: "1000", name: "Carlos Eduardo Rivas",
-  type: "ASSET", companyId: "co-1", deletedAt: null,
+  id: "acc-1",
+  code: "1000",
+  name: "Carlos Eduardo Rivas",
+  type: "ASSET",
+  companyId: "co-1",
+  deletedAt: null,
 };
 
 beforeEach(() => {
@@ -52,10 +59,16 @@ describe("deleteAccountAction", () => {
 
     expect(r.success).toBe(true);
     // Logico, no fisico: un asiento futuro nunca debe quedar apuntando a nada.
-    const data = vi.mocked(prisma.account.updateMany).mock.calls[0][0].data as Record<string, unknown>;
+    const data = vi.mocked(prisma.account.updateMany).mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
     expect(data.deletedAt).toBeInstanceOf(Date);
 
-    const audit = vi.mocked(prisma.auditLog.create).mock.calls[0][0].data as Record<string, unknown>;
+    const audit = vi.mocked(prisma.auditLog.create).mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
     expect(audit.action).toBe("DELETE");
     expect(audit.ipAddress).toBe("1.2.3.4");
     expect((audit.oldValue as Record<string, unknown>).code).toBe("1000");
@@ -78,14 +91,18 @@ describe("deleteAccountAction", () => {
     const { deleteAccountAction } = await import("../actions/account.actions");
     await deleteAccountAction("acc-1");
 
-    const where = vi.mocked(prisma.account.updateMany).mock.calls[0][0].where as Record<string, unknown>;
+    const where = vi.mocked(prisma.account.updateMany).mock.calls[0][0].where as Record<
+      string,
+      unknown
+    >;
     expect(where.companyId).toBe("co-1");
     expect(where.deletedAt).toBeNull();
   });
 
   it("una cuenta ya borrada no se borra dos veces", async () => {
     vi.mocked(prisma.account.findUnique).mockResolvedValue({
-      ...CUENTA, deletedAt: new Date(),
+      ...CUENTA,
+      deletedAt: new Date(),
     } as never);
     const { deleteAccountAction } = await import("../actions/account.actions");
 

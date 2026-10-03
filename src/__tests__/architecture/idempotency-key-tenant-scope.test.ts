@@ -359,7 +359,10 @@ function isWhereOpener(code: string, open: number): boolean {
  * ANCESTROS, un `data: { idempotencyKey }` hermano de un `where: {…}` nunca se
  * confunde con un filtro: las llaves del `where` no lo encierran.
  */
-function findEnclosingWhereBlock(code: string, idx: number): { open: number; close: number } | null {
+function findEnclosingWhereBlock(
+  code: string,
+  idx: number
+): { open: number; close: number } | null {
   let pos = idx;
   for (let level = 0; level < MAX_OUTWARD_LEVELS; level++) {
     const opener = findEnclosingOpener(code, pos);
@@ -553,7 +556,7 @@ export function findRawSqlSites(content: string, relPath: string): RawSite[] {
     const head = m.index + m[0].length;
     // Entre el método y el literal sólo caben genéricos, espacios y `(`.
     const literal = literals.find(
-      (l) => l.start >= head && l.start <= head + 220 && !code.slice(head, l.start).includes(";"),
+      (l) => l.start >= head && l.start <= head + 220 && !code.slice(head, l.start).includes(";")
     );
     const sql = literal
       ? content.slice(literal.start, literal.end + 1)
@@ -599,7 +602,7 @@ describe("Architecture: lookups por idempotencyKey acotados a companyId", () => 
     expect(
       sites.length,
       `El detector solo encontró ${sites.length} filtros por idempotencyKey. ` +
-        `Si el patrón cambió de forma, ajusta el analizador — no bajes el mínimo.`,
+        `Si el patrón cambió de forma, ajusta el analizador — no bajes el mínimo.`
     ).toBeGreaterThanOrEqual(MIN_EXPECTED_SITES);
   });
 
@@ -610,13 +613,13 @@ describe("Architecture: lookups por idempotencyKey acotados a companyId", () => 
         (s) =>
           `[${s.file}:${s.line}] filtro por idempotencyKey SIN companyId en el where — IDOR cross-tenant\n` +
           `  ${s.text}\n` +
-          `  where analizado: ${s.whereBlock}`,
+          `  where analizado: ${s.whereBlock}`
       );
 
     expect(
       violations,
       `\`idempotencyKey\` es @unique GLOBAL y en varios modelos lo suministra el cliente.\n` +
-        `Un lookup sin companyId devuelve la fila de otra empresa.\n\n${violations.join("\n\n")}`,
+        `Un lookup sin companyId devuelve la fila de otra empresa.\n\n${violations.join("\n\n")}`
     ).toHaveLength(0);
   });
 
@@ -651,7 +654,7 @@ describe("Architecture: lookups por idempotencyKey acotados a companyId", () => 
 
     expect(
       offenders,
-      `findUnique por idempotencyKey sin companyId → usar findFirst acotado (o el selector compuesto companyId_idempotencyKey):\n${offenders.join("\n")}`,
+      `findUnique por idempotencyKey sin companyId → usar findFirst acotado (o el selector compuesto companyId_idempotencyKey):\n${offenders.join("\n")}`
     ).toHaveLength(0);
   });
 
@@ -667,7 +670,7 @@ describe("Architecture: lookups por idempotencyKey acotados a companyId", () => 
     expect(
       rawSites.length,
       `El escáner de SQL crudo sólo encontró ${rawSites.length} call-sites. ` +
-        `Si $queryRaw/$executeRaw cambiaron de forma, ajusta el escáner.`,
+        `Si $queryRaw/$executeRaw cambiaron de forma, ajusta el escáner.`
     ).toBeGreaterThanOrEqual(MIN_EXPECTED_RAW_SITES);
 
     const offenders = rawSites
@@ -677,7 +680,7 @@ describe("Architecture: lookups por idempotencyKey acotados a companyId", () => 
     expect(
       offenders,
       `SQL crudo que filtra por idempotencyKey debe incluir \`"companyId" = \${companyId}\` ` +
-        `explícito (también en JOINs y EXISTS anidados — CLAUDE.md D-8.2):\n${offenders.join("\n")}`,
+        `explícito (también en JOINs y EXISTS anidados — CLAUDE.md D-8.2):\n${offenders.join("\n")}`
     ).toHaveLength(0);
   });
 
@@ -704,7 +707,7 @@ describe("Architecture: lookups por idempotencyKey acotados a companyId", () => 
     expect(
       offenders,
       `Clave \`where\` entrecomillada — el guard de idempotencyKey no puede analizarla. ` +
-        `Escríbela como clave plana \`where: { … }\`:\n${offenders.join("\n")}`,
+        `Escríbela como clave plana \`where: { … }\`:\n${offenders.join("\n")}`
     ).toHaveLength(0);
   });
 });
@@ -762,8 +765,7 @@ describe("Meta: el detector caza las evasiones medidas (2026-08-19)", () => {
   });
 
   it("VECTOR 4 — $queryRaw con idempotencyKey y sin companyId se marca", () => {
-    const src =
-      "await prisma.$queryRaw`SELECT id FROM \"Expense\" WHERE \"idempotencyKey\" = ${key}`;";
+    const src = 'await prisma.$queryRaw`SELECT id FROM "Expense" WHERE "idempotencyKey" = ${key}`;';
     const raw = findRawSqlSites(src, "fixture.ts");
     expect(raw).toHaveLength(1);
     expect(/idempotencyKey/.test(raw[0]!.sql)).toBe(true);
@@ -875,7 +877,7 @@ describe("Meta: el detector NO produce falsos positivos", () => {
           where: { id, companyId },
           data: { lines: { create: { idempotencyKey: k } } },
         });
-      `),
+      `)
     ).toHaveLength(0);
   });
 
@@ -886,7 +888,7 @@ describe("Meta: el detector NO produce falsos positivos", () => {
           const meta = error.meta as { target?: string[] };
           if (meta?.target?.includes("idempotencyKey")) return duplicado();
         }
-      `),
+      `)
     ).toHaveLength(0);
   });
 
@@ -896,7 +898,7 @@ describe("Meta: el detector NO produce falsos positivos", () => {
         // Antes era \`findUnique({ where: { idempotencyKey } })\` sobre un @unique GLOBAL.
         /* where: { idempotencyKey } — así NO */
         const x = 1;
-      `),
+      `)
     ).toHaveLength(0);
   });
 
@@ -938,17 +940,19 @@ describe("Meta: el guard PUEDE fallar sobre código real (mutación)", () => {
     // clave en este mismo archivo, y el `toBe(1)` original tumbó la suite por un
     // cambio legítimo. Lo que sí es invariante: que TODOS salgan acotados y que
     // amputarle el companyId a CUALQUIERA de ellos se detecte.
-    expect(before.length, `${TARGET}: no se detectó ningún lookup por idempotencyKey`)
-      .toBeGreaterThan(0);
+    expect(
+      before.length,
+      `${TARGET}: no se detectó ningún lookup por idempotencyKey`
+    ).toBeGreaterThan(0);
     expect(
       before.filter((s) => !s.scoped),
-      `${TARGET}: hay lookups por idempotencyKey sin companyId`,
+      `${TARGET}: hay lookups por idempotencyKey sin companyId`
     ).toHaveLength(0);
 
     const scopedCount = target!.content.split(SCOPED_WHERE).length - 1;
     expect(
       scopedCount,
-      `el where cambió de forma; actualiza SCOPED_WHERE (sitios detectados: ${before.length})`,
+      `el where cambió de forma; actualiza SCOPED_WHERE (sitios detectados: ${before.length})`
     ).toBe(before.length);
 
     // Un sitio a la vez: si el guard solo mirara el primero, los demás quedarían
@@ -961,7 +965,7 @@ describe("Meta: el guard PUEDE fallar sobre código real (mutación)", () => {
       expect(after.length, "la mutación no debe hacer desaparecer sitios").toBe(before.length);
       expect(
         after.filter((s) => !s.scoped).length,
-        `el guard NO detectó la pérdida del companyId en el sitio #${i + 1}`,
+        `el guard NO detectó la pérdida del companyId en el sitio #${i + 1}`
       ).toBe(1);
     }
   });
@@ -973,7 +977,7 @@ describe("Meta: integridad del enmascarado", () => {
       const masked = maskNonCode(f.content);
       expect(masked.length, `${f.rel}: el enmascarado cambió la longitud`).toBe(f.content.length);
       expect(masked.split("\n").length, `${f.rel}: el enmascarado cambió el nº de líneas`).toBe(
-        f.content.split("\n").length,
+        f.content.split("\n").length
       );
     }
   });
@@ -983,7 +987,7 @@ describe("Meta: integridad del enmascarado", () => {
     // versión con escáner de interpolaciones separado (no conocía los regex), y
     // el string fantasma se comía el resto del archivo.
     const code = maskNonCode(
-      'const escape = (v: string) => `"${v.replace(/"/g, \'""\')}"`;\nconst after = { a: 1 };',
+      'const escape = (v: string) => `"${v.replace(/"/g, \'""\')}"`;\nconst after = { a: 1 };'
     );
     expect(code).toContain("v.replace(");
     expect(code).toContain("{ a: 1 }");
@@ -991,7 +995,7 @@ describe("Meta: integridad del enmascarado", () => {
 
   it("no confunde JSX (`</div>`, `<Foo {...p} />`) con literales regex", () => {
     const code = maskNonCode(
-      "const El = () => (\n  <div>\n    <Foo {...p} />\n  </div>\n);\nconst after = { b: 2 };",
+      "const El = () => (\n  <div>\n    <Foo {...p} />\n  </div>\n);\nconst after = { b: 2 };"
     );
     expect(code).toContain("{ b: 2 }");
     expect(code).toContain("{...p}");
@@ -1016,7 +1020,7 @@ describe("Meta: integridad del enmascarado", () => {
     }
     expect(
       broken,
-      `El enmascarado descuadra estos archivos — el análisis por balanceo no es fiable en ellos:\n${broken.join("\n")}`,
+      `El enmascarado descuadra estos archivos — el análisis por balanceo no es fiable en ellos:\n${broken.join("\n")}`
     ).toHaveLength(0);
   });
 });

@@ -20,7 +20,8 @@ export async function createInventoryItem(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { companyId, accountId, cogsAccountId, itemType, defaultTaxRate, minimumStock, ...rest } = input;
+  const { companyId, accountId, cogsAccountId, itemType, defaultTaxRate, minimumStock, ...rest } =
+    input;
 
   // CRITICAL-2: verificar que accountId y cogsAccountId pertenecen a la empresa
   if (accountId) {
@@ -80,7 +81,16 @@ export async function updateInventoryItem(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { itemId, companyId, accountId, cogsAccountId, itemType, defaultTaxRate, minimumStock, ...rest } = input;
+  const {
+    itemId,
+    companyId,
+    accountId,
+    cogsAccountId,
+    itemType,
+    defaultTaxRate,
+    minimumStock,
+    ...rest
+  } = input;
 
   // CRITICAL-1: verificar que el ítem pertenece a la empresa
   const existing = await prisma.inventoryItem.findFirstOrThrow({
@@ -110,7 +120,9 @@ export async function updateInventoryItem(
         ...(rest.description !== undefined && { description: rest.description }),
         ...(itemType !== undefined && { itemType }),
         ...(defaultTaxRate !== undefined && { defaultTaxRate }),
-        ...(minimumStock !== undefined && { minimumStock: minimumStock != null ? new Decimal(minimumStock) : null }),
+        ...(minimumStock !== undefined && {
+          minimumStock: minimumStock != null ? new Decimal(minimumStock) : null,
+        }),
         ...(accountId !== undefined && { accountId: accountId ?? null }),
         ...(cogsAccountId !== undefined && { cogsAccountId: cogsAccountId ?? null }),
       },
@@ -190,7 +202,18 @@ export async function createDraftMovement(
   ipAddress: string | null = null,
   userAgent: string | null = null
 ) {
-  const { companyId, itemId, type, quantity, unitCost, unitId, invoiceId, counterpartAccountId, exchangeRateVes, ...rest } = input;
+  const {
+    companyId,
+    itemId,
+    type,
+    quantity,
+    unitCost,
+    unitId,
+    invoiceId,
+    counterpartAccountId,
+    exchangeRateVes,
+    ...rest
+  } = input;
 
   // CRITICAL-1: verificar ownership del ítem
   const item = await prisma.inventoryItem.findFirstOrThrow({
@@ -260,9 +283,7 @@ export async function createDraftMovement(
 
   // Para SALIDA/AJUSTE: unitCost se toma del CPP vigente del ítem
   const resolvedUnitCost =
-    type === "ENTRADA"
-      ? new Decimal(unitCost ?? 0)
-      : new Decimal(item.averageCost);
+    type === "ENTRADA" ? new Decimal(unitCost ?? 0) : new Decimal(item.averageCost);
 
   // Validar stock suficiente para SALIDA (usando cantidad en unidad base)
   if (type === "SALIDA") {
@@ -281,53 +302,54 @@ export async function createDraftMovement(
     });
   }
 
-  const runCreate = () => prisma.$transaction(async (tx) => {
-    const created = await tx.inventoryMovement.create({
-      data: {
-        companyId,
-        itemId,
-        type,
-        status: "DRAFT",
-        quantity: quantityInBase,                      // siempre en unidad base
-        unitCost: resolvedUnitCost,
-        totalCost: resolvedUnitCost.mul(quantityInBase),
-        unitId: resolvedUnitId,
-        quantityInUnit: quantityDecimal,               // cantidad tal como la ingresó el usuario
-        conversionSnapshot,                            // snapshot inmutable del factor (ADR-018 D-3)
-        invoiceId: invoiceId ?? null,
-        counterpartAccountId: counterpartAccountId ?? null,
-        exchangeRateVes: exchangeRateVes != null ? new Decimal(exchangeRateVes) : null,
-        date: new Date(rest.date),
-        idempotencyKey: rest.idempotencyKey,
-        reference: rest.reference,
-        notes: rest.notes ?? null,
-        createdBy: userId,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        companyId,
-        entityId: created.id,
-        entityName: "InventoryMovement",
-        action: "CREATE_DRAFT",
-        userId,
-        ipAddress,
-        userAgent,
-        newValue: {
+  const runCreate = () =>
+    prisma.$transaction(async (tx) => {
+      const created = await tx.inventoryMovement.create({
+        data: {
+          companyId,
           itemId,
           type,
-          quantityInBase: quantityInBase.toString(),
-          quantityInUnit: quantityDecimal.toString(),
-          conversionSnapshot: conversionSnapshot.toString(),
+          status: "DRAFT",
+          quantity: quantityInBase, // siempre en unidad base
+          unitCost: resolvedUnitCost,
+          totalCost: resolvedUnitCost.mul(quantityInBase),
           unitId: resolvedUnitId,
-          unitCost: resolvedUnitCost.toString(),
+          quantityInUnit: quantityDecimal, // cantidad tal como la ingresó el usuario
+          conversionSnapshot, // snapshot inmutable del factor (ADR-018 D-3)
+          invoiceId: invoiceId ?? null,
+          counterpartAccountId: counterpartAccountId ?? null,
+          exchangeRateVes: exchangeRateVes != null ? new Decimal(exchangeRateVes) : null,
+          date: new Date(rest.date),
+          idempotencyKey: rest.idempotencyKey,
+          reference: rest.reference,
+          notes: rest.notes ?? null,
+          createdBy: userId,
         },
-      },
-    });
+      });
 
-    return created;
-  });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          entityId: created.id,
+          entityName: "InventoryMovement",
+          action: "CREATE_DRAFT",
+          userId,
+          ipAddress,
+          userAgent,
+          newValue: {
+            itemId,
+            type,
+            quantityInBase: quantityInBase.toString(),
+            quantityInUnit: quantityDecimal.toString(),
+            conversionSnapshot: conversionSnapshot.toString(),
+            unitId: resolvedUnitId,
+            unitCost: resolvedUnitCost.toString(),
+          },
+        },
+      });
+
+      return created;
+    });
 
   // TOCTOU (auditoria LOW): mismo caso que ExpenseService — el pre-check de
   // idempotencia esta fuera de la transaccion, asi que bajo carrera el segundo
@@ -394,7 +416,8 @@ export async function voidDraftMovement(
 // ─── Consultas ────────────────────────────────────────────────────────────────
 
 export async function getInventoryItems(companyId: string) {
-  return prisma.inventoryItem.findMany({ // ADR-004: companyId en where
+  return prisma.inventoryItem.findMany({
+    // ADR-004: companyId en where
     where: { companyId, deletedAt: null },
     include: { account: true, cogsAccount: true },
     orderBy: { name: "asc" },
@@ -402,7 +425,8 @@ export async function getInventoryItems(companyId: string) {
 }
 
 export async function getDraftMovements(companyId: string) {
-  return prisma.inventoryMovement.findMany({ // ADR-004: companyId en where
+  return prisma.inventoryMovement.findMany({
+    // ADR-004: companyId en where
     where: { companyId, status: "DRAFT" },
     include: { item: true },
     orderBy: { createdAt: "desc" },
@@ -429,7 +453,7 @@ export async function getItemMovements(companyId: string, itemId: string) {
       reference: true,
       notes: true,
       createdAt: true,
-      transactionId: true,  // R-12: link al asiento contable cuando POSTED
+      transactionId: true, // R-12: link al asiento contable cuando POSTED
     },
     orderBy: { date: "desc" },
   });

@@ -30,7 +30,7 @@ export type AuditLogFilters = {
   entityNames?: string[]; // F-09: filtro por módulo (múltiples entidades)
   userId?: string;
   dateFrom?: string; // ISO date string YYYY-MM-DD
-  dateTo?: string;   // ISO date string YYYY-MM-DD
+  dateTo?: string; // ISO date string YYYY-MM-DD
   page?: number;
   pageSize?: number;
 };
@@ -40,7 +40,10 @@ const MAX_PAGE_SIZE = 100;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type WhereFilters = Pick<AuditLogFilters, "companyId" | "entityName" | "entityNames" | "userId" | "dateFrom" | "dateTo">;
+type WhereFilters = Pick<
+  AuditLogFilters,
+  "companyId" | "entityName" | "entityNames" | "userId" | "dateFrom" | "dateTo"
+>;
 
 function buildAuditWhere(filters: WhereFilters) {
   const { companyId, entityName, entityNames, userId, dateFrom, dateTo } = filters;
@@ -49,8 +52,8 @@ function buildAuditWhere(filters: WhereFilters) {
     entityNames && entityNames.length > 0
       ? { entityName: { in: entityNames } }
       : entityName
-      ? { entityName }
-      : {};
+        ? { entityName }
+        : {};
 
   return {
     companyId,
@@ -123,14 +126,16 @@ export class AuditLogService {
   }
 
   // OM-04: listAll para export PDF/CSV — hasta 1000 registros, sin paginación
-  static async listAll(filters: Omit<AuditLogFilters, "page" | "pageSize">): Promise<AuditLogRow[]> {
+  static async listAll(
+    filters: Omit<AuditLogFilters, "page" | "pageSize">
+  ): Promise<AuditLogRow[]> {
     const where = buildAuditWhere(filters);
 
     // ADR-004-EXCEPTION: companyId incluido en buildAuditWhere(filters) — siempre presente como campo requerido
     const rows = await prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      take: 1000,  // límite de seguridad — no exportar volúmenes ilimitados
+      take: 1000, // límite de seguridad — no exportar volúmenes ilimitados
       select: AUDIT_LOG_SELECT,
     });
 

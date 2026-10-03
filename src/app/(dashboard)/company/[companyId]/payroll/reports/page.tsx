@@ -41,16 +41,16 @@ const REPORTS = [
 ];
 
 const COLOR_MAP: Record<string, string> = {
-  blue:    "border-blue-100 bg-blue-50 hover:bg-blue-100",
+  blue: "border-blue-100 bg-blue-50 hover:bg-blue-100",
   emerald: "border-emerald-100 bg-emerald-50 hover:bg-emerald-100",
-  violet:  "border-violet-100 bg-violet-50 hover:bg-violet-100",
-  amber:   "border-amber-100 bg-amber-50 hover:bg-amber-100",
+  violet: "border-violet-100 bg-violet-50 hover:bg-violet-100",
+  amber: "border-amber-100 bg-amber-50 hover:bg-amber-100",
 };
 const BADGE_MAP: Record<string, string> = {
-  blue:    "bg-blue-100 text-blue-700",
+  blue: "bg-blue-100 text-blue-700",
   emerald: "bg-emerald-100 text-emerald-700",
-  violet:  "bg-violet-100 text-violet-700",
-  amber:   "bg-amber-100 text-amber-700",
+  violet: "bg-violet-100 text-violet-700",
+  amber: "bg-amber-100 text-amber-700",
 };
 
 export default async function PayrollReportsPage({ params }: Props) {
@@ -66,10 +66,12 @@ export default async function PayrollReportsPage({ params }: Props) {
   if (!canAccess(member.role, ROLES.ACCOUNTING)) redirect(`/company/${companyId}/payroll`);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 py-8 px-4">
+    <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
       <div>
-        <div className="flex items-center gap-2 text-sm text-zinc-500 mb-1">
-          <Link href={`/company/${companyId}/payroll`} className="hover:text-zinc-800">Nómina</Link>
+        <div className="mb-1 flex items-center gap-2 text-sm text-zinc-500">
+          <Link href={`/company/${companyId}/payroll`} className="hover:text-zinc-800">
+            Nómina
+          </Link>
           <span>›</span>
           <span>Reportes Legales</span>
         </div>
@@ -86,9 +88,11 @@ export default async function PayrollReportsPage({ params }: Props) {
             href={`/company/${companyId}/payroll/reports/${report.slug}`}
             className={`rounded-xl border p-5 transition-colors ${COLOR_MAP[report.color]}`}
           >
-            <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="mb-2 flex items-start justify-between gap-2">
               <p className="font-semibold text-zinc-900">{report.title}</p>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-10 font-medium ${BADGE_MAP[report.color]}`}>
+              <span
+                className={`text-10 shrink-0 rounded-full px-2 py-0.5 font-medium ${BADGE_MAP[report.color]}`}
+              >
                 {report.badge}
               </span>
             </div>
@@ -98,11 +102,11 @@ export default async function PayrollReportsPage({ params }: Props) {
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-500">
-        <p className="font-medium text-zinc-700 mb-1">Nota importante</p>
+        <p className="mb-1 font-medium text-zinc-700">Nota importante</p>
         <p>
-          Los reportes generados por ContaFlow son documentos de referencia contable para el contador.
-          Las declaraciones oficiales se realizan en los sistemas propios de cada organismo
-          (TIUNA / IVSS, FAOV-Web / Banavih, portal INCES, SENIAT).
+          Los reportes generados por ContaFlow son documentos de referencia contable para el
+          contador. Las declaraciones oficiales se realizan en los sistemas propios de cada
+          organismo (TIUNA / IVSS, FAOV-Web / Banavih, portal INCES, SENIAT).
         </p>
       </div>
     </div>

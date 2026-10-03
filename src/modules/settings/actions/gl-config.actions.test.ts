@@ -58,10 +58,12 @@ beforeEach(() => {
   vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   // Por defecto, la única cuenta que este input pide (acc-ar) existe y es de COMPANY_ID.
   vi.mocked(prisma.account.findMany).mockResolvedValue([{ id: "acc-ar" }] as never);
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({ companySettings: prisma.companySettings, account: prisma.account, auditLog: prisma.auditLog })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({
+      companySettings: prisma.companySettings,
+      account: prisma.account,
+      auditLog: prisma.auditLog,
+    })) as never);
 });
 
 describe("saveGLConfigAction — guard de cuentas ajenas", () => {

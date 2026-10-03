@@ -27,7 +27,7 @@ export default async function ProfitSharingPage({ params }: Props) {
   const canRead = canAccess(member.role, ROLES.ACCOUNTING);
   if (!canRead) {
     return (
-      <div className="mx-auto max-w-3xl py-8 px-4">
+      <div className="mx-auto max-w-3xl px-4 py-8">
         <p className="text-sm text-gray-500">No tienes acceso a este módulo.</p>
       </div>
     );
@@ -44,25 +44,30 @@ export default async function ProfitSharingPage({ params }: Props) {
   );
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 py-8 px-4">
+    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       <div className="flex items-center gap-2 text-sm text-gray-500">
-        <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">Nómina</Link>
+        <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">
+          Nómina
+        </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">Utilidades</span>
+        <span className="font-medium text-gray-900">Utilidades</span>
       </div>
 
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Utilidades</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Cálculo y registro de utilidades por empleado (Art. 131–132 LOTTT).
-          Los días de utilidades y el salario base se toman de la configuración de nómina.
+          Cálculo y registro de utilidades por empleado (Art. 131–132 LOTTT). Los días de utilidades
+          y el salario base se toman de la configuración de nómina.
         </p>
       </div>
 
       {config && (
-        <section className="rounded-lg border border-green-100 bg-green-50 p-4 text-xs text-green-800 space-y-1">
+        <section className="space-y-1 rounded-lg border border-green-100 bg-green-50 p-4 text-xs text-green-800">
           <p className="font-semibold">Configuración activa</p>
-          <p>Días de utilidades configurados: <span className="font-mono font-semibold">{config.profitDays}</span> días</p>
+          <p>
+            Días de utilidades configurados:{" "}
+            <span className="font-mono font-semibold">{config.profitDays}</span> días
+          </p>
           <p>El monto = días fraccionados × (salario promedio anual ÷ 30)</p>
         </section>
       )}
@@ -78,8 +83,8 @@ export default async function ProfitSharingPage({ params }: Props) {
 
         <div className="space-y-3">
           {employeeRecords.map(({ emp, records }) => (
-            <details key={emp.id} className="rounded-lg border overflow-hidden group">
-              <summary className="flex items-center justify-between cursor-pointer px-4 py-3 hover:bg-gray-50 select-none">
+            <details key={emp.id} className="group overflow-hidden rounded-lg border">
+              <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none hover:bg-gray-50">
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-gray-900">{emp.fullName}</span>
                   <span className="text-xs text-gray-400">{emp.position}</span>
@@ -88,12 +93,22 @@ export default async function ProfitSharingPage({ params }: Props) {
                   <span className="text-xs text-gray-500">
                     {records.length} registro{records.length !== 1 ? "s" : ""}
                   </span>
-                  <svg className="h-4 w-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <svg
+                    className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
                   </svg>
                 </div>
               </summary>
-              <div className="px-4 py-4 border-t bg-white">
+              <div className="border-t bg-white px-4 py-4">
                 <ProfitSharingPanel
                   companyId={companyId}
                   employeeId={emp.id}

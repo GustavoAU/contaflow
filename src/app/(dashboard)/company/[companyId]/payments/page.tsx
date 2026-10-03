@@ -33,11 +33,11 @@ export default async function PaymentsPage({ params }: Props) {
     : null;
   const canDeleteAttachments = canAccess(
     (member?.role ?? "VIEWER") as UserRole,
-    ["OWNER", "ADMIN", "ACCOUNTANT"] as UserRole[],
+    ["OWNER", "ADMIN", "ACCOUNTANT"] as UserRole[]
   );
 
   const pagosTabs = [
-    { label: "Medios de Pago",   href: `/company/${companyId}/payments` },
+    { label: "Medios de Pago", href: `/company/${companyId}/payments` },
     { label: "Distribución A/P", href: `/company/${companyId}/payments/batches` },
   ];
 

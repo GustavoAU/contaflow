@@ -87,10 +87,10 @@ export interface AccrualLineRow {
   accrualAmount: string;
   runningBalance: string;
   // F-05: alícuotas detalladas del salario integral por trimestre
-  dailyNormalWage: string | null;       // salario diario normal (base, sin alícuotas)
-  profitDaysAliquot: string | null;     // alícuota utilidades: dailyNormal × días_util / 360
+  dailyNormalWage: string | null; // salario diario normal (base, sin alícuotas)
+  profitDaysAliquot: string | null; // alícuota utilidades: dailyNormal × días_util / 360
   vacationBonusDaysAliquot: string | null; // alícuota bono vac.: dailyNormal × días_bono / 360
-  integralDailyWage: string | null;     // salario integral = normal + util + bono_vac
+  integralDailyWage: string | null; // salario integral = normal + util + bono_vac
   accrualDays: number | null;
   additionalDays: string | null;
   appliedRate: string | null;
@@ -215,7 +215,7 @@ export const BenefitAccrualService = {
 
     // Guard: busca un período OPEN en cualquier mes del trimestre (el procesamiento
     // puede hacerse antes de que cierre el trimestre — se registra en el período activo)
-    const quarterEndMonth = quarter * 3;   // Q1→3, Q2→6, Q3→9, Q4→12
+    const quarterEndMonth = quarter * 3; // Q1→3, Q2→6, Q3→9, Q4→12
     const quarterStartMonth = (quarter - 1) * 3 + 1; // Q1→1, Q2→4, Q3→7, Q4→10
     const period = await prisma.accountingPeriod.findFirst({
       where: {
@@ -238,7 +238,9 @@ export const BenefitAccrualService = {
     });
     if (!config) throw new Error("Configure la nómina antes de calcular prestaciones");
     if (!config.benefitsExpenseAccountId || !config.benefitsPayableAccountId) {
-      throw new Error("Configure las cuentas contables de prestaciones en la configuración de nómina");
+      throw new Error(
+        "Configure las cuentas contables de prestaciones en la configuración de nómina"
+      );
     }
 
     // Empleados activos con salario vigente
@@ -256,7 +258,8 @@ export const BenefitAccrualService = {
       },
     });
 
-    if (employees.length === 0) throw new Error("No hay empleados activos para acumular prestaciones");
+    if (employees.length === 0)
+      throw new Error("No hay empleados activos para acumular prestaciones");
 
     // Conceptos salariales con affectsSalaryIntegral=true de nóminas APPROVED del trimestre.
     // Se promedian por 3 meses para obtener el componente mensual del salario integral (LOTTT Art. 142).
@@ -307,8 +310,8 @@ export const BenefitAccrualService = {
         if (!cachedUSDRate) {
           throw new Error(
             `Empleado ${emp.firstName} ${emp.lastName} tiene salario en USD pero no hay tasa de cambio ` +
-            `registrada para el trimestre Q${quarter}/${year}. ` +
-            "Registre la tasa BCV en Contabilidad → Tasas de Cambio antes de calcular prestaciones."
+              `registrada para el trimestre Q${quarter}/${year}. ` +
+              "Registre la tasa BCV en Contabilidad → Tasas de Cambio antes de calcular prestaciones."
           );
         }
         exchangeRateAtAccrual = cachedUSDRate;
@@ -321,11 +324,15 @@ export const BenefitAccrualService = {
 
       // Salario integral = dailyNormal + alícuota utilidades + alícuota bono vacacional (ADR-014 Dec. 3)
       const profitDaysAliquot = dailyNormalWage
-        .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, config.profitDays)).div(360);
+        .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, config.profitDays))
+        .div(360);
       const vacationBonusDaysAliquot = dailyNormalWage
-        .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, config.vacationBonusDays)).div(360);
+        .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, config.vacationBonusDays))
+        .div(360);
       const integralDailyWage = integralDailyWageFrom(
-        dailyNormalWage, config.profitDays, config.vacationBonusDays,
+        dailyNormalWage,
+        config.profitDays,
+        config.vacationBonusDays
       );
 
       // Días adicionales por antigüedad Art. 142 LOTTT (prorrateados trimestre)
@@ -337,7 +344,9 @@ export const BenefitAccrualService = {
       let balance = emp.benefitBalance;
       if (!balance) {
         balance = await prisma.benefitBalance.create({
-          data: { companyId, employeeId: emp.id } as Parameters<typeof prisma.benefitBalance.create>[0]["data"],
+          data: { companyId, employeeId: emp.id } as Parameters<
+            typeof prisma.benefitBalance.create
+          >[0]["data"],
         });
       }
 
@@ -392,7 +401,9 @@ export const BenefitAccrualService = {
               accrualAmount: accrualAmount.toFixed(4),
               runningBalance: runningBalance.toFixed(4),
               // F-02: snapshot de tasa de cambio si el salario era no-VES
-              exchangeRateAtAccrual: exchangeRateAtAccrual ? exchangeRateAtAccrual.toFixed(4) : undefined,
+              exchangeRateAtAccrual: exchangeRateAtAccrual
+                ? exchangeRateAtAccrual.toFixed(4)
+                : undefined,
               originalCurrency: originalCurrency ?? undefined,
               transactionId: transaction.id,
               createdByUserId: userId,
@@ -444,10 +455,7 @@ export const BenefitAccrualService = {
         totalAccrued = totalAccrued.add(accrualAmount);
         processed++;
       } catch (err) {
-        if (
-          err instanceof Prisma.PrismaClientKnownRequestError &&
-          err.code === "P2002"
-        ) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
           // Doble-accrual — saltar empleado sin fallar el batch
           continue;
         }
@@ -481,7 +489,9 @@ export const BenefitAccrualService = {
       where: { companyId, year, month, status: "OPEN" },
     });
     if (!period) {
-      throw new Error(`El período contable ${year}-${String(month).padStart(2, "0")} está cerrado o no existe`);
+      throw new Error(
+        `El período contable ${year}-${String(month).padStart(2, "0")} está cerrado o no existe`
+      );
     }
 
     // Tasa BCV — NUNCA del cliente (ADR-014 Dec. 2 / security CRITICAL-3)
@@ -491,13 +501,15 @@ export const BenefitAccrualService = {
     if (!bcvRate) {
       throw new Error(
         `No existe tasa BCV registrada para ${year}-${String(month).padStart(2, "0")}. ` +
-        "Registre la tasa activa promedio BCV antes de calcular intereses."
+          "Registre la tasa activa promedio BCV antes de calcular intereses."
       );
     }
 
     const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
     if (!config?.benefitsExpenseAccountId || !config?.benefitsPayableAccountId) {
-      throw new Error("Configure las cuentas contables de prestaciones en la configuración de nómina");
+      throw new Error(
+        "Configure las cuentas contables de prestaciones en la configuración de nómina"
+      );
     }
 
     // monthlyFactor = annualRate / 100 / 12
@@ -524,15 +536,19 @@ export const BenefitAccrualService = {
     let processed = 0;
 
     for (const balance of balances) {
-      const totalBalance = new Decimal(balance.currentBalance.toString())
-        .add(new Decimal(balance.interestBalance.toString()));
+      const totalBalance = new Decimal(balance.currentBalance.toString()).add(
+        new Decimal(balance.interestBalance.toString())
+      );
 
       if (totalBalance.lte(0)) continue;
 
       const interestAmount = totalBalance.mul(monthlyFactor);
-      const newInterestBalance = new Decimal(balance.interestBalance.toString()).add(interestAmount);
+      const newInterestBalance = new Decimal(balance.interestBalance.toString()).add(
+        interestAmount
+      );
 
-      const prevRunningBalance = lastLineMap.get(balance.id) ?? new Decimal(balance.currentBalance.toString());
+      const prevRunningBalance =
+        lastLineMap.get(balance.id) ?? new Decimal(balance.currentBalance.toString());
       const newRunningBalance = prevRunningBalance.add(interestAmount);
 
       const monthDate = new Date(year, month - 1, 1);
@@ -685,13 +701,17 @@ export const BenefitAccrualService = {
       orderBy: [{ year: "desc" }, { month: "desc" }],
     });
     if (!currentPeriod) {
-      throw new Error("No hay período contable abierto para registrar los trimestres atrasados de prestaciones");
+      throw new Error(
+        "No hay período contable abierto para registrar los trimestres atrasados de prestaciones"
+      );
     }
 
     const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
     if (!config) throw new Error("Configure la nómina antes de calcular prestaciones");
     if (!config.benefitsExpenseAccountId || !config.benefitsPayableAccountId) {
-      throw new Error("Configure las cuentas contables de prestaciones antes de poner al día trimestres atrasados");
+      throw new Error(
+        "Configure las cuentas contables de prestaciones antes de poner al día trimestres atrasados"
+      );
     }
 
     const employees = await prisma.employee.findMany({
@@ -735,7 +755,8 @@ export const BenefitAccrualService = {
     // procesado, sin ninguna fila creada, y el ADMIN solo veía un error
     // genérico. Ahora se aísla por trimestre: se seguen intentando los demás
     // trimestres/empleados y el problema puntual se reporta en `errors`.
-    const errors: Array<{ employeeName: string; year: number; quarter: number; message: string }> = [];
+    const errors: Array<{ employeeName: string; year: number; quarter: number; message: string }> =
+      [];
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -748,7 +769,9 @@ export const BenefitAccrualService = {
       let balance = emp.benefitBalance;
       if (!balance) {
         const created = await prisma.benefitBalance.create({
-          data: { companyId, employeeId: emp.id } as Parameters<typeof prisma.benefitBalance.create>[0]["data"],
+          data: { companyId, employeeId: emp.id } as Parameters<
+            typeof prisma.benefitBalance.create
+          >[0]["data"],
         });
         balance = { ...created, accrualLines: [] };
       }
@@ -785,7 +808,8 @@ export const BenefitAccrualService = {
           // F-02: si el salario es en moneda no-VES, convertir a VES usando tasa BCV histórica
           let monthlyWage = new Decimal(salAtQuarter.amount.toString());
           let exchangeRateAtAccrual: Decimal | null = null;
-          const originalCurrency = salAtQuarter.currency !== "VES" ? (salAtQuarter.currency as string) : null;
+          const originalCurrency =
+            salAtQuarter.currency !== "VES" ? (salAtQuarter.currency as string) : null;
 
           if (salAtQuarter.currency === "USD") {
             const rateDecimal = getUSDRateAt(quarterEndDate);
@@ -794,8 +818,10 @@ export const BenefitAccrualService = {
               // se registra el hueco y se sigue con el siguiente trimestre/empleado.
               errors.push({
                 employeeName: `${emp.firstName} ${emp.lastName}`,
-                year, quarter,
-                message: "Tiene salario en USD pero no hay tasa de cambio registrada para ese período. " +
+                year,
+                quarter,
+                message:
+                  "Tiene salario en USD pero no hay tasa de cambio registrada para ese período. " +
                   "Registre las tasas BCV históricas en Contabilidad → Tasas de Cambio.",
               });
               continue;
@@ -826,11 +852,15 @@ export const BenefitAccrualService = {
 
           const dailyNormalWage = monthlyWage.plus(avgMonthlyIntegral).div(30);
           const profitDaysAliquot = dailyNormalWage
-            .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, config.profitDays)).div(360);
+            .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, config.profitDays))
+            .div(360);
           const vacationBonusDaysAliquot = dailyNormalWage
-            .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, config.vacationBonusDays)).div(360);
+            .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, config.vacationBonusDays))
+            .div(360);
           const integralDailyWage = integralDailyWageFrom(
-            dailyNormalWage, config.profitDays, config.vacationBonusDays,
+            dailyNormalWage,
+            config.profitDays,
+            config.vacationBonusDays
           );
 
           const additionalDays = calcAdditionalDays(emp.hireDate, quarterEndDate);
@@ -884,7 +914,9 @@ export const BenefitAccrualService = {
                   accrualAmount: accrualAmount.toFixed(4),
                   runningBalance: runningBalance.toFixed(4),
                   // F-02: snapshot de tasa de cambio si el salario era no-VES
-                  exchangeRateAtAccrual: exchangeRateAtAccrual ? exchangeRateAtAccrual.toFixed(4) : undefined,
+                  exchangeRateAtAccrual: exchangeRateAtAccrual
+                    ? exchangeRateAtAccrual.toFixed(4)
+                    : undefined,
                   originalCurrency: originalCurrency ?? undefined,
                   transactionId: transaction.id,
                   createdByUserId: userId,
@@ -926,10 +958,7 @@ export const BenefitAccrualService = {
             empProcessed = true;
             existingKeys.add(key);
           } catch (err) {
-            if (
-              err instanceof Prisma.PrismaClientKnownRequestError &&
-              err.code === "P2002"
-            ) {
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
               existingKeys.add(key);
               continue;
             }
@@ -939,7 +968,8 @@ export const BenefitAccrualService = {
             // demás empleados de la empresa.
             errors.push({
               employeeName: `${emp.firstName} ${emp.lastName}`,
-              year, quarter,
+              year,
+              quarter,
               message: err instanceof Error ? err.message : "Error desconocido",
             });
             continue;
@@ -973,10 +1003,7 @@ export const BenefitAccrualService = {
   // Devuelve solo líneas QUARTERLY_ACCRUAL del empleado con alícuotas detalladas.
   // Permite auditar cómo se compuso el salario integral en cada trimestre:
   //   salarioNormal + alícuota_utilidades + alícuota_bono_vacacional = salarioIntegral
-  async getQuarterlyHistory(
-    companyId: string,
-    employeeId: string
-  ): Promise<AccrualLineRow[]> {
+  async getQuarterlyHistory(companyId: string, employeeId: string): Promise<AccrualLineRow[]> {
     // IDOR guard: verificar que el empleado pertenece a la empresa
     const balance = await prisma.benefitBalance.findFirst({
       where: { companyId, employeeId },

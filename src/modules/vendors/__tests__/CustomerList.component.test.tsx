@@ -140,9 +140,7 @@ describe("CustomerList — smoke del refactor RHF (P2)", () => {
     expect(screen.getByRole("button", { name: "Guardar" })).toBeTruthy();
 
     // Diferencia vs VendorForm: los clientes NO tienen isSpecialContributor
-    expect(
-      screen.queryByText("Contribuyente Especial (aplican retenciones IVA/ISLR)")
-    ).toBeNull();
+    expect(screen.queryByText("Contribuyente Especial (aplican retenciones IVA/ISLR)")).toBeNull();
   });
 
   it("guard doble-submit: botón Guardar deshabilitado con nombre vacío, habilitado al escribir", () => {
@@ -278,7 +276,13 @@ describe("CustomerList — smoke del refactor RHF (P2)", () => {
   it("guardar edición → llama updateCustomerAction con el payload del schema y actualiza la fila", async () => {
     vi.mocked(updateCustomerAction).mockResolvedValue({
       success: true,
-      data: makeCustomer({ id: "customer-1", name: "Alfa Comercial C.A.", rif: "J-11111111-1", code: "C-001", email: "alfa@ejemplo.com" }),
+      data: makeCustomer({
+        id: "customer-1",
+        name: "Alfa Comercial C.A.",
+        rif: "J-11111111-1",
+        code: "C-001",
+        email: "alfa@ejemplo.com",
+      }),
     } as never);
 
     render(<CustomerList {...BASE_PROPS} />);

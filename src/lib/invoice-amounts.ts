@@ -52,14 +52,24 @@ export const LENIENT_SALE_DOC_TYPES: readonly string[] = [
 ];
 
 /** Tolerancia por línea entre el IVA recibido y base × tasa, según ADR-049. */
-export function ivaLineTolerance(opts: { type: string; docType: string; currency: string }): Decimal {
+export function ivaLineTolerance(opts: {
+  type: string;
+  docType: string;
+  currency: string;
+}): Decimal {
   if (opts.currency !== "VES") return IVA_TOLERANCE_STRICT;
   if (opts.type === "PURCHASE") return IVA_TOLERANCE_PRINTED; // cualquier docType: el proveedor imprime el IVA
-  return LENIENT_SALE_DOC_TYPES.includes(opts.docType) ? IVA_TOLERANCE_PRINTED : IVA_TOLERANCE_STRICT;
+  return LENIENT_SALE_DOC_TYPES.includes(opts.docType)
+    ? IVA_TOLERANCE_PRINTED
+    : IVA_TOLERANCE_STRICT;
 }
 
 /** true si el formulario debe dejar escribir el "Monto IVA" impreso en vez de calcularlo. */
-export function isIvaAmountEditable(opts: { type: string; docType: string; taxType?: string }): boolean {
+export function isIvaAmountEditable(opts: {
+  type: string;
+  docType: string;
+  taxType?: string;
+}): boolean {
   // hallazgo H2 (revisión fiscal ADR-049): el IVA de una línea EXENTO es siempre 0 — no existe un
   // "IVA impreso" que editar ahí — así que este override gana sin importar type/docType.
   if (opts.taxType === "EXENTO") return false;

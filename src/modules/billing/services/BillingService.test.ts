@@ -76,14 +76,12 @@ const INVOICE = {
 
 describe("createCheckout", () => {
   beforeEach(() => {
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          subscription: prisma.subscription,
-          subscriptionPayment: prisma.subscriptionPayment,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        subscription: prisma.subscription,
+        subscriptionPayment: prisma.subscriptionPayment,
+        auditLog: prisma.auditLog,
+      })) as never);
     vi.mocked(nowpayments.createNowPaymentsInvoice).mockResolvedValue(INVOICE);
     // Por defecto, empresa sin perfil SOLO → pricing EMPRESA (precio completo)
     vi.mocked(prisma.company.findUnique).mockResolvedValue(null as never);
@@ -127,9 +125,9 @@ describe("createCheckout", () => {
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.company.findUnique).mockResolvedValue({ scopeProfile: "SOLO" } as never);
 
-    await expect(
-      createCheckout(COMPANY_ID, "EARLY_ADOPTER", ACTOR_ID, null, null)
-    ).rejects.toThrow(/no está disponible/i);
+    await expect(createCheckout(COMPANY_ID, "EARLY_ADOPTER", ACTOR_ID, null, null)).rejects.toThrow(
+      /no está disponible/i
+    );
   });
 
   it("lanza error si ya existe suscripción ACTIVE", async () => {
@@ -138,18 +136,18 @@ describe("createCheckout", () => {
       status: "ACTIVE",
     } as never);
 
-    await expect(
-      createCheckout(COMPANY_ID, "MONTHLY", ACTOR_ID, null, null)
-    ).rejects.toThrow("ya tiene una suscripción activa");
+    await expect(createCheckout(COMPANY_ID, "MONTHLY", ACTOR_ID, null, null)).rejects.toThrow(
+      "ya tiene una suscripción activa"
+    );
   });
 
   it("lanza error si no quedan slots de EARLY_ADOPTER", async () => {
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.subscription.count).mockResolvedValue(10 as never);
 
-    await expect(
-      createCheckout(COMPANY_ID, "EARLY_ADOPTER", ACTOR_ID, null, null)
-    ).rejects.toThrow("No quedan slots");
+    await expect(createCheckout(COMPANY_ID, "EARLY_ADOPTER", ACTOR_ID, null, null)).rejects.toThrow(
+      "No quedan slots"
+    );
   });
 
   it("asigna el primer slot disponible en EARLY_ADOPTER", async () => {
@@ -206,15 +204,13 @@ describe("createCheckout", () => {
 describe("handleIPN", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          subscriptionPayment: prisma.subscriptionPayment,
-          subscription: prisma.subscription,
-          planChangeRequest: prisma.planChangeRequest,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        subscriptionPayment: prisma.subscriptionPayment,
+        subscription: prisma.subscription,
+        planChangeRequest: prisma.planChangeRequest,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   const BASE_IPN = {
@@ -246,7 +242,10 @@ describe("handleIPN", () => {
     );
     expect(prisma.subscriptionPayment.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "CONFIRMED", nowpaymentsPaymentId: "np-payment-123" }),
+        data: expect.objectContaining({
+          status: "CONFIRMED",
+          nowpaymentsPaymentId: "np-payment-123",
+        }),
       })
     );
   });

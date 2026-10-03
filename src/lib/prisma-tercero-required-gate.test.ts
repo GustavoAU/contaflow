@@ -108,10 +108,7 @@ describe("extractEntryPartyPairs", () => {
       data: {
         entries: {
           createMany: {
-            data: [
-              { accountId: "a1", partnerId: "p1" },
-              { accountId: "a2" },
-            ],
+            data: [{ accountId: "a1", partnerId: "p1" }, { accountId: "a2" }],
           },
         },
       },
@@ -138,10 +135,7 @@ describe("extractEntryPartyPairs", () => {
     const args = {
       data: {
         entries: {
-          create: [
-            { accountId: "a1", customerId: "c1" },
-            { accountId: "a1" },
-          ],
+          create: [{ accountId: "a1", customerId: "c1" }, { accountId: "a1" }],
         },
       },
     };

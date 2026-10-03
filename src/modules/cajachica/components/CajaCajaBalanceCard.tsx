@@ -20,7 +20,6 @@ const STATUS_COLOR: Record<string, string> = {
   CLOSED: "bg-zinc-100 text-zinc-500",
 };
 
-
 export function CajaCajaBalanceCard({ caja }: Props) {
   const percent = caja.percentUsed;
   const barColor = percent >= 90 ? "bg-red-500" : percent >= 70 ? "bg-amber-400" : "bg-emerald-500";
@@ -29,23 +28,24 @@ export function CajaCajaBalanceCard({ caja }: Props) {
     Number(caja.totalDeposited) === 0
       ? "text-zinc-600 dark:text-zinc-400"
       : Number(caja.availableBalance) <= 0
-      ? "text-red-600"
-      : "text-emerald-600";
+        ? "text-red-600"
+        : "text-emerald-600";
 
   return (
-    <div className="rounded-xl border bg-white p-5 shadow-sm dark:bg-zinc-950 space-y-4">
+    <div className="space-y-4 rounded-xl border bg-white p-5 shadow-sm dark:bg-zinc-950">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{caja.name}</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">
+          <p className="mt-0.5 text-xs text-zinc-500">
             {caja.accountCode} — {caja.accountName}
           </p>
           <p className="mt-1 flex items-center gap-1 text-xs text-zinc-500">
             <User className="h-3 w-3 shrink-0" aria-hidden />
             {caja.custodianName ? (
               <span>
-                Custodio: <span className="text-zinc-700 dark:text-zinc-300">{caja.custodianName}</span>
+                Custodio:{" "}
+                <span className="text-zinc-700 dark:text-zinc-300">{caja.custodianName}</span>
               </span>
             ) : (
               <span className="text-zinc-400 italic">Sin custodio</span>
@@ -71,7 +71,9 @@ export function CajaCajaBalanceCard({ caja }: Props) {
           <p className="text-xs text-zinc-500">Comprometido</p>
           <p className="text-sm font-semibold text-amber-600">
             <MoneyBadge
-              amount={(Number(caja.totalPendingMovements) + Number(caja.totalApprovedMovements)).toFixed(2)}
+              amount={(
+                Number(caja.totalPendingMovements) + Number(caja.totalApprovedMovements)
+              ).toFixed(2)}
               currency={caja.currency}
             />
           </p>
@@ -86,7 +88,7 @@ export function CajaCajaBalanceCard({ caja }: Props) {
 
       {/* Progress bar */}
       <div>
-        <div className="flex items-center justify-between mb-1">
+        <div className="mb-1 flex items-center justify-between">
           <span className="text-xs text-zinc-500">% Utilizado</span>
           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{percent}%</span>
         </div>

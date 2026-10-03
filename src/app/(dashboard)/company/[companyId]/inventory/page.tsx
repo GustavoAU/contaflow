@@ -12,14 +12,23 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { canAccess, ROLES } from "@/lib/auth-helpers";
-import { getInventoryItems, getDraftMovements } from "@/modules/inventory/services/InventoryOperationsService";
+import {
+  getInventoryItems,
+  getDraftMovements,
+} from "@/modules/inventory/services/InventoryOperationsService";
 import { getInventoryValuation } from "@/modules/inventory/services/InventoryAccountingService";
 import { InventoryReportService } from "@/modules/inventory/services/InventoryReportService";
 import { ExchangeRateService } from "@/modules/exchange-rates/services/ExchangeRateService";
-import { InventoryItemList, type InventoryItemRow } from "@/modules/inventory/components/InventoryItemList";
+import {
+  InventoryItemList,
+  type InventoryItemRow,
+} from "@/modules/inventory/components/InventoryItemList";
 import { InventoryItemForm } from "@/modules/inventory/components/InventoryItemForm";
 import { MovementForm } from "@/modules/inventory/components/MovementForm";
-import { PendingMovementsList, type PendingMovement } from "@/modules/inventory/components/PendingMovementsList";
+import {
+  PendingMovementsList,
+  type PendingMovement,
+} from "@/modules/inventory/components/PendingMovementsList";
 import { InventoryValuation } from "@/modules/inventory/components/InventoryValuation";
 import { InventoryReportsView } from "@/modules/inventory/components/InventoryReportsView";
 import { SearchParamTabs } from "@/components/ui/SearchParamTabs";
@@ -32,7 +41,7 @@ type Props = {
 };
 
 export default async function InventoryPage({ params, searchParams }: Props) {
-  const { companyId }   = await params;
+  const { companyId } = await params;
   const { tab: tabParam } = await searchParams;
 
   const { userId } = await auth();
@@ -44,16 +53,16 @@ export default async function InventoryPage({ params, searchParams }: Props) {
   });
   if (!member) redirect("/");
 
-  const role        = member.role;
-  const isOperations = canAccess(role, ROLES.OPERATIONS);  // OWNER, ADMIN, ADMINISTRATIVE
-  const isAccounting = canAccess(role, ROLES.ACCOUNTING);  // OWNER, ADMIN, ACCOUNTANT
-  const isAdminOnly  = canAccess(role, ROLES.ADMIN_ONLY);  // OWNER, ADMIN
+  const role = member.role;
+  const isOperations = canAccess(role, ROLES.OPERATIONS); // OWNER, ADMIN, ADMINISTRATIVE
+  const isAccounting = canAccess(role, ROLES.ACCOUNTING); // OWNER, ADMIN, ACCOUNTANT
+  const isAdminOnly = canAccess(role, ROLES.ADMIN_ONLY); // OWNER, ADMIN
 
   // Resolver pestaña válida para este rol
   function resolveTab(req: string | undefined): TabId {
-    if (req === "movimientos")                  return "movimientos";
-    if (req === "valoracion" && isAccounting)   return "valoracion";
-    if (req === "reportes"   && isAccounting)   return "reportes";
+    if (req === "movimientos") return "movimientos";
+    if (req === "valoracion" && isAccounting) return "valoracion";
+    if (req === "reportes" && isAccounting) return "reportes";
     return "catalogo";
   }
   const currentTab = resolveTab(tabParam);
@@ -65,7 +74,8 @@ export default async function InventoryPage({ params, searchParams }: Props) {
 
   // ── Fetch selectivo por pestaña ──────────────────────────────────────────────
 
-  const needsItems    = currentTab === "catalogo" || currentTab === "movimientos" || currentTab === "reportes";
+  const needsItems =
+    currentTab === "catalogo" || currentTab === "movimientos" || currentTab === "reportes";
   const needsAccounts = currentTab === "catalogo" || currentTab === "movimientos";
 
   const [rawItems, accounts] = await Promise.all([
@@ -84,7 +94,9 @@ export default async function InventoryPage({ params, searchParams }: Props) {
   const [rawPending, usdRateMovimientos] =
     currentTab === "movimientos"
       ? await Promise.all([
-          isAccounting ? getDraftMovements(companyId) : Promise.resolve([] as Awaited<ReturnType<typeof getDraftMovements>>),
+          isAccounting
+            ? getDraftMovements(companyId)
+            : Promise.resolve([] as Awaited<ReturnType<typeof getDraftMovements>>),
           ExchangeRateService.getLatestRate(companyId, "USD"),
         ])
       : [[] as Awaited<ReturnType<typeof getDraftMovements>>, null];
@@ -105,52 +117,60 @@ export default async function InventoryPage({ params, searchParams }: Props) {
   // ── Serializaciones ──────────────────────────────────────────────────────────
 
   const serializedItems: InventoryItemRow[] = rawItems.map((item) => ({
-    id:             item.id,
-    sku:            item.sku,
-    name:           item.name,
-    description:    item.description,
-    unit:           item.baseUnitName,
-    stockQuantity:  item.stockQuantity.toString(),
-    averageCost:    item.averageCost.toString(),
-    itemType:       item.itemType,
+    id: item.id,
+    sku: item.sku,
+    name: item.name,
+    description: item.description,
+    unit: item.baseUnitName,
+    stockQuantity: item.stockQuantity.toString(),
+    averageCost: item.averageCost.toString(),
+    itemType: item.itemType,
     defaultTaxRate: item.defaultTaxRate,
-    minimumStock:   item.minimumStock ? item.minimumStock.toString() : null,
-    accountId:      item.accountId,
-    cogsAccountId:  item.cogsAccountId,
-    accountCode:    item.account?.code ?? null,
-    accountName:    item.account?.name ?? null,
+    minimumStock: item.minimumStock ? item.minimumStock.toString() : null,
+    accountId: item.accountId,
+    cogsAccountId: item.cogsAccountId,
+    accountCode: item.account?.code ?? null,
+    accountName: item.account?.name ?? null,
   }));
 
   const itemsForMovement = serializedItems.map((i) => ({
-    id: i.id, sku: i.sku, name: i.name, unit: i.unit,
-    stockQuantity: i.stockQuantity, averageCost: i.averageCost, itemType: i.itemType,
+    id: i.id,
+    sku: i.sku,
+    name: i.name,
+    unit: i.unit,
+    stockQuantity: i.stockQuantity,
+    averageCost: i.averageCost,
+    itemType: i.itemType,
   }));
 
   const serializedPending: PendingMovement[] = rawPending.map((mov) => ({
-    id:        mov.id,
-    type:      mov.type,
-    quantity:  mov.quantity.toString(),
-    unitCost:  mov.unitCost.toString(),
+    id: mov.id,
+    type: mov.type,
+    quantity: mov.quantity.toString(),
+    unitCost: mov.unitCost.toString(),
     totalCost: mov.totalCost.toString(),
-    date:      mov.date.toISOString(),
+    date: mov.date.toISOString(),
     reference: mov.reference,
-    notes:     mov.notes,
+    notes: mov.notes,
     createdAt: mov.createdAt.toISOString(),
     item: {
-      id:            mov.item.id,
-      sku:           mov.item.sku,
-      name:          mov.item.name,
-      unit:          mov.item.baseUnitName,
+      id: mov.item.id,
+      sku: mov.item.sku,
+      name: mov.item.name,
+      unit: mov.item.baseUnitName,
       stockQuantity: mov.item.stockQuantity.toString(),
-      averageCost:   mov.item.averageCost.toString(),
-      accountId:     mov.item.accountId,
+      averageCost: mov.item.averageCost.toString(),
+      accountId: mov.item.accountId,
       cogsAccountId: mov.item.cogsAccountId,
-      trackingType:  mov.item.trackingType as "NONE" | "LOT" | "SERIAL",
+      trackingType: mov.item.trackingType as "NONE" | "LOT" | "SERIAL",
     },
   }));
 
   const accountOptions = accounts.map((a) => ({
-    id: a.id, code: a.code, name: a.name, type: a.type,
+    id: a.id,
+    code: a.code,
+    name: a.name,
+    type: a.type,
   }));
 
   const currentBcvRate = (usdRateMovimientos ?? usdRateValoracion)?.rate?.toString();
@@ -158,14 +178,19 @@ export default async function InventoryPage({ params, searchParams }: Props) {
   // ── Definición de tabs ────────────────────────────────────────────────────────
 
   const tabs = [
-    { value: "catalogo",   label: "Catálogo",           show: true },
-    { value: "movimientos", label: "Movimientos",        badge: pendingCount, show: isOperations || isAccounting },
-    { value: "valoracion", label: "Valoración CPP",      show: isAccounting },
-    { value: "reportes",   label: "Reportes",            show: isAccounting },
+    { value: "catalogo", label: "Catálogo", show: true },
+    {
+      value: "movimientos",
+      label: "Movimientos",
+      badge: pendingCount,
+      show: isOperations || isAccounting,
+    },
+    { value: "valoracion", label: "Valoración CPP", show: isAccounting },
+    { value: "reportes", label: "Reportes", show: isAccounting },
   ];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">Inventario</h1>
@@ -175,10 +200,7 @@ export default async function InventoryPage({ params, searchParams }: Props) {
       </div>
 
       {/* Tabs de navegación */}
-      <SearchParamTabs
-        tabs={tabs}
-        currentValue={currentTab}
-      />
+      <SearchParamTabs tabs={tabs} currentValue={currentTab} />
 
       {/* ── Pestaña: Catálogo ──────────────────────────────────────────────────── */}
       {currentTab === "catalogo" && (
@@ -272,13 +294,13 @@ export default async function InventoryPage({ params, searchParams }: Props) {
           </h2>
           <InventoryValuation
             items={(valuation?.items ?? []).map((i) => ({
-              id:            i.id,
-              sku:           i.sku,
-              name:          i.name,
-              unit:          i.baseUnitName,
-              trackingType:  i.trackingType,
+              id: i.id,
+              sku: i.sku,
+              name: i.name,
+              unit: i.baseUnitName,
+              trackingType: i.trackingType,
               stockQuantity: i.stockQuantity.toString(),
-              averageCost:   i.averageCost.toString(),
+              averageCost: i.averageCost.toString(),
             }))}
             totalValue={valuation?.totalValue.toString() ?? "0"}
             usdRate={usdRateValoracion?.rate ?? undefined}
@@ -289,14 +311,14 @@ export default async function InventoryPage({ params, searchParams }: Props) {
       {/* ── Pestaña: Reportes ─────────────────────────────────────────────────── */}
       {currentTab === "reportes" && isAccounting && stockSummary && (
         <section className="rounded-lg border bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-base font-semibold text-zinc-800">
-            Reportes de inventario
-          </h2>
+          <h2 className="mb-4 text-base font-semibold text-zinc-800">Reportes de inventario</h2>
           <InventoryReportsView
             companyId={companyId}
             initialStock={stockSummary}
             itemOptions={serializedItems.map((i) => ({
-              id: i.id, sku: i.sku, name: i.name,
+              id: i.id,
+              sku: i.sku,
+              name: i.name,
             }))}
           />
         </section>

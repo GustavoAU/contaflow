@@ -49,7 +49,14 @@ const makeUnit = (overrides = {}) => ({
 });
 
 const makeBaseUnit = (overrides = {}) =>
-  makeUnit({ id: "unit-base", name: "Unidad", abbreviation: "UN", conversionFactor: new Decimal("1"), isBase: true, ...overrides });
+  makeUnit({
+    id: "unit-base",
+    name: "Unidad",
+    abbreviation: "UN",
+    conversionFactor: new Decimal("1"),
+    isBase: true,
+    ...overrides,
+  });
 
 const makeTx = () => ({
   inventoryItemUnit: {
@@ -72,9 +79,8 @@ beforeEach(() => {
   vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValue(makeUnit() as never);
   vi.mocked(prisma.inventoryMovement.count).mockResolvedValue(0);
   vi.mocked(prisma.inventoryItemUnit.count).mockResolvedValue(0);
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof currentTx) => unknown) => fn(currentTx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof currentTx) => unknown) =>
+    fn(currentTx)) as never);
 });
 
 // ─── createUnit ──────────────────────────────────────────────────────────────
@@ -82,7 +88,14 @@ beforeEach(() => {
 describe("createUnit", () => {
   it("crea unidad con datos válidos", async () => {
     const result = await createUnit(
-      { companyId: COMPANY_ID, itemId: ITEM_ID, name: "Caja", abbreviation: "CJ", conversionFactor: "12", isBase: false },
+      {
+        companyId: COMPANY_ID,
+        itemId: ITEM_ID,
+        name: "Caja",
+        abbreviation: "CJ",
+        conversionFactor: "12",
+        isBase: false,
+      },
       USER_ID
     );
     expect(result).toBeDefined();
@@ -96,7 +109,14 @@ describe("createUnit", () => {
     );
     await expect(
       createUnit(
-        { companyId: COMPANY_ID, itemId: "other-item", name: "Caja", abbreviation: "CJ", conversionFactor: "12", isBase: false },
+        {
+          companyId: COMPANY_ID,
+          itemId: "other-item",
+          name: "Caja",
+          abbreviation: "CJ",
+          conversionFactor: "12",
+          isBase: false,
+        },
         USER_ID
       )
     ).rejects.toThrow("Item not found");
@@ -105,7 +125,14 @@ describe("createUnit", () => {
   it("MEDIUM-4: rechaza factor <= 0 a nivel de servicio", async () => {
     await expect(
       createUnit(
-        { companyId: COMPANY_ID, itemId: ITEM_ID, name: "Caja", abbreviation: "CJ", conversionFactor: "0", isBase: false },
+        {
+          companyId: COMPANY_ID,
+          itemId: ITEM_ID,
+          name: "Caja",
+          abbreviation: "CJ",
+          conversionFactor: "0",
+          isBase: false,
+        },
         USER_ID
       )
     ).rejects.toThrow("mayor que cero");
@@ -115,7 +142,14 @@ describe("createUnit", () => {
     currentTx.inventoryItemUnit.create.mockResolvedValue(makeBaseUnit());
 
     await createUnit(
-      { companyId: COMPANY_ID, itemId: ITEM_ID, name: "Unidad", abbreviation: "UN", conversionFactor: "1", isBase: true },
+      {
+        companyId: COMPANY_ID,
+        itemId: ITEM_ID,
+        name: "Unidad",
+        abbreviation: "UN",
+        conversionFactor: "1",
+        isBase: true,
+      },
       USER_ID
     );
 
@@ -129,7 +163,14 @@ describe("createUnit", () => {
 
   it("no actualiza denorm cuando isBase = false", async () => {
     await createUnit(
-      { companyId: COMPANY_ID, itemId: ITEM_ID, name: "Caja", abbreviation: "CJ", conversionFactor: "12", isBase: false },
+      {
+        companyId: COMPANY_ID,
+        itemId: ITEM_ID,
+        name: "Caja",
+        abbreviation: "CJ",
+        conversionFactor: "12",
+        isBase: false,
+      },
       USER_ID
     );
     expect(currentTx.inventoryItem.update).not.toHaveBeenCalled();
@@ -190,7 +231,10 @@ describe("createUnit", () => {
   });
 
   it("MEDIUM-3: P2002 de @@unique([itemId, name]) → mensaje de nombre, con el nombre interpolado", async () => {
-    const msg = await messageOnCreateFailure(p2002(["itemId", "name"]), { isBase: false, name: "Caja" });
+    const msg = await messageOnCreateFailure(p2002(["itemId", "name"]), {
+      isBase: false,
+      name: "Caja",
+    });
     expect(msg).toBe(MSG_NOMBRE);
     expect(msg).not.toBe(MSG_BASE);
   });
@@ -240,19 +284,26 @@ describe("createUnit", () => {
   //
   // `it.fails` mantiene el gate en verde documentando el fallo REAL, y se pone
   // rojo solo cuando el bug se corrija (entonces pásalo a `it`).
-  it(
-    "REGRESIÓN: nombre duplicado con isBase=true da el mensaje de NOMBRE — el target ['itemId','name'] contiene 'itemId', así que la rama de nombre va primero",
-    async () => {
-      const msg = await messageOnCreateFailure(p2002(["itemId", "name"]), { isBase: true, name: "Caja" });
-      expect(msg).toBe(MSG_NOMBRE);
-    }
-  );
+  it("REGRESIÓN: nombre duplicado con isBase=true da el mensaje de NOMBRE — el target ['itemId','name'] contiene 'itemId', así que la rama de nombre va primero", async () => {
+    const msg = await messageOnCreateFailure(p2002(["itemId", "name"]), {
+      isBase: true,
+      name: "Caja",
+    });
+    expect(msg).toBe(MSG_NOMBRE);
+  });
 
   it("propaga errores no P2002", async () => {
     vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error("DB error"));
     await expect(
       createUnit(
-        { companyId: COMPANY_ID, itemId: ITEM_ID, name: "X", abbreviation: "X", conversionFactor: "1", isBase: false },
+        {
+          companyId: COMPANY_ID,
+          itemId: ITEM_ID,
+          name: "X",
+          abbreviation: "X",
+          conversionFactor: "1",
+          isBase: false,
+        },
         USER_ID
       )
     ).rejects.toThrow("DB error");
@@ -260,7 +311,14 @@ describe("createUnit", () => {
 
   it("almacena ipAddress y userAgent en AuditLog", async () => {
     await createUnit(
-      { companyId: COMPANY_ID, itemId: ITEM_ID, name: "Caja", abbreviation: "CJ", conversionFactor: "12", isBase: false },
+      {
+        companyId: COMPANY_ID,
+        itemId: ITEM_ID,
+        name: "Caja",
+        abbreviation: "CJ",
+        conversionFactor: "12",
+        isBase: false,
+      },
       USER_ID,
       "192.168.1.1",
       "Mozilla/5.0"
@@ -297,20 +355,14 @@ describe("updateUnit", () => {
   it("HIGH-3: bloquea cambio de factor si hay movimientos DRAFT", async () => {
     vi.mocked(prisma.inventoryMovement.count).mockResolvedValueOnce(3);
     await expect(
-      updateUnit(
-        { unitId: UNIT_ID, companyId: COMPANY_ID, conversionFactor: "24" },
-        USER_ID
-      )
+      updateUnit({ unitId: UNIT_ID, companyId: COMPANY_ID, conversionFactor: "24" }, USER_ID)
     ).rejects.toThrow("inmutable");
   });
 
   it("HIGH-3: bloquea cambio de factor si hay movimientos POSTED", async () => {
     vi.mocked(prisma.inventoryMovement.count).mockResolvedValueOnce(1);
     await expect(
-      updateUnit(
-        { unitId: UNIT_ID, companyId: COMPANY_ID, conversionFactor: "6" },
-        USER_ID
-      )
+      updateUnit({ unitId: UNIT_ID, companyId: COMPANY_ID, conversionFactor: "6" }, USER_ID)
     ).rejects.toThrow("inmutable");
   });
 
@@ -337,10 +389,7 @@ describe("updateUnit", () => {
       makeBaseUnit() as never
     );
 
-    await updateUnit(
-      { unitId: "unit-base", companyId: COMPANY_ID, name: "Nueva Unidad" },
-      USER_ID
-    );
+    await updateUnit({ unitId: "unit-base", companyId: COMPANY_ID, name: "Nueva Unidad" }, USER_ID);
 
     expect(currentTx.inventoryItem.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -350,19 +399,13 @@ describe("updateUnit", () => {
   });
 
   it("no actualiza denorm cuando la unidad no es base", async () => {
-    await updateUnit(
-      { unitId: UNIT_ID, companyId: COMPANY_ID, name: "Nuevo Nombre" },
-      USER_ID
-    );
+    await updateUnit({ unitId: UNIT_ID, companyId: COMPANY_ID, name: "Nuevo Nombre" }, USER_ID);
     expect(currentTx.inventoryItem.update).not.toHaveBeenCalled();
   });
 
   it("HIGH-3: no verifica movimientos si conversionFactor no cambia (mismo valor)", async () => {
     // existing.conversionFactor = "12", nuevo también = "12"
-    await updateUnit(
-      { unitId: UNIT_ID, companyId: COMPANY_ID, conversionFactor: "12" },
-      USER_ID
-    );
+    await updateUnit({ unitId: UNIT_ID, companyId: COMPANY_ID, conversionFactor: "12" }, USER_ID);
     expect(prisma.inventoryMovement.count).not.toHaveBeenCalled();
   });
 });
@@ -424,9 +467,9 @@ describe("listUnits", () => {
     vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockRejectedValueOnce(
       new Error("Item not found")
     );
-    await expect(
-      listUnits({ companyId: COMPANY_ID, itemId: "other-item" })
-    ).rejects.toThrow("Item not found");
+    await expect(listUnits({ companyId: COMPANY_ID, itemId: "other-item" })).rejects.toThrow(
+      "Item not found"
+    );
   });
 
   it("retorna lista vacía cuando no hay unidades", async () => {
@@ -444,7 +487,9 @@ describe("resolveQuantity", () => {
       makeUnit({ conversionFactor: new Decimal("12") }) as never
     );
     const { quantityInBase, conversionFactor } = await resolveQuantity(
-      COMPANY_ID, UNIT_ID, new Decimal("5")
+      COMPANY_ID,
+      UNIT_ID,
+      new Decimal("5")
     );
     expect(quantityInBase.toNumber()).toBe(60);
     expect(conversionFactor.toNumber()).toBe(12);
@@ -454,9 +499,7 @@ describe("resolveQuantity", () => {
     vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValueOnce(
       makeBaseUnit({ conversionFactor: new Decimal("1") }) as never
     );
-    const { quantityInBase } = await resolveQuantity(
-      COMPANY_ID, "unit-base", new Decimal("5")
-    );
+    const { quantityInBase } = await resolveQuantity(COMPANY_ID, "unit-base", new Decimal("5"));
     expect(quantityInBase.toNumber()).toBe(5);
   });
 
@@ -464,27 +507,23 @@ describe("resolveQuantity", () => {
     vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockRejectedValueOnce(
       new Error("Unit not found or access denied")
     );
-    await expect(
-      resolveQuantity("other-company", UNIT_ID, new Decimal("5"))
-    ).rejects.toThrow();
+    await expect(resolveQuantity("other-company", UNIT_ID, new Decimal("5"))).rejects.toThrow();
   });
 
   it("MEDIUM-4: lanza error si factor en DB es <= 0 (corrupción)", async () => {
     vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValueOnce(
       makeUnit({ conversionFactor: new Decimal("0") }) as never
     );
-    await expect(
-      resolveQuantity(COMPANY_ID, UNIT_ID, new Decimal("5"))
-    ).rejects.toThrow("inválido");
+    await expect(resolveQuantity(COMPANY_ID, UNIT_ID, new Decimal("5"))).rejects.toThrow(
+      "inválido"
+    );
   });
 
   it("usa Decimal.js sin pérdida de precisión", async () => {
     vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValueOnce(
       makeUnit({ conversionFactor: new Decimal("0.001") }) as never
     );
-    const { quantityInBase } = await resolveQuantity(
-      COMPANY_ID, UNIT_ID, new Decimal("1000")
-    );
+    const { quantityInBase } = await resolveQuantity(COMPANY_ID, UNIT_ID, new Decimal("1000"));
     // 1000 * 0.001 = 1 exacto — sin floating-point error
     expect(quantityInBase.toFixed(10)).toBe("1.0000000000");
   });

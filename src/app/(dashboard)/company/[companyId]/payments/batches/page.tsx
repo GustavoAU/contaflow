@@ -29,8 +29,8 @@ export default async function PaymentBatchesPage({ params }: Props) {
   const invoices = invoicesResult.success ? invoicesResult.data : [];
 
   const pagosTabs = [
-    { label: "Medios de Pago",    href: `/company/${companyId}/payments` },
-    { label: "Distribución A/P",  href: `/company/${companyId}/payments/batches` },
+    { label: "Medios de Pago", href: `/company/${companyId}/payments` },
+    { label: "Distribución A/P", href: `/company/${companyId}/payments/batches` },
   ];
 
   return (

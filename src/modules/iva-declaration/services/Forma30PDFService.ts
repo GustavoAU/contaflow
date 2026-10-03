@@ -6,8 +6,18 @@ import type { Decimal } from "decimal.js";
 import type { SeccionA, SeccionB, SeccionC, SeccionD, SeccionE } from "../types/forma30.types";
 
 const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 export interface Forma30PDFParams {
@@ -54,7 +64,11 @@ const styles = StyleSheet.create({
     borderBottom: "1pt solid #374151",
   },
   tableRow: { flexDirection: "row", borderBottom: "0.5pt solid #d1d5db" },
-  tableRowAlt: { flexDirection: "row", backgroundColor: "#f9fafb", borderBottom: "0.5pt solid #d1d5db" },
+  tableRowAlt: {
+    flexDirection: "row",
+    backgroundColor: "#f9fafb",
+    borderBottom: "0.5pt solid #d1d5db",
+  },
   tableTotal: {
     flexDirection: "row",
     backgroundColor: "#f3f4f6",
@@ -65,17 +79,43 @@ const styles = StyleSheet.create({
   colBase: { padding: "3pt 4pt", flex: 1.5, fontSize: 8, textAlign: "right" },
   colTax: { padding: "3pt 4pt", flex: 1.5, fontSize: 8, textAlign: "right" },
   colConceptoBold: { padding: "3pt 4pt", flex: 3, fontSize: 8, fontWeight: "bold" },
-  colBaseBold: { padding: "3pt 4pt", flex: 1.5, fontSize: 8, textAlign: "right", fontWeight: "bold" },
-  colTaxBold: { padding: "3pt 4pt", flex: 1.5, fontSize: 8, textAlign: "right", fontWeight: "bold" },
+  colBaseBold: {
+    padding: "3pt 4pt",
+    flex: 1.5,
+    fontSize: 8,
+    textAlign: "right",
+    fontWeight: "bold",
+  },
+  colTaxBold: {
+    padding: "3pt 4pt",
+    flex: 1.5,
+    fontSize: 8,
+    textAlign: "right",
+    fontWeight: "bold",
+  },
   // Simple (2 col para C y D)
-  simpleHeader: { flexDirection: "row", backgroundColor: "#e5e7eb", borderBottom: "1pt solid #374151" },
+  simpleHeader: {
+    flexDirection: "row",
+    backgroundColor: "#e5e7eb",
+    borderBottom: "1pt solid #374151",
+  },
   simpleRow: { flexDirection: "row", borderBottom: "0.5pt solid #d1d5db" },
-  simpleRowAlt: { flexDirection: "row", backgroundColor: "#f9fafb", borderBottom: "0.5pt solid #d1d5db" },
+  simpleRowAlt: {
+    flexDirection: "row",
+    backgroundColor: "#f9fafb",
+    borderBottom: "0.5pt solid #d1d5db",
+  },
   simpleTotal: { flexDirection: "row", backgroundColor: "#f3f4f6", borderTop: "1pt solid #374151" },
   simpleLabel: { padding: "3pt 4pt", flex: 3, fontSize: 8 },
   simpleValue: { padding: "3pt 4pt", flex: 1.5, fontSize: 8, textAlign: "right" },
   simpleLabelBold: { padding: "3pt 4pt", flex: 3, fontSize: 8, fontWeight: "bold" },
-  simpleValueBold: { padding: "3pt 4pt", flex: 1.5, fontSize: 8, textAlign: "right", fontWeight: "bold" },
+  simpleValueBold: {
+    padding: "3pt 4pt",
+    flex: 1.5,
+    fontSize: 8,
+    textAlign: "right",
+    fontWeight: "bold",
+  },
   // Sección E — cuota
   cuotaBox: {
     marginTop: 12,
@@ -111,7 +151,13 @@ const styles = StyleSheet.create({
   },
   // Bloque certificación / firma
   certBlock: { marginTop: 20, borderTop: "1pt solid #374151", paddingTop: 10 },
-  certTitle: { fontSize: 8, fontWeight: "bold", textAlign: "center", marginBottom: 10, color: "#374151" },
+  certTitle: {
+    fontSize: 8,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 10,
+    color: "#374151",
+  },
   certRow: { flexDirection: "row", gap: 20 },
   certCol: { flex: 1, borderTop: "0.5pt solid #374151", paddingTop: 4 },
   certLabel: { fontSize: 7, color: "#6b7280" },
@@ -132,26 +178,30 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
   return React.createElement(
     View,
     null,
-    React.createElement(Text, { style: styles.title }, "DECLARACIÓN MENSUAL DE IVA — FORMA 30 SENIAT"),
+    React.createElement(
+      Text,
+      { style: styles.title },
+      "DECLARACIÓN MENSUAL DE IVA — FORMA 30 SENIAT"
+    ),
     React.createElement(Text, { style: styles.subtitle }, `Período: ${periodLabel}`),
     React.createElement(
       View,
       { style: styles.headerRow },
       React.createElement(Text, { style: styles.headerLabel }, "Empresa:"),
-      React.createElement(Text, { style: styles.headerValue }, params.companyName),
+      React.createElement(Text, { style: styles.headerValue }, params.companyName)
     ),
     React.createElement(
       View,
       { style: styles.headerRow },
       React.createElement(Text, { style: styles.headerLabel }, "RIF:"),
-      React.createElement(Text, { style: styles.headerValue }, params.companyRif ?? "—"),
+      React.createElement(Text, { style: styles.headerValue }, params.companyRif ?? "—")
     ),
     params.companyAddress
       ? React.createElement(
           View,
           { style: styles.headerRow },
           React.createElement(Text, { style: styles.headerLabel }, "Dirección Fiscal:"),
-          React.createElement(Text, { style: styles.headerValue }, params.companyAddress),
+          React.createElement(Text, { style: styles.headerValue }, params.companyAddress)
         )
       : null,
     params.companyTelefono
@@ -159,7 +209,7 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
           View,
           { style: styles.headerRow },
           React.createElement(Text, { style: styles.headerLabel }, "Teléfono:"),
-          React.createElement(Text, { style: styles.headerValue }, params.companyTelefono),
+          React.createElement(Text, { style: styles.headerValue }, params.companyTelefono)
         )
       : null,
     params.companyEmail
@@ -167,7 +217,7 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
           View,
           { style: styles.headerRow },
           React.createElement(Text, { style: styles.headerLabel }, "Correo:"),
-          React.createElement(Text, { style: styles.headerValue }, params.companyEmail),
+          React.createElement(Text, { style: styles.headerValue }, params.companyEmail)
         )
       : null,
     params.companyCiiu
@@ -175,7 +225,7 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
           View,
           { style: styles.headerRow },
           React.createElement(Text, { style: styles.headerLabel }, "Código CIIU:"),
-          React.createElement(Text, { style: styles.headerValue }, params.companyCiiu),
+          React.createElement(Text, { style: styles.headerValue }, params.companyCiiu)
         )
       : null,
     params.companyActividad
@@ -183,7 +233,7 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
           View,
           { style: styles.headerRow },
           React.createElement(Text, { style: styles.headerLabel }, "Actividad Económica:"),
-          React.createElement(Text, { style: styles.headerValue }, params.companyActividad),
+          React.createElement(Text, { style: styles.headerValue }, params.companyActividad)
         )
       : null,
     params.isSpecialContributor
@@ -191,9 +241,9 @@ function DocHeader({ params }: { params: Forma30PDFParams }) {
           View,
           { style: styles.headerRow },
           React.createElement(Text, { style: styles.headerLabel }, "Condición:"),
-          React.createElement(Text, { style: styles.headerValue }, "Contribuyente Especial"),
+          React.createElement(Text, { style: styles.headerValue }, "Contribuyente Especial")
         )
-      : null,
+      : null
   );
 }
 
@@ -208,50 +258,54 @@ function SeccionAView({ a }: { a: SeccionA }) {
       { style: styles.tableHeader },
       React.createElement(Text, { style: styles.colConcepto }, "Concepto"),
       React.createElement(Text, { style: styles.colBase }, "Base Imponible"),
-      React.createElement(Text, { style: styles.colTax }, "Débito Fiscal"),
+      React.createElement(Text, { style: styles.colTax }, "Débito Fiscal")
     ),
     React.createElement(
       View,
       { style: styles.tableRow },
       React.createElement(Text, { style: styles.colConcepto }, "A1. Ventas alícuota general (16%)"),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(a.general.base)),
-      React.createElement(Text, { style: styles.colTax }, fmtAmt(a.general.tax)),
+      React.createElement(Text, { style: styles.colTax }, fmtAmt(a.general.tax))
     ),
     React.createElement(
       View,
       { style: styles.tableRowAlt },
       React.createElement(Text, { style: styles.colConcepto }, "A2. Ventas alícuota reducida (8%)"),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(a.reducida.base)),
-      React.createElement(Text, { style: styles.colTax }, fmtAmt(a.reducida.tax)),
+      React.createElement(Text, { style: styles.colTax }, fmtAmt(a.reducida.tax))
     ),
     React.createElement(
       View,
       { style: styles.tableRow },
-      React.createElement(Text, { style: styles.colConcepto }, "A3. Ventas alícuota adicional lujo (15%)"),
+      React.createElement(
+        Text,
+        { style: styles.colConcepto },
+        "A3. Ventas alícuota adicional lujo (15%)"
+      ),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(a.adicionalLujo.base)),
-      React.createElement(Text, { style: styles.colTax }, fmtAmt(a.adicionalLujo.tax)),
+      React.createElement(Text, { style: styles.colTax }, fmtAmt(a.adicionalLujo.tax))
     ),
     React.createElement(
       View,
       { style: styles.tableRowAlt },
       React.createElement(Text, { style: styles.colConcepto }, "A4. Ventas exentas y exoneradas"),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(a.exentasExoneradas.base)),
-      React.createElement(Text, { style: styles.colTax }, "—"),
+      React.createElement(Text, { style: styles.colTax }, "—")
     ),
     React.createElement(
       View,
       { style: styles.tableRow },
       React.createElement(Text, { style: styles.colConcepto }, "A5. Exportaciones"),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(a.exportaciones.base)),
-      React.createElement(Text, { style: styles.colTax }, "—"),
+      React.createElement(Text, { style: styles.colTax }, "—")
     ),
     React.createElement(
       View,
       { style: styles.tableTotal },
       React.createElement(Text, { style: styles.colConceptoBold }, "TOTAL DÉBITOS FISCALES"),
       React.createElement(Text, { style: styles.colBaseBold }, ""),
-      React.createElement(Text, { style: styles.colTaxBold }, fmtAmt(a.totalDebitosFiscales)),
-    ),
+      React.createElement(Text, { style: styles.colTaxBold }, fmtAmt(a.totalDebitosFiscales))
+    )
   );
 }
 
@@ -265,50 +319,62 @@ function SeccionBView({ b }: { b: SeccionB }) {
       { style: styles.tableHeader },
       React.createElement(Text, { style: styles.colConcepto }, "Concepto"),
       React.createElement(Text, { style: styles.colBase }, "Base Imponible"),
-      React.createElement(Text, { style: styles.colTax }, "Crédito Fiscal"),
+      React.createElement(Text, { style: styles.colTax }, "Crédito Fiscal")
     ),
     React.createElement(
       View,
       { style: styles.tableRow },
-      React.createElement(Text, { style: styles.colConcepto }, "B1. Compras alícuota general (16%)"),
+      React.createElement(
+        Text,
+        { style: styles.colConcepto },
+        "B1. Compras alícuota general (16%)"
+      ),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(b.general.base)),
-      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.general.tax)),
+      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.general.tax))
     ),
     React.createElement(
       View,
       { style: styles.tableRowAlt },
-      React.createElement(Text, { style: styles.colConcepto }, "B2. Compras alícuota reducida (8%)"),
+      React.createElement(
+        Text,
+        { style: styles.colConcepto },
+        "B2. Compras alícuota reducida (8%)"
+      ),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(b.reducida.base)),
-      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.reducida.tax)),
+      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.reducida.tax))
     ),
     React.createElement(
       View,
       { style: styles.tableRow },
-      React.createElement(Text, { style: styles.colConcepto }, "B3. Compras alícuota adicional lujo (15%)"),
+      React.createElement(
+        Text,
+        { style: styles.colConcepto },
+        "B3. Compras alícuota adicional lujo (15%)"
+      ),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(b.adicionalLujo.base)),
-      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.adicionalLujo.tax)),
+      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.adicionalLujo.tax))
     ),
     React.createElement(
       View,
       { style: styles.tableRowAlt },
       React.createElement(Text, { style: styles.colConcepto }, "B4. Compras exentas y exoneradas"),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(b.exentasExoneradas.base)),
-      React.createElement(Text, { style: styles.colTax }, "—"),
+      React.createElement(Text, { style: styles.colTax }, "—")
     ),
     React.createElement(
       View,
       { style: styles.tableRow },
       React.createElement(Text, { style: styles.colConcepto }, "B5. Importaciones"),
       React.createElement(Text, { style: styles.colBase }, fmtAmt(b.importaciones.base)),
-      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.importaciones.tax)),
+      React.createElement(Text, { style: styles.colTax }, fmtAmt(b.importaciones.tax))
     ),
     React.createElement(
       View,
       { style: styles.tableTotal },
       React.createElement(Text, { style: styles.colConceptoBold }, "TOTAL CRÉDITOS FISCALES"),
       React.createElement(Text, { style: styles.colBaseBold }, ""),
-      React.createElement(Text, { style: styles.colTaxBold }, fmtAmt(b.totalCreditosFiscales)),
-    ),
+      React.createElement(Text, { style: styles.colTaxBold }, fmtAmt(b.totalCreditosFiscales))
+    )
   );
 }
 
@@ -320,21 +386,29 @@ function SeccionCView({ c }: { c: SeccionC }) {
     React.createElement(
       View,
       { style: styles.simpleRow },
-      React.createElement(Text, { style: styles.simpleLabel }, "C1. Retenciones IVA sufridas (clientes nos retuvieron)"),
-      React.createElement(Text, { style: styles.simpleValue }, fmtAmt(c.retencionesIvaSufridas)),
+      React.createElement(
+        Text,
+        { style: styles.simpleLabel },
+        "C1. Retenciones IVA sufridas (clientes nos retuvieron)"
+      ),
+      React.createElement(Text, { style: styles.simpleValue }, fmtAmt(c.retencionesIvaSufridas))
     ),
     React.createElement(
       View,
       { style: styles.simpleRowAlt },
-      React.createElement(Text, { style: styles.simpleLabel }, "C2. Retenciones IVA practicadas (retuvimos a proveedores)"),
-      React.createElement(Text, { style: styles.simpleValue }, fmtAmt(c.retencionesIvaPracticadas)),
+      React.createElement(
+        Text,
+        { style: styles.simpleLabel },
+        "C2. Retenciones IVA practicadas (retuvimos a proveedores)"
+      ),
+      React.createElement(Text, { style: styles.simpleValue }, fmtAmt(c.retencionesIvaPracticadas))
     ),
     React.createElement(
       View,
       { style: styles.simpleTotal },
       React.createElement(Text, { style: styles.simpleLabelBold }, "TOTAL RETENCIONES"),
-      React.createElement(Text, { style: styles.simpleValueBold }, fmtAmt(c.totalRetenciones)),
-    ),
+      React.createElement(Text, { style: styles.simpleValueBold }, fmtAmt(c.totalRetenciones))
+    )
   );
 }
 
@@ -347,14 +421,14 @@ function SeccionDView({ d }: { d: SeccionD }) {
       View,
       { style: styles.simpleRow },
       React.createElement(Text, { style: styles.simpleLabel }, "Base IGTF"),
-      React.createElement(Text, { style: styles.simpleValue }, fmtAmt(d.igtfBase)),
+      React.createElement(Text, { style: styles.simpleValue }, fmtAmt(d.igtfBase))
     ),
     React.createElement(
       View,
       { style: styles.simpleTotal },
       React.createElement(Text, { style: styles.simpleLabelBold }, "Total IGTF pagado"),
-      React.createElement(Text, { style: styles.simpleValueBold }, fmtAmt(d.igtfTotal)),
-    ),
+      React.createElement(Text, { style: styles.simpleValueBold }, fmtAmt(d.igtfTotal))
+    )
   );
 }
 
@@ -365,7 +439,7 @@ function SeccionEView({ e }: { e: SeccionE }) {
     : "E — Cuota a Pagar";
   const amountText = fmtAmt(
     typeof e.cuotaPeriodo === "object" && "abs" in e.cuotaPeriodo
-      ? (e.cuotaPeriodo as { abs: () => unknown }).abs() as number
+      ? ((e.cuotaPeriodo as { abs: () => unknown }).abs() as number)
       : Math.abs(Number(e.cuotaPeriodo))
   );
   const hasCredito = Number(e.creditoFiscalPeriodoAnterior) > 0;
@@ -382,8 +456,16 @@ function SeccionEView({ e }: { e: SeccionE }) {
       ? React.createElement(
           View,
           { style: styles.simpleRow },
-          React.createElement(Text, { style: styles.simpleLabel }, "E1. Crédito fiscal período anterior"),
-          React.createElement(Text, { style: styles.simpleValue }, fmtAmt(e.creditoFiscalPeriodoAnterior)),
+          React.createElement(
+            Text,
+            { style: styles.simpleLabel },
+            "E1. Crédito fiscal período anterior"
+          ),
+          React.createElement(
+            Text,
+            { style: styles.simpleValue },
+            fmtAmt(e.creditoFiscalPeriodoAnterior)
+          )
         )
       : null,
     React.createElement(
@@ -393,9 +475,9 @@ function SeccionEView({ e }: { e: SeccionE }) {
         View,
         null,
         React.createElement(Text, { style: styles.cuotaLabel }, labelText),
-        React.createElement(Text, { style: styles.cuotaSubtitle }, subtitleText),
+        React.createElement(Text, { style: styles.cuotaSubtitle }, subtitleText)
       ),
-      React.createElement(Text, { style: styles.cuotaAmount }, amountText),
+      React.createElement(Text, { style: styles.cuotaAmount }, amountText)
     ),
     hasExcedente
       ? React.createElement(
@@ -404,46 +486,56 @@ function SeccionEView({ e }: { e: SeccionE }) {
           React.createElement(
             Text,
             { style: { ...styles.simpleLabelBold, color: "#1d4ed8" } },
-            "E2. Excedente de crédito fiscal a trasladar al próximo período",
+            "E2. Excedente de crédito fiscal a trasladar al próximo período"
           ),
           React.createElement(
             Text,
             { style: { ...styles.simpleValueBold, color: "#1d4ed8" } },
-            fmtAmt(e.excedenteCreditoFiscal),
-          ),
+            fmtAmt(e.excedenteCreditoFiscal)
+          )
         )
-      : null,
+      : null
   );
 }
 
 function PaymentDataBlock() {
-  const blankLine = React.createElement(View, { style: { height: 16, borderBottom: "0.5pt solid #9ca3af", marginBottom: 8 } });
+  const blankLine = React.createElement(View, {
+    style: { height: 16, borderBottom: "0.5pt solid #9ca3af", marginBottom: 8 },
+  });
   const field = (label: string) =>
     React.createElement(
       View,
       { style: { flex: 1 } },
-      React.createElement(Text, { style: { fontSize: 7, color: "#6b7280", marginBottom: 2 } }, label),
-      blankLine,
+      React.createElement(
+        Text,
+        { style: { fontSize: 7, color: "#6b7280", marginBottom: 2 } },
+        label
+      ),
+      blankLine
     );
 
   return React.createElement(
     View,
     { style: { marginTop: 16, borderTop: "1pt solid #374151", paddingTop: 8 } },
-    React.createElement(Text, { style: { fontSize: 8, fontWeight: "bold", color: "#374151", marginBottom: 8 } }, "DATOS DE PAGO (llenar después de cancelar en el banco)"),
+    React.createElement(
+      Text,
+      { style: { fontSize: 8, fontWeight: "bold", color: "#374151", marginBottom: 8 } },
+      "DATOS DE PAGO (llenar después de cancelar en el banco)"
+    ),
     React.createElement(
       View,
       { style: { flexDirection: "row", gap: 12, marginBottom: 4 } },
       field("N° Comprobante Bancario"),
       field("Banco"),
-      field("N° de Cuenta del Contribuyente"),
+      field("N° de Cuenta del Contribuyente")
     ),
     React.createElement(
       View,
       { style: { flexDirection: "row", gap: 12 } },
       field("Fecha de Pago (DD/MM/AAAA)"),
       field("Monto Pagado (Bs.)"),
-      React.createElement(View, { style: { flex: 1 } }),
-    ),
+      React.createElement(View, { style: { flex: 1 } })
+    )
   );
 }
 
@@ -465,12 +557,12 @@ function CertificationBlock({ companyName }: { companyName: string }) {
         React.createElement(
           View,
           { style: { ...styles.certLine, height: 14 } },
-          React.createElement(Text, { style: styles.certValue }, companyName),
+          React.createElement(Text, { style: styles.certValue }, companyName)
         ),
         React.createElement(Text, { style: styles.certLabel }, "Cédula de Identidad"),
         React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
         React.createElement(Text, { style: styles.certLabel }, "Cargo"),
-        React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
+        React.createElement(View, { style: { ...styles.certLine, height: 14 } })
       ),
       // Columna contador
       React.createElement(
@@ -483,14 +575,14 @@ function CertificationBlock({ companyName }: { companyName: string }) {
         React.createElement(Text, { style: styles.certLabel }, "N° CPC / Colegio de Contadores"),
         React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
         React.createElement(Text, { style: styles.certLabel }, "Cédula de Identidad"),
-        React.createElement(View, { style: { ...styles.certLine, height: 14 } }),
-      ),
+        React.createElement(View, { style: { ...styles.certLine, height: 14 } })
+      )
     ),
     React.createElement(
       Text,
       { style: styles.certDisclaimer },
-      "Declaro bajo fe de juramento que los datos suministrados son ciertos y verídicos (Art. 93 LISLR / Art. 52 LIVA)",
-    ),
+      "Declaro bajo fe de juramento que los datos suministrados son ciertos y verídicos (Art. 93 LISLR / Art. 52 LIVA)"
+    )
   );
 }
 
@@ -524,9 +616,9 @@ function Forma30Document({ params }: { params: Forma30PDFParams }) {
         View,
         { style: styles.footer, fixed: true },
         React.createElement(Text, null, `${params.companyName} — Forma 30 — ${periodLabel}`),
-        React.createElement(Text, null, `Generado: ${now}`),
-      ),
-    ),
+        React.createElement(Text, null, `Generado: ${now}`)
+      )
+    )
   );
 }
 

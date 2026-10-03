@@ -68,7 +68,7 @@ function pad(n: number): string {
  */
 export function periodoCerradoEn(
   todayISO: string,
-  frequency: PayrollFrequency,
+  frequency: PayrollFrequency
 ): { start: string; end: string } | null {
   const [y, m, d] = todayISO.split("-").map(Number);
 
@@ -86,8 +86,14 @@ export function periodoCerradoEn(
     const anio = m === 1 ? y - 1 : y;
     const ultimo = new Date(Date.UTC(anio, mesAnterior, 0)).getUTCDate();
     return frequency === "MONTHLY"
-      ? { start: `${anio}-${pad(mesAnterior)}-01`, end: `${anio}-${pad(mesAnterior)}-${pad(ultimo)}` }
-      : { start: `${anio}-${pad(mesAnterior)}-16`, end: `${anio}-${pad(mesAnterior)}-${pad(ultimo)}` };
+      ? {
+          start: `${anio}-${pad(mesAnterior)}-01`,
+          end: `${anio}-${pad(mesAnterior)}-${pad(ultimo)}`,
+        }
+      : {
+          start: `${anio}-${pad(mesAnterior)}-16`,
+          end: `${anio}-${pad(mesAnterior)}-${pad(ultimo)}`,
+        };
   }
 
   return null;
@@ -130,7 +136,7 @@ function clasificar(mensaje: string): { status: AutoDraftStatus; motivo: string 
   if (mensaje.includes(MIXED_SALARY_MESSAGE) || m.includes("monedas mixtas")) {
     return omitida(
       "Hay sueldos que no se pueden procesar juntos (dos monedas, o un sueldo " +
-      "en modalidad MIXTA). Requiere procesarse a mano."
+        "en modalidad MIXTA). Requiere procesarse a mano."
     );
   }
   if (mensaje.includes(READ_ONLY_MESSAGE) || m.includes("solo lectura")) {
@@ -170,7 +176,9 @@ export const PayrollAutoDraftService = {
    * calculado. Ninguna excepción sale del bucle: una empresa que falla no puede
    * tumbar el lote.
    */
-  async runAutoDrafts(nowISO?: string): Promise<{ results: AutoDraftResult[]; total: number; truncated: boolean }> {
+  async runAutoDrafts(
+    nowISO?: string
+  ): Promise<{ results: AutoDraftResult[]; total: number; truncated: boolean }> {
     // "Hoy" se resuelve DENTRO del bucle, en la zona de cada empresa (ADR-042):
     // `vercel.json` programa en UTC, y una hora de madrugada UTC caería en el día
     // ANTERIOR en Venezuela — el 31 en vez del 1, o sea el mes equivocado.
@@ -220,9 +228,10 @@ export const PayrollAutoDraftService = {
           companyId: cfg.companyId,
           companyName: nombre,
           status: "OMITIDA",
-          motivo: cfg.frequency === "SEMANAL"
-            ? "Nómina semanal: el ciclo no tiene ancla en la configuración, se procesa a mano."
-            : `Hoy (${hoy}) no cierra período para una nómina ${cfg.frequency}.`,
+          motivo:
+            cfg.frequency === "SEMANAL"
+              ? "Nómina semanal: el ciclo no tiene ancla en la configuración, se procesa a mano."
+              : `Hoy (${hoy}) no cierra período para una nómina ${cfg.frequency}.`,
         });
         continue;
       }
@@ -240,7 +249,7 @@ export const PayrollAutoDraftService = {
           // escribirla fabricaría un rastro falso. El user-agent identifica la
           // automatización, que es lo que R-6 quiere saber aquí.
           null,
-          AUTO_DRAFT_USER_AGENT,
+          AUTO_DRAFT_USER_AGENT
         );
 
         resultados.push({

@@ -13,12 +13,12 @@ import { Decimal } from "decimal.js";
  */
 export function assertBalancedGLEntries(
   entries: { amount: Decimal }[],
-  tolerance = new Decimal("0.01"),
+  tolerance = new Decimal("0.01")
 ): void {
   const sum = entries.reduce((acc, e) => acc.plus(e.amount), new Decimal(0));
   if (sum.abs().greaterThan(tolerance)) {
     throw new Error(
-      `Asiento GL descuadrado: Σ = ${sum.toFixed(4)} (tolerancia ±${tolerance}). Revisa las entradas antes de persistir.`,
+      `Asiento GL descuadrado: Σ = ${sum.toFixed(4)} (tolerancia ±${tolerance}). Revisa las entradas antes de persistir.`
     );
   }
 }

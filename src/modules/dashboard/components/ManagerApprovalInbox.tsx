@@ -31,10 +31,12 @@ type Props = {
 function fmtAmount(value: string | number): string {
   const n = Number(value);
   if (isNaN(n)) return "—";
-  return n.toLocaleString("es-VE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + " Bs.";
+  return (
+    n.toLocaleString("es-VE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) + " Bs."
+  );
 }
 
 // ── Approval card ─────────────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ function ApprovalCard({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 rounded-xl border bg-white p-4 transition-colors hover:bg-zinc-50 active:bg-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1"
+      className="flex items-center gap-3 rounded-xl border bg-white p-4 transition-colors outline-none hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-1 active:bg-zinc-100"
       style={{ minHeight: "64px" }} // WCAG 2.5.8: target ≥44px — 64px for comfortable mobile use
     >
       {/* Icono */}
@@ -68,15 +70,15 @@ function ApprovalCard({
       </div>
 
       {/* Texto */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-zinc-800 leading-tight truncate">{title}</p>
-        <p className="mt-0.5 text-xs text-zinc-500 truncate">{subtitle}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm leading-tight font-semibold text-zinc-800">{title}</p>
+        <p className="mt-0.5 truncate text-xs text-zinc-500">{subtitle}</p>
         {meta && <p className="mt-0.5 text-xs font-medium text-blue-600">{meta}</p>}
       </div>
 
       {/* CTA arrow */}
-      <div className="flex items-center gap-1 shrink-0">
-        <span className="text-xs font-semibold text-blue-600 hidden sm:block">{cta}</span>
+      <div className="flex shrink-0 items-center gap-1">
+        <span className="hidden text-xs font-semibold text-blue-600 sm:block">{cta}</span>
         <ChevronRightIcon className="h-4 w-4 text-zinc-400" />
       </div>
     </Link>
@@ -95,7 +97,7 @@ export function ManagerApprovalInbox({ companyId, data }: Props) {
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wider text-zinc-500 uppercase">
           <ClipboardCheckIcon className="h-4 w-4 text-blue-500" aria-hidden />
           Aprobaciones pendientes
           <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
@@ -156,7 +158,7 @@ export function ManagerApprovalInbox({ companyId, data }: Props) {
       {/* Empty state for next check */}
       {totalItems === 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-green-100 bg-green-50 px-4 py-3">
-          <CheckCircle2Icon className="h-4 w-4 text-green-500 shrink-0" />
+          <CheckCircle2Icon className="h-4 w-4 shrink-0 text-green-500" />
           <p className="text-sm text-green-700">Sin aprobaciones pendientes</p>
         </div>
       )}

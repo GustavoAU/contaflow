@@ -14,10 +14,9 @@ export function PaymentSuccessToast({ payment }: Props) {
 
   useEffect(() => {
     if (payment === "success") {
-      toast.success(
-        "¡Pago recibido! Tu suscripción se activará en breve al confirmar la red.",
-        { duration: 8000 },
-      );
+      toast.success("¡Pago recibido! Tu suscripción se activará en breve al confirmar la red.", {
+        duration: 8000,
+      });
       router.replace(window.location.pathname);
     }
     if (payment === "cancelled") {

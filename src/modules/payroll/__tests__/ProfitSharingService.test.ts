@@ -45,9 +45,8 @@ const USER = "user-1";
 const EMP_ID = "emp-1";
 
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 const BASE_CONFIG = {
@@ -121,7 +120,10 @@ describe("ProfitSharingService.calculate", () => {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(null);
 
     await expect(
-      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026, isFractional: true })
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+        fiscalYear: 2026,
+        isFractional: true,
+      })
     ).rejects.toThrow("Empleado no encontrado");
   });
 
@@ -202,7 +204,9 @@ describe("ProfitSharingService.calculate", () => {
 
     await expect(
       ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 })
-    ).rejects.toThrow(`Ya existe un registro de utilidades para el año fiscal 2026 de este empleado`);
+    ).rejects.toThrow(
+      `Ya existe un registro de utilidades para el año fiscal 2026 de este empleado`
+    );
   });
 
   it("returns serialized record", async () => {
@@ -315,12 +319,13 @@ describe("ProfitSharingService.listByEmployee", () => {
       expect.objectContaining({ where: expect.objectContaining({ companyId: COMPANY }) })
     );
   });
-
 });
 
 // ── Moneda del historial salarial (auditoría 2026-08-28) ────────────────────
 describe("ProfitSharingService — moneda del historial", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   describe("ProfitSharingService.calculate — sueldos en divisas", () => {
     function setup(rows: unknown[], rate: string | null) {
@@ -335,25 +340,30 @@ describe("ProfitSharingService — moneda del historial", () => {
         incesPayableAccountId: "acc-inces",
       } as never);
       vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
-        rate ? ({ rate: new Decimal(rate) } as never) : null,
+        rate ? ({ rate: new Decimal(rate) } as never) : null
       );
       vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
       vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
       vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
-      vi.mocked(prisma.$transaction).mockImplementation(
-        ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
-      );
+      vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+        fn(prisma)) as never);
     }
 
     const usdRow = {
-      id: "sal-1", employeeId: EMP_ID, companyId: COMPANY,
+      id: "sal-1",
+      employeeId: EMP_ID,
+      companyId: COMPANY,
       effectiveFrom: new Date("2026-01-01"),
-      amount: new Decimal("1000"), currency: "USD" as const,
+      amount: new Decimal("1000"),
+      currency: "USD" as const,
     };
     const vesRow = {
-      id: "sal-2", employeeId: EMP_ID, companyId: COMPANY,
+      id: "sal-2",
+      employeeId: EMP_ID,
+      companyId: COMPANY,
       effectiveFrom: new Date("2026-06-01"),
-      amount: new Decimal("100000"), currency: "VES" as const,
+      amount: new Decimal("100000"),
+      currency: "VES" as const,
     };
 
     it("no promedia USD y Bs. como si fueran la misma unidad", async () => {
@@ -373,7 +383,7 @@ describe("ProfitSharingService — moneda del historial", () => {
     it("sin tasa BCV no calcula — bloquea en vez de mezclar monedas", async () => {
       setup([usdRow], null);
       await expect(
-        ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+        ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 })
       ).rejects.toThrow("tasa BCV");
     });
 
@@ -392,7 +402,9 @@ function baseOf(data: { baseSalarySnapshot: string }): string {
 // --- La retencion del INCES no puede omitirse en silencio (Art. 50) ----------
 
 describe("ProfitSharingService - cuenta contable del INCES", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   function setup(incesPayableAccountId: string | null, headcount: number) {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
@@ -409,9 +421,8 @@ describe("ProfitSharingService - cuenta contable del INCES", () => {
     vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
     vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn(prisma)) as never);
   }
 
   it("sin la cuenta configurada BLOQUEA en vez de dejar de retener", async () => {
@@ -420,7 +431,7 @@ describe("ProfitSharingService - cuenta contable del INCES", () => {
     // empresa quedaba debiendolo al INCES.
     setup(null, 10);
     await expect(
-      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 })
     ).rejects.toThrow("INCES por Pagar");
   });
 
@@ -428,7 +439,7 @@ describe("ProfitSharingService - cuenta contable del INCES", () => {
     // Ahi no hay obligacion que incumplir: la cuenta no hace falta.
     setup(null, 3);
     await expect(
-      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 }),
+      ProfitSharingService.calculate(COMPANY, USER, EMP_ID, { fiscalYear: 2026 })
     ).resolves.toBeDefined();
   });
 });

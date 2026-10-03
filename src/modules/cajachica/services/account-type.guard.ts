@@ -28,7 +28,7 @@ const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
  */
 export async function assertAccountOfType(
   tx: Prisma.TransactionClient,
-  params: { accountId: string; companyId: string; expected: AccountType; label: string },
+  params: { accountId: string; companyId: string; expected: AccountType; label: string }
 ): Promise<{ id: string; type: AccountType }> {
   const account = await tx.account.findFirst({
     where: { id: params.accountId, companyId: params.companyId, deletedAt: null },
@@ -38,9 +38,7 @@ export async function assertAccountOfType(
     throw new Error(`${params.label}: cuenta no encontrada o no pertenece a esta empresa.`);
   }
   if (account.type !== params.expected) {
-    throw new Error(
-      `${params.label} debe ser de tipo ${ACCOUNT_TYPE_LABEL[params.expected]}.`,
-    );
+    throw new Error(`${params.label} debe ser de tipo ${ACCOUNT_TYPE_LABEL[params.expected]}.`);
   }
   return account;
 }

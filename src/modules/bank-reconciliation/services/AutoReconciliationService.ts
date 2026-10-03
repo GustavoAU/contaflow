@@ -33,7 +33,7 @@ type ParsedBankRow = {
   date: Date;
   description: string;
   reference: string | null;
-  amount: Decimal;      // siempre positivo
+  amount: Decimal; // siempre positivo
   type: "CREDIT" | "DEBIT";
   raw: BankStatementRow;
 };
@@ -42,21 +42,13 @@ function parseDate(raw: string): Date {
   const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim());
   if (ddmmyyyy) {
     return new Date(
-      Date.UTC(
-        parseInt(ddmmyyyy[3], 10),
-        parseInt(ddmmyyyy[2], 10) - 1,
-        parseInt(ddmmyyyy[1], 10)
-      )
+      Date.UTC(parseInt(ddmmyyyy[3], 10), parseInt(ddmmyyyy[2], 10) - 1, parseInt(ddmmyyyy[1], 10))
     );
   }
   const isoDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
   if (isoDate) {
     return new Date(
-      Date.UTC(
-        parseInt(isoDate[1], 10),
-        parseInt(isoDate[2], 10) - 1,
-        parseInt(isoDate[3], 10)
-      )
+      Date.UTC(parseInt(isoDate[1], 10), parseInt(isoDate[2], 10) - 1, parseInt(isoDate[3], 10))
     );
   }
   throw new Error(`Fecha inválida: "${raw}"`);
@@ -83,12 +75,9 @@ function calcScore(
 
   if (amountDiff.greaterThan(tolerance)) return 0; // fuera de tolerancia
 
-  const amountPenalty = tolerance.isZero()
-    ? 0
-    : amountDiff.div(tolerance).toNumber() * 40;
+  const amountPenalty = tolerance.isZero() ? 0 : amountDiff.div(tolerance).toNumber() * 40;
 
-  const deltaDays =
-    Math.abs(rowDate.getTime() - candidateDate.getTime()) / (1000 * 60 * 60 * 24);
+  const deltaDays = Math.abs(rowDate.getTime() - candidateDate.getTime()) / (1000 * 60 * 60 * 24);
 
   if (deltaDays > DATE_WINDOW_DAYS) return 0; // fuera de ventana
 
@@ -97,11 +86,7 @@ function calcScore(
   let score = Math.round(100 - amountPenalty - datePenalty);
 
   // Bonus de referencia (+20, cap 100)
-  if (
-    rowRef &&
-    candidateRef &&
-    (rowRef.includes(candidateRef) || candidateRef.includes(rowRef))
-  ) {
+  if (rowRef && candidateRef && (rowRef.includes(candidateRef) || candidateRef.includes(rowRef))) {
     score = Math.min(100, score + 20);
   }
 
@@ -277,7 +262,8 @@ export const AutoReconciliationService = {
         amount: new Decimal(p.amount.toString()),
         date: new Date(p.date),
         referenceNumber: p.referenceNumber,
-        label: `Factura ${p.invoice?.invoiceNumber ?? ""} — ${p.invoice?.counterpartName ?? ""}`.trim(),
+        label:
+          `Factura ${p.invoice?.invoiceNumber ?? ""} — ${p.invoice?.counterpartName ?? ""}`.trim(),
         matchType: "INVOICE_PAYMENT",
       });
     }

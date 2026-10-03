@@ -109,10 +109,7 @@ export async function createReimbursement(
         throw new Error("No hay gastos aprobados para reembolsar en este período");
       }
 
-      const totalExpenses = approvedMovements.reduce(
-        (s, m) => s.plus(m.amount),
-        new Decimal(0)
-      );
+      const totalExpenses = approvedMovements.reduce((s, m) => s.plus(m.amount), new Decimal(0));
 
       const reimbNumber = await getNextReimbNumber(input.companyId, tx);
 
@@ -175,7 +172,8 @@ export async function postReimbursement(
         },
       });
       if (!reimbursement) throw new Error("Reembolso no encontrado");
-      if (reimbursement.status !== "DRAFT") throw new Error("Solo se pueden publicar reembolsos en borrador");
+      if (reimbursement.status !== "DRAFT")
+        throw new Error("Solo se pueden publicar reembolsos en borrador");
 
       // HAL-002: el asiento de reembolso se fecha HOY y debe caer dentro del período
       // abierto, igual que createMovement/createDeposit/closeCajaCaja. Antes usaba
@@ -271,7 +269,9 @@ export async function voidReimbursement(
     if (!reimbursement) throw new Error("Reembolso no encontrado");
     if (reimbursement.status === "VOIDED") throw new Error("El reembolso ya está anulado");
     if (reimbursement.status === "POSTED") {
-      throw new Error("Los reembolsos publicados no se pueden anular directamente. Contacte al administrador.");
+      throw new Error(
+        "Los reembolsos publicados no se pueden anular directamente. Contacte al administrador."
+      );
     }
 
     // Reset linked movements back to APPROVED

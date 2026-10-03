@@ -10,7 +10,13 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     bankAccount: { findFirst: vi.fn() },
     bankStatement: { create: vi.fn(), findFirst: vi.fn() },
-    bankTransaction: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), count: vi.fn() },
+    bankTransaction: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+      count: vi.fn(),
+    },
     invoicePayment: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -18,9 +24,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 
 import { prisma } from "@/lib/prisma";
@@ -68,14 +76,12 @@ describe("BankingService", () => {
       companyId: COMPANY_ID,
     } as never);
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) =>
-        fn({
-          bankStatement: { create: vi.fn().mockResolvedValue({ id: STATEMENT_ID }) },
-          bankTransaction: { create: vi.fn(), count: vi.fn().mockResolvedValue(2) },
-          auditLog: { create: vi.fn() },
-        } as unknown as typeof prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn({
+        bankStatement: { create: vi.fn().mockResolvedValue({ id: STATEMENT_ID }) },
+        bankTransaction: { create: vi.fn(), count: vi.fn().mockResolvedValue(2) },
+        auditLog: { create: vi.fn() },
+      } as unknown as typeof prisma)) as never);
 
     const result = await BankingService.importStatement(
       BANK_ACCOUNT_ID,
@@ -100,7 +106,14 @@ describe("BankingService", () => {
     const wrongClosing = new Decimal("999.00"); // No coincide con 800
 
     await expect(
-      BankingService.importStatement(BANK_ACCOUNT_ID, COMPANY_ID, SAMPLE_ROWS, OPENING, wrongClosing, USER_ID)
+      BankingService.importStatement(
+        BANK_ACCOUNT_ID,
+        COMPANY_ID,
+        SAMPLE_ROWS,
+        OPENING,
+        wrongClosing,
+        USER_ID
+      )
     ).rejects.toThrow(/balance/i);
   });
 
@@ -109,7 +122,14 @@ describe("BankingService", () => {
     vi.mocked(prisma.bankAccount.findFirst).mockResolvedValue(null);
 
     await expect(
-      BankingService.importStatement(BANK_ACCOUNT_ID, COMPANY_ID, SAMPLE_ROWS, OPENING, CLOSING, USER_ID)
+      BankingService.importStatement(
+        BANK_ACCOUNT_ID,
+        COMPANY_ID,
+        SAMPLE_ROWS,
+        OPENING,
+        CLOSING,
+        USER_ID
+      )
     ).rejects.toThrow(/no existe o no pertenece/i);
   });
 
@@ -139,19 +159,22 @@ describe("BankingService", () => {
     const mockTx = { id: TX_ID, isReconciled: false, matchedPaymentId: null };
     const mockUpdated = { id: TX_ID, isReconciled: true, matchedPaymentId: PAYMENT_ID };
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) =>
-        fn({
-          bankTransaction: {
-            findFirst: vi.fn().mockResolvedValue(mockTx),
-            update: vi.fn().mockResolvedValue(mockUpdated),
-          },
-          invoicePayment: { findFirst: vi.fn().mockResolvedValue({ id: PAYMENT_ID }) },
-          auditLog: { create: vi.fn() },
-        } as unknown as typeof prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn({
+        bankTransaction: {
+          findFirst: vi.fn().mockResolvedValue(mockTx),
+          update: vi.fn().mockResolvedValue(mockUpdated),
+        },
+        invoicePayment: { findFirst: vi.fn().mockResolvedValue({ id: PAYMENT_ID }) },
+        auditLog: { create: vi.fn() },
+      } as unknown as typeof prisma)) as never);
 
-    const result = await BankingService.reconcileTransaction(TX_ID, PAYMENT_ID, COMPANY_ID, USER_ID);
+    const result = await BankingService.reconcileTransaction(
+      TX_ID,
+      PAYMENT_ID,
+      COMPANY_ID,
+      USER_ID
+    );
 
     expect(result.isReconciled).toBe(true);
     expect(result.matchedPaymentId).toBe(PAYMENT_ID);
@@ -161,17 +184,15 @@ describe("BankingService", () => {
   it("reconcileTransaction — ya conciliada lanza Error", async () => {
     const mockTx = { id: TX_ID, isReconciled: true, matchedPaymentId: PAYMENT_ID };
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) =>
-        fn({
-          bankTransaction: {
-            findFirst: vi.fn().mockResolvedValue(mockTx),
-            update: vi.fn(),
-          },
-          invoicePayment: { findFirst: vi.fn() },
-          auditLog: { create: vi.fn() },
-        } as unknown as typeof prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn({
+        bankTransaction: {
+          findFirst: vi.fn().mockResolvedValue(mockTx),
+          update: vi.fn(),
+        },
+        invoicePayment: { findFirst: vi.fn() },
+        auditLog: { create: vi.fn() },
+      } as unknown as typeof prisma)) as never);
 
     await expect(
       BankingService.reconcileTransaction(TX_ID, PAYMENT_ID, COMPANY_ID, USER_ID)
@@ -180,17 +201,15 @@ describe("BankingService", () => {
 
   // 7. reconcileTransaction: bankTransaction no pertenece a companyId → lanza Error
   it("reconcileTransaction — transacción no pertenece a companyId lanza Error", async () => {
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) =>
-        fn({
-          bankTransaction: {
-            findFirst: vi.fn().mockResolvedValue(null),
-            update: vi.fn(),
-          },
-          invoicePayment: { findFirst: vi.fn() },
-          auditLog: { create: vi.fn() },
-        } as unknown as typeof prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn({
+        bankTransaction: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          update: vi.fn(),
+        },
+        invoicePayment: { findFirst: vi.fn() },
+        auditLog: { create: vi.fn() },
+      } as unknown as typeof prisma)) as never);
 
     await expect(
       BankingService.reconcileTransaction(TX_ID, PAYMENT_ID, COMPANY_ID, USER_ID)
@@ -202,16 +221,14 @@ describe("BankingService", () => {
     const mockTx = { id: TX_ID, isReconciled: true, matchedPaymentId: PAYMENT_ID };
     const mockUpdated = { id: TX_ID, isReconciled: false, matchedPaymentId: null };
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) =>
-        fn({
-          bankTransaction: {
-            findFirst: vi.fn().mockResolvedValue(mockTx),
-            update: vi.fn().mockResolvedValue(mockUpdated),
-          },
-          auditLog: { create: vi.fn() },
-        } as unknown as typeof prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn({
+        bankTransaction: {
+          findFirst: vi.fn().mockResolvedValue(mockTx),
+          update: vi.fn().mockResolvedValue(mockUpdated),
+        },
+        auditLog: { create: vi.fn() },
+      } as unknown as typeof prisma)) as never);
 
     const result = await BankingService.unreconcileTransaction(TX_ID, COMPANY_ID, USER_ID);
 
@@ -223,20 +240,18 @@ describe("BankingService", () => {
   it("unreconcileTransaction — no conciliada lanza Error", async () => {
     const mockTx = { id: TX_ID, isReconciled: false, matchedPaymentId: null };
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) =>
-        fn({
-          bankTransaction: {
-            findFirst: vi.fn().mockResolvedValue(mockTx),
-            update: vi.fn(),
-          },
-          auditLog: { create: vi.fn() },
-        } as unknown as typeof prisma)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+      fn({
+        bankTransaction: {
+          findFirst: vi.fn().mockResolvedValue(mockTx),
+          update: vi.fn(),
+        },
+        auditLog: { create: vi.fn() },
+      } as unknown as typeof prisma)) as never);
 
-    await expect(
-      BankingService.unreconcileTransaction(TX_ID, COMPANY_ID, USER_ID)
-    ).rejects.toThrow(/no está conciliada/i);
+    await expect(BankingService.unreconcileTransaction(TX_ID, COMPANY_ID, USER_ID)).rejects.toThrow(
+      /no está conciliada/i
+    );
   });
 
   // 10. getReconciliationSummary: calcula totales y diferencia correctamente

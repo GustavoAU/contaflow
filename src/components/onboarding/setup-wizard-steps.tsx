@@ -27,20 +27,33 @@ export type MigrationSystem = "excel" | "monica" | "odoo";
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 export const SCRATCH_STEPS = [
-  { id: 1, label: "Empresa",          icon: BuildingIcon },
-  { id: 2, label: "Plan de Cuentas",  icon: BookOpenIcon },
-  { id: 3, label: "Período",          icon: CalendarIcon },
-  { id: 4, label: "Cuentas GL",       icon: LinkIcon },
+  { id: 1, label: "Empresa", icon: BuildingIcon },
+  { id: 2, label: "Plan de Cuentas", icon: BookOpenIcon },
+  { id: 3, label: "Período", icon: CalendarIcon },
+  { id: 4, label: "Cuentas GL", icon: LinkIcon },
 ];
 
 export const MONTHS = [
-  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 // ─── Guías de migración ───────────────────────────────────────────────────────
 
-export const MIGRATION_GUIDES: Record<MigrationSystem, { title: string; steps: { what: string; how: string; where: string }[] }> = {
+export const MIGRATION_GUIDES: Record<
+  MigrationSystem,
+  { title: string; steps: { what: string; how: string; where: string }[] }
+> = {
   excel: {
     title: "Excel / CSV",
     steps: [
@@ -52,17 +65,20 @@ export const MIGRATION_GUIDES: Record<MigrationSystem, { title: string; steps: {
       {
         what: "Clientes y Proveedores",
         how: "Lista con columnas: RIF, Nombre, Dirección, Email, Teléfono.",
-        where: "ContaFlow → Clientes (o Proveedores) → agregar uno a uno o pedir importación masiva",
+        where:
+          "ContaFlow → Clientes (o Proveedores) → agregar uno a uno o pedir importación masiva",
       },
       {
         what: "Saldos iniciales (apertura)",
         how: "Balance de comprobación a la fecha de corte con saldo de cada cuenta.",
-        where: "ContaFlow → Asientos → Nuevo → Tipo: Apertura (un asiento con débitos y créditos que cuadren)",
+        where:
+          "ContaFlow → Asientos → Nuevo → Tipo: Apertura (un asiento con débitos y créditos que cuadren)",
       },
       {
         what: "Facturas pendientes de cobro/pago",
         how: "Exporta las facturas con status Pendiente o Parcial.",
-        where: "ContaFlow → Facturas → Nueva Factura (ingresar manualmente las pendientes) → Registrar Pago para las parciales",
+        where:
+          "ContaFlow → Facturas → Nueva Factura (ingresar manualmente las pendientes) → Registrar Pago para las parciales",
       },
     ],
   },
@@ -72,7 +88,8 @@ export const MIGRATION_GUIDES: Record<MigrationSystem, { title: string; steps: {
       {
         what: "Plan de Cuentas",
         how: "Mónica: Utilidades → Exportar → Catálogo de Cuentas. Profit Plus: Contabilidad → Plan de Cuentas → Exportar Excel.",
-        where: "ContaFlow → Importar → Subir el Excel (revisa que las columnas coincidan con la plantilla)",
+        where:
+          "ContaFlow → Importar → Subir el Excel (revisa que las columnas coincidan con la plantilla)",
       },
       {
         what: "Clientes / Proveedores",
@@ -82,7 +99,8 @@ export const MIGRATION_GUIDES: Record<MigrationSystem, { title: string; steps: {
       {
         what: "Cartera pendiente CxC",
         how: "Mónica: Reportes → CxC → Antigüedad de Saldos. Profit Plus: CxC → Antigüedad → Exportar.",
-        where: "ContaFlow → Facturas (una factura por cada documento pendiente) → Cuentas por Cobrar",
+        where:
+          "ContaFlow → Facturas (una factura por cada documento pendiente) → Cuentas por Cobrar",
       },
       {
         what: "Cartera pendiente CxP",
@@ -92,7 +110,8 @@ export const MIGRATION_GUIDES: Record<MigrationSystem, { title: string; steps: {
       {
         what: "Saldo de cuentas (apertura)",
         how: "Mónica: Contabilidad → Balance de Comprobación a la fecha de corte. Profit Plus: GL → Balance.",
-        where: "ContaFlow → Asientos → Nuevo → Asiento de Apertura (un solo asiento que cuadre el balance)",
+        where:
+          "ContaFlow → Asientos → Nuevo → Asiento de Apertura (un solo asiento que cuadre el balance)",
       },
     ],
   },
@@ -107,7 +126,8 @@ export const MIGRATION_GUIDES: Record<MigrationSystem, { title: string; steps: {
       {
         what: "Clientes y Proveedores",
         how: "Odoo: Clientes → ☰ Acción → Exportar. SAP: XD03 clientes / XK03 proveedores.",
-        where: "ContaFlow → Clientes o Proveedores → ingresar o pedir importación masiva al soporte",
+        where:
+          "ContaFlow → Clientes o Proveedores → ingresar o pedir importación masiva al soporte",
       },
       {
         what: "Antigüedad CxC",
@@ -149,7 +169,7 @@ export function PathChoice({
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={() => onChoose("scratch")}
-          className="flex flex-col gap-2 rounded-xl border-2 p-4 text-left hover:border-blue-500 hover:bg-blue-50 transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
+          className="flex flex-col gap-2 rounded-xl border-2 p-4 text-left transition-colors hover:border-blue-500 hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
             <BuildingIcon className="h-5 w-5 text-blue-600" />
@@ -161,7 +181,7 @@ export function PathChoice({
         </button>
         <button
           onClick={() => onChoose("migrate")}
-          className="flex flex-col gap-2 rounded-xl border-2 p-4 text-left hover:border-purple-500 hover:bg-purple-50 transition-colors focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none"
+          className="flex flex-col gap-2 rounded-xl border-2 p-4 text-left transition-colors hover:border-purple-500 hover:bg-purple-50 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
             <DatabaseIcon className="h-5 w-5 text-purple-600" />
@@ -173,10 +193,7 @@ export function PathChoice({
         </button>
       </div>
       <div className="pt-1 text-right">
-        <button
-          onClick={onClose}
-          className="text-xs text-zinc-400 hover:text-zinc-600"
-        >
+        <button onClick={onClose} className="text-xs text-zinc-400 hover:text-zinc-600">
           Omitir por ahora
         </button>
       </div>
@@ -190,18 +207,24 @@ export function ScratchStepBar({ current }: { current: number }) {
   return (
     <div className="flex items-center gap-1.5">
       {SCRATCH_STEPS.map((s, i) => {
-        const done    = current > s.id;
-        const active  = current === s.id;
+        const done = current > s.id;
+        const active = current === s.id;
         return (
           <div key={s.id} className="flex flex-1 items-center gap-1.5">
-            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
-              done   ? "bg-green-500 text-white" :
-              active ? "bg-blue-600 text-white"  :
-                       "bg-zinc-100 text-zinc-400"
-            }`}>
+            <div
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                done
+                  ? "bg-green-500 text-white"
+                  : active
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-100 text-zinc-400"
+              }`}
+            >
               {done ? <CheckCircleIcon className="h-3.5 w-3.5" /> : s.id}
             </div>
-            <span className={`hidden text-xs sm:inline ${active ? "text-zinc-700 font-medium" : "text-zinc-400"}`}>
+            <span
+              className={`hidden text-xs sm:inline ${active ? "font-medium text-zinc-700" : "text-zinc-400"}`}
+            >
               {s.label}
             </span>
             {i < SCRATCH_STEPS.length - 1 && (
@@ -217,12 +240,20 @@ export function ScratchStepBar({ current }: { current: number }) {
 // ── Step 1: Company Data ──────────────────────────────────────────────────────
 
 export type CompanyFormState = {
-  address: string; telefono: string; email: string;
-  ciiu: string; actividad: string; isSpecialContributor: boolean;
+  address: string;
+  telefono: string;
+  email: string;
+  ciiu: string;
+  actividad: string;
+  isSpecialContributor: boolean;
 };
 
 export function StepCompanyData({
-  form, onChange, onSave, onSkip, isPending,
+  form,
+  onChange,
+  onSave,
+  onSkip,
+  isPending,
 }: {
   form: CompanyFormState;
   onChange: (f: Partial<CompanyFormState>) => void;
@@ -230,15 +261,17 @@ export function StepCompanyData({
   onSkip: () => void;
   isPending: boolean;
 }) {
-  const inputCls = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  const inputCls =
+    "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
         <BuildingIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
         <div>
           <p className="text-sm font-medium text-blue-800">Paso 1 — Datos de tu empresa</p>
-          <p className="text-xs text-blue-600 mt-0.5">
-            Esta información aparece en tus reportes fiscales y comprobantes. Puedes editarla después en Configuración.
+          <p className="mt-0.5 text-xs text-blue-600">
+            Esta información aparece en tus reportes fiscales y comprobantes. Puedes editarla
+            después en Configuración.
           </p>
         </div>
       </div>
@@ -312,7 +345,7 @@ export function StepCompanyData({
           onClick={onSave}
           disabled={isPending}
           aria-busy={isPending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none disabled:opacity-50"
         >
           {isPending ? "Guardando…" : "Guardar y continuar"}
           {!isPending && <ArrowRightIcon className="h-4 w-4" />}
@@ -325,10 +358,17 @@ export function StepCompanyData({
 // ── Step 2: Chart of Accounts ─────────────────────────────────────────────────
 
 export function StepChartOfAccounts({
-  companyId, confirmed, onConfirm, onBack, onNext,
+  companyId,
+  confirmed,
+  onConfirm,
+  onBack,
+  onNext,
 }: {
-  companyId: string; confirmed: boolean;
-  onConfirm: () => void; onBack: () => void; onNext: () => void;
+  companyId: string;
+  confirmed: boolean;
+  onConfirm: () => void;
+  onBack: () => void;
+  onNext: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -336,8 +376,9 @@ export function StepChartOfAccounts({
         <BookOpenIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
         <div>
           <p className="text-sm font-medium text-blue-800">Paso 2 — Plan de Cuentas</p>
-          <p className="text-xs text-blue-600 mt-0.5">
-            El plan de cuentas es la base de toda la contabilidad. Sin él, no puedes registrar asientos ni emitir reportes.
+          <p className="mt-0.5 text-xs text-blue-600">
+            El plan de cuentas es la base de toda la contabilidad. Sin él, no puedes registrar
+            asientos ni emitir reportes.
           </p>
         </div>
       </div>
@@ -348,7 +389,7 @@ export function StepChartOfAccounts({
         {/* Opción importar */}
         <Link
           href={`/company/${companyId}/import`}
-          className="flex items-center gap-3 rounded-lg border p-3 hover:bg-zinc-50 transition-colors group"
+          className="group flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-zinc-50"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100">
             <FileSpreadsheetIcon className="h-4 w-4 text-green-700" />
@@ -356,7 +397,8 @@ export function StepChartOfAccounts({
           <div className="flex-1">
             <p className="text-sm font-medium text-zinc-800">Importar desde Excel</p>
             <p className="text-xs text-zinc-500">
-              Descarga la plantilla, llénala con tus cuentas (código, nombre, tipo) y súbela. Recomendado si vienes de otro sistema.
+              Descarga la plantilla, llénala con tus cuentas (código, nombre, tipo) y súbela.
+              Recomendado si vienes de otro sistema.
             </p>
           </div>
           <ArrowRightIcon className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600" />
@@ -365,7 +407,7 @@ export function StepChartOfAccounts({
         {/* Opción manual */}
         <Link
           href={`/company/${companyId}/accounts`}
-          className="flex items-center gap-3 rounded-lg border p-3 hover:bg-zinc-50 transition-colors group"
+          className="group flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-zinc-50"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100">
             <BookOpenIcon className="h-4 w-4 text-blue-700" />
@@ -373,7 +415,8 @@ export function StepChartOfAccounts({
           <div className="flex-1">
             <p className="text-sm font-medium text-zinc-800">Crear manualmente</p>
             <p className="text-xs text-zinc-500">
-              Agrega las cuentas una a una con el codificador estándar venezolano (1000-Activos, 2000-Pasivos…).
+              Agrega las cuentas una a una con el codificador estándar venezolano (1000-Activos,
+              2000-Pasivos…).
             </p>
           </div>
           <ArrowRightIcon className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600" />
@@ -388,19 +431,22 @@ export function StepChartOfAccounts({
           checked={confirmed}
           onChange={(e) => e.target.checked && onConfirm()}
         />
-        <label htmlFor="accounts-done" className="text-sm text-zinc-600 cursor-pointer">
+        <label htmlFor="accounts-done" className="cursor-pointer text-sm text-zinc-600">
           Ya configuré mi plan de cuentas — continuar al siguiente paso
         </label>
       </div>
 
       <div className="flex items-center justify-between pt-1">
-        <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600"
+        >
           <ArrowLeftIcon className="h-4 w-4" /> Atrás
         </button>
         <button
           onClick={onNext}
           disabled={!confirmed}
-          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none disabled:opacity-40"
         >
           Continuar <ArrowRightIcon className="h-4 w-4" />
         </button>
@@ -412,7 +458,13 @@ export function StepChartOfAccounts({
 // ── Step 3: Open Period ───────────────────────────────────────────────────────
 
 export function StepOpenPeriod({
-  form, onChange, onOpen, onBack, onSkip, isPending, hasPeriod,
+  form,
+  onChange,
+  onOpen,
+  onBack,
+  onSkip,
+  isPending,
+  hasPeriod,
 }: {
   form: { year: number };
   onChange: (f: Partial<{ year: number }>) => void;
@@ -422,7 +474,8 @@ export function StepOpenPeriod({
   isPending: boolean;
   hasPeriod: boolean;
 }) {
-  const selectCls = "rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white";
+  const selectCls =
+    "rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white";
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
 
@@ -432,16 +485,19 @@ export function StepOpenPeriod({
         <CalendarIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
         <div>
           <p className="text-sm font-medium text-blue-800">Paso 3 — Ejercicio Fiscal</p>
-          <p className="text-xs text-blue-600 mt-0.5">
-            Sin un ejercicio abierto no puedes registrar asientos ni facturas. Abre el año en que empiezas a operar en ContaFlow — se abren los 12 meses de una vez.
+          <p className="mt-0.5 text-xs text-blue-600">
+            Sin un ejercicio abierto no puedes registrar asientos ni facturas. Abre el año en que
+            empiezas a operar en ContaFlow — se abren los 12 meses de una vez.
           </p>
         </div>
       </div>
 
       {hasPeriod ? (
-        <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 p-3">
+        <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
           <CheckCircleIcon className="h-5 w-5 text-green-600" />
-          <p className="text-sm text-green-700">Ya tienes un ejercicio fiscal abierto. ¡Puedes continuar!</p>
+          <p className="text-sm text-green-700">
+            Ya tienes un ejercicio fiscal abierto. ¡Puedes continuar!
+          </p>
         </div>
       ) : (
         <div className="space-y-1">
@@ -452,14 +508,19 @@ export function StepOpenPeriod({
             onChange={(e) => onChange({ year: parseInt(e.target.value) })}
           >
             {years.map((y) => (
-              <option key={y} value={y}>{y}</option>
+              <option key={y} value={y}>
+                {y}
+              </option>
             ))}
           </select>
         </div>
       )}
 
       <div className="flex items-center justify-between pt-1">
-        <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600"
+        >
           <ArrowLeftIcon className="h-4 w-4" /> Atrás
         </button>
         {hasPeriod ? (
@@ -478,7 +539,7 @@ export function StepOpenPeriod({
               onClick={onOpen}
               disabled={isPending}
               aria-busy={isPending}
-              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none"
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none disabled:opacity-50"
             >
               {isPending ? "Abriendo…" : "Abrir ejercicio"}
               {!isPending && <ArrowRightIcon className="h-4 w-4" />}
@@ -493,9 +554,13 @@ export function StepOpenPeriod({
 // ── Step 4: GL Config ─────────────────────────────────────────────────────────
 
 export function StepGLConfig({
-  companyId, onBack, onDone,
+  companyId,
+  onBack,
+  onDone,
 }: {
-  companyId: string; onBack: () => void; onDone: () => void;
+  companyId: string;
+  onBack: () => void;
+  onDone: () => void;
 }) {
   return (
     <div className="space-y-3">
@@ -503,21 +568,24 @@ export function StepGLConfig({
         <LinkIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
         <div>
           <p className="text-sm font-medium text-blue-800">Paso 4 — Cuentas GL</p>
-          <p className="text-xs text-blue-600 mt-0.5">
-            Conecta las cuentas contables que usarán las facturas al causar en el Libro Mayor automáticamente.
+          <p className="mt-0.5 text-xs text-blue-600">
+            Conecta las cuentas contables que usarán las facturas al causar en el Libro Mayor
+            automáticamente.
           </p>
         </div>
       </div>
 
-      <div className="rounded-lg border p-4 space-y-2.5">
-        <p className="text-sm font-medium text-zinc-700">Cuentas a mapear en Configuración → Contabilidad:</p>
+      <div className="space-y-2.5 rounded-lg border p-4">
+        <p className="text-sm font-medium text-zinc-700">
+          Cuentas a mapear en Configuración → Contabilidad:
+        </p>
         {[
-          { label: "Cuentas por Cobrar (CxC)",    account: "1130 · Clientes" },
-          { label: "Cuentas por Pagar (CxP)",      account: "2110 · Proveedores" },
-          { label: "Ingresos por Ventas",           account: "4110 · Ventas" },
-          { label: "Gastos de Compra",              account: "5110 · Costo de Ventas" },
-          { label: "IVA Débito Fiscal",             account: "2112 · IVA por Pagar" },
-          { label: "IVA Crédito Fiscal",            account: "1115 · IVA por Cobrar" },
+          { label: "Cuentas por Cobrar (CxC)", account: "1130 · Clientes" },
+          { label: "Cuentas por Pagar (CxP)", account: "2110 · Proveedores" },
+          { label: "Ingresos por Ventas", account: "4110 · Ventas" },
+          { label: "Gastos de Compra", account: "5110 · Costo de Ventas" },
+          { label: "IVA Débito Fiscal", account: "2112 · IVA por Pagar" },
+          { label: "IVA Crédito Fiscal", account: "1115 · IVA por Cobrar" },
         ].map((r) => (
           <div key={r.label} className="flex items-center justify-between text-sm">
             <span className="text-zinc-600">{r.label}</span>
@@ -526,15 +594,19 @@ export function StepGLConfig({
         ))}
       </div>
 
-      <div className="flex items-start gap-2 rounded-md bg-amber-50 border border-amber-200 p-3">
+      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3">
         <InfoIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
         <p className="text-xs text-amber-700">
-          Los nombres de cuenta mostrados son ejemplos. Selecciona las cuentas reales de <strong>tu plan de cuentas</strong> en la pantalla de configuración.
+          Los nombres de cuenta mostrados son ejemplos. Selecciona las cuentas reales de{" "}
+          <strong>tu plan de cuentas</strong> en la pantalla de configuración.
         </p>
       </div>
 
       <div className="flex items-center justify-between pt-1">
-        <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600"
+        >
           <ArrowLeftIcon className="h-4 w-4" /> Atrás
         </button>
         <div className="flex items-center gap-2">
@@ -559,20 +631,51 @@ export function StepGLConfig({
 // ── Migration: System choice ──────────────────────────────────────────────────
 
 export function MigrateSystemChoice({
-  onChoose, onBack,
+  onChoose,
+  onBack,
 }: {
   onChoose: (s: MigrationSystem) => void;
   onBack: () => void;
 }) {
-  const systems: { id: MigrationSystem; icon: typeof FileSpreadsheetIcon; label: string; desc: string; color: string; bg: string }[] = [
-    { id: "excel",  icon: FileSpreadsheetIcon, label: "Excel / CSV",          desc: "Datos en hojas de cálculo propias",        color: "text-green-700", bg: "bg-green-100" },
-    { id: "monica", icon: PackageIcon,          label: "Mónica / Profit Plus", desc: "Software contable venezolano",             color: "text-blue-700",  bg: "bg-blue-100"  },
-    { id: "odoo",   icon: DatabaseIcon,         label: "Odoo / SAP / ERP",     desc: "Sistemas de gestión empresarial",          color: "text-purple-700", bg: "bg-purple-100" },
+  const systems: {
+    id: MigrationSystem;
+    icon: typeof FileSpreadsheetIcon;
+    label: string;
+    desc: string;
+    color: string;
+    bg: string;
+  }[] = [
+    {
+      id: "excel",
+      icon: FileSpreadsheetIcon,
+      label: "Excel / CSV",
+      desc: "Datos en hojas de cálculo propias",
+      color: "text-green-700",
+      bg: "bg-green-100",
+    },
+    {
+      id: "monica",
+      icon: PackageIcon,
+      label: "Mónica / Profit Plus",
+      desc: "Software contable venezolano",
+      color: "text-blue-700",
+      bg: "bg-blue-100",
+    },
+    {
+      id: "odoo",
+      icon: DatabaseIcon,
+      label: "Odoo / SAP / ERP",
+      desc: "Sistemas de gestión empresarial",
+      color: "text-purple-700",
+      bg: "bg-purple-100",
+    },
   ];
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-zinc-600">¿Desde qué sistema vienes? Te mostramos qué exportar y dónde cargarlo.</p>
+      <p className="text-sm text-zinc-600">
+        ¿Desde qué sistema vienes? Te mostramos qué exportar y dónde cargarlo.
+      </p>
       <div className="space-y-2">
         {systems.map((s) => {
           const Icon = s.icon;
@@ -580,9 +683,11 @@ export function MigrateSystemChoice({
             <button
               key={s.id}
               onClick={() => onChoose(s.id)}
-              className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-zinc-50 transition-colors group focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:outline-none"
+              className="group flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:outline-none"
             >
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${s.bg}`}>
+              <div
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${s.bg}`}
+              >
                 <Icon className={`h-4 w-4 ${s.color}`} />
               </div>
               <div className="flex-1">
@@ -594,7 +699,10 @@ export function MigrateSystemChoice({
           );
         })}
       </div>
-      <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600">
+      <button
+        onClick={onBack}
+        className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600"
+      >
         <ArrowLeftIcon className="h-4 w-4" /> Atrás
       </button>
     </div>
@@ -604,7 +712,10 @@ export function MigrateSystemChoice({
 // ── Migration: Guide ──────────────────────────────────────────────────────────
 
 export function MigrationGuide({
-  system, companyId: _companyId, onBack, onStartSetup,
+  system,
+  companyId: _companyId,
+  onBack,
+  onStartSetup,
 }: {
   system: MigrationSystem;
   companyId: string;
@@ -618,23 +729,25 @@ export function MigrationGuide({
         <DatabaseIcon className="mt-0.5 h-4 w-4 shrink-0 text-purple-600" />
         <div>
           <p className="text-sm font-medium text-purple-800">Migración desde {guide.title}</p>
-          <p className="text-xs text-purple-600 mt-0.5">
+          <p className="mt-0.5 text-xs text-purple-600">
             Exporta estos datos de tu sistema actual y luego los cargas en ContaFlow.
           </p>
         </div>
       </div>
 
-      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+      <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
         {guide.steps.map((s, i) => (
-          <div key={i} className="rounded-lg border bg-white p-3 space-y-1.5">
+          <div key={i} className="space-y-1.5 rounded-lg border bg-white p-3">
             <div className="flex items-center gap-2">
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-bold text-white">
                 {i + 1}
               </span>
               <p className="text-sm font-semibold text-zinc-800">{s.what}</p>
             </div>
-            <p className="text-xs text-zinc-500 pl-7"><span className="font-medium text-zinc-600">Cómo:</span> {s.how}</p>
-            <p className="text-xs pl-7">
+            <p className="pl-7 text-xs text-zinc-500">
+              <span className="font-medium text-zinc-600">Cómo:</span> {s.how}
+            </p>
+            <p className="pl-7 text-xs">
               <span className="font-medium text-zinc-600">Dónde en ContaFlow:</span>{" "}
               <span className="text-blue-600">{s.where}</span>
             </p>
@@ -643,7 +756,10 @@ export function MigrationGuide({
       </div>
 
       <div className="flex items-center justify-between pt-1">
-        <button onClick={onBack} className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600"
+        >
           <ArrowLeftIcon className="h-4 w-4" /> Cambiar sistema
         </button>
         <button
@@ -660,12 +776,26 @@ export function MigrationGuide({
 
 // ── Completed screen ──────────────────────────────────────────────────────────
 
-export function CompletedScreen({ companyId, onClose }: { companyId: string; onClose: () => void }) {
+export function CompletedScreen({
+  companyId,
+  onClose,
+}: {
+  companyId: string;
+  onClose: () => void;
+}) {
   const links = [
-    { label: "Registrar primer asiento",    href: `/company/${companyId}/transactions/new`,  desc: "Libro Diario" },
-    { label: "Nueva factura de venta",       href: `/company/${companyId}/invoices/new`,        desc: "Facturación" },
-    { label: "Agregar cliente",              href: `/company/${companyId}/customers`,            desc: "Cartera CxC" },
-    { label: "Configurar nómina",            href: `/company/${companyId}/payroll/config`,       desc: "RR.HH." },
+    {
+      label: "Registrar primer asiento",
+      href: `/company/${companyId}/transactions/new`,
+      desc: "Libro Diario",
+    },
+    {
+      label: "Nueva factura de venta",
+      href: `/company/${companyId}/invoices/new`,
+      desc: "Facturación",
+    },
+    { label: "Agregar cliente", href: `/company/${companyId}/customers`, desc: "Cartera CxC" },
+    { label: "Configurar nómina", href: `/company/${companyId}/payroll/config`, desc: "RR.HH." },
   ];
 
   return (
@@ -683,17 +813,14 @@ export function CompletedScreen({ companyId, onClose }: { companyId: string; onC
             key={l.href}
             href={l.href}
             onClick={onClose}
-            className="rounded-lg border p-3 hover:bg-zinc-50 transition-colors group"
+            className="group rounded-lg border p-3 transition-colors hover:bg-zinc-50"
           >
             <p className="text-sm font-medium text-zinc-800 group-hover:text-blue-600">{l.label}</p>
             <p className="text-xs text-zinc-400">{l.desc}</p>
           </Link>
         ))}
       </div>
-      <button
-        onClick={onClose}
-        className="text-sm text-zinc-400 hover:text-zinc-600"
-      >
+      <button onClick={onClose} className="text-sm text-zinc-400 hover:text-zinc-600">
         Cerrar e ir al dashboard
       </button>
     </div>

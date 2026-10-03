@@ -9,9 +9,16 @@
 //   R-10: minimumStock configurable al crear el producto
 
 import { useState, useTransition } from "react";
-import { createInventoryItemAction, updateInventoryItemAction } from "../actions/inventory-operations.actions";
+import {
+  createInventoryItemAction,
+  updateInventoryItemAction,
+} from "../actions/inventory-operations.actions";
 import type { ItemTypeValue, DefaultTaxRate } from "../schemas/inventory-item.schema";
-import { PHYSICAL_ITEM_TYPES, TAX_RATE_LABELS, TAX_RATE_OPTIONS } from "../schemas/inventory-item.schema";
+import {
+  PHYSICAL_ITEM_TYPES,
+  TAX_RATE_LABELS,
+  TAX_RATE_OPTIONS,
+} from "../schemas/inventory-item.schema";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
 
@@ -29,7 +36,7 @@ type ExistingItem = {
 
 type Props = {
   companyId: string;
-  accounts: AccountOption[];      // todas las cuentas de la empresa
+  accounts: AccountOption[]; // todas las cuentas de la empresa
   item?: ExistingItem;
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -38,8 +45,16 @@ type Props = {
 const ITEM_TYPE_OPTIONS: { value: ItemTypeValue; label: string; description: string }[] = [
   { value: "GOODS", label: "Mercancía", description: "Para reventa — tiene stock físico" },
   { value: "RAW_MATERIAL", label: "Materia prima", description: "Insumo productivo — tiene stock" },
-  { value: "FINISHED_GOOD", label: "Producto terminado", description: "Producción propia — tiene stock" },
-  { value: "SERVICE", label: "Servicio", description: "Intangible — sin stock físico (NIIF Sec.13)" },
+  {
+    value: "FINISHED_GOOD",
+    label: "Producto terminado",
+    description: "Producción propia — tiene stock",
+  },
+  {
+    value: "SERVICE",
+    label: "Servicio",
+    description: "Intangible — sin stock físico (NIIF Sec.13)",
+  },
 ];
 
 const fieldClass =
@@ -84,8 +99,8 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           itemType,
           defaultTaxRate: taxRate,
           minimumStock: minimumStockVal,
-          accountId: isPhysical ? ((fd.get("accountId") as string) || null) : null,
-          cogsAccountId: isPhysical ? ((fd.get("cogsAccountId") as string) || null) : null,
+          accountId: isPhysical ? (fd.get("accountId") as string) || null : null,
+          cogsAccountId: isPhysical ? (fd.get("cogsAccountId") as string) || null : null,
         });
       } else {
         result = await createInventoryItemAction({
@@ -96,8 +111,8 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           itemType,
           defaultTaxRate: taxRate,
           minimumStock: minimumStockVal,
-          accountId: isPhysical ? ((fd.get("accountId") as string) || null) : null,
-          cogsAccountId: isPhysical ? ((fd.get("cogsAccountId") as string) || null) : null,
+          accountId: isPhysical ? (fd.get("accountId") as string) || null : null,
+          cogsAccountId: isPhysical ? (fd.get("cogsAccountId") as string) || null : null,
         });
       }
 
@@ -112,7 +127,7 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="rounded bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -133,13 +148,14 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
               }`}
             >
               <div className="font-semibold">{opt.label}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{opt.description}</div>
+              <div className="mt-0.5 text-xs text-gray-500">{opt.description}</div>
             </button>
           ))}
         </div>
         {!isPhysical && (
-          <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-3 py-2 border border-amber-200">
-            ⚠️ Los servicios no tienen stock físico (NIIF para PYMES Sec. 13). Solo se permiten Ajustes de corrección. No requieren cuentas contables de inventario.
+          <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            ⚠️ Los servicios no tienen stock físico (NIIF para PYMES Sec. 13). Solo se permiten
+            Ajustes de corrección. No requieren cuentas contables de inventario.
           </p>
         )}
       </div>
@@ -181,7 +197,12 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
 
         <div>
           {/* R-10: stock mínimo en creación */}
-          <label className={labelClass}>Stock mínimo {!isPhysical && <span className="text-gray-400 font-normal">(no aplica a servicios)</span>}</label>
+          <label className={labelClass}>
+            Stock mínimo{" "}
+            {!isPhysical && (
+              <span className="font-normal text-gray-400">(no aplica a servicios)</span>
+            )}
+          </label>
           <input
             name="minimumStock"
             type="number"
@@ -193,7 +214,9 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
             placeholder="Ej: 5"
           />
           {isPhysical && (
-            <p className="mt-1 text-xs text-gray-400">Alerta cuando el stock caiga por debajo de este nivel.</p>
+            <p className="mt-1 text-xs text-gray-400">
+              Alerta cuando el stock caiga por debajo de este nivel.
+            </p>
           )}
         </div>
 
@@ -224,7 +247,7 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
       {/* Cuentas contables — H-03: filtradas por tipo / R-01: obligatorias para físicos */}
       {isPhysical && (
         <fieldset className="rounded-lg border border-gray-200 p-4">
-          <legend className="text-sm font-semibold text-gray-700 px-1">
+          <legend className="px-1 text-sm font-semibold text-gray-700">
             Cuentas contables <span className="text-red-500">*</span>
           </legend>
           <p className="mt-1 mb-3 text-xs text-gray-500">
@@ -267,7 +290,9 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-400">Solo muestra cuentas de Gasto/Costo (51xx)</p>
+              <p className="mt-1 text-xs text-gray-400">
+                Solo muestra cuentas de Gasto/Costo (51xx)
+              </p>
             </div>
           </div>
         </fieldset>
@@ -294,7 +319,11 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
               {isEditing ? "Guardando..." : "Creando..."}
             </span>
-          ) : isEditing ? "Guardar cambios" : "Crear producto"}
+          ) : isEditing ? (
+            "Guardar cambios"
+          ) : (
+            "Crear producto"
+          )}
         </button>
       </div>
     </form>

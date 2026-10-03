@@ -23,11 +23,7 @@ const EMPTY_STOCK: StockSummary = {
 describe("InventoryReportsView — StockTab CPP banner (ALERTA 11)", () => {
   it("muestra el banner de política contable CPP", () => {
     render(
-      <InventoryReportsView
-        companyId="company-1"
-        initialStock={EMPTY_STOCK}
-        itemOptions={[]}
-      />
+      <InventoryReportsView companyId="company-1" initialStock={EMPTY_STOCK} itemOptions={[]} />
     );
 
     expect(screen.getByText(/Costo Promedio Ponderado/i)).toBeTruthy();
@@ -55,11 +51,7 @@ describe("InventoryReportsView — StockTab CPP banner (ALERTA 11)", () => {
     };
 
     render(
-      <InventoryReportsView
-        companyId="company-1"
-        initialStock={stockWithItems}
-        itemOptions={[]}
-      />
+      <InventoryReportsView companyId="company-1" initialStock={stockWithItems} itemOptions={[]} />
     );
 
     expect(screen.getByText("Producto Test")).toBeTruthy();
@@ -74,11 +66,7 @@ describe("InventoryReportsView — StockTab CPP banner (ALERTA 11)", () => {
     };
 
     render(
-      <InventoryReportsView
-        companyId="company-1"
-        initialStock={lowStockData}
-        itemOptions={[]}
-      />
+      <InventoryReportsView companyId="company-1" initialStock={lowStockData} itemOptions={[]} />
     );
 
     expect(screen.getByText("3")).toBeTruthy();
@@ -86,11 +74,7 @@ describe("InventoryReportsView — StockTab CPP banner (ALERTA 11)", () => {
 
   it("muestra 'Sin productos registrados' cuando el inventario está vacío", () => {
     render(
-      <InventoryReportsView
-        companyId="company-1"
-        initialStock={EMPTY_STOCK}
-        itemOptions={[]}
-      />
+      <InventoryReportsView companyId="company-1" initialStock={EMPTY_STOCK} itemOptions={[]} />
     );
 
     expect(screen.getByText(/Sin productos registrados/i)).toBeTruthy();

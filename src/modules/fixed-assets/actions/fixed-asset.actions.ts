@@ -42,7 +42,10 @@ export async function createFixedAssetAction(input: unknown): Promise<ActionResu
     // getters locales, un activo del 01/01 podía resolver al ejercicio ANTERIOR y
     // saltarse el guard de año cerrado (R-3).
     const acqYear = parsed.data.acquisitionDate.getUTCFullYear();
-    const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(parsed.data.companyId, acqYear);
+    const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
+      parsed.data.companyId,
+      acqYear
+    );
     if (yearClosed) {
       return {
         success: false,
@@ -66,7 +69,7 @@ export async function createFixedAssetAction(input: unknown): Promise<ActionResu
 // ─── Calcular depreciación mensual (todos los activos de la empresa) ───────────
 
 export async function postMonthlyDepreciationAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<{ processed: number; skipped: number; errors: string[] }>> {
   const parsed = PostMonthlyDepreciationSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
@@ -95,9 +98,9 @@ export async function postMonthlyDepreciationAction(
     const periodClosed = await prisma.accountingPeriod.findFirst({
       where: {
         companyId: parsed.data.companyId,
-        year:      parsed.data.year,
-        month:     parsed.data.month,
-        status:    "CLOSED",
+        year: parsed.data.year,
+        month: parsed.data.month,
+        status: "CLOSED",
       },
     });
     if (periodClosed) {
@@ -114,7 +117,7 @@ export async function postMonthlyDepreciationAction(
           parsed.data.year,
           parsed.data.month,
           userId,
-          tx,
+          tx
         )
       )
     );
@@ -145,7 +148,7 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
     const disposalYear = parsed.data.disposalDate.getUTCFullYear();
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
       parsed.data.companyId,
-      disposalYear,
+      disposalYear
     );
     if (yearClosed) {
       return {
@@ -159,9 +162,9 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
     const periodClosed = await prisma.accountingPeriod.findFirst({
       where: {
         companyId: parsed.data.companyId,
-        year:      disposalYear,
-        month:     disposalMonth,
-        status:    "CLOSED",
+        year: disposalYear,
+        month: disposalMonth,
+        status: "CLOSED",
       },
     });
     if (periodClosed) {
@@ -187,7 +190,7 @@ export async function disposeFixedAssetAction(input: unknown): Promise<ActionRes
 // ─── Listado con resumen de valor en libros ────────────────────────────────────
 
 export async function getFixedAssetsAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<Awaited<ReturnType<typeof FixedAssetService.getSummary>>>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
@@ -204,13 +207,19 @@ export async function getFixedAssetsAction(
 
 type SerializedSchedule = {
   asset: { name: string };
-  projected: { year: number; month: number; amount: string; accumulated: string; bookValue: string }[];
+  projected: {
+    year: number;
+    month: number;
+    amount: string;
+    accumulated: string;
+    bookValue: string;
+  }[];
   posted: { periodYear: number; periodMonth: number }[];
 };
 
 export async function getDepreciationScheduleAction(
   assetId: string,
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<SerializedSchedule>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
@@ -243,9 +252,12 @@ export async function getDepreciationScheduleAction(
 
 // ─── Helpers para catch-up ────────────────────────────────────────────────────
 
-function computeCatchUpMonths(
-  acquisitionDate: Date,
-): { startYear: number; startMonth: number; nowYear: number; nowMonth: number } {
+function computeCatchUpMonths(acquisitionDate: Date): {
+  startYear: number;
+  startMonth: number;
+  nowYear: number;
+  nowMonth: number;
+} {
   const acqDate = new Date(acquisitionDate);
   const acqYear = acqDate.getUTCFullYear();
   const acqMonth = acqDate.getUTCMonth() + 1;
@@ -255,13 +267,34 @@ function computeCatchUpMonths(
   return { startYear, startMonth, nowYear: now.getFullYear(), nowMonth: now.getMonth() + 1 };
 }
 
-const MONTH_NAMES = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const MONTH_NAMES = [
+  "",
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic",
+];
 
 // ─── Poner al día: un activo ──────────────────────────────────────────────────
 
-export async function catchUpAssetDepreciationAction(
-  input: unknown,
-): Promise<ActionResult<{ processed: number; skipped: number; errors: string[]; noPeriods?: boolean; nextPeriodLabel?: string; closedYearCount?: number }>> {
+export async function catchUpAssetDepreciationAction(input: unknown): Promise<
+  ActionResult<{
+    processed: number;
+    skipped: number;
+    errors: string[];
+    noPeriods?: boolean;
+    nextPeriodLabel?: string;
+    closedYearCount?: number;
+  }>
+> {
   const parsed = CatchUpAssetSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -279,7 +312,9 @@ export async function catchUpAssetDepreciationAction(
     if (!asset) return { success: false, error: "Activo no encontrado" };
     if (asset.status !== "ACTIVE") return { success: false, error: "El activo no está activo" };
 
-    const { startYear, startMonth, nowYear, nowMonth } = computeCatchUpMonths(asset.acquisitionDate);
+    const { startYear, startMonth, nowYear, nowMonth } = computeCatchUpMonths(
+      asset.acquisitionDate
+    );
 
     // Activo adquirido este mes o en el futuro — aún no tiene períodos depreciables
     if (startYear > nowYear || (startYear === nowYear && startMonth > nowMonth)) {
@@ -323,15 +358,27 @@ export async function catchUpAssetDepreciationAction(
       const m = curMonth;
       // Avanzar cursor antes del continue para no entrar en loop infinito
       curMonth++;
-      if (curMonth > 12) { curMonth = 1; curYear++; }
+      if (curMonth > 12) {
+        curMonth = 1;
+        curYear++;
+      }
 
       // Saltar períodos mensuales cerrados (R-3 — CLAUDE.md)
-      if (closedSet.has(`${y}-${m}`)) { skipped++; continue; }
+      if (closedSet.has(`${y}-${m}`)) {
+        skipped++;
+        continue;
+      }
 
       // VEN-NIF 8: ejercicio fiscal cerrado → acumular para un solo asiento correctivo
       if (closedYearSet.has(y)) {
         const existing = await prisma.depreciationEntry.findUnique({
-          where: { fixedAssetId_periodYear_periodMonth: { fixedAssetId: parsed.data.assetId, periodYear: y, periodMonth: m } },
+          where: {
+            fixedAssetId_periodYear_periodMonth: {
+              fixedAssetId: parsed.data.assetId,
+              periodYear: y,
+              periodMonth: m,
+            },
+          },
         });
         if (!existing) closedYearPending.push({ year: y, month: m });
         else skipped++;
@@ -341,7 +388,14 @@ export async function catchUpAssetDepreciationAction(
       try {
         const result = await prisma.$transaction(async (tx) =>
           withCompanyContext(parsed.data.companyId, tx, async (tx) =>
-            FixedAssetService.postDepreciation(parsed.data.assetId, parsed.data.companyId, y, m, userId, tx)
+            FixedAssetService.postDepreciation(
+              parsed.data.assetId,
+              parsed.data.companyId,
+              y,
+              m,
+              userId,
+              tx
+            )
           )
         );
         if (result.created) processed++;
@@ -364,13 +418,13 @@ export async function catchUpAssetDepreciationAction(
               parsed.data.companyId,
               closedYearPending,
               userId,
-              tx,
+              tx
             )
           )
         );
         closedYearCount = result.processed;
         processed += result.processed;
-        skipped += (closedYearPending.length - result.processed);
+        skipped += closedYearPending.length - result.processed;
       } catch (e) {
         errors.push(`VEN-NIF 8 ajuste: ${e instanceof Error ? e.message : "Error desconocido"}`);
       }
@@ -385,9 +439,13 @@ export async function catchUpAssetDepreciationAction(
 
 // ─── Poner al día: todos los activos ─────────────────────────────────────────
 
-export async function catchUpAllAssetsDepreciationAction(
-  input: unknown,
-): Promise<ActionResult<{ totalProcessed: number; totalSkipped: number; assetErrors: Record<string, string[]> }>> {
+export async function catchUpAllAssetsDepreciationAction(input: unknown): Promise<
+  ActionResult<{
+    totalProcessed: number;
+    totalSkipped: number;
+    assetErrors: Record<string, string[]>;
+  }>
+> {
   const parsed = CatchUpAllAssetsSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
@@ -422,7 +480,9 @@ export async function catchUpAllAssetsDepreciationAction(
     const assetErrors: Record<string, string[]> = {};
 
     for (const asset of assets) {
-      const { startYear, startMonth, nowYear, nowMonth } = computeCatchUpMonths(asset.acquisitionDate);
+      const { startYear, startMonth, nowYear, nowMonth } = computeCatchUpMonths(
+        asset.acquisitionDate
+      );
 
       // Skip assets with no depreciable periods yet
       if (startYear > nowYear || (startYear === nowYear && startMonth > nowMonth)) continue;
@@ -436,15 +496,27 @@ export async function catchUpAllAssetsDepreciationAction(
         const m = curMonth;
         // Avanzar cursor antes del continue para no entrar en loop infinito
         curMonth++;
-        if (curMonth > 12) { curMonth = 1; curYear++; }
+        if (curMonth > 12) {
+          curMonth = 1;
+          curYear++;
+        }
 
         // Saltar períodos mensuales cerrados (R-3 — CLAUDE.md)
-        if (closedSetAll.has(`${y}-${m}`)) { totalSkipped++; continue; }
+        if (closedSetAll.has(`${y}-${m}`)) {
+          totalSkipped++;
+          continue;
+        }
 
         // VEN-NIF 8: ejercicio fiscal cerrado → acumular para asiento consolidado
         if (closedYearSetAll.has(y)) {
           const existing = await prisma.depreciationEntry.findUnique({
-            where: { fixedAssetId_periodYear_periodMonth: { fixedAssetId: asset.id, periodYear: y, periodMonth: m } },
+            where: {
+              fixedAssetId_periodYear_periodMonth: {
+                fixedAssetId: asset.id,
+                periodYear: y,
+                periodMonth: m,
+              },
+            },
           });
           if (!existing) closedYearPendingAsset.push({ year: y, month: m });
           else totalSkipped++;
@@ -477,15 +549,17 @@ export async function catchUpAllAssetsDepreciationAction(
                 parsed.data.companyId,
                 closedYearPendingAsset,
                 userId,
-                tx,
+                tx
               )
             )
           );
           totalProcessed += result.processed;
-          totalSkipped += (closedYearPendingAsset.length - result.processed);
+          totalSkipped += closedYearPendingAsset.length - result.processed;
         } catch (e) {
           if (!assetErrors[asset.name]) assetErrors[asset.name] = [];
-          assetErrors[asset.name]!.push(`VEN-NIF 8: ${e instanceof Error ? e.message : "Error desconocido"}`);
+          assetErrors[asset.name]!.push(
+            `VEN-NIF 8: ${e instanceof Error ? e.message : "Error desconocido"}`
+          );
         }
       }
     }
@@ -532,7 +606,7 @@ export async function previewDepreciationScheduleAction(input: {
 // ─── Reajuste por Inflación INPC — Activos Fijos (FC-01 / Art. 173 ISLR) ──────
 
 export async function postFixedAssetINPCRestatementAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<{ processed: number; skipped: number; totalAdjustment: string }>> {
   const parsed = PostINPCRestatementSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
@@ -548,18 +622,21 @@ export async function postFixedAssetINPCRestatementAction(
     // Guard R-3: año fiscal cerrado
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(
       parsed.data.companyId,
-      parsed.data.periodYear,
+      parsed.data.periodYear
     );
     if (yearClosed)
-      return { success: false, error: `El ejercicio económico ${parsed.data.periodYear} está cerrado.` };
+      return {
+        success: false,
+        error: `El ejercicio económico ${parsed.data.periodYear} está cerrado.`,
+      };
 
     // Guard R-3: período mensual cerrado
     const periodClosed = await prisma.accountingPeriod.findFirst({
       where: {
         companyId: parsed.data.companyId,
-        year:      parsed.data.periodYear,
-        month:     parsed.data.periodMonth,
-        status:    "CLOSED",
+        year: parsed.data.periodYear,
+        month: parsed.data.periodMonth,
+        status: "CLOSED",
       },
     });
     if (periodClosed)
@@ -570,16 +647,16 @@ export async function postFixedAssetINPCRestatementAction(
 
     const result = await prisma.$transaction(async (tx) =>
       withCompanyContext(parsed.data.companyId, tx, async (tx) =>
-        FixedAssetService.postINPCRestatement(parsed.data, userId, tx),
-      ),
+        FixedAssetService.postINPCRestatement(parsed.data, userId, tx)
+      )
     );
 
     revalidatePath(`/company/${parsed.data.companyId}/fixed-assets`);
     return {
       success: true,
       data: {
-        processed:       result.processed,
-        skipped:         result.skipped,
+        processed: result.processed,
+        skipped: result.skipped,
         totalAdjustment: result.totalAdjustment.toFixed(2),
       },
     };
@@ -592,16 +669,16 @@ export async function postFixedAssetINPCRestatementAction(
 
 export type GLReconciliationResultRow = {
   accDepreciationAccountId: string;
-  accountCode:  string;
-  accountName:  string;
-  moduleTotal:  string;   // Decimal → string (toFixed 2)
-  glTotal:      string;
-  difference:   string;
-  assetCount:   number;
+  accountCode: string;
+  accountName: string;
+  moduleTotal: string; // Decimal → string (toFixed 2)
+  glTotal: string;
+  difference: string;
+  assetCount: number;
 };
 
 export async function getFixedAssetGLReconciliationAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<GLReconciliationResultRow[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, {
@@ -618,9 +695,9 @@ export async function getFixedAssetGLReconciliationAction(
         accountCode: r.accountCode,
         accountName: r.accountName,
         moduleTotal: r.moduleTotal.toFixed(2),
-        glTotal:     r.glTotal.toFixed(2),
-        difference:  r.difference.toFixed(2),
-        assetCount:  r.assetCount,
+        glTotal: r.glTotal.toFixed(2),
+        difference: r.difference.toFixed(2),
+        assetCount: r.assetCount,
       })),
     };
   } catch (error) {
@@ -631,21 +708,21 @@ export async function getFixedAssetGLReconciliationAction(
 // ─── N3: Historial INPC por activo ────────────────────────────────────────────
 
 export type INPCRestatementHistoryRow = {
-  id:                string;
-  assetId:           string;
-  assetName:         string;
-  inpcPeriodYear:    number;
-  inpcPeriodMonth:   number;
-  factor:            string;
-  adjustmentAmount:  string;
+  id: string;
+  assetId: string;
+  assetName: string;
+  inpcPeriodYear: number;
+  inpcPeriodMonth: number;
+  factor: string;
+  adjustmentAmount: string;
   previousBookValue: string;
-  newRestatedValue:  string;
-  createdAt:         string;
+  newRestatedValue: string;
+  createdAt: string;
 };
 
 export async function getFixedAssetINPCHistoryAction(
   companyId: string,
-  assetId?: string,
+  assetId?: string
 ): Promise<ActionResult<INPCRestatementHistoryRow[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
@@ -655,16 +732,16 @@ export async function getFixedAssetINPCHistoryAction(
     return {
       success: true,
       data: rows.map((r) => ({
-        id:                r.id,
-        assetId:           r.assetId,
-        assetName:         r.assetName,
-        inpcPeriodYear:    r.inpcPeriodYear,
-        inpcPeriodMonth:   r.inpcPeriodMonth,
-        factor:            r.factor.toFixed(6),
-        adjustmentAmount:  r.adjustmentAmount.toFixed(2),
+        id: r.id,
+        assetId: r.assetId,
+        assetName: r.assetName,
+        inpcPeriodYear: r.inpcPeriodYear,
+        inpcPeriodMonth: r.inpcPeriodMonth,
+        factor: r.factor.toFixed(6),
+        adjustmentAmount: r.adjustmentAmount.toFixed(2),
         previousBookValue: r.previousBookValue.toFixed(2),
-        newRestatedValue:  r.newRestatedValue.toFixed(2),
-        createdAt:         r.createdAt.toISOString(),
+        newRestatedValue: r.newRestatedValue.toFixed(2),
+        createdAt: r.createdAt.toISOString(),
       })),
     };
   } catch (error) {
@@ -675,18 +752,18 @@ export async function getFixedAssetINPCHistoryAction(
 // ─── N4: Importar desde Compras — lista gastos CONFIRMED para pre-llenar formulario ─
 
 export type ExpenseForAssetImport = {
-  id:            string;
-  concept:       string;
-  amount:        string;   // Decimal → string
-  currency:      string;
+  id: string;
+  concept: string;
+  amount: string; // Decimal → string
+  currency: string;
   invoiceNumber: string | null;
-  invoiceDate:   string | null;  // ISO date
-  vendorName:    string | null;
-  vendorRif:     string | null;
+  invoiceDate: string | null; // ISO date
+  vendorName: string | null;
+  vendorRif: string | null;
 };
 
 export async function getExpensesForAssetImportAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<ExpenseForAssetImport[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
@@ -702,14 +779,14 @@ export async function getExpensesForAssetImportAction(
     return {
       success: true,
       data: expenses.map((e) => ({
-        id:            e.id,
-        concept:       e.concept,
-        amount:        e.amount.toFixed(2),
-        currency:      e.currency,
+        id: e.id,
+        concept: e.concept,
+        amount: e.amount.toFixed(2),
+        currency: e.currency,
         invoiceNumber: e.invoiceNumber ?? null,
-        invoiceDate:   e.invoiceDate ? e.invoiceDate.toISOString().slice(0, 10) : null,
-        vendorName:    e.vendor?.name ?? e.supplierName ?? null,
-        vendorRif:     e.vendor?.rif ?? null,
+        invoiceDate: e.invoiceDate ? e.invoiceDate.toISOString().slice(0, 10) : null,
+        vendorName: e.vendor?.name ?? e.supplierName ?? null,
+        vendorRif: e.vendor?.rif ?? null,
       })),
     };
   } catch (error) {

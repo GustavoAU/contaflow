@@ -8,12 +8,7 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { openFiscalYearAction } from "@/modules/accounting/actions/fiscal-year.actions";
 import { onboardingUpdateCompanyProfileAction } from "@/modules/company/actions/onboarding.actions";
 import {
@@ -33,10 +28,10 @@ import {
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface WizardProgress {
-  path:            WizardPath | null;
-  step:            number;
-  migSystem:       MigrationSystem | null;
-  completed:       boolean;
+  path: WizardPath | null;
+  step: number;
+  migSystem: MigrationSystem | null;
+  completed: boolean;
 }
 
 function defaultProgress(): WizardProgress {
@@ -54,19 +49,23 @@ function loadProgress(companyId: string): WizardProgress {
 }
 
 function saveProgress(companyId: string, p: WizardProgress) {
-  try { localStorage.setItem(`cf-wizard-${companyId}`, JSON.stringify(p)); } catch { /* silent */ }
+  try {
+    localStorage.setItem(`cf-wizard-${companyId}`, JSON.stringify(p));
+  } catch {
+    /* silent */
+  }
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
-  companyId:   string;
+  companyId: string;
   companyName: string;
-  companyRif:  string | null;
-  hasAccounts: boolean;   // true si ya hay cuentas → skip account step
-  hasPeriod:   boolean;   // true si ya hay período abierto → skip period step
-  forceOpen?:  boolean;   // para el botón "Reabrir guía" en el dashboard
-  onClose?:    () => void;
+  companyRif: string | null;
+  hasAccounts: boolean; // true si ya hay cuentas → skip account step
+  hasPeriod: boolean; // true si ya hay período abierto → skip period step
+  forceOpen?: boolean; // para el botón "Reabrir guía" en el dashboard
+  onClose?: () => void;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -80,13 +79,18 @@ export function SetupWizard({
   forceOpen,
   onClose,
 }: Props) {
-  const [open,       setOpen]      = useState(false);
-  const [progress,   setProgress]  = useState<WizardProgress>(defaultProgress);
-  const [isPending,  startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [progress, setProgress] = useState<WizardProgress>(defaultProgress);
+  const [isPending, startTransition] = useTransition();
 
   // Estado local de los formularios
   const [companyForm, setCompanyForm] = useState({
-    address: "", telefono: "", email: "", ciiu: "", actividad: "", isSpecialContributor: false,
+    address: "",
+    telefono: "",
+    email: "",
+    ciiu: "",
+    actividad: "",
+    isSpecialContributor: false,
   });
   const [periodForm, setPeriodForm] = useState(() => {
     const now = new Date();
@@ -167,20 +171,26 @@ export function SetupWizard({
   const { path, step, migSystem } = progress;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) handleClose();
+      }}
+    >
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">
             {progress.completed
               ? "✅ Configuración completada"
               : path === null
-              ? "¡Bienvenido a ContaFlow!"
-              : path === "migrate"
-              ? "Guía de migración"
-              : "Configuración inicial"}
+                ? "¡Bienvenido a ContaFlow!"
+                : path === "migrate"
+                  ? "Guía de migración"
+                  : "Configuración inicial"}
           </DialogTitle>
-          <p className="text-sm text-zinc-500 mt-0.5">
-            {companyName}{companyRif ? ` · ${companyRif}` : ""}
+          <p className="mt-0.5 text-sm text-zinc-500">
+            {companyName}
+            {companyRif ? ` · ${companyRif}` : ""}
           </p>
         </DialogHeader>
 
@@ -253,9 +263,7 @@ export function SetupWizard({
           )}
 
           {/* ── COMPLETED ────────────────────────────────────────────────── */}
-          {progress.completed && (
-            <CompletedScreen companyId={companyId} onClose={handleClose} />
-          )}
+          {progress.completed && <CompletedScreen companyId={companyId} onClose={handleClose} />}
         </div>
       </DialogContent>
     </Dialog>

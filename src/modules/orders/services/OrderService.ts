@@ -14,7 +14,11 @@ import Decimal from "decimal.js";
 import { type OrderStatus, type QuotationType, type IvaLineRate } from "@prisma/client";
 import { type QuotationItemInput } from "./QuotationService";
 import type { InvoiceLineInput } from "@/modules/invoices/schemas/invoice.schema";
-import { computeLineTotals, deriveInvoiceTaxLines, createInvoiceLinesInTx } from "@/modules/invoices/services/InvoiceLineService";
+import {
+  computeLineTotals,
+  deriveInvoiceTaxLines,
+  createInvoiceLinesInTx,
+} from "@/modules/invoices/services/InvoiceLineService";
 import { getNextDocumentNumber } from "../utils/sequence";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
 import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
@@ -25,13 +29,13 @@ import { VEN_RIF_REGEX } from "@/lib/fiscal-validators";
 
 export interface CreateOrderInput {
   type: QuotationType;
-  quotationId?: string;          // opcional — puede crearse sin cotización previa
+  quotationId?: string; // opcional — puede crearse sin cotización previa
   counterpartName: string;
   counterpartRif?: string;
   expectedDate?: Date;
   notes?: string;
   currency?: string;
-  items: QuotationItemInput[];   // misma estructura que cotización
+  items: QuotationItemInput[]; // misma estructura que cotización
 }
 
 export interface OrderRow {
@@ -42,7 +46,7 @@ export interface OrderRow {
   quotationId: string | null;
   counterpartName: string;
   counterpartRif: string | null;
-  expectedDate: string | null;  // ISO date
+  expectedDate: string | null; // ISO date
   notes: string | null;
   subtotal: string;
   taxAmount: string;
@@ -50,7 +54,7 @@ export interface OrderRow {
   currency: string;
   createdBy: string;
   approvedBy: string | null;
-  approvedAt: string | null;  // ISO datetime
+  approvedAt: string | null; // ISO datetime
   createdAt: string;
   items: {
     id: string;
@@ -286,8 +290,7 @@ export const OrderService = {
       where: { id: orderId, companyId, deletedAt: null },
     });
     if (!order) throw new Error("Orden no encontrada");
-    if (order.status !== "DRAFT")
-      throw new Error("Solo se puede aprobar una orden en Borrador");
+    if (order.status !== "DRAFT") throw new Error("Solo se puede aprobar una orden en Borrador");
 
     // AUD-01 (R-6): update + AuditLog en el mismo $transaction
     await prisma.$transaction(async (tx) => {
@@ -350,7 +353,7 @@ export const OrderService = {
         tx,
         companyId,
         invoiceData.date,
-        "la factura",
+        "la factura"
       );
       const resolvedPeriodId = invoiceData.periodId ?? resolvedFromDate;
 
@@ -449,7 +452,7 @@ export const OrderService = {
         userId,
         stockLevel,
         tx,
-        invoiceType  // OM-01: "PURCHASE" → ENTRADA, "SALE" → SALIDA
+        invoiceType // OM-01: "PURCHASE" → ENTRADA, "SALE" → SALIDA
       );
 
       // ─── Hallazgo #2: GL auto-posting (mismo patrón que InvoiceService.create) ────
@@ -457,9 +460,10 @@ export const OrderService = {
       // y los movimientos ENTRADA quedaban en DRAFT sin actualizar stock ni CPP.
       let glTransactionId: string | null = null;
       if (settings && InvoiceGLPostingService.canPost(invoiceType, settings)) {
-        const totalAmountVes = computed.length > 0
-          ? computed.reduce((acc, c) => acc.plus(c.total), new Decimal(0))
-          : new Decimal(order.total.toString());
+        const totalAmountVes =
+          computed.length > 0
+            ? computed.reduce((acc, c) => acc.plus(c.total), new Decimal(0))
+            : new Decimal(order.total.toString());
 
         glTransactionId = await InvoiceGLPostingService.postInvoice(
           {

@@ -39,7 +39,7 @@ export class IncomeStatementService {
   static async compute(
     companyId: string,
     dateFrom?: Date,
-    dateTo?: Date,
+    dateTo?: Date
   ): Promise<IncomeStatement> {
     const dateFilter = buildDateFilter(dateFrom, dateTo);
 

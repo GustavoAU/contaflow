@@ -21,23 +21,33 @@ import { toActionError } from "../utils/action-errors";
 
 const CreateSchema = z.object({
   type: z.enum([
-    "SALARY_MIN_VES", "UT_VALUE",
-    "IVSS_OBR_RATE", "IVSS_PAT_RATE",
-    "INCES_OBR_RATE", "INCES_PAT_RATE",
-    "FAOV_OBR_RATE", "FAOV_PAT_RATE",
-    "RPE_OBR_RATE", "RPE_PAT_RATE",
-    "PENSIONES_PAT_RATE", "INGRESO_MINIMO_INTEGRAL_USD",
+    "SALARY_MIN_VES",
+    "UT_VALUE",
+    "IVSS_OBR_RATE",
+    "IVSS_PAT_RATE",
+    "INCES_OBR_RATE",
+    "INCES_PAT_RATE",
+    "FAOV_OBR_RATE",
+    "FAOV_PAT_RATE",
+    "RPE_OBR_RATE",
+    "RPE_PAT_RATE",
+    "PENSIONES_PAT_RATE",
+    "INGRESO_MINIMO_INTEGRAL_USD",
   ]),
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD requerido"),
   value: z.string().refine((v) => {
-    try { return new Decimal(v).gt(0); } catch { return false; }
+    try {
+      return new Decimal(v).gt(0);
+    } catch {
+      return false;
+    }
   }, "Valor debe ser un número positivo"),
   notes: z.string().max(200).optional(),
 });
 
 // ── getLegalThresholdsAction ──────────────────────────────────────────────────
 export async function getLegalThresholdsAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<LegalThresholdRow[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
@@ -52,7 +62,7 @@ export async function getLegalThresholdsAction(
 // ── createLegalThresholdAction — ROLES.ACCOUNTING + rate limit ───────────────
 export async function createLegalThresholdAction(
   companyId: string,
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<LegalThresholdRow>> {
   try {
     const ctx = await requireCompanyAction(companyId, {
@@ -63,7 +73,8 @@ export async function createLegalThresholdAction(
     if (!ctx.ok) return ctx.error;
 
     const parsed = CreateSchema.safeParse(rawInput);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const { type, effectiveFrom, value, notes } = parsed.data;
 
@@ -90,7 +101,7 @@ export async function createLegalThresholdAction(
 // ── deleteLegalThresholdAction — ROLES.ACCOUNTING ────────────────────────────
 export async function deleteLegalThresholdAction(
   companyId: string,
-  id: string,
+  id: string
 ): Promise<ActionResult<void>> {
   try {
     const ctx = await requireCompanyAction(companyId, {
@@ -121,7 +132,7 @@ export async function deleteLegalThresholdAction(
 // la nómina día a día es quien consulta la Gaceta.
 export async function confirmThresholdStillValidAction(
   companyId: string,
-  thresholdId: string,
+  thresholdId: string
 ): Promise<ActionResult<{ verifiedAt: string }>> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ACCOUNTING,

@@ -70,37 +70,29 @@ export type AddManualLineInput = z.infer<typeof AddManualLineSchema>;
 
 export const CreatePayrollRunSchema = z
   .object({
-    periodStart: zBusinessDateString
-      .regex(dateRegex, { message: "Fecha de inicio inválida" }),
+    periodStart: zBusinessDateString.regex(dateRegex, { message: "Fecha de inicio inválida" }),
     periodEnd: zBusinessDateString
       .regex(dateRegex, { message: "Fecha de fin inválida" })
-      .refine(
-        (v) => new Date(v) <= maxFutureDate(45),
-        { message: "El período no puede extenderse más de 45 días en el futuro" }
-      ),
-    idempotencyKey: z
-      .string()
-      .min(1, { message: "idempotencyKey requerido" })
-      .max(100),
+      .refine((v) => new Date(v) <= maxFutureDate(45), {
+        message: "El período no puede extenderse más de 45 días en el futuro",
+      }),
+    idempotencyKey: z.string().min(1, { message: "idempotencyKey requerido" }).max(100),
     // employeeIds vacío = todos los empleados ACTIVE de la empresa
     employeeIds: z.array(z.string()).optional(),
     // Conceptos manuales (ISLR, bonos especiales) ingresados por el contador
     manualConcepts: z.array(ManualConceptSchema).optional(),
   })
-  .refine(
-    (d) => new Date(d.periodEnd) >= new Date(d.periodStart),
-    { message: "La fecha de fin debe ser igual o posterior a la de inicio", path: ["periodEnd"] }
-  )
-  .refine(
-    (d) => daysBetweenInclusive(d.periodStart, d.periodEnd) <= MAX_PERIOD_DAYS,
-    {
-      message:
-        `Un período de nómina no puede abarcar más de ${MAX_PERIOD_DAYS} días. ` +
-        "El IVSS se cotiza por semana, así que un período más largo multiplica " +
-        "las cotizaciones del trabajador.",
-      path: ["periodEnd"],
-    }
-  );
+  .refine((d) => new Date(d.periodEnd) >= new Date(d.periodStart), {
+    message: "La fecha de fin debe ser igual o posterior a la de inicio",
+    path: ["periodEnd"],
+  })
+  .refine((d) => daysBetweenInclusive(d.periodStart, d.periodEnd) <= MAX_PERIOD_DAYS, {
+    message:
+      `Un período de nómina no puede abarcar más de ${MAX_PERIOD_DAYS} días. ` +
+      "El IVSS se cotiza por semana, así que un período más largo multiplica " +
+      "las cotizaciones del trabajador.",
+    path: ["periodEnd"],
+  });
 
 export type CreatePayrollRunInput = z.infer<typeof CreatePayrollRunSchema>;
 

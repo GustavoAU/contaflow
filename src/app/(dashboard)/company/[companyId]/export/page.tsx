@@ -41,9 +41,9 @@ export default async function ExportPage({ params }: Props) {
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
       <div>
         <h1 className="text-2xl font-bold">Exportar Datos Fiscales</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Descarga un archivo ZIP con todos tus datos fiscales: libros IVA,
-          asientos, retenciones, activos fijos y Forma 30.
+        <p className="text-muted-foreground mt-1 text-sm">
+          Descarga un archivo ZIP con todos tus datos fiscales: libros IVA, asientos, retenciones,
+          activos fijos y Forma 30.
         </p>
       </div>
 

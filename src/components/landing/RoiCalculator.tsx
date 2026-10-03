@@ -29,9 +29,7 @@ export function RoiCalculator() {
       <div className={styles.roiCard}>
         <div className={`${styles.secHead}`} style={{ textAlign: "center", marginBottom: "2rem" }}>
           <p className={styles.eyebrow}>Calculadora de ROI</p>
-          <h2 style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>
-            ¿Cuánto tiempo recuperas?
-          </h2>
+          <h2 style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>¿Cuánto tiempo recuperas?</h2>
           <p style={{ color: "var(--c-text-2, #6b7280)", maxWidth: "480px", margin: "0 auto" }}>
             Ajusta los valores según tu operación y calcula el ahorro mensual real.
           </p>
@@ -51,8 +49,16 @@ export function RoiCalculator() {
               onChange={(e) => setClients(Number(e.target.value))}
               className={styles.roiSlider}
             />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#9ca3af" }}>
-              <span>1</span><span>30</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "11px",
+                color: "#9ca3af",
+              }}
+            >
+              <span>1</span>
+              <span>30</span>
             </div>
           </div>
 
@@ -69,8 +75,16 @@ export function RoiCalculator() {
               onChange={(e) => setHoursPerClient(Number(e.target.value))}
               className={styles.roiSlider}
             />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#9ca3af" }}>
-              <span>2h</span><span>20h</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: "11px",
+                color: "#9ca3af",
+              }}
+            >
+              <span>2h</span>
+              <span>20h</span>
             </div>
           </div>
         </div>
@@ -92,7 +106,9 @@ export function RoiCalculator() {
             <span className={styles.roiBreakdownLabel}>Horas actuales</span>
           </div>
           <div className={styles.roiBreakdownItem}>
-            <span className={styles.roiBreakdownVal} style={{ color: "#16a34a" }}>−{savedHours}h</span>
+            <span className={styles.roiBreakdownVal} style={{ color: "#16a34a" }}>
+              −{savedHours}h
+            </span>
             <span className={styles.roiBreakdownLabel}>Horas ahorradas (65%)</span>
           </div>
           <div className={styles.roiBreakdownItem}>
@@ -100,7 +116,10 @@ export function RoiCalculator() {
             <span className={styles.roiBreakdownLabel}>Costo ContaFlow</span>
           </div>
           <div className={styles.roiBreakdownItem}>
-            <span className={styles.roiBreakdownVal} style={{ color: breakEven ? "#16a34a" : "#dc2626" }}>
+            <span
+              className={styles.roiBreakdownVal}
+              style={{ color: breakEven ? "#16a34a" : "#dc2626" }}
+            >
               {breakEven ? "+" : ""}${fmt(netRoi)}
             </span>
             <span className={styles.roiBreakdownLabel}>ROI neto / mes</span>
