@@ -322,12 +322,107 @@ jobs:
         run: pnpm audit --audit-level=high --ignore GHSA-qjx8-664m-686j
 
   # ============================================================================
+  # INTEGRATION (SPEC-002) — tests contra Postgres real en un branch efímero de Neon
+  #
+  # Lo que los mocks no ven: constraints, triggers, RLS, Serializable, P2002 con el
+  # adaptador real (LL-014). Corre en un proyecto de Neon DEDICADO (`contaflow-ci`, baseline
+  # vacío): cada corrida clona un branch y aplica todas las migraciones desde cero, así que
+  # ningún dato de clientes ni credencial de producción está al alcance del CI.
+  # scripts/ci-neon-branch.mjs solo borra branches ci-<run>-<intento>
+  # (ver scripts/lib/neon-ci-guards.mjs). Está en `needs` de ci-result (corrió en verde
+  # el 2026-10-03); un resultado `skipped` se acepta, `failure`/`cancelled` no.
+  # ============================================================================
+  integration:
+    name: Integration (Neon branch efímero)
+    runs-on: ubuntu-latest
+    # RN-5: los PRs de forks no reciben secretos; se omite sin fallar.
+    # Dependabot se excluye: sus PRs no reciben los secretos del environment y quedarían
+    # esperando una aprobación que no aporta nada.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    timeout-minutes: 20
+    # Environment con revisores requeridos: ningún PR ejecuta código con la key de Neon
+    # sin aprobación humana. Los secretos NEON_* viven SOLO aquí, no a nivel de repositorio.
+    environment: neon-ci
+    permissions:
+      contents: read
+    # La key NO va en el env del job: solo la reciben los pasos que la usan (gate, create,
+    # delete). Así `pnpm install`, `prisma generate` y los tests no la ven.
+    steps:
+      - name: Verificar secretos
+        id: gate
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+        run: |
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            # Este job solo corre en PRs del mismo repo (sin forks ni Dependabot), donde los
+            # secretos del environment SIEMPRE existen: que falten es una mala configuración.
+            # Fallar en voz alta; omitir en silencio daría un "verde" sin haber probado nada.
+            echo "::error::Faltan NEON_API_KEY / NEON_PROJECT_ID en el environment neon-ci"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.enabled == 'true'
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        if: steps.gate.outputs.enabled == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
+      - name: Setup Node.js
+        if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # --ignore-scripts: el código de instalación de las dependencias no corre en un job
+      # con acceso a Neon. El único postinstall del repo es `prisma generate`, que va aparte.
+      - name: Instalar dependencias
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Generar cliente Prisma
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm prisma generate
+
+      - name: Crear branch efímero
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+        run: node scripts/ci-neon-branch.mjs create
+
+      - name: Aplicar migraciones al branch efímero
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm prisma migrate deploy
+
+      - name: Tests de integración
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm test:integration
+
+      # RN-4: siempre, también si fallan los pasos anteriores o se cancela el job.
+      # Es idempotente: si el branch no llegó a crearse, no hay nada que borrar.
+      - name: Borrar branch efímero
+        if: always() && steps.gate.outputs.enabled == 'true'
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+        run: node scripts/ci-neon-branch.mjs delete
+
+  # ============================================================================
   # RESULT CHECK
   # ============================================================================
   ci-result:
     name: CI Result (all checks passed)
     runs-on: ubuntu-latest
-    needs: [test, architecture, security]
+    needs: [test, architecture, security, integration]
     if: always()
     steps:
       - name: Check results
@@ -342,6 +437,12 @@ jobs:
           fi
           if [ "${{ needs.security.result }}" != "success" ]; then
             echo "FAIL: security audit job failed"
+            exit 1
+          fi
+          # integration se OMITE (skipped) en push, forks, Dependabot o sin secretos: eso no es
+          # un fallo. Solo cuenta como fallo si corrió y no terminó en success.
+          if [ "${{ needs.integration.result }}" != "success" ] && [ "${{ needs.integration.result }}" != "skipped" ]; then
+            echo "FAIL: integration job failed"
             exit 1
           fi
           echo "OK: All CI checks PASSED"
