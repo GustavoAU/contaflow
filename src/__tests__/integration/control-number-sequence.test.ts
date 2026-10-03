@@ -28,14 +28,19 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
     const adapter = new PrismaPg({ connectionString: DB_URL });
     prisma = new PrismaClient({ adapter });
     await prisma.$connect();
+    // ControlNumberSequence.companyId tiene FK a Company (onDelete: Restrict): sin esta fila
+    // el primer getNextControlNumber falla con P2003. Solo `id` y `name` son obligatorios.
+    await prisma.company.create({ data: { id: COMPANY_ID, name: "integration-test" } });
   });
 
   afterAll(async () => {
     if (!prisma) return;
-    // Cleanup: remove test data so repeated runs stay idempotent
+    // Cleanup: remove test data so repeated runs stay idempotent.
+    // Orden: primero las secuencias (hijas, Restrict) y después la empresa.
     await prisma.controlNumberSequence.deleteMany({
       where: { companyId: COMPANY_ID },
     });
+    await prisma.company.deleteMany({ where: { id: COMPANY_ID } });
     await prisma.$disconnect();
   });
 
