@@ -2,7 +2,7 @@
 _Punto de entrada obligatorio en cada sesión. Lee esto ANTES que cualquier otro archivo._
 _Última actualización: 2026-04-30_
 
-> **Versiones de referencia:** Next.js 16.2.4 | Prisma 7.4.1 | Zod 4 | Vitest 4
+> **Versiones de referencia:** Next.js 16.2 | Prisma 7.8 | Zod 4 | Vitest 4
 > Si el `package.json` real difiere de estas versiones → actualizar `skills-discovered.md`
 > antes de implementar. Un cambio de major en Prisma invalida los patterns tipo A y B.
 
@@ -64,7 +64,7 @@ ARCHIVOS RELEVANTES:
 OBLIGATORIO:
   ✓ Decimal.js absoluto → number nativo = bug garantizado
   ✓ Alícuotas desde enums, nunca hardcoded en inline
-  ✓ IGTF solo si: currency !== VES  OR  (isSpecialContributor AND currency === VES)
+  ✓ IGTF solo si: currency !== VES  AND  isSpecialContributor (fuente única: IGTFService.applies)
   ✓ luxuryGroupId linkea IVA_ADICIONAL ↔ IVA_GENERAL → no romper
 
 ALÍCUOTAS CANÓNICAS (Skills C1):

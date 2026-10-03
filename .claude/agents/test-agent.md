@@ -5,7 +5,7 @@ description: QA riguroso de ContaFlow con Vitest 4. Usar para escribir, corregir
   targets de cobertura por capa y la pirámide de tests (unit/integration/e2e).
   NUNCA modifica código de producción — si encuentra un bug, lo reporta al agente
   responsable.
-tools: Read, Write, Bash
+tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 <role>

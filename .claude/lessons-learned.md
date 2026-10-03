@@ -139,3 +139,14 @@
 - **Error**: `companySettings.upsert` (GL account mapping) runs without `$transaction` and without `AuditLog.create`. Changing which GL accounts receive invoice postings leaves no audit trail.
 - **Fix required**: Wrap in `prisma.$transaction`, capture `oldValue` (previous settings), create `AuditLog` with `action: "UPDATE_GL_CONFIG"`, include `ipAddress`/`userAgent` per R-6.
 - **Golden rule**: Any mutation to `CompanySettings` is a fiscal configuration change — it must be wrapped in `$transaction` with `AuditLog` exactly like a `closeFiscalYearAction`. Configuration changes are as auditable as data changes.
+
+---
+
+## LL-014 — P2002 sin `meta.target` con Prisma 7.8 + adaptador Neon (2026-10-01)
+
+- **Phase detected**: importación de plan de cuentas — detectado contra producción (ADR-056)
+- **Context**: `src/lib/prisma-errors.ts` y ~13 call-sites que distinguen qué `@@unique` falló (correlativos, retenciones, idempotencia de pagos, PayrollRun, inventario)
+- **Error**: dos fallas encadenadas. (1) Una regla vieja comparaba contra `controlNumber`, columna que no está en ningún índice único → rama muerta: el usuario recibía "ya existe una factura con ese número" en lugar de "error transitorio". (2) Desde Prisma 7.8.0 con `@prisma/adapter-neon`, `meta.target` no existe (`meta` llega `{}`); las columnas viven en `meta.driverAdapterError.cause.constraint.fields`, con o sin comillas literales. Todos los call-sites devolvían `false` en silencio.
+- **Fix applied**: `p2002TargetIncludes` cubre ambas formas.
+- **Golden rule**: nunca leer `meta.target` a mano; siempre `p2002TargetIncludes(e, "<columna del CONSTRAINT>")`. La columna es la del `@@unique`, no la del documento. Al subir Prisma de minor, re-verificar la forma del error P2002 contra la base real.
+- **Regression test**: `src/lib/__tests__/prisma-errors.test.ts`
