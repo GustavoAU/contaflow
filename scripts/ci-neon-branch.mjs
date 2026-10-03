@@ -25,6 +25,7 @@
 
 import { appendFileSync } from "node:fs";
 import {
+  assertCiProject,
   assertDeletableBranch,
   ciBranchName,
   maskLine,
@@ -66,6 +67,13 @@ async function api(method, path, body) {
   return text ? JSON.parse(text) : {};
 }
 
+// Primera comprobación de CADA comando: si NEON_PROJECT_ID no es el proyecto dedicado al CI
+// (p. ej. quedó apuntando a producción), se aborta antes de listar, crear o borrar.
+async function assertProjectIsCi() {
+  const { project } = await api("GET", `/projects/${projectId}`);
+  assertCiProject(project);
+}
+
 const BRANCH_PAGE_LIMIT = 1000;
 
 async function listBranches() {
@@ -100,6 +108,7 @@ function emit(file, line) {
 }
 
 async function create() {
+  await assertProjectIsCi();
   const name = ciBranchName({
     runId: requireEnv("GITHUB_RUN_ID"),
     runAttempt: requireEnv("GITHUB_RUN_ATTEMPT"),
@@ -151,6 +160,7 @@ async function create() {
 }
 
 async function remove() {
+  await assertProjectIsCi();
   const name = ciBranchName({
     runId: requireEnv("GITHUB_RUN_ID"),
     runAttempt: requireEnv("GITHUB_RUN_ATTEMPT"),

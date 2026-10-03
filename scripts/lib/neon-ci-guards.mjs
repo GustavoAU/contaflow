@@ -69,3 +69,18 @@ export function maskLine(value) {
   }
   return `::add-mask::${value}`;
 }
+
+export const CI_PROJECT_NAME = "contaflow-ci";
+
+/**
+ * El script solo opera sobre el proyecto dedicado al CI. Si NEON_PROJECT_ID apunta por
+ * error (o por un secreto mal movido) al proyecto de producción, se aborta ANTES de crear
+ * o borrar nada: sin esta guarda, una corrida clonaría producción con sus datos.
+ */
+export function assertCiProject(project) {
+  if (!project || typeof project !== "object" || project.name !== CI_PROJECT_NAME) {
+    throw new Error(
+      `Se rechaza operar (refusing): el proyecto no es '${CI_PROJECT_NAME}'`
+    );
+  }
+}

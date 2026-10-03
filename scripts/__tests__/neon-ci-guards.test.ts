@@ -5,6 +5,7 @@ import {
   ciBranchName,
   resolveDefaultBranch,
   assertDeletableBranch,
+  assertCiProject,
   maskLine,
 } from "../lib/neon-ci-guards.mjs";
 
@@ -223,5 +224,31 @@ describe("maskLine", () => {
   });
   it("valor con CR -> lanza", () => {
     expect(() => maskLine("abc\rdef")).toThrow(/mask|value|newline|salto|line/i);
+  });
+});
+
+describe("assertCiProject — el script solo opera sobre el proyecto dedicado al CI", () => {
+  it("proyecto llamado contaflow-ci -> no lanza", () => {
+    expect(() => assertCiProject({ id: "jolly-grass-68240438", name: "contaflow-ci" })).not.toThrow();
+  });
+  it("el proyecto de produccion (accountapp) -> refus", () => {
+    expect(() => assertCiProject({ id: "royal-voice-77113362", name: "accountapp" })).toThrow(/refus/);
+  });
+  it.each([
+    ["mayusculas", "CONTAFLOW-CI"],
+    ["sufijo", "contaflow-ci-2"],
+    ["prefijo", "x-contaflow-ci"],
+    ["con espacio", "contaflow-ci "],
+    ["vacio", ""],
+  ])("nombre %s -> refus", (_n, name) => {
+    expect(() => assertCiProject({ id: "p", name })).toThrow(/refus/);
+  });
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["objeto vacio", {}],
+    ["name no string", { name: 5 }],
+  ])("proyecto %s -> refus (falla cerrado)", (_n, project) => {
+    expect(() => assertCiProject(project as never)).toThrow(/refus/);
   });
 });

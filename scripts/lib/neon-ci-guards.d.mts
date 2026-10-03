@@ -15,3 +15,4 @@ export function assertDeletableBranch(args: {
   defaultBranchId: string;
 }): void;
 export function maskLine(value: string): string;
+export function assertCiProject(project: { id?: string; name?: string } | null | undefined): void;
