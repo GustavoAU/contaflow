@@ -79,7 +79,7 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 |---|---|---|---|
 
 ## 11. Riesgos y preguntas abiertas
-- **PA-1 (usuario / contadora):** ¿esta spec es obligatoria? Depende de SPEC-001 PA-1. Con `T = 0.01` es una mejora (el libro derivaría 0,0001 por nómina en USD pero la base no lo rechazaría); con `T = 0` es **prerrequisito**, o una nómina nueva en USD fallaría al aprobarse.
+- **PA-1 (RESUELTA 2026-10-03):** la contadora pidió cuadre exacto "hasta en decimales" (SPEC-001 `T = 0`), así que esta spec es **OBLIGATORIA y va ANTES** del trigger. Pregunta original: ¿esta spec es obligatoria? Depende de SPEC-001 PA-1. Con `T = 0.01` es una mejora (el libro derivaría 0,0001 por nómina en USD pero la base no lo rechazaría); con `T = 0` es **prerrequisito**, o una nómina nueva en USD fallaría al aprobarse.
 - **PA-2 (PREGUNTA PARA CONTADOR):** ¿en qué línea se absorbe el residuo de redondeo? Opciones: la de mayor monto (Nómina por Pagar en una nómina), o una cuenta propia "Diferencias de redondeo". Y el modo de redondeo (mitad hacia arriba, el habitual en contabilidad, o bancario).
 - **R-1:** tocar 21 servicios de asientos es un cambio ancho en zona fiscal (Z-2). Hay que hacerlo por lotes con test de integración por generador, y el job `integration` ya existe para eso.
 - **R-2:** `assertBalancedGLEntries` hoy tolera 0,01; si pasa a exacto sin arreglar antes los generadores, rompe flujos reales. El orden obligatorio es: función central + generadores primero, verificación exacta después.
