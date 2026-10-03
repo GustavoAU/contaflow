@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     console.info(
       `[cron/billing-lifecycle] Completado en ${elapsed}ms — ` +
         `${result.expiredMarked} EXPIRED, ${result.reminders7Sent} avisos 7d, ` +
-        `${result.reminders3Sent} avisos 3d, ${result.errors.length} errores`,
+        `${result.reminders3Sent} avisos 3d, ${result.errors.length} errores`
     );
     return NextResponse.json({ ok: true, elapsed_ms: elapsed, ...result });
   } catch (err) {

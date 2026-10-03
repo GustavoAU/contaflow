@@ -54,9 +54,9 @@ export type TransactionPage = {
 // cursor y limit son opcionales para retrocompatibilidad.
 export type TransactionListParams = {
   companyId: string;
-  periodId?: string;   // filtro opcional por período contable
-  cursor?: string;     // id del último registro visto (cursor opaco)
-  limit?: number;      // default MAX_PAGE_SIZE
+  periodId?: string; // filtro opcional por período contable
+  cursor?: string; // id del último registro visto (cursor opaco)
+  limit?: number; // default MAX_PAGE_SIZE
 };
 
 export class TransactionService {
@@ -65,7 +65,11 @@ export class TransactionService {
    * Formato: YYYY-MM-XXXXXX (ej: 2026-03-000001)
    * Es unico por empresa y por mes.
    */
-  static async generateTransactionNumber(companyId: string, date: Date, tx: PrismaTransactionClient): Promise<string> {
+  static async generateTransactionNumber(
+    companyId: string,
+    date: Date,
+    tx: PrismaTransactionClient
+  ): Promise<string> {
     // Usar siempre componentes UTC — las fechas se almacenan como UTC midnight en Prisma/PostgreSQL.
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -105,7 +109,7 @@ export class TransactionService {
   static async createBalancedTransaction(
     input: CreateTransactionInput,
     ipAddress?: string | null,
-    userAgent?: string | null,
+    userAgent?: string | null
   ) {
     // 1. Validar con Zod — verifica partida doble: Σdébitos = Σcréditos
     const validated = CreateTransactionSchema.parse(input);
@@ -153,9 +157,12 @@ export class TransactionService {
     // el respaldo de última línea; esta validación da el mensaje útil al usuario).
     const accountById = new Map(accounts.map((a) => [a.id, a]));
     entries.forEach((entry, i) => {
-      const partyFields = [entry.customerId, entry.vendorId, entry.partnerId, entry.employeeId].filter(
-        (v): v is string => !!v,
-      );
+      const partyFields = [
+        entry.customerId,
+        entry.vendorId,
+        entry.partnerId,
+        entry.employeeId,
+      ].filter((v): v is string => !!v);
       if (partyFields.length > 1) {
         throw new Error(
           `Línea ${i + 1}: solo se puede indicar UN tercero (cliente, proveedor, socio o empleado) por línea.`
@@ -165,7 +172,7 @@ export class TransactionService {
       if (account?.requiresThirdParty && partyFields.length === 0) {
         throw new Error(
           `Línea ${i + 1}: la cuenta ${account.code} — ${account.name} exige indicar el tercero ` +
-          `(cliente, proveedor, socio o empleado).`
+            `(cliente, proveedor, socio o empleado).`
         );
       }
     });
@@ -173,7 +180,9 @@ export class TransactionService {
     // 3c. IDOR (ADR-004): el tercero indicado debe pertenecer a esta empresa — el FK de
     // JournalEntry no filtra por companyId, así que sin este check un caller podría enlazar
     // un Customer/Vendor/Partner/Employee de OTRA empresa.
-    const uniqueIds = (vals: (string | undefined)[]) => [...new Set(vals.filter((v): v is string => !!v))];
+    const uniqueIds = (vals: (string | undefined)[]) => [
+      ...new Set(vals.filter((v): v is string => !!v)),
+    ];
     const customerIds = uniqueIds(entries.map((e) => e.customerId));
     const vendorIds = uniqueIds(entries.map((e) => e.vendorId));
     const partnerIds = uniqueIds(entries.map((e) => e.partnerId));
@@ -183,20 +192,38 @@ export class TransactionService {
     // nunca resuelven a un tercero borrado); sin esto, la ruta manual permitiría lo que la
     // auto-derivación por RIF ya rechaza.
     if (customerIds.length > 0) {
-      const count = await prisma.customer.count({ where: { id: { in: customerIds }, companyId: validated.companyId, deletedAt: null } });
-      if (count !== customerIds.length) throw new Error("Uno o más clientes indicados no pertenecen a esta empresa o están eliminados.");
+      const count = await prisma.customer.count({
+        where: { id: { in: customerIds }, companyId: validated.companyId, deletedAt: null },
+      });
+      if (count !== customerIds.length)
+        throw new Error(
+          "Uno o más clientes indicados no pertenecen a esta empresa o están eliminados."
+        );
     }
     if (vendorIds.length > 0) {
-      const count = await prisma.vendor.count({ where: { id: { in: vendorIds }, companyId: validated.companyId, deletedAt: null } });
-      if (count !== vendorIds.length) throw new Error("Uno o más proveedores indicados no pertenecen a esta empresa o están eliminados.");
+      const count = await prisma.vendor.count({
+        where: { id: { in: vendorIds }, companyId: validated.companyId, deletedAt: null },
+      });
+      if (count !== vendorIds.length)
+        throw new Error(
+          "Uno o más proveedores indicados no pertenecen a esta empresa o están eliminados."
+        );
     }
     if (partnerIds.length > 0) {
-      const count = await prisma.partner.count({ where: { id: { in: partnerIds }, companyId: validated.companyId, deletedAt: null } });
-      if (count !== partnerIds.length) throw new Error("Uno o más socios indicados no pertenecen a esta empresa o están eliminados.");
+      const count = await prisma.partner.count({
+        where: { id: { in: partnerIds }, companyId: validated.companyId, deletedAt: null },
+      });
+      if (count !== partnerIds.length)
+        throw new Error(
+          "Uno o más socios indicados no pertenecen a esta empresa o están eliminados."
+        );
     }
     if (employeeIds.length > 0) {
-      const count = await prisma.employee.count({ where: { id: { in: employeeIds }, companyId: validated.companyId } });
-      if (count !== employeeIds.length) throw new Error("Uno o más empleados indicados no pertenecen a esta empresa.");
+      const count = await prisma.employee.count({
+        where: { id: { in: employeeIds }, companyId: validated.companyId },
+      });
+      if (count !== employeeIds.length)
+        throw new Error("Uno o más empleados indicados no pertenecen a esta empresa.");
     }
 
     // 4. Verificar que el ejercicio económico no esté cerrado (Fase 15)
@@ -224,43 +251,50 @@ export class TransactionService {
     // Serializable garantiza que ningún otro worker puede leer/escribir el mismo prefijo
     // entre el findFirst y el create — elimina la race condition de correlativo duplicado (Z-1).
     const date = validated.date ?? new Date();
-    const transaction = await prisma.$transaction(async (tx) => {
-      const number = await TransactionService.generateTransactionNumber(validated.companyId, date, tx);
-      const created = await tx.transaction.create({
-        data: {
-          number,
-          companyId: validated.companyId,
-          userId: validated.userId,
-          description: validated.description,
-          reference: validated.reference,
-          notes: validated.notes,
+    const transaction = await prisma.$transaction(
+      async (tx) => {
+        const number = await TransactionService.generateTransactionNumber(
+          validated.companyId,
           date,
-          type: validated.type,
-          periodId: activePeriod.id,
-          entries: {
-            create: entries,
+          tx
+        );
+        const created = await tx.transaction.create({
+          data: {
+            number,
+            companyId: validated.companyId,
+            userId: validated.userId,
+            description: validated.description,
+            reference: validated.reference,
+            notes: validated.notes,
+            date,
+            type: validated.type,
+            periodId: activePeriod.id,
+            entries: {
+              create: entries,
+            },
           },
-        },
-        include: {
-          entries: { include: { account: true } },
-        },
-      });
+          include: {
+            entries: { include: { account: true } },
+          },
+        });
 
-      await tx.auditLog.create({
-        data: {
-          companyId: validated.companyId,
-          entityId: created.id,
-          entityName: "Transaction",
-          action: "CREATE",
-          userId: validated.userId,
-          ipAddress: ipAddress ?? null,
-          userAgent: userAgent ?? null,
-          newValue: created as object,
-        },
-      });
+        await tx.auditLog.create({
+          data: {
+            companyId: validated.companyId,
+            entityId: created.id,
+            entityName: "Transaction",
+            action: "CREATE",
+            userId: validated.userId,
+            ipAddress: ipAddress ?? null,
+            userAgent: userAgent ?? null,
+            newValue: created as object,
+          },
+        });
 
-      return created;
-    }, { isolationLevel: "Serializable" });
+        return created;
+      },
+      { isolationLevel: "Serializable" }
+    );
 
     return transaction;
   }
@@ -298,9 +332,7 @@ export class TransactionService {
     // Usa el FK periodId del asiento — no heurística de fecha, que falla cuando
     // el período asignado no coincide con el mes calendario de la transacción.
     if (!original.periodId) {
-      throw new Error(
-        "El asiento no tiene período contable asignado y no puede ser anulado."
-      );
+      throw new Error("El asiento no tiene período contable asignado y no puede ser anulado.");
     }
     const originalPeriod = await prisma.accountingPeriod.findUnique({
       where: { id: original.periodId },
@@ -314,7 +346,10 @@ export class TransactionService {
 
     // 3c. Hard-lock: no se puede anular si el año fiscal ya fue cerrado (MEDIUM)
     const voidYear = new Date().getFullYear();
-    const isFYClosed = await FiscalYearCloseService.isFiscalYearClosed(original.companyId, voidYear);
+    const isFYClosed = await FiscalYearCloseService.isFiscalYearClosed(
+      original.companyId,
+      voidYear
+    );
     if (isFYClosed) {
       throw new Error(
         `No se puede registrar el asiento de anulación: el año fiscal ${voidYear} ya fue cerrado.`
@@ -327,78 +362,82 @@ export class TransactionService {
     // abierto (12 meses OPEN a la vez) podía devolver un mes distinto a hoy y asignar un
     // periodId equivocado a la anulación. assertDateInOpenPeriod resuelve por fecha real.
     const voidDate = new Date();
-    const activePeriodForVoid = await PeriodService.assertDateInOpenPeriod(original.companyId, voidDate);
+    const activePeriodForVoid = await PeriodService.assertDateInOpenPeriod(
+      original.companyId,
+      voidDate
+    );
 
     // 5. Crear asiento de contrapartida y marcar original como VOIDED.
     // Serializable garantiza que el correlativo de anulación no genera duplicado (Z-1).
-    const voidTransaction = await prisma.$transaction(async (tx) => {
-      const voidNumber = await TransactionService.generateTransactionNumber(
-        original.companyId,
-        voidDate,
-        tx,
-      );
-      // Crear asiento espejo con montos invertidos
-      const voidEntries = original.entries.map((entry) => ({
-        accountId: entry.accountId,
-        amount: new Decimal(entry.amount.toString()).negated(),
-        description: entry.description
-          ? `ANULACIÓN: ${entry.description}`
-          : undefined,
-        // ADR-054: preservar el tercero de la línea original — sin esto, el reverso de una
-        // línea CxC/CxP con Account.requiresThirdParty queda sin tercero y el gate bloquea
-        // la anulación permanentemente (contradice R-3/ADR-005: VOID siempre debe ser posible).
-        customerId: entry.customerId ?? undefined,
-        vendorId: entry.vendorId ?? undefined,
-        partnerId: entry.partnerId ?? undefined,
-        employeeId: entry.employeeId ?? undefined,
-      }));
-      assertBalancedGLEntries(voidEntries); // N4: invariante partida doble
-      const voidTx = await tx.transaction.create({
-        data: {
-          number: voidNumber,
-          companyId: original.companyId,
-          userId: validated.userId,
-          description: "ANULACION: " + original.description + " — " + validated.reason,
-          reference: original.reference ?? undefined,
-          date: voidDate,
-          type: original.type,
-          status: TX_STATUS.POSTED,
-          periodId: activePeriodForVoid.id,
-          entries: {
-            create: voidEntries,
+    const voidTransaction = await prisma.$transaction(
+      async (tx) => {
+        const voidNumber = await TransactionService.generateTransactionNumber(
+          original.companyId,
+          voidDate,
+          tx
+        );
+        // Crear asiento espejo con montos invertidos
+        const voidEntries = original.entries.map((entry) => ({
+          accountId: entry.accountId,
+          amount: new Decimal(entry.amount.toString()).negated(),
+          description: entry.description ? `ANULACIÓN: ${entry.description}` : undefined,
+          // ADR-054: preservar el tercero de la línea original — sin esto, el reverso de una
+          // línea CxC/CxP con Account.requiresThirdParty queda sin tercero y el gate bloquea
+          // la anulación permanentemente (contradice R-3/ADR-005: VOID siempre debe ser posible).
+          customerId: entry.customerId ?? undefined,
+          vendorId: entry.vendorId ?? undefined,
+          partnerId: entry.partnerId ?? undefined,
+          employeeId: entry.employeeId ?? undefined,
+        }));
+        assertBalancedGLEntries(voidEntries); // N4: invariante partida doble
+        const voidTx = await tx.transaction.create({
+          data: {
+            number: voidNumber,
+            companyId: original.companyId,
+            userId: validated.userId,
+            description: "ANULACION: " + original.description + " — " + validated.reason,
+            reference: original.reference ?? undefined,
+            date: voidDate,
+            type: original.type,
+            status: TX_STATUS.POSTED,
+            periodId: activePeriodForVoid.id,
+            entries: {
+              create: voidEntries,
+            },
           },
-        },
-        include: {
-          entries: { include: { account: true } },
-        },
-      });
+          include: {
+            entries: { include: { account: true } },
+          },
+        });
 
-      // Marcar original como VOIDED y vincular con el asiento de anulacion
-      await tx.transaction.update({
-        where: { id: original.id },
-        data: {
-          status: TX_STATUS.VOIDED,
-          voidedById: voidTx.id,
-        },
-      });
+        // Marcar original como VOIDED y vincular con el asiento de anulacion
+        await tx.transaction.update({
+          where: { id: original.id },
+          data: {
+            status: TX_STATUS.VOIDED,
+            voidedById: voidTx.id,
+          },
+        });
 
-      // 6. AuditLog dentro del mismo $transaction (R-6: IP/UA obligatorio)
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          entityId: original.id,
-          entityName: "Transaction",
-          action: "VOID",
-          userId: validated.userId,
-          ipAddress,
-          userAgent,
-          oldValue: original as object,
-          newValue: voidTx as object,
-        },
-      });
+        // 6. AuditLog dentro del mismo $transaction (R-6: IP/UA obligatorio)
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            entityId: original.id,
+            entityName: "Transaction",
+            action: "VOID",
+            userId: validated.userId,
+            ipAddress,
+            userAgent,
+            oldValue: original as object,
+            newValue: voidTx as object,
+          },
+        });
 
-      return voidTx;
-    }, { isolationLevel: "Serializable" });
+        return voidTx;
+      },
+      { isolationLevel: "Serializable" }
+    );
 
     return voidTransaction;
   }

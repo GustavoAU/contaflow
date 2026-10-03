@@ -54,41 +54,48 @@ function makeTx(overrides: TxOverrides = {}, options: MakeTxOptions = {}) {
   const txUpdate = vi.fn().mockResolvedValue({});
 
   let createdDeposits = 0;
-  const depositCreate = vi.fn().mockImplementation(
-    async (args: {
-      data: { companyId: string; date: Date; amount: Decimal; description: string };
-    }) => {
-      createdDeposits += 1;
-      const id = `dep-${createdDeposits}`;
-      depositRows.push({ id, companyId: args.data.companyId });
-      // Eco de lo persistido, como haría la BD: el summary no puede llevar valores
-      // que el servicio nunca produjo.
-      return {
-        id,
-        cajaCajaId: "caja-1",
-        date: args.data.date,
-        amount: args.data.amount,
-        description: args.data.description,
-        status: "POSTED",
-        transactionId: null,
-        createdAt: new Date("2026-06-13T10:00:00.000Z"),
-        voidedAt: null,
-        voidReason: null,
-      };
-    },
-  );
+  const depositCreate = vi
+    .fn()
+    .mockImplementation(
+      async (args: {
+        data: { companyId: string; date: Date; amount: Decimal; description: string };
+      }) => {
+        createdDeposits += 1;
+        const id = `dep-${createdDeposits}`;
+        depositRows.push({ id, companyId: args.data.companyId });
+        // Eco de lo persistido, como haría la BD: el summary no puede llevar valores
+        // que el servicio nunca produjo.
+        return {
+          id,
+          cajaCajaId: "caja-1",
+          date: args.data.date,
+          amount: args.data.amount,
+          description: args.data.description,
+          status: "POSTED",
+          transactionId: null,
+          createdAt: new Date("2026-06-13T10:00:00.000Z"),
+          voidedAt: null,
+          voidReason: null,
+        };
+      }
+    );
 
-  const depositCount = vi.fn().mockImplementation(
-    async (args?: { where?: { companyId?: string } }) =>
-      depositRows.filter(
-        (r) => args?.where?.companyId === undefined || r.companyId === args.where.companyId,
-      ).length,
-  );
+  const depositCount = vi
+    .fn()
+    .mockImplementation(
+      async (args?: { where?: { companyId?: string } }) =>
+        depositRows.filter(
+          (r) => args?.where?.companyId === undefined || r.companyId === args.where.companyId
+        ).length
+    );
 
   const tx = {
     cajaCaja: {
       findFirst: vi.fn().mockResolvedValue({
-        id: "caja-1", companyId: COMPANY_ID, accountId: CAJA_ACCOUNT, status: "ACTIVE",
+        id: "caja-1",
+        companyId: COMPANY_ID,
+        accountId: CAJA_ACCOUNT,
+        status: "ACTIVE",
       }),
     },
     account: {
@@ -103,7 +110,11 @@ function makeTx(overrides: TxOverrides = {}, options: MakeTxOptions = {}) {
       // assertDateInOpenPeriod compara contra la FECHA DEL DEPÓSITO (no contra hoy),
       // por eso aquí van valores fijos que igualan baseInput.date.
       findUnique: vi.fn().mockResolvedValue({
-        id: "period-1", year: 2026, month: 6, status: "OPEN", fiscalYear: { status: "OPEN" },
+        id: "period-1",
+        year: 2026,
+        month: 6,
+        status: "OPEN",
+        fiscalYear: { status: "OPEN" },
       }),
     },
     cajaCajaDeposit: {
@@ -119,9 +130,8 @@ function makeTx(overrides: TxOverrides = {}, options: MakeTxOptions = {}) {
     auditLog: { create: vi.fn().mockResolvedValue({}) },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return { tx, txCreate, depositUpdate, txUpdate, depositCreate, depositCount, depositRows };
 }
 
@@ -183,7 +193,8 @@ describe("createDeposit — partida doble (R-1 / N4)", () => {
 
     expect(txCreate).toHaveBeenCalledTimes(1);
     const entries = txCreate.mock.calls[0][0].data.entries.create as Array<{
-      accountId: string; amount: Decimal;
+      accountId: string;
+      amount: Decimal;
     }>;
     expect(entries).toHaveLength(2);
 
@@ -224,7 +235,9 @@ describe("createDeposit — partida doble (R-1 / N4)", () => {
   it("rechaza si la cuenta origen es la misma cuenta de la caja", async () => {
     // La cuenta de caja también es ASSET, así que assertAccountOfType pasa; el guard
     // que debe disparar aquí es el de "distinta de la cuenta de la Caja Chica".
-    makeTx({ account: { findFirst: vi.fn().mockResolvedValue({ id: CAJA_ACCOUNT, type: "ASSET" }) } });
+    makeTx({
+      account: { findFirst: vi.fn().mockResolvedValue({ id: CAJA_ACCOUNT, type: "ASSET" }) },
+    });
     await expect(
       createDeposit({ ...baseInput, sourceAccountId: CAJA_ACCOUNT }, USER_ID)
     ).rejects.toThrow(/distinta/i);
@@ -244,9 +257,9 @@ describe("createDeposit — partida doble (R-1 / N4)", () => {
     makeTx({
       accountingPeriod: { findUnique: vi.fn().mockResolvedValue(null) },
     });
-    await expect(
-      createDeposit({ ...baseInput, date: "2026-05-31" }, USER_ID),
-    ).rejects.toThrow(/No existe un período contable abierto/i);
+    await expect(createDeposit({ ...baseInput, date: "2026-05-31" }, USER_ID)).rejects.toThrow(
+      /No existe un período contable abierto/i
+    );
   });
 });
 
@@ -344,7 +357,11 @@ describe("createDeposit — correlativo DEP- del asiento", () => {
     await createDeposit(baseInput, USER_ID);
 
     const data = txCreate.mock.calls[0][0].data as {
-      number: string; periodId: string; type: string; companyId: string; userId: string;
+      number: string;
+      periodId: string;
+      type: string;
+      companyId: string;
+      userId: string;
     };
     expect(data).toMatchObject({
       number: "DEP-000002",
@@ -448,8 +465,16 @@ function depositTxRow(id: string, number: string, companyId = COMPANY_ID): FakeT
     number,
     status: "POSTED",
     entries: [
-      { accountId: CAJA_ACCOUNT, amount: new Decimal("500000"), description: "Depósito Caja Chica — Reposición" },
-      { accountId: SOURCE_ACCOUNT, amount: new Decimal("-500000"), description: "Salida fondos hacia Caja Chica — Reposición" },
+      {
+        accountId: CAJA_ACCOUNT,
+        amount: new Decimal("500000"),
+        description: "Depósito Caja Chica — Reposición",
+      },
+      {
+        accountId: SOURCE_ACCOUNT,
+        amount: new Decimal("-500000"),
+        description: "Salida fondos hacia Caja Chica — Reposición",
+      },
     ],
   };
 }
@@ -522,8 +547,7 @@ function installVoidTx(rows: FakeTxRow[], deposits: FakeDeposit[] = defaultDepos
       return (
         rows.find(
           (r) =>
-            r.id === where.id &&
-            (where.companyId === undefined || r.companyId === where.companyId),
+            r.id === where.id && (where.companyId === undefined || r.companyId === where.companyId)
         ) ?? null
       );
     }
@@ -533,7 +557,7 @@ function installVoidTx(rows: FakeTxRow[], deposits: FakeDeposit[] = defaultDepos
     const matches = rows.filter(
       (r) =>
         r.number.startsWith(prefix) &&
-        (where.companyId === undefined || r.companyId === where.companyId),
+        (where.companyId === undefined || r.companyId === where.companyId)
     );
     const direction = args?.orderBy?.number;
     let chosen: FakeTxRow | undefined;
@@ -543,7 +567,7 @@ function installVoidTx(rows: FakeTxRow[], deposits: FakeDeposit[] = defaultDepos
     } else {
       // Orden de codepoint, que es el que aplica Postgres sobre estos ASCII.
       const sorted = [...matches].sort((a, b) =>
-        a.number < b.number ? -1 : a.number > b.number ? 1 : 0,
+        a.number < b.number ? -1 : a.number > b.number ? 1 : 0
       );
       chosen = direction === "desc" ? sorted[sorted.length - 1] : sorted[0];
     }
@@ -582,9 +606,8 @@ function installVoidTx(rows: FakeTxRow[], deposits: FakeDeposit[] = defaultDepos
     },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
 
   return { tx, txCreate, txUpdate, txFindFirst, depositUpdate, depositFindFirst, rows, deposits };
 }
@@ -613,13 +636,17 @@ describe("voidDeposit — reversión GL (VOID nunca borra)", () => {
     await voidDep("dep-1");
 
     // Reversión balanceada con montos invertidos
-    const revEntries = (txCreate.mock.calls[0][0] as unknown as {
-      data: { entries: { create: Array<{ accountId: string; amount: Decimal }> } };
-    }).data.entries.create;
+    const revEntries = (
+      txCreate.mock.calls[0][0] as unknown as {
+        data: { entries: { create: Array<{ accountId: string; amount: Decimal }> } };
+      }
+    ).data.entries.create;
     const sum = revEntries.reduce((a, e) => a.plus(e.amount), new Decimal(0));
     expect(sum.isZero()).toBe(true);
     expect(revEntries.find((e) => e.accountId === CAJA_ACCOUNT)!.amount.toString()).toBe("-500000");
-    expect(revEntries.find((e) => e.accountId === SOURCE_ACCOUNT)!.amount.toString()).toBe("500000");
+    expect(revEntries.find((e) => e.accountId === SOURCE_ACCOUNT)!.amount.toString()).toBe(
+      "500000"
+    );
 
     // Original marcado VOIDED y depósito marcado VOIDED
     expect(txUpdate).toHaveBeenCalledWith(
@@ -633,7 +660,7 @@ describe("voidDeposit — reversión GL (VOID nunca borra)", () => {
   it("rechaza si el depósito ya está anulado", async () => {
     const { txCreate } = installVoidTx(
       [depositTxRow("tx-1", "DEP-000002")],
-      [{ id: "dep-1", companyId: COMPANY_ID, status: "VOIDED", transactionId: "tx-1" }],
+      [{ id: "dep-1", companyId: COMPANY_ID, status: "VOIDED", transactionId: "tx-1" }]
     );
     await expect(voidDep("dep-1")).rejects.toThrow(/ya está anulado/i);
     expect(txCreate).not.toHaveBeenCalled();
@@ -684,7 +711,7 @@ describe("voidDeposit — correlativo DEP-REV- (MÁXIMO + 1, no count de depósi
       [
         { id: "dep-1", companyId: COMPANY_ID, status: "POSTED", transactionId: "tx-1" },
         { id: "dep-2", companyId: COMPANY_ID, status: "POSTED", transactionId: "tx-2" },
-      ],
+      ]
     );
 
     await voidDep("dep-1");

@@ -43,15 +43,8 @@ function NetBadge({ value }: { value: string }) {
   );
 }
 
-function AmountCell({
-  value,
-  colorClass,
-}: {
-  value: string;
-  colorClass: string;
-}) {
-  if (Number(value) === 0)
-    return <span className="text-zinc-300">—</span>;
+function AmountCell({ value, colorClass }: { value: string; colorClass: string }) {
+  if (Number(value) === 0) return <span className="text-zinc-300">—</span>;
   return <span className={colorClass}>{fmt(value)}</span>;
 }
 
@@ -63,7 +56,10 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
   function handleRefresh() {
     startTransition(async () => {
       const r = await getKpiDashboardAction(companyId);
-      if (r.success) { setData(r.data); setLastUpdated(new Date()); }
+      if (r.success) {
+        setData(r.data);
+        setLastUpdated(new Date());
+      }
     });
   }
 
@@ -77,21 +73,21 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
     <div className="space-y-4">
       {/* ─── Cabecera ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        <h2 className="text-sm font-semibold tracking-wider text-zinc-500 uppercase">
           KPIs Ejecutivos
         </h2>
         <button
           onClick={handleRefresh}
           disabled={isPending}
-          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-zinc-400 transition-colors hover:text-zinc-600 disabled:opacity-50"
           title={lastUpdated ? `Actualizado ${fmtRelativeTime(lastUpdated)}` : undefined}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
           {isPending
             ? "Actualizando..."
             : lastUpdated
-            ? `Actualizado ${fmtRelativeTime(lastUpdated)}`
-            : "Actualizar"}
+              ? `Actualizado ${fmtRelativeTime(lastUpdated)}`
+              : "Actualizar"}
         </button>
       </div>
 
@@ -100,18 +96,18 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
         {/* CxC */}
         <div className="rounded-lg border bg-white p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Por Cobrar (CxC)</p>
+            <p className="text-muted-foreground text-sm">Por Cobrar (CxC)</p>
             <TrendingUp className="h-4 w-4 text-emerald-500" />
           </div>
           {Number(summary.cxcTotal) === 0 ? (
             <>
               <p className="mt-2 text-2xl font-bold text-zinc-300">—</p>
-              <p className="mt-1 text-xs text-muted-foreground">sin facturas activas</p>
+              <p className="text-muted-foreground mt-1 text-xs">sin facturas activas</p>
             </>
           ) : (
             <>
               <p className="mt-2 text-2xl font-bold text-emerald-600">{fmt(summary.cxcTotal)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Bs. pendientes de clientes</p>
+              <p className="text-muted-foreground mt-1 text-xs">Bs. pendientes de clientes</p>
             </>
           )}
         </div>
@@ -119,18 +115,18 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
         {/* CxP */}
         <div className="rounded-lg border bg-white p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Por Pagar (CxP)</p>
+            <p className="text-muted-foreground text-sm">Por Pagar (CxP)</p>
             <TrendingDown className="h-4 w-4 text-red-500" />
           </div>
           {Number(summary.cxpTotal) === 0 ? (
             <>
               <p className="mt-2 text-2xl font-bold text-zinc-300">—</p>
-              <p className="mt-1 text-xs text-muted-foreground">sin compromisos activos</p>
+              <p className="text-muted-foreground mt-1 text-xs">sin compromisos activos</p>
             </>
           ) : (
             <>
               <p className="mt-2 text-2xl font-bold text-red-600">{fmt(summary.cxpTotal)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Bs. comprometidos a proveedores</p>
+              <p className="text-muted-foreground mt-1 text-xs">Bs. comprometidos a proveedores</p>
             </>
           )}
         </div>
@@ -138,13 +134,13 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
         {/* Capital de trabajo */}
         <div className="rounded-lg border bg-white p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Capital de Trabajo</p>
+            <p className="text-muted-foreground text-sm">Capital de Trabajo</p>
             <Wallet className={`h-4 w-4 ${workingPositive ? "text-blue-500" : "text-red-500"}`} />
           </div>
           {Number(summary.workingCapital) === 0 ? (
             <>
               <p className="mt-2 text-2xl font-bold text-zinc-300">—</p>
-              <p className="mt-1 text-xs text-muted-foreground">CxC − CxP</p>
+              <p className="text-muted-foreground mt-1 text-xs">CxC − CxP</p>
             </>
           ) : (
             <>
@@ -156,7 +152,7 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
                 {workingPositive ? "+" : ""}
                 {fmt(summary.workingCapital)}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">CxC − CxP</p>
+              <p className="text-muted-foreground mt-1 text-xs">CxC − CxP</p>
             </>
           )}
         </div>
@@ -164,18 +160,18 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
         {/* DSO */}
         <div className="rounded-lg border bg-white p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">DSO (Días Cobro)</p>
+            <p className="text-muted-foreground text-sm">DSO (Días Cobro)</p>
             <Clock className="h-4 w-4 text-amber-500" />
           </div>
           {summary.dso !== null ? (
             <>
               <p className="mt-2 text-2xl font-bold">{summary.dso}</p>
-              <p className="mt-1 text-xs text-muted-foreground">días promedio de cobro</p>
+              <p className="text-muted-foreground mt-1 text-xs">días promedio de cobro</p>
             </>
           ) : (
             <>
               <p className="mt-2 text-2xl font-bold text-zinc-300">—</p>
-              <p className="mt-1 text-xs text-muted-foreground">sin ventas últimos 30 días</p>
+              <p className="text-muted-foreground mt-1 text-xs">sin ventas últimos 30 días</p>
             </>
           )}
         </div>
@@ -198,7 +194,7 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
               <p className="text-sm font-medium text-zinc-500">
                 Sin proyecciones para los próximos 90 días
               </p>
-              <p className="mt-1 text-xs text-zinc-400 max-w-sm">
+              <p className="mt-1 max-w-sm text-xs text-zinc-400">
                 El flujo de caja se calcula a partir de facturas activas con fecha de vencimiento.
                 Registra facturas en <strong className="text-zinc-500">Cuentas por Cobrar</strong> o{" "}
                 <strong className="text-zinc-500">Cuentas por Pagar</strong> para ver la proyección.
@@ -209,7 +205,7 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-zinc-50 text-xs uppercase tracking-wider text-zinc-500">
+                <tr className="border-b bg-zinc-50 text-xs tracking-wider text-zinc-500 uppercase">
                   <th className="px-5 py-2 text-left font-medium">Ventana</th>
                   <th className="px-5 py-2 text-right font-medium text-emerald-600">
                     Cobros esperados

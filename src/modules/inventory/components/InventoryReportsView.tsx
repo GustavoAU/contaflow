@@ -5,16 +5,30 @@
 
 import { useState, useTransition } from "react";
 import {
-  RefreshCw, AlertTriangle, TrendingDown, TrendingUp, Minus, Loader2Icon,
-  ChevronUp, ChevronDown, ChevronsUpDown, BarChart2, TableIcon,
-  XCircleIcon, CheckCircle2Icon,
+  RefreshCw,
+  AlertTriangle,
+  TrendingDown,
+  TrendingUp,
+  Minus,
+  Loader2Icon,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  BarChart2,
+  TableIcon,
+  XCircleIcon,
+  CheckCircle2Icon,
 } from "lucide-react";
 import {
   getStockSummaryAction,
   getMovementReportAction,
   getRotationReportAction,
 } from "../actions/inventory-reports.actions";
-import type { StockSummary, MovementReportItem, RotationReportItem } from "../services/InventoryReportService";
+import type {
+  StockSummary,
+  MovementReportItem,
+  RotationReportItem,
+} from "../services/InventoryReportService";
 import { TopProductsChart } from "./TopProductsChart";
 import { todayLocalISO } from "@/lib/today";
 
@@ -26,19 +40,37 @@ type Props = {
 
 type Tab = "stock" | "movements" | "rotation";
 
-const MOVEMENT_TYPE_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  ENTRADA: { label: "Entrada", color: "bg-emerald-100 text-emerald-700", icon: <TrendingUp className="h-3 w-3" /> },
-  SALIDA:  { label: "Salida",  color: "bg-red-100 text-red-700",         icon: <TrendingDown className="h-3 w-3" /> },
-  AJUSTE:  { label: "Ajuste",  color: "bg-amber-100 text-amber-700",     icon: <Minus className="h-3 w-3" /> },
+const MOVEMENT_TYPE_LABELS: Record<
+  string,
+  { label: string; color: string; icon: React.ReactNode }
+> = {
+  ENTRADA: {
+    label: "Entrada",
+    color: "bg-emerald-100 text-emerald-700",
+    icon: <TrendingUp className="h-3 w-3" />,
+  },
+  SALIDA: {
+    label: "Salida",
+    color: "bg-red-100 text-red-700",
+    icon: <TrendingDown className="h-3 w-3" />,
+  },
+  AJUSTE: {
+    label: "Ajuste",
+    color: "bg-amber-100 text-amber-700",
+    icon: <Minus className="h-3 w-3" />,
+  },
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  DRAFT:  { label: "Borrador",       color: "bg-zinc-100 text-zinc-600" },
-  POSTED: { label: "Contabilizado",  color: "bg-blue-100 text-blue-700" },
+  DRAFT: { label: "Borrador", color: "bg-zinc-100 text-zinc-600" },
+  POSTED: { label: "Contabilizado", color: "bg-blue-100 text-blue-700" },
 };
 
 function fmtQty(val: string) {
-  return Number(val).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return Number(val).toLocaleString("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
 }
 
 function fmtBs(val: string) {
@@ -62,10 +94,11 @@ function StockTab({
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
         <span className="mt-0.5 shrink-0 text-base">ℹ</span>
         <span>
-          <strong>Política contable:</strong> El costo de los inventarios se determina por el método del{" "}
-          <strong>Costo Promedio Ponderado (CPP)</strong>, de conformidad con la NIIF para PYMES, Sección 13, §13.18.
-          Este método debe mantenerse de forma consistente entre períodos. La columna{" "}
-          <em>CPP (Bs.)</em> refleja el costo unitario vigente utilizado para valorar las salidas de inventario.
+          <strong>Política contable:</strong> El costo de los inventarios se determina por el método
+          del <strong>Costo Promedio Ponderado (CPP)</strong>, de conformidad con la NIIF para
+          PYMES, Sección 13, §13.18. Este método debe mantenerse de forma consistente entre
+          períodos. La columna <em>CPP (Bs.)</em> refleja el costo unitario vigente utilizado para
+          valorar las salidas de inventario.
         </span>
       </div>
 
@@ -82,9 +115,13 @@ function StockTab({
           </p>
         </div>
         {/* Q2-5: icono secundario — doble indicador para daltonismo (WCAG 1.4.1) */}
-        <div className={`rounded-lg border p-4 ${data.lowStockCount > 0 ? "bg-red-50 border-red-200" : "bg-white"}`}>
+        <div
+          className={`rounded-lg border p-4 ${data.lowStockCount > 0 ? "border-red-200 bg-red-50" : "bg-white"}`}
+        >
           <p className="text-xs text-zinc-500">Bajo stock</p>
-          <p className={`mt-1 flex items-center gap-1.5 text-2xl font-bold ${data.lowStockCount > 0 ? "text-red-600" : "text-zinc-400"}`}>
+          <p
+            className={`mt-1 flex items-center gap-1.5 text-2xl font-bold ${data.lowStockCount > 0 ? "text-red-600" : "text-zinc-400"}`}
+          >
             {data.lowStockCount > 0 && <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden />}
             {data.lowStockCount}
           </p>
@@ -108,14 +145,30 @@ function StockTab({
         <table className="w-full text-sm">
           <thead className="bg-zinc-50 text-xs text-zinc-500">
             <tr>
-              <th scope="col" className="px-4 py-2 text-left font-medium">SKU</th>
-              <th scope="col" className="px-4 py-2 text-left font-medium">Producto</th>
-              <th scope="col" className="px-4 py-2 text-left font-medium">Unidad</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">Stock actual</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">Mínimo</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">CPP (Bs.)</th>
-              <th scope="col" className="px-4 py-2 text-right font-medium">Valor total (Bs.)</th>
-              <th scope="col" className="px-4 py-2 text-center font-medium">Estado</th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">
+                SKU
+              </th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">
+                Producto
+              </th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">
+                Unidad
+              </th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">
+                Stock actual
+              </th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">
+                Mínimo
+              </th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">
+                CPP (Bs.)
+              </th>
+              <th scope="col" className="px-4 py-2 text-right font-medium">
+                Valor total (Bs.)
+              </th>
+              <th scope="col" className="px-4 py-2 text-center font-medium">
+                Estado
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -136,7 +189,9 @@ function StockTab({
                   {item.name}
                 </td>
                 <td className="px-4 py-2.5 text-zinc-500">{item.unit}</td>
-                <td className={`px-4 py-2.5 text-right font-mono ${item.isLowStock ? "text-red-600 font-semibold" : ""}`}>
+                <td
+                  className={`px-4 py-2.5 text-right font-mono ${item.isLowStock ? "font-semibold text-red-600" : ""}`}
+                >
                   {fmtQty(item.stockQuantity)}
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono text-zinc-400">
@@ -149,12 +204,12 @@ function StockTab({
                 <td className="px-4 py-2.5 text-center">
                   {/* Q2-5: icono + texto — doble indicador daltonismo (WCAG 1.4.1) */}
                   {item.isLowStock ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-10 font-bold text-red-700">
+                    <span className="text-10 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-bold text-red-700">
                       <XCircleIcon className="h-3 w-3 shrink-0" aria-hidden />
                       Bajo stock
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-10 font-bold text-emerald-700">
+                    <span className="text-10 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-bold text-emerald-700">
                       <CheckCircle2Icon className="h-3 w-3 shrink-0" aria-hidden />
                       OK
                     </span>
@@ -166,7 +221,10 @@ function StockTab({
           {data.items.length > 0 && (
             <tfoot className="border-t bg-zinc-50">
               <tr>
-                <td colSpan={6} className="px-4 py-2.5 text-right text-xs font-semibold text-zinc-600">
+                <td
+                  colSpan={6}
+                  className="px-4 py-2.5 text-right text-xs font-semibold text-zinc-600"
+                >
                   Total inventario:
                 </td>
                 <td className="px-4 py-2.5 text-right font-mono font-bold text-emerald-700">
@@ -206,7 +264,14 @@ function MovementsTab({
   function handleSearch() {
     setError(null);
     startTransition(async () => {
-      const r = await getMovementReportAction(companyId, from, to, type || undefined, itemId || undefined, status || undefined);
+      const r = await getMovementReportAction(
+        companyId,
+        from,
+        to,
+        type || undefined,
+        itemId || undefined,
+        status || undefined
+      );
       if (r.success) {
         setMovements(r.data);
       } else {
@@ -216,12 +281,14 @@ function MovementsTab({
     });
   }
 
-  const totalEntradas = movements
-    ?.filter((m) => m.type === "ENTRADA")
-    .reduce((acc, m) => acc + Number(m.totalCost), 0) ?? 0;
-  const totalSalidas = movements
-    ?.filter((m) => m.type === "SALIDA")
-    .reduce((acc, m) => acc + Number(m.totalCost), 0) ?? 0;
+  const totalEntradas =
+    movements
+      ?.filter((m) => m.type === "ENTRADA")
+      .reduce((acc, m) => acc + Number(m.totalCost), 0) ?? 0;
+  const totalSalidas =
+    movements
+      ?.filter((m) => m.type === "SALIDA")
+      .reduce((acc, m) => acc + Number(m.totalCost), 0) ?? 0;
 
   return (
     <div className="space-y-4">
@@ -280,7 +347,9 @@ function MovementsTab({
             >
               <option value="">Todos</option>
               {itemOptions.map((item) => (
-                <option key={item.id} value={item.id}>{item.sku} — {item.name}</option>
+                <option key={item.id} value={item.id}>
+                  {item.sku} — {item.name}
+                </option>
               ))}
             </select>
           </div>
@@ -291,30 +360,33 @@ function MovementsTab({
               disabled={isPending}
               className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Buscando..." : "Buscar"}
+              {isPending && <Loader2Icon className="size-4 animate-spin" />}
+              {isPending ? "Buscando..." : "Buscar"}
             </button>
           </div>
         </div>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
       {/* Tabla de movimientos */}
       {movements !== null && (
         <div className="overflow-x-auto rounded-lg border bg-white">
           <div className="flex items-center justify-between border-b px-4 py-3">
-            <p className="text-sm font-semibold text-zinc-800">
-              Movimientos ({movements.length})
-            </p>
+            <p className="text-sm font-semibold text-zinc-800">Movimientos ({movements.length})</p>
             {movements.length > 0 && (
               <div className="flex gap-4 text-xs text-zinc-500">
                 <span>
-                  Entradas: <span className="font-mono font-semibold text-emerald-700">Bs. {fmtBs(totalEntradas.toFixed(2))}</span>
+                  Entradas:{" "}
+                  <span className="font-mono font-semibold text-emerald-700">
+                    Bs. {fmtBs(totalEntradas.toFixed(2))}
+                  </span>
                 </span>
                 <span>
-                  Salidas: <span className="font-mono font-semibold text-red-700">Bs. {fmtBs(totalSalidas.toFixed(2))}</span>
+                  Salidas:{" "}
+                  <span className="font-mono font-semibold text-red-700">
+                    Bs. {fmtBs(totalSalidas.toFixed(2))}
+                  </span>
                 </span>
               </div>
             )}
@@ -322,14 +394,30 @@ function MovementsTab({
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-xs text-zinc-500">
               <tr>
-                <th scope="col" className="px-4 py-2 text-left font-medium">Fecha</th>
-                <th scope="col" className="px-4 py-2 text-left font-medium">Tipo</th>
-                <th scope="col" className="px-4 py-2 text-left font-medium">Producto</th>
-                <th scope="col" className="px-4 py-2 text-right font-medium">Cantidad</th>
-                <th scope="col" className="px-4 py-2 text-right font-medium">C. Unit. (Bs.)</th>
-                <th scope="col" className="px-4 py-2 text-right font-medium">Total (Bs.)</th>
-                <th scope="col" className="px-4 py-2 text-left font-medium">Referencia</th>
-                <th scope="col" className="px-4 py-2 text-center font-medium">Estado</th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">
+                  Fecha
+                </th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">
+                  Tipo
+                </th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">
+                  Producto
+                </th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">
+                  Cantidad
+                </th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">
+                  C. Unit. (Bs.)
+                </th>
+                <th scope="col" className="px-4 py-2 text-right font-medium">
+                  Total (Bs.)
+                </th>
+                <th scope="col" className="px-4 py-2 text-left font-medium">
+                  Referencia
+                </th>
+                <th scope="col" className="px-4 py-2 text-center font-medium">
+                  Estado
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -341,28 +429,42 @@ function MovementsTab({
                 </tr>
               )}
               {movements.map((mov) => {
-                const typeInfo = MOVEMENT_TYPE_LABELS[mov.type] ?? { label: mov.type, color: "bg-zinc-100 text-zinc-600", icon: null };
-                const statusInfo = STATUS_LABELS[mov.status] ?? { label: mov.status, color: "bg-zinc-100 text-zinc-600" };
+                const typeInfo = MOVEMENT_TYPE_LABELS[mov.type] ?? {
+                  label: mov.type,
+                  color: "bg-zinc-100 text-zinc-600",
+                  icon: null,
+                };
+                const statusInfo = STATUS_LABELS[mov.status] ?? {
+                  label: mov.status,
+                  color: "bg-zinc-100 text-zinc-600",
+                };
                 return (
                   <tr key={mov.id} className="hover:bg-zinc-50">
                     <td className="px-4 py-2.5 font-mono text-xs">{mov.date}</td>
                     <td className="px-4 py-2.5">
-                      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-10 font-bold ${typeInfo.color}`}>
-                        {typeInfo.icon}{typeInfo.label}
+                      <span
+                        className={`text-10 inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold ${typeInfo.color}`}
+                      >
+                        {typeInfo.icon}
+                        {typeInfo.label}
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
                       <p className="font-medium text-zinc-900">{mov.itemName}</p>
-                      <p className="text-xs text-zinc-400">{mov.itemSku} · {mov.unit}</p>
+                      <p className="text-xs text-zinc-400">
+                        {mov.itemSku} · {mov.unit}
+                      </p>
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono">{fmtQty(mov.quantity)}</td>
                     <td className="px-4 py-2.5 text-right font-mono">{fmtBs(mov.unitCost)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono font-semibold">{fmtBs(mov.totalCost)}</td>
-                    <td className="px-4 py-2.5 text-xs text-zinc-500 max-w-37\.5 truncate">
+                    <td className="px-4 py-2.5 text-right font-mono font-semibold">
+                      {fmtBs(mov.totalCost)}
+                    </td>
+                    <td className="max-w-37\.5 truncate px-4 py-2.5 text-xs text-zinc-500">
                       {mov.reference ?? "—"}
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      <span className={`rounded px-2 py-0.5 text-10 font-bold ${statusInfo.color}`}>
+                      <span className={`text-10 rounded px-2 py-0.5 font-bold ${statusInfo.color}`}>
                         {statusInfo.label}
                       </span>
                     </td>
@@ -393,14 +495,20 @@ function DaysIndicator({ days }: { days: number | null }) {
     return <span className="text-xs text-zinc-400">Sin mvto.</span>;
   }
   const color =
-    days < 30  ? "bg-emerald-100 text-emerald-700" :
-    days < 90  ? "bg-amber-100 text-amber-700"     :
-                 "bg-red-100 text-red-700";
+    days < 30
+      ? "bg-emerald-100 text-emerald-700"
+      : days < 90
+        ? "bg-amber-100 text-amber-700"
+        : "bg-red-100 text-red-700";
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${
-        days < 30 ? "bg-emerald-500" : days < 90 ? "bg-amber-500" : "bg-red-500"
-      }`} />
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${color}`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          days < 30 ? "bg-emerald-500" : days < 90 ? "bg-amber-500" : "bg-red-500"
+        }`}
+      />
       {days}d
     </span>
   );
@@ -408,9 +516,11 @@ function DaysIndicator({ days }: { days: number | null }) {
 
 function SortIcon({ col, current, dir }: { col: SortKey; current: SortKey; dir: SortDir }) {
   if (col !== current) return <ChevronsUpDown className="ml-1 inline h-3 w-3 text-zinc-300" />;
-  return dir === "asc"
-    ? <ChevronUp className="ml-1 inline h-3 w-3 text-blue-500" />
-    : <ChevronDown className="ml-1 inline h-3 w-3 text-blue-500" />;
+  return dir === "asc" ? (
+    <ChevronUp className="ml-1 inline h-3 w-3 text-blue-500" />
+  ) : (
+    <ChevronDown className="ml-1 inline h-3 w-3 text-blue-500" />
+  );
 }
 
 function RotationTab({ companyId }: { companyId: string }) {
@@ -418,7 +528,7 @@ function RotationTab({ companyId }: { companyId: string }) {
   const firstOfYear = today.slice(0, 4) + "-01-01";
 
   const [from, setFrom] = useState(firstOfYear);
-  const [to, setTo]     = useState(today);
+  const [to, setTo] = useState(today);
   const [rows, setRows] = useState<RotationReportItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("revenueVes");
@@ -485,7 +595,7 @@ function RotationTab({ companyId }: { companyId: string }) {
     return (
       <th
         scope="col"
-        className={`cursor-pointer select-none px-4 py-2 text-${align} text-xs font-medium hover:text-zinc-700`}
+        className={`cursor-pointer px-4 py-2 select-none text-${align} text-xs font-medium hover:text-zinc-700`}
         onClick={() => handleSort(key)}
       >
         {label}
@@ -523,20 +633,22 @@ function RotationTab({ companyId }: { companyId: string }) {
             disabled={isPending}
             className="flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {isPending
-              ? <><Loader2Icon className="h-3.5 w-3.5 animate-spin" /> Calculando...</>
-              : "Calcular"
-            }
+            {isPending ? (
+              <>
+                <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> Calculando...
+              </>
+            ) : (
+              "Calcular"
+            )}
           </button>
         </div>
         <p className="mt-2 text-xs text-zinc-400">
-          Ventas basadas en facturas emitidas (tipo SALE). Haz clic en cualquier columna para ordenar.
+          Ventas basadas en facturas emitidas (tipo SALE). Haz clic en cualquier columna para
+          ordenar.
         </p>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
       {/* Gráfica top 10 */}
       {sorted !== null && sorted.some((r) => parseFloat(r[chartMetric]) > 0) && (
@@ -544,7 +656,9 @@ function RotationTab({ companyId }: { companyId: string }) {
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-zinc-800">Top 10 productos</p>
-              <p className="text-xs text-zinc-400">{from} → {to}</p>
+              <p className="text-xs text-zinc-400">
+                {from} → {to}
+              </p>
             </div>
             {/* Selector de métrica */}
             <div className="flex gap-1 rounded-lg border bg-zinc-50 p-1">
@@ -553,7 +667,7 @@ function RotationTab({ companyId }: { companyId: string }) {
                 onClick={() => setChartMetric("revenueVes")}
                 className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                   chartMetric === "revenueVes"
-                    ? "bg-white shadow-sm text-zinc-900"
+                    ? "bg-white text-zinc-900 shadow-sm"
                     : "text-zinc-500 hover:text-zinc-700"
                 }`}
               >
@@ -565,7 +679,7 @@ function RotationTab({ companyId }: { companyId: string }) {
                 onClick={() => setChartMetric("unitsSold")}
                 className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                   chartMetric === "unitsSold"
-                    ? "bg-white shadow-sm text-zinc-900"
+                    ? "bg-white text-zinc-900 shadow-sm"
                     : "text-zinc-500 hover:text-zinc-700"
                 }`}
               >
@@ -628,13 +742,17 @@ function RotationTab({ companyId }: { companyId: string }) {
                 <tr key={item.id} className="hover:bg-zinc-50">
                   <td className="px-4 py-2.5">
                     <p className="font-medium text-zinc-900">{item.name}</p>
-                    <p className="text-xs text-zinc-400">{item.sku} · {item.unit}</p>
+                    <p className="text-xs text-zinc-400">
+                      {item.sku} · {item.unit}
+                    </p>
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono">
                     {parseFloat(item.unitsSold) === 0 ? (
                       <span className="text-zinc-300">—</span>
                     ) : (
-                      parseFloat(item.unitsSold).toLocaleString("es-VE", { maximumFractionDigits: 2 })
+                      parseFloat(item.unitsSold).toLocaleString("es-VE", {
+                        maximumFractionDigits: 2,
+                      })
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono">
@@ -642,12 +760,16 @@ function RotationTab({ companyId }: { companyId: string }) {
                       <span className="text-zinc-300">—</span>
                     ) : (
                       <span className="font-semibold text-emerald-700">
-                        {parseFloat(item.revenueVes).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                        {parseFloat(item.revenueVes).toLocaleString("es-VE", {
+                          minimumFractionDigits: 2,
+                        })}
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono text-zinc-600">
-                    {parseFloat(item.stockQuantity).toLocaleString("es-VE", { maximumFractionDigits: 2 })}
+                    {parseFloat(item.stockQuantity).toLocaleString("es-VE", {
+                      maximumFractionDigits: 2,
+                    })}
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <DaysIndicator days={item.daysSinceMovement} />
@@ -685,19 +807,21 @@ export function InventoryReportsView({ companyId, initialStock, itemOptions }: P
   return (
     <div className="space-y-4">
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border bg-zinc-50 p-1 w-fit">
+      <div className="flex w-fit gap-1 rounded-lg border bg-zinc-50 p-1">
         {(["stock", "movements", "rotation"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
             className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t
-                ? "bg-white shadow-sm text-zinc-900"
-                : "text-zinc-500 hover:text-zinc-700"
+              tab === t ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
             }`}
           >
-            {t === "stock" ? "Existencias" : t === "movements" ? "Movimientos" : "Rotación y Ventas"}
+            {t === "stock"
+              ? "Existencias"
+              : t === "movements"
+                ? "Movimientos"
+                : "Rotación y Ventas"}
           </button>
         ))}
       </div>
@@ -705,12 +829,8 @@ export function InventoryReportsView({ companyId, initialStock, itemOptions }: P
       {tab === "stock" && (
         <StockTab data={stockData} onRefresh={handleRefreshStock} isPending={isPending} />
       )}
-      {tab === "movements" && (
-        <MovementsTab companyId={companyId} itemOptions={itemOptions} />
-      )}
-      {tab === "rotation" && (
-        <RotationTab companyId={companyId} />
-      )}
+      {tab === "movements" && <MovementsTab companyId={companyId} itemOptions={itemOptions} />}
+      {tab === "rotation" && <RotationTab companyId={companyId} />}
     </div>
   );
 }

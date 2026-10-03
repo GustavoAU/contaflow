@@ -17,16 +17,22 @@ export async function resolvePartyIdByLinkOrRif(
   companyId: string,
   kind: PartyKind,
   linkedId: string | null | undefined,
-  rif: string | null | undefined,
+  rif: string | null | undefined
 ): Promise<string | undefined> {
   if (linkedId) return linkedId;
   const normalized = normalizeRifOrNull(rif);
   if (!normalized) return undefined;
   if (kind === "customer") {
-    const found = await db.customer.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
+    const found = await db.customer.findFirst({
+      where: { companyId, rif: normalized, deletedAt: null },
+      select: { id: true },
+    });
     return found?.id;
   }
-  const found = await db.vendor.findFirst({ where: { companyId, rif: normalized, deletedAt: null }, select: { id: true } });
+  const found = await db.vendor.findFirst({
+    where: { companyId, rif: normalized, deletedAt: null },
+    select: { id: true },
+  });
   return found?.id;
 }
 
@@ -38,15 +44,22 @@ export async function batchResolvePartyIdsByRif(
   db: Prisma.TransactionClient,
   companyId: string,
   kind: PartyKind,
-  rifs: string[],
+  rifs: string[]
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>();
   const uniqueRifs = [...new Set(rifs)];
   if (uniqueRifs.length === 0) return result;
 
-  const rows = kind === "customer"
-    ? await db.customer.findMany({ where: { companyId, rif: { in: uniqueRifs }, deletedAt: null }, select: { id: true, rif: true } })
-    : await db.vendor.findMany({ where: { companyId, rif: { in: uniqueRifs }, deletedAt: null }, select: { id: true, rif: true } });
+  const rows =
+    kind === "customer"
+      ? await db.customer.findMany({
+          where: { companyId, rif: { in: uniqueRifs }, deletedAt: null },
+          select: { id: true, rif: true },
+        })
+      : await db.vendor.findMany({
+          where: { companyId, rif: { in: uniqueRifs }, deletedAt: null },
+          select: { id: true, rif: true },
+        });
 
   for (const row of rows) if (row.rif) result.set(row.rif, row.id);
   return result;

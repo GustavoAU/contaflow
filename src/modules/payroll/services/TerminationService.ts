@@ -19,13 +19,9 @@ import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
-import type {
-  PrestacionesBasis, TerminationReason, TerminationStatus,
-} from "@prisma/client";
+import type { PrestacionesBasis, TerminationReason, TerminationStatus } from "@prisma/client";
 import { countCompleteMonths, VacationService } from "./VacationService";
-import {
-  integralDailyWageFrom, LEGAL_MIN_PROFIT_DAYS,
-} from "./BenefitAccrualService";
+import { integralDailyWageFrom, LEGAL_MIN_PROFIT_DAYS } from "./BenefitAccrualService";
 import { monthlyWageToVes } from "./payroll-currency";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -150,10 +146,10 @@ function computeNoticePeriodDays(
   const seniorityDays = Math.floor(
     (terminationDate.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24)
   );
-  if (seniorityDays < 90) return new Decimal(15);   // < 3 meses: 15 días
-  if (seniorityDays < 180) return new Decimal(30);  // 3–6 meses: 1 mes
-  if (seniorityDays < 365) return new Decimal(45);  // 6–12 meses: 45 días
-  return new Decimal(60);                           // > 1 año: 2 meses
+  if (seniorityDays < 90) return new Decimal(15); // < 3 meses: 15 días
+  if (seniorityDays < 180) return new Decimal(30); // 3–6 meses: 1 mes
+  if (seniorityDays < 365) return new Decimal(45); // 6–12 meses: 45 días
+  return new Decimal(60); // > 1 año: 2 meses
 }
 
 // ─── TerminationService ───────────────────────────────────────────────────────
@@ -229,16 +225,11 @@ export const TerminationService = {
 
     // ── 2. Vacaciones fraccionadas ────────────────────────────────────────
     const yearsOfService = Math.floor(
-      (terminationDate.getTime() - employee.hireDate.getTime()) /
-        (1000 * 60 * 60 * 24 * 365.25)
+      (terminationDate.getTime() - employee.hireDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
     );
 
     const { vacationDays: vacFracDays, bonusDays: vacBonusFracDays } =
-      VacationService.computeFractionalDays(
-        employee.hireDate,
-        terminationDate,
-        yearsOfService
-      );
+      VacationService.computeFractionalDays(employee.hireDate, terminationDate, yearsOfService);
 
     // ── Moneda: la liquidación entera se calcula en BOLÍVARES ──────────────
     //
@@ -266,9 +257,7 @@ export const TerminationService = {
     // ── 3. Utilidades fraccionadas ────────────────────────────────────────
     const currentFiscalYear = terminationDate.getUTCFullYear();
     const fiscalYearStart = new Date(currentFiscalYear, 0, 1);
-    const periodStart = employee.hireDate > fiscalYearStart
-      ? employee.hireDate
-      : fiscalYearStart;
+    const periodStart = employee.hireDate > fiscalYearStart ? employee.hireDate : fiscalYearStart;
     const monthsWorkedFiscal = countCompleteMonths(periodStart, terminationDate);
 
     // Promedio salarial del año fiscal (server-side)
@@ -294,7 +283,8 @@ export const TerminationService = {
       // LOTTT Art. 131: el mínimo son treinta días. El resto del barrido ya lo
       // acotaba; este sitio se había quedado crudo, y el valor de BD es 15.
       const profitDays = Decimal.max(
-        new Decimal(LEGAL_MIN_PROFIT_DAYS), new Decimal(config.profitDays),
+        new Decimal(LEGAL_MIN_PROFIT_DAYS),
+        new Decimal(config.profitDays)
       );
       profitSharingFractionalDays = profitDays
         .mul(monthsWorkedFiscal)
@@ -322,21 +312,23 @@ export const TerminationService = {
     // salarios que suben (c) suele ganar. Calcular solo (a+b) —lo que se hacia
     // hasta ahora— dejaba la liquidacion corta de forma sistematica.
     const integralDailyWage = integralDailyWageFrom(
-      dailyNormalWage, config.profitDays, config.vacationBonusDays,
+      dailyNormalWage,
+      config.profitDays,
+      config.vacationBonusDays
     );
     const monthsOfService = countCompleteMonths(employee.hireDate, terminationDate);
     // "año de servicio o fracción superior a los seis meses"
-    const computableYears = Math.floor(monthsOfService / 12)
-      + (monthsOfService % 12 > 6 ? 1 : 0);
+    const computableYears = Math.floor(monthsOfService / 12) + (monthsOfService % 12 > 6 ? 1 : 0);
 
     let benefitsRetroactiveAmount = integralDailyWage
       .mul(30)
       .mul(computableYears)
       .toDecimalPlaces(4);
-    let benefitsBasisApplied: PrestacionesBasis =
-      benefitsRetroactiveAmount.greaterThan(benefitsAccumulatedAmount)
-        ? "CALCULO_RETROACTIVO"
-        : "GARANTIA_ACUMULADA";
+    let benefitsBasisApplied: PrestacionesBasis = benefitsRetroactiveAmount.greaterThan(
+      benefitsAccumulatedAmount
+    )
+      ? "CALCULO_RETROACTIVO"
+      : "GARANTIA_ACUMULADA";
 
     if (monthsOfService < 3) {
       // Literal (e): cinco dias por mes trabajado O FRACCION — un mes empezado
@@ -344,14 +336,10 @@ export const TerminationService = {
       const monthsOrFraction = Math.max(
         1,
         Math.ceil(
-          (terminationDate.getTime() - employee.hireDate.getTime()) /
-            (1000 * 60 * 60 * 24 * 30)
+          (terminationDate.getTime() - employee.hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
         )
       );
-      benefitsRetroactiveAmount = integralDailyWage
-        .mul(5)
-        .mul(monthsOrFraction)
-        .toDecimalPlaces(4);
+      benefitsRetroactiveAmount = integralDailyWage.mul(5).mul(monthsOrFraction).toDecimalPlaces(4);
       benefitsBasisApplied = "PRIMEROS_TRES_MESES";
     }
 
@@ -407,69 +395,66 @@ export const TerminationService = {
       // como dos escrituras sueltas: si la segunda fallaba quedaba una
       // liquidación sin rastro de quién la creó ni desde dónde (R-6).
       return await prisma.$transaction(async (tx) => {
-      const termination = await tx.termination.create({
-        data: {
-          companyId,
-          employeeId,
-          reason: input.reason,
-          status: "DRAFT",
-          terminationDate,
-          benefitBalanceId: balance?.id ?? null,
-          benefitsAccumulatedAmount: benefitsAccumulatedAmount.toFixed(4),
-          benefitsRetroactiveAmount: benefitsRetroactiveAmount.toFixed(4),
-          benefitsBasisApplied,
-          benefitsInterestAmount: benefitsInterestAmount.toFixed(4),
-          vacationFractionalDays: vacFracDays.toFixed(2),
-          vacationFractionalAmount: vacationFractionalAmount.toFixed(4),
-          vacationBonusFractionalAmount: vacationBonusFractionalAmount.toFixed(4),
-          profitSharingFractionalDays: profitSharingFractionalDays.toFixed(2),
-          profitSharingFractionalAmount: profitSharingFractionalAmount.toFixed(4),
-          profitSharingBaseSalary: profitSharingBaseSalary?.toFixed(4) ?? null,
-          indemnificationAmount: indemnificationAmount.toFixed(4),
-          noticePeriodDays: noticePeriodDays.toFixed(2),
-          noticePeriodAmount: noticePeriodAmount.toFixed(4),
-          pendingConceptsAmount: pendingConceptsAmount.toFixed(4),
-          pendingConceptsNotes: input.pendingConceptsNotes ?? null,
-          totalGrossAmount: totalGrossAmount.toFixed(4),
-          deductionsAmount: deductionsAmount.toFixed(4),
-          totalNetAmount: totalNetAmount.toFixed(4),
-          idempotencyKey: input.idempotencyKey,
-          createdByUserId: userId,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          companyId,
-          entityName: "Termination",
-          entityId: termination.id,
-          action: "CREATE_TERMINATION_DRAFT",
-          userId,
-          ipAddress,
-          userAgent,
-          oldValue: Prisma.JsonNull,
-          newValue: {
+        const termination = await tx.termination.create({
+          data: {
+            companyId,
             employeeId,
             reason: input.reason,
-            terminationDate: input.terminationDate,
-            totalGrossAmount: totalGrossAmount.toFixed(4),
-            // D2: sin esto el AuditLog no dejaba constancia de POR QUE se pago
-            // ese monto. El Art. 142(d) tiene dos ramas y se paga la mayor;
-            // saber cual gano es la mitad de la trazabilidad.
-            benefitsBasisApplied,
+            status: "DRAFT",
+            terminationDate,
+            benefitBalanceId: balance?.id ?? null,
             benefitsAccumulatedAmount: benefitsAccumulatedAmount.toFixed(4),
             benefitsRetroactiveAmount: benefitsRetroactiveAmount.toFixed(4),
+            benefitsBasisApplied,
+            benefitsInterestAmount: benefitsInterestAmount.toFixed(4),
+            vacationFractionalDays: vacFracDays.toFixed(2),
+            vacationFractionalAmount: vacationFractionalAmount.toFixed(4),
+            vacationBonusFractionalAmount: vacationBonusFractionalAmount.toFixed(4),
+            profitSharingFractionalDays: profitSharingFractionalDays.toFixed(2),
+            profitSharingFractionalAmount: profitSharingFractionalAmount.toFixed(4),
+            profitSharingBaseSalary: profitSharingBaseSalary?.toFixed(4) ?? null,
+            indemnificationAmount: indemnificationAmount.toFixed(4),
+            noticePeriodDays: noticePeriodDays.toFixed(2),
+            noticePeriodAmount: noticePeriodAmount.toFixed(4),
+            pendingConceptsAmount: pendingConceptsAmount.toFixed(4),
+            pendingConceptsNotes: input.pendingConceptsNotes ?? null,
+            totalGrossAmount: totalGrossAmount.toFixed(4),
+            deductionsAmount: deductionsAmount.toFixed(4),
+            totalNetAmount: totalNetAmount.toFixed(4),
+            idempotencyKey: input.idempotencyKey,
+            createdByUserId: userId,
           },
-        },
-      });
+        });
 
-      return serializeTermination(termination);
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            entityName: "Termination",
+            entityId: termination.id,
+            action: "CREATE_TERMINATION_DRAFT",
+            userId,
+            ipAddress,
+            userAgent,
+            oldValue: Prisma.JsonNull,
+            newValue: {
+              employeeId,
+              reason: input.reason,
+              terminationDate: input.terminationDate,
+              totalGrossAmount: totalGrossAmount.toFixed(4),
+              // D2: sin esto el AuditLog no dejaba constancia de POR QUE se pago
+              // ese monto. El Art. 142(d) tiene dos ramas y se paga la mayor;
+              // saber cual gano es la mitad de la trazabilidad.
+              benefitsBasisApplied,
+              benefitsAccumulatedAmount: benefitsAccumulatedAmount.toFixed(4),
+              benefitsRetroactiveAmount: benefitsRetroactiveAmount.toFixed(4),
+            },
+          },
+        });
+
+        return serializeTermination(termination);
       });
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === "P2002"
-      ) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         throw new Error(
           "Ya existe una liquidación en proceso para este empleado (clave de idempotencia duplicada)"
         );
@@ -500,13 +485,15 @@ export const TerminationService = {
       throw new Error("Solo se puede modificar una liquidación en estado BORRADOR");
     }
 
-    const pendingConceptsAmount = input.pendingConceptsAmount !== undefined
-      ? new Decimal(input.pendingConceptsAmount)
-      : new Decimal(existing.pendingConceptsAmount.toString());
+    const pendingConceptsAmount =
+      input.pendingConceptsAmount !== undefined
+        ? new Decimal(input.pendingConceptsAmount)
+        : new Decimal(existing.pendingConceptsAmount.toString());
 
-    const deductionsAmount = input.deductionsAmount !== undefined
-      ? new Decimal(input.deductionsAmount)
-      : new Decimal(existing.deductionsAmount.toString());
+    const deductionsAmount =
+      input.deductionsAmount !== undefined
+        ? new Decimal(input.deductionsAmount)
+        : new Decimal(existing.deductionsAmount.toString());
 
     // Recalcular totales con los conceptos actualizados
     // noticePeriodAmount es server-side fixed — no cambia en updates
@@ -624,10 +611,12 @@ export const TerminationService = {
       // Art. 142(d): el pasivo que se cancela es el de la rama que gano, no
       // siempre la garantia acumulada. Si el asiento usara otra, no cuadraria
       // con el neto pagado.
-      const benefitsTotal = payableBenefitsOf(termination)
-        .add(new Decimal(termination.benefitsInterestAmount.toString()));
-      const vacTotal = new Decimal(termination.vacationFractionalAmount.toString())
-        .add(new Decimal(termination.vacationBonusFractionalAmount.toString()));
+      const benefitsTotal = payableBenefitsOf(termination).add(
+        new Decimal(termination.benefitsInterestAmount.toString())
+      );
+      const vacTotal = new Decimal(termination.vacationFractionalAmount.toString()).add(
+        new Decimal(termination.vacationBonusFractionalAmount.toString())
+      );
       const profitTotal = new Decimal(termination.profitSharingFractionalAmount.toString());
       const indemTotal = new Decimal(termination.indemnificationAmount.toString());
       const noticeTotal = new Decimal(termination.noticePeriodAmount.toString());
@@ -636,15 +625,17 @@ export const TerminationService = {
       // Entradas de débito (eliminación de pasivos) + crédito (pago neto + deducciones)
       const empName = termination.employeeId.slice(-6);
       const liqDate = terminationDate.toISOString().split("T")[0];
-      const journalEntries: Array<{ accountId: string; amount: Decimal; description?: string }> = [];
+      const journalEntries: Array<{ accountId: string; amount: Decimal; description?: string }> =
+        [];
 
       // Art. 142(d): el pasivo de prestaciones solo se acredito con la GARANTIA
       // acumulada. Si gana la rama retroactiva, el exceso nunca se provisiono:
       // debitarlo contra el pasivo lo dejaria en saldo DEUDOR y el gasto
       // incremental no se reconoceria nunca. El exceso es gasto del ejercicio,
       // igual que el preaviso mas abajo ("no hay pasivo previo").
-      const accruedLiability = new Decimal(termination.benefitsAccumulatedAmount.toString())
-        .add(new Decimal(termination.benefitsInterestAmount.toString()));
+      const accruedLiability = new Decimal(termination.benefitsAccumulatedAmount.toString()).add(
+        new Decimal(termination.benefitsInterestAmount.toString())
+      );
       const provisionedPart = Decimal.min(benefitsTotal, accruedLiability);
       const unprovisionedPart = benefitsTotal.sub(provisionedPart);
 
@@ -659,8 +650,7 @@ export const TerminationService = {
         journalEntries.push({
           accountId: config.benefitsExpenseAccountId,
           amount: unprovisionedPart.toDecimalPlaces(4), // Débito — gasto del ejercicio
-          description:
-            `Liquidación final — diferencia Art.142(c) no provisionada — ${empName} — ${liqDate}`,
+          description: `Liquidación final — diferencia Art.142(c) no provisionada — ${empName} — ${liqDate}`,
         });
       }
       if (vacTotal.gt(0) && config.vacationPayableAccountId) {

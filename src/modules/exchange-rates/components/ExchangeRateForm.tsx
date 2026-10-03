@@ -134,9 +134,7 @@ export function ExchangeRateForm({ companyId, userId, onSuccess }: Props) {
 
       {/* Tasa */}
       <div className="space-y-1">
-        <label className="text-sm font-medium text-zinc-700">
-          Tasa BCV (1 {currency} = ? VES)
-        </label>
+        <label className="text-sm font-medium text-zinc-700">Tasa BCV (1 {currency} = ? VES)</label>
         <input
           type="number"
           step="0.000001"

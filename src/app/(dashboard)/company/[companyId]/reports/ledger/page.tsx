@@ -1,5 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/reports/ledger/page.tsx
-import { getLedgerAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
+import {
+  getLedgerAction,
+  getCompanyHeaderAction,
+} from "@/modules/accounting/actions/report.actions";
 import { getPeriodsAction } from "@/modules/accounting/actions/period.actions";
 import { DateRangeFilter } from "@/components/reports/DateRangeFilter";
 import { LedgerExportButton } from "@/components/reports/LedgerExportButton";
@@ -64,9 +67,7 @@ export default async function LedgerPage({ params, searchParams }: Props) {
           {company && (
             <p className="text-sm font-medium text-zinc-700">
               {company.name}
-              {company.rif && (
-                <span className="ml-2 text-zinc-400">RIF: {company.rif}</span>
-              )}
+              {company.rif && <span className="ml-2 text-zinc-400">RIF: {company.rif}</span>}
             </p>
           )}
           <p className="text-muted-foreground mt-0.5 text-sm">
@@ -76,11 +77,7 @@ export default async function LedgerPage({ params, searchParams }: Props) {
         {accounts.length > 0 && (
           <div className="flex items-center gap-2">
             <LedgerExportButton accounts={accounts} period={periodLabel} />
-            <LedgerPDFExportButton
-              companyId={companyId}
-              dateFrom={from}
-              dateTo={to}
-            />
+            <LedgerPDFExportButton companyId={companyId} dateFrom={from} dateTo={to} />
           </div>
         )}
       </div>
@@ -117,8 +114,9 @@ export default async function LedgerPage({ params, searchParams }: Props) {
       {accounts.length > 0 && (
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-600">
           <p className="mb-6 text-center text-xs text-zinc-400">
-            Certifico que la presente información es fiel reflejo de los libros contables de la empresa,
-            de conformidad con los Principios de Contabilidad de Aceptación General en Venezuela (VEN-NIF).
+            Certifico que la presente información es fiel reflejo de los libros contables de la
+            empresa, de conformidad con los Principios de Contabilidad de Aceptación General en
+            Venezuela (VEN-NIF).
           </p>
           <div className="grid grid-cols-2 gap-8">
             <div>

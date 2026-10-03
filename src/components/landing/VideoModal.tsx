@@ -15,7 +15,9 @@ export function VideoModal() {
   // Keyboard close + scroll lock
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") close(); }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") close();
+    }
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => {
@@ -70,37 +72,48 @@ export function VideoModal() {
               {/* KPI cards */}
               <div className={styles.vtKpis}>
                 <div className={`${styles.vtKpi} ${styles.vtKpiBlue}`}>
-                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                  <div className={styles.vtKpiLbl} />
+                  <div className={styles.vtKpiVal} />
                 </div>
                 <div className={`${styles.vtKpi} ${styles.vtKpiGreen}`}>
-                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                  <div className={styles.vtKpiLbl} />
+                  <div className={styles.vtKpiVal} />
                 </div>
                 <div className={`${styles.vtKpi} ${styles.vtKpiRed}`}>
-                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                  <div className={styles.vtKpiLbl} />
+                  <div className={styles.vtKpiVal} />
                 </div>
                 <div className={`${styles.vtKpi} ${styles.vtKpiGold}`}>
-                  <div className={styles.vtKpiLbl} /><div className={styles.vtKpiVal} />
+                  <div className={styles.vtKpiLbl} />
+                  <div className={styles.vtKpiVal} />
                 </div>
               </div>
               {/* Table rows */}
               <div className={styles.vtTable}>
-                {([
-                  { type: "header" },
-                  { type: "green" },
-                  { type: "amber" },
-                  { type: "green" },
-                  { type: "green" },
-                ] as const).map((row, i) => (
+                {(
+                  [
+                    { type: "header" },
+                    { type: "green" },
+                    { type: "amber" },
+                    { type: "green" },
+                    { type: "green" },
+                  ] as const
+                ).map((row, i) => (
                   <div
                     key={i}
                     className={`${styles.vtTrow} ${row.type === "header" ? styles.vtTrowHd : ""}`}
                   >
                     <div className={`${styles.vtTcell} ${styles.vtTcellMain}`} />
                     <div className={`${styles.vtTcell} ${styles.vtTcellSub}`} />
-                    <div className={`${styles.vtTcell} ${styles.vtTcellBadge} ${
-                      row.type === "green" ? styles.vtBadgeGreen :
-                      row.type === "amber" ? styles.vtBadgeAmber : ""
-                    }`} />
+                    <div
+                      className={`${styles.vtTcell} ${styles.vtTcellBadge} ${
+                        row.type === "green"
+                          ? styles.vtBadgeGreen
+                          : row.type === "amber"
+                            ? styles.vtBadgeAmber
+                            : ""
+                      }`}
+                    />
                   </div>
                 ))}
               </div>
@@ -138,7 +151,13 @@ export function VideoModal() {
                 onClick={close}
                 aria-label="Cerrar demo"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
@@ -160,14 +179,11 @@ export function VideoModal() {
                 </div>
                 <h3 className={styles.vComingTitle}>Demo del sistema</h3>
                 <p className={styles.vComingSub}>
-                  Estamos preparando el video de demostración.<br />
+                  Estamos preparando el video de demostración.
+                  <br />
                   Mientras tanto, crea tu cuenta gratis y explora la plataforma.
                 </p>
-                <Link
-                  href="/sign-up"
-                  className={styles.vComingBtn}
-                  onClick={close}
-                >
+                <Link href="/sign-up" className={styles.vComingBtn} onClick={close}>
                   Crear cuenta gratis — 14 días
                   <ArrowRight size={13} aria-hidden />
                 </Link>

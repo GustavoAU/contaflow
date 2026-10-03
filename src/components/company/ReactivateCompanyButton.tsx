@@ -39,7 +39,8 @@ export function ReactivateCompanyButton({ companyId, companyName, userId }: Prop
       className="w-full gap-2"
     >
       <ArchiveRestoreIcon className="h-4 w-4" />
-      {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Reactivando..." : "Reactivar Empresa"}
+      {isPending && <Loader2Icon className="animate-spin" />}
+      {isPending ? "Reactivando..." : "Reactivar Empresa"}
     </Button>
   );
 }

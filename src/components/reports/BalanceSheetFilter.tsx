@@ -12,7 +12,6 @@ interface Props {
   defaultPreset?: string;
 }
 
-
 type Preset = { label: string; key: string; date: () => string };
 
 const PRESETS: Preset[] = [
@@ -104,7 +103,7 @@ export function BalanceSheetFilter({ defaultTo = "", defaultPreset = "" }: Props
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400"
+            className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
           />
         </div>
         <button

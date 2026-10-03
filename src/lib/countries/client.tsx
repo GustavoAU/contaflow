@@ -34,9 +34,7 @@ export function FiscalUIProvider({
   config: ClientFiscalConfig;
   children: React.ReactNode;
 }) {
-  return (
-    <FiscalConfigContext.Provider value={config}>{children}</FiscalConfigContext.Provider>
-  );
+  return <FiscalConfigContext.Provider value={config}>{children}</FiscalConfigContext.Provider>;
 }
 
 export function useFiscalConfig(): FiscalUIConfig {

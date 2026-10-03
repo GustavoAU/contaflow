@@ -1,0 +1,5 @@
+# Commits de formateo masivo: git blame (y GitHub) los saltan para no atribuir cada linea a "style".
+# Uso local: git config blame.ignoreRevsFile .git-blame-ignore-revs  (GitHub lo aplica solo)
+
+# style: formatea src/ con Prettier (sin cambios de logica) - SPEC-002 A, 2026-10-03
+fa349560c9c22595d7630ef3cf5dd49ee40c435a

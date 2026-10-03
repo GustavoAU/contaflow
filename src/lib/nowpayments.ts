@@ -61,7 +61,7 @@ export interface CreateInvoiceParams {
 // ─── Crear invoice ────────────────────────────────────────────────────────────
 
 export async function createNowPaymentsInvoice(
-  params: CreateInvoiceParams,
+  params: CreateInvoiceParams
 ): Promise<NowPaymentsInvoice> {
   const apiKey = process.env.NOWPAYMENTS_API_KEY;
   if (!apiKey) throw new Error("NOWPAYMENTS_API_KEY no configurado");
@@ -97,7 +97,7 @@ export async function createNowPaymentsInvoice(
 export function verifyNowPaymentsSignature(
   rawBody: string,
   signature: string,
-  secret: string,
+  secret: string
 ): boolean {
   if (!signature || !secret) return false;
 
@@ -115,10 +115,7 @@ export function verifyNowPaymentsSignature(
       return acc;
     }, {});
 
-  const expected = crypto
-    .createHmac("sha512", secret)
-    .update(JSON.stringify(sorted))
-    .digest("hex");
+  const expected = crypto.createHmac("sha512", secret).update(JSON.stringify(sorted)).digest("hex");
 
   try {
     const expectedBuf = Buffer.from(expected, "hex");

@@ -52,9 +52,12 @@ export function sumTaxLines(lines: TaxLine[]): string {
 // ─── Formatea monto con símbolo de moneda ────────────────────────────────────
 export function formatCurrencyAmount(amount: string, currency: string): string {
   const num = parseFloat(amount) || 0;
-  if (currency === "VES") return `Bs.D ${num.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  if (currency === "USD") return `$ ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  if (currency === "EUR") return `€ ${num.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (currency === "VES")
+    return `Bs.D ${num.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (currency === "USD")
+    return `$ ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (currency === "EUR")
+    return `€ ${num.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return `${currency} ${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

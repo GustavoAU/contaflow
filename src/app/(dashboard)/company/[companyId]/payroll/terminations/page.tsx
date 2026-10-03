@@ -26,7 +26,7 @@ export default async function TerminationsPage({ params }: Props) {
   const canRead = canAccess(member.role, ROLES.ACCOUNTING);
   if (!canRead) {
     return (
-      <div className="mx-auto max-w-3xl py-8 px-4">
+      <div className="mx-auto max-w-3xl px-4 py-8">
         <p className="text-sm text-gray-500">No tienes acceso a este módulo.</p>
       </div>
     );
@@ -46,14 +46,14 @@ export default async function TerminationsPage({ params }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 py-8 px-4">
+    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
         <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">
           Nómina
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">Liquidaciones Finales</span>
+        <span className="font-medium text-gray-900">Liquidaciones Finales</span>
       </div>
 
       {/* Header */}

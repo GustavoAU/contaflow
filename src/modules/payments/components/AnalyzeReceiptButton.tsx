@@ -38,11 +38,7 @@ export function AnalyzeReceiptButton({ companyId, attachmentId, onAnalyzed }: Pr
   }
 
   const confidenceColor =
-    result && result.confidence >= 0.85
-      ? "text-green-700"
-      : result
-        ? "text-amber-700"
-        : "";
+    result && result.confidence >= 0.85 ? "text-green-700" : result ? "text-amber-700" : "";
 
   return (
     <div className="space-y-2">
@@ -88,28 +84,54 @@ export function AnalyzeReceiptButton({ companyId, attachmentId, onAnalyzed }: Pr
           )}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
             {result.method && (
-              <><span className="text-zinc-400">Método:</span><span className="font-medium">{result.method}</span></>
+              <>
+                <span className="text-zinc-400">Método:</span>
+                <span className="font-medium">{result.method}</span>
+              </>
             )}
             {result.amount && (
-              <><span className="text-zinc-400">Monto:</span><span className="font-mono font-medium">{result.amount} {result.currency ?? ""}</span></>
+              <>
+                <span className="text-zinc-400">Monto:</span>
+                <span className="font-mono font-medium">
+                  {result.amount} {result.currency ?? ""}
+                </span>
+              </>
             )}
             {result.referenceNumber && (
-              <><span className="text-zinc-400">Referencia:</span><span className="font-mono">{result.referenceNumber}</span></>
+              <>
+                <span className="text-zinc-400">Referencia:</span>
+                <span className="font-mono">{result.referenceNumber}</span>
+              </>
             )}
             {result.date && (
-              <><span className="text-zinc-400">Fecha:</span><span className="font-mono">{result.date}</span></>
+              <>
+                <span className="text-zinc-400">Fecha:</span>
+                <span className="font-mono">{result.date}</span>
+              </>
             )}
             {result.originBank && (
-              <><span className="text-zinc-400">Banco origen:</span><span>{result.originBank}</span></>
+              <>
+                <span className="text-zinc-400">Banco origen:</span>
+                <span>{result.originBank}</span>
+              </>
             )}
             {result.destBank && (
-              <><span className="text-zinc-400">Banco destino:</span><span>{result.destBank}</span></>
+              <>
+                <span className="text-zinc-400">Banco destino:</span>
+                <span>{result.destBank}</span>
+              </>
             )}
             {result.senderPhone && (
-              <><span className="text-zinc-400">Tel. emisor:</span><span className="font-mono">{result.senderPhone}</span></>
+              <>
+                <span className="text-zinc-400">Tel. emisor:</span>
+                <span className="font-mono">{result.senderPhone}</span>
+              </>
             )}
             {result.destPhone && (
-              <><span className="text-zinc-400">Tel. receptor:</span><span className="font-mono">{result.destPhone}</span></>
+              <>
+                <span className="text-zinc-400">Tel. receptor:</span>
+                <span className="font-mono">{result.destPhone}</span>
+              </>
             )}
           </div>
           <button

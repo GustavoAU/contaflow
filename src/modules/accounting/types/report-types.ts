@@ -14,7 +14,7 @@
 export type JournalLine = {
   accountCode: string;
   accountName: string;
-  debit: string;  // "1000.00" si es débito, "" si es crédito
+  debit: string; // "1000.00" si es débito, "" si es crédito
   credit: string; // "1000.00" si es crédito, "" si es débito
 };
 
@@ -36,11 +36,11 @@ export type JournalTransaction = {
 // Un movimiento individual en el Mayor de una cuenta (una fila de la tabla)
 export type LedgerEntry = {
   date: Date;
-  number: string;       // número de transacción
+  number: string; // número de transacción
   description: string;
-  debit: string;        // "1000.00" o "" si es crédito
-  credit: string;       // "1000.00" o "" si es débito
-  balance: string;      // saldo rodante acumulado después de este movimiento
+  debit: string; // "1000.00" o "" si es crédito
+  credit: string; // "1000.00" o "" si es débito
+  balance: string; // saldo rodante acumulado después de este movimiento
   transactionId: string;
 };
 

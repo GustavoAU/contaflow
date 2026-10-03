@@ -32,7 +32,7 @@ export default async function BenefitsPage({ params }: Props) {
   const canRead = canAccess(member.role, ROLES.ACCOUNTING);
   if (!canRead) {
     return (
-      <div className="mx-auto max-w-3xl py-8 px-4">
+      <div className="mx-auto max-w-3xl px-4 py-8">
         <p className="text-sm text-gray-500">No tienes acceso a este módulo.</p>
       </div>
     );
@@ -62,26 +62,30 @@ export default async function BenefitsPage({ params }: Props) {
   ]);
 
   // ¿El mes actual o el mes anterior tienen tasa BCV?
-  const currentMonthBcvRate = bcvRates.find((r) => r.year === currentYear && r.month === currentMonth);
+  const currentMonthBcvRate = bcvRates.find(
+    (r) => r.year === currentYear && r.month === currentMonth
+  );
   const hasPrevMonthRate = !!prevMonthBcvRate;
   const hasCurrentMonthRate = !!currentMonthBcvRate;
 
   // Cargar saldos de los primeros 20 empleados activos
   const balances = await Promise.all(
-    employees.slice(0, 20).map((emp) =>
-      BenefitAccrualService.getBalance(companyId, emp.id).then((b) => ({ emp, balance: b }))
-    )
+    employees
+      .slice(0, 20)
+      .map((emp) =>
+        BenefitAccrualService.getBalance(companyId, emp.id).then((b) => ({ emp, balance: b }))
+      )
   );
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 py-8 px-4">
+    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
         <Link href={`/company/${companyId}/payroll`} className="hover:text-gray-700">
           Nómina
         </Link>
         <span>/</span>
-        <span className="text-gray-900 font-medium">Prestaciones Sociales</span>
+        <span className="font-medium text-gray-900">Prestaciones Sociales</span>
       </div>
 
       <div>
@@ -96,13 +100,15 @@ export default async function BenefitsPage({ params }: Props) {
         <div className="space-y-6">
           {/* Acumulación trimestral */}
           <section className="rounded-lg border p-5">
-            <h2 className="text-base font-semibold text-gray-800 mb-1">
-              Acumulación trimestral
-            </h2>
-            <p className="text-xs text-gray-500 mb-4">
-              5 días de salario integral por trimestre (Art. 142 LOTTT). Se procesa una vez por trimestre para todos los empleados activos.
+            <h2 className="mb-1 text-base font-semibold text-gray-800">Acumulación trimestral</h2>
+            <p className="mb-4 text-xs text-gray-500">
+              5 días de salario integral por trimestre (Art. 142 LOTTT). Se procesa una vez por
+              trimestre para todos los empleados activos.
             </p>
-            <AccrueQuarterForm companyId={companyId} isCurrentQuarterAccrued={!!currentQuarterAccrual} />
+            <AccrueQuarterForm
+              companyId={companyId}
+              isCurrentQuarterAccrued={!!currentQuarterAccrual}
+            />
             <div className="mt-4 border-t pt-4">
               <BackfillBenefitsButton companyId={companyId} />
             </div>
@@ -110,23 +116,26 @@ export default async function BenefitsPage({ params }: Props) {
 
           {/* Intereses BCV */}
           <section className="rounded-lg border p-5">
-            <h2 className="text-base font-semibold text-gray-800 mb-1">
+            <h2 className="mb-1 text-base font-semibold text-gray-800">
               Intereses sobre prestaciones
             </h2>
-            <p className="text-xs text-gray-500 mb-4">
-              Intereses mensuales calculados automáticamente con la tasa BCV registrada para el mes seleccionado (Art. 143 LOTTT).
+            <p className="mb-4 text-xs text-gray-500">
+              Intereses mensuales calculados automáticamente con la tasa BCV registrada para el mes
+              seleccionado (Art. 143 LOTTT).
             </p>
             <PostInterestForm companyId={companyId} />
           </section>
 
           {/* Tasas BCV */}
           <section className="rounded-lg border p-5">
-            <h2 className="text-base font-semibold text-gray-800 mb-3">
-              Tasas BCV registradas
-            </h2>
+            <h2 className="mb-3 text-base font-semibold text-gray-800">Tasas BCV registradas</h2>
             <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Registrar nueva tasa</h3>
-              <BcvRateForm companyId={companyId} hasCurrentMonthRate={hasCurrentMonthRate} hasPrevMonthRate={hasPrevMonthRate} />
+              <h3 className="mb-3 text-sm font-medium text-gray-700">Registrar nueva tasa</h3>
+              <BcvRateForm
+                companyId={companyId}
+                hasCurrentMonthRate={hasCurrentMonthRate}
+                hasPrevMonthRate={hasPrevMonthRate}
+              />
             </div>
             <BcvRateList rates={bcvRates} />
           </section>
@@ -135,9 +144,7 @@ export default async function BenefitsPage({ params }: Props) {
 
       {/* Saldos por empleado */}
       <section>
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Saldos de prestaciones
-        </h2>
+        <h2 className="mb-4 text-lg font-semibold text-gray-800">Saldos de prestaciones</h2>
 
         {employees.length === 0 && (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-gray-500">
@@ -147,11 +154,8 @@ export default async function BenefitsPage({ params }: Props) {
 
         <div className="space-y-4">
           {balances.map(({ emp, balance }) => (
-            <details
-              key={emp.id}
-              className="rounded-lg border overflow-hidden group"
-            >
-              <summary className="flex items-center justify-between cursor-pointer px-4 py-3 hover:bg-gray-50 select-none">
+            <details key={emp.id} className="group overflow-hidden rounded-lg border">
+              <summary className="flex cursor-pointer items-center justify-between px-4 py-3 select-none hover:bg-gray-50">
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-gray-900">{emp.fullName}</span>
                   <span className="text-xs text-gray-400">{emp.position}</span>
@@ -162,7 +166,9 @@ export default async function BenefitsPage({ params }: Props) {
                       <span className="text-sm text-gray-600">
                         Garantía:{" "}
                         <span className="font-mono font-semibold">
-                          {Number(balance.currentBalance).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                          {Number(balance.currentBalance).toLocaleString("es-VE", {
+                            minimumFractionDigits: 2,
+                          })}
                         </span>
                       </span>
                       {balance.isLiquidated && (
@@ -174,12 +180,22 @@ export default async function BenefitsPage({ params }: Props) {
                   ) : (
                     <span className="text-xs text-gray-400 italic">Sin prestaciones</span>
                   )}
-                  <svg className="h-4 w-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <svg
+                    className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
                   </svg>
                 </div>
               </summary>
-              <div className="px-4 py-4 border-t bg-white">
+              <div className="border-t bg-white px-4 py-4">
                 {balance ? (
                   <BenefitBalancePanel
                     balance={balance}
@@ -198,8 +214,9 @@ export default async function BenefitsPage({ params }: Props) {
         </div>
 
         {employees.length > 20 && (
-          <p className="mt-3 text-xs text-gray-400 text-center">
-            Mostrando los primeros 20 empleados. Usa el módulo de Empleados para ver prestaciones individuales.
+          <p className="mt-3 text-center text-xs text-gray-400">
+            Mostrando los primeros 20 empleados. Usa el módulo de Empleados para ver prestaciones
+            individuales.
           </p>
         )}
       </section>

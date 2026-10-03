@@ -21,12 +21,16 @@ export default async function BanavihReportPage({ params }: Props) {
   if (!canAccess(member.role, ROLES.ACCOUNTING)) redirect(`/company/${companyId}/payroll`);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 py-8 px-4">
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <div>
-        <div className="flex items-center gap-2 text-sm text-zinc-500 mb-1">
-          <Link href={`/company/${companyId}/payroll`} className="hover:text-zinc-800">Nómina</Link>
+        <div className="mb-1 flex items-center gap-2 text-sm text-zinc-500">
+          <Link href={`/company/${companyId}/payroll`} className="hover:text-zinc-800">
+            Nómina
+          </Link>
           <span>›</span>
-          <Link href={`/company/${companyId}/payroll/reports`} className="hover:text-zinc-800">Reportes</Link>
+          <Link href={`/company/${companyId}/payroll/reports`} className="hover:text-zinc-800">
+            Reportes
+          </Link>
           <span>›</span>
           <span>Banavih</span>
         </div>

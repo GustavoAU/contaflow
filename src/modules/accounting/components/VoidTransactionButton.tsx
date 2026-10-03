@@ -43,7 +43,9 @@ export function VoidTransactionButton({ transactionId, transactionNumber, userId
     startTransition(async () => {
       const result = await voidTransactionAction({ transactionId, userId, reason: reason.trim() });
       if (result.success) {
-        toast.success(`Asiento ${transactionNumber} anulado. Se creó el asiento de reversión ${result.data.number}.`);
+        toast.success(
+          `Asiento ${transactionNumber} anulado. Se creó el asiento de reversión ${result.data.number}.`
+        );
         setOpen(false);
         setReason("");
         router.refresh();
@@ -69,12 +71,13 @@ export function VoidTransactionButton({ transactionId, transactionNumber, userId
           <div className="space-y-4 py-2">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               La anulación no borra el asiento: genera un asiento de reversión con los montos
-              invertidos y marca este como <span className="font-medium">Anulado</span>. Esta
-              acción no se puede deshacer.
+              invertidos y marca este como <span className="font-medium">Anulado</span>. Esta acción
+              no se puede deshacer.
             </p>
             <div className="space-y-1.5">
               <Label htmlFor="void-reason" className="text-xs">
-                Motivo de la anulación * <span className="text-zinc-400">(mín. {MIN_REASON} caracteres)</span>
+                Motivo de la anulación *{" "}
+                <span className="text-zinc-400">(mín. {MIN_REASON} caracteres)</span>
               </Label>
               <Input
                 id="void-reason"

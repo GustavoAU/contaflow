@@ -100,8 +100,10 @@ describe("NotificationService.getAlerts", () => {
   it("ordena: error primero, warning segundo, info último", async () => {
     vi.mocked(prisma.invoice.findMany)
       .mockResolvedValueOnce([makeInvoice()] as never) // overdue → error
-      .mockResolvedValueOnce([makeInvoice({ id: "inv-2", dueDate: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000) })] as never); // due soon → warning
-    vi.mocked(prisma.retencion.count).mockResolvedValue(1 as never);  // → warning
+      .mockResolvedValueOnce([
+        makeInvoice({ id: "inv-2", dueDate: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000) }),
+      ] as never); // due soon → warning
+    vi.mocked(prisma.retencion.count).mockResolvedValue(1 as never); // → warning
     vi.mocked(prisma.inventoryMovement.count).mockResolvedValue(2 as never); // → info
 
     const alerts = await NotificationService.getAlerts(COMPANY_ID);

@@ -28,25 +28,30 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
     const adapter = new PrismaPg({ connectionString: DB_URL });
     prisma = new PrismaClient({ adapter });
     await prisma.$connect();
+    // ControlNumberSequence.companyId tiene FK a Company (onDelete: Restrict): sin esta fila
+    // el primer getNextControlNumber falla con P2003. Solo `id` y `name` son obligatorios.
+    await prisma.company.create({ data: { id: COMPANY_ID, name: "integration-test" } });
   });
 
   afterAll(async () => {
     if (!prisma) return;
-    // Cleanup: remove test data so repeated runs stay idempotent
+    // Cleanup: remove test data so repeated runs stay idempotent.
+    // Orden: primero las secuencias (hijas, Restrict) y después la empresa.
     await prisma.controlNumberSequence.deleteMany({
       where: { companyId: COMPANY_ID },
     });
+    await prisma.company.deleteMany({ where: { id: COMPANY_ID } });
     await prisma.$disconnect();
   });
 
   it("dos llamadas secuenciales retornan números distintos", async () => {
     const n1 = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     const n2 = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     expect(n1).not.toBe(n2);
     expect(n1).toMatch(/^00-\d{8}$/);
@@ -54,15 +59,29 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
   });
 
   it("llamadas concurrentes nunca retornan el mismo número", async () => {
-    // Lanza 5 transacciones en paralelo — sin Serializable habría colisión
-    const results = await Promise.all(
-      Array.from({ length: 5 }, () =>
-        prisma.$transaction(
-          (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-          { isolationLevel: "Serializable" },
-        ),
-      ),
-    );
+    // Lanza 5 transacciones Serializable en paralelo sobre la MISMA fila de secuencia.
+    // Postgres hace perder a algunas con P2034 (TransactionWriteConflict): es el comportamiento
+    // correcto y la app lo reintenta (src/lib/tx-helpers.ts, withSerializableRetry). Aquí no se
+    // puede importar ese helper: está atado al cliente de la app (@/lib/prisma, DATABASE_URL,
+    // adaptador de Neon) y limitado a 3 intentos; este test usa su propio cliente contra la BD
+    // de test. Se replica la misma política de reintento solo para P2034.
+    // Lo que se garantiza: NINGÚN número duplicado, aunque haya conflictos de serialización.
+    const nextWithRetry = async (maxAttempts = 10): Promise<string> => {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await prisma.$transaction(
+            (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
+            { isolationLevel: "Serializable" }
+          );
+        } catch (e) {
+          const isSerializationFailure = (e as { code?: string }).code === "P2034";
+          if (!isSerializationFailure || attempt >= maxAttempts) throw e;
+          await new Promise((r) => setTimeout(r, 20 * attempt + Math.random() * 30));
+        }
+      }
+    };
+
+    const results = await Promise.all(Array.from({ length: 5 }, () => nextWithRetry()));
 
     const unique = new Set(results);
     expect(unique.size).toBe(5); // todos distintos
@@ -72,11 +91,11 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
   it("tipos distintos (SALE vs PURCHASE) tienen secuencias independientes", async () => {
     const sale = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     const purchase = await prisma.$transaction(
       (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.PURCHASE),
-      { isolationLevel: "Serializable" },
+      { isolationLevel: "Serializable" }
     );
     // Cada tipo tiene su propia secuencia — no interfieren entre sí
     expect(sale).not.toBe(purchase);

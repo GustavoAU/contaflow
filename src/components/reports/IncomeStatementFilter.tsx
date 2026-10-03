@@ -14,8 +14,11 @@ interface Props {
   defaultCmpTo?: string;
 }
 
-
-type Preset = { label: string; key: string; range: () => { from: string; to: string; cmpFrom: string; cmpTo: string } };
+type Preset = {
+  label: string;
+  key: string;
+  range: () => { from: string; to: string; cmpFrom: string; cmpTo: string };
+};
 
 const PRESETS: Preset[] = [
   {
@@ -61,7 +64,12 @@ const PRESETS: Preset[] = [
   },
 ];
 
-export function IncomeStatementFilter({ defaultFrom = "", defaultTo = "", defaultCmpFrom = "", defaultCmpTo = "" }: Props) {
+export function IncomeStatementFilter({
+  defaultFrom = "",
+  defaultTo = "",
+  defaultCmpFrom = "",
+  defaultCmpTo = "",
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [from, setFrom] = useState(defaultFrom);
@@ -84,19 +92,30 @@ export function IncomeStatementFilter({ defaultFrom = "", defaultTo = "", defaul
   }
 
   function clear() {
-    setFrom(""); setTo(""); setCmpFrom(""); setCmpTo("");
+    setFrom("");
+    setTo("");
+    setCmpFrom("");
+    setCmpTo("");
     router.push(pathname);
   }
 
   function applyPreset(preset: Preset) {
     const r = preset.range();
-    setFrom(r.from); setTo(r.to); setCmpFrom(r.cmpFrom); setCmpTo(r.cmpTo);
+    setFrom(r.from);
+    setTo(r.to);
+    setCmpFrom(r.cmpFrom);
+    setCmpTo(r.cmpTo);
     navigate(r.from, r.to, r.cmpFrom, r.cmpTo);
   }
 
   function isActive(preset: Preset): boolean {
     const r = preset.range();
-    return defaultFrom === r.from && defaultTo === r.to && defaultCmpFrom === r.cmpFrom && defaultCmpTo === r.cmpTo;
+    return (
+      defaultFrom === r.from &&
+      defaultTo === r.to &&
+      defaultCmpFrom === r.cmpFrom &&
+      defaultCmpTo === r.cmpTo
+    );
   }
 
   const hasFilter = Boolean(defaultFrom || defaultTo || defaultCmpFrom || defaultCmpTo);
@@ -121,41 +140,63 @@ export function IncomeStatementFilter({ defaultFrom = "", defaultTo = "", defaul
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2 rounded-md border border-zinc-200 bg-white p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Período actual</p>
+          <p className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+            Período actual
+          </p>
           <div className="flex flex-wrap gap-3">
             <div className="space-y-1">
               <label className="text-xs text-zinc-500">Desde</label>
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-zinc-500">Hasta</label>
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
+              />
             </div>
           </div>
         </div>
 
         <div className="space-y-2 rounded-md border border-zinc-200 bg-zinc-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Período a comparar (opcional)</p>
+          <p className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+            Período a comparar (opcional)
+          </p>
           <div className="flex flex-wrap gap-3">
             <div className="space-y-1">
               <label className="text-xs text-zinc-400">Desde</label>
-              <input type="date" value={cmpFrom} onChange={(e) => setCmpFrom(e.target.value)}
-                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+              <input
+                type="date"
+                value={cmpFrom}
+                onChange={(e) => setCmpFrom(e.target.value)}
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-zinc-400">Hasta</label>
-              <input type="date" value={cmpTo} onChange={(e) => setCmpTo(e.target.value)}
-                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-400" />
+              <input
+                type="date"
+                value={cmpTo}
+                onChange={(e) => setCmpTo(e.target.value)}
+                className="min-w-36 rounded-md border px-3 py-1.5 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
+              />
             </div>
           </div>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={apply}
-          className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+        <button
+          onClick={apply}
+          className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+        >
           Filtrar
         </button>
         {hasFilter && (

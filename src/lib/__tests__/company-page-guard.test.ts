@@ -64,7 +64,7 @@ describe("requireCompanyPage", () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(null as never);
 
     await expect(requireCompanyPage("empresa-ajena", { name: true })).rejects.toThrow(
-      "NEXT_REDIRECT",
+      "NEXT_REDIRECT"
     );
 
     expect(redirect).toHaveBeenCalledWith("/dashboard");

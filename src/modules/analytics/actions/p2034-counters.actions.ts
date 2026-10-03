@@ -10,7 +10,7 @@ import { toActionError } from "../utils/action-errors";
 export type P2034DayCount = { date: string; count: number };
 
 export async function getP2034CountersAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<P2034DayCount[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });

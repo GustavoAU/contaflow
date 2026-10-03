@@ -26,7 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { closeFiscalYearAction, appropriateFiscalYearResultAction } from "../actions/fiscal-close.actions";
+import {
+  closeFiscalYearAction,
+  appropriateFiscalYearResultAction,
+} from "../actions/fiscal-close.actions";
 import type { FiscalYearCloseSummary } from "../services/FiscalYearCloseService";
 
 type SerializedFiscalYearCloseSummary = Omit<
@@ -116,74 +119,80 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
       {/* ── Cierre del ejercicio actual ────────────────────────────────────── */}
       {yearToClose === null ? (
         <div className="rounded-lg border bg-zinc-50 p-4 text-center">
-          <p className="text-sm text-zinc-600">No hay ningún ejercicio fiscal abierto para cerrar.</p>
+          <p className="text-sm text-zinc-600">
+            No hay ningún ejercicio fiscal abierto para cerrar.
+          </p>
           <p className="text-muted-foreground mt-1 text-xs">
             Abre un ejercicio primero en Contabilidad → Ejercicios.
           </p>
         </div>
       ) : (
-      <div className="rounded-lg border p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold">Cierre de Ejercicio {yearToClose}</h3>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Genera los asientos de cierre de cuentas de resultado (VEN-NIF).
-              Esta operación es irreversible.
-            </p>
+        <div className="space-y-3 rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">Cierre de Ejercicio {yearToClose}</h3>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Genera los asientos de cierre de cuentas de resultado (VEN-NIF). Esta operación es
+                irreversible.
+              </p>
+            </div>
+            {alreadyClosed ? (
+              <Badge variant="secondary">Cerrado</Badge>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={!isConfigured || isPendingClose}
+                  >
+                    {isPendingClose && <Loader2Icon className="animate-spin" />}
+                    {isPendingClose ? "Cerrando..." : `Cerrar Ejercicio ${yearToClose}`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      ¿Cerrar el Ejercicio Económico {yearToClose}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta operación es <strong>irreversible</strong>. Se generarán los asientos de
+                      cierre de todas las cuentas de ingresos y gastos del año {yearToClose}.
+                      <br />
+                      <br />
+                      Después del cierre:
+                      <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
+                        <li>No se podrán crear nuevos asientos para el año {yearToClose}</li>
+                        <li>
+                          No se podrán registrar facturas ni retenciones con fecha en {yearToClose}
+                        </li>
+                        <li>Los períodos del año {yearToClose} no se podrán reabrir</li>
+                      </ul>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClose} variant="destructive">
+                      Sí, cerrar ejercicio {yearToClose}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
-          {alreadyClosed ? (
-            <Badge variant="secondary">Cerrado</Badge>
-          ) : (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={!isConfigured || isPendingClose}
-                >
-                  {isPendingClose && <Loader2Icon className="animate-spin" />}{isPendingClose ? "Cerrando..." : `Cerrar Ejercicio ${yearToClose}`}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    ¿Cerrar el Ejercicio Económico {yearToClose}?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta operación es <strong>irreversible</strong>. Se generarán los asientos de
-                    cierre de todas las cuentas de ingresos y gastos del año {yearToClose}.
-                    <br />
-                    <br />
-                    Después del cierre:
-                    <ul className="mt-2 list-disc list-inside space-y-1 text-sm">
-                      <li>No se podrán crear nuevos asientos para el año {yearToClose}</li>
-                      <li>No se podrán registrar facturas ni retenciones con fecha en {yearToClose}</li>
-                      <li>Los períodos del año {yearToClose} no se podrán reabrir</li>
-                    </ul>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClose} variant="destructive">
-                    Sí, cerrar ejercicio {yearToClose}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          {!isConfigured && !alreadyClosed && (
+            <p className="text-destructive text-xs">
+              ⚠ Configura las cuentas de cierre en &quot;Configuración Contable&quot; antes de
+              continuar.
+            </p>
           )}
         </div>
-        {!isConfigured && !alreadyClosed && (
-          <p className="text-destructive text-xs">
-            ⚠ Configura las cuentas de cierre en &quot;Configuración Contable&quot; antes de continuar.
-          </p>
-        )}
-      </div>
       )}
 
       {/* ── Historial de cierres ───────────────────────────────────────────── */}
       {localHistory.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold mb-3">Historial de Cierres</h3>
+          <h3 className="mb-3 text-sm font-semibold">Historial de Cierres</h3>
           <Table>
             <TableHeader>
               <TableRow>
@@ -223,11 +232,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
                       ) : (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={isPendingAppropriation}
-                            >
+                            <Button variant="outline" size="sm" disabled={isPendingAppropriation}>
                               Registrar
                             </Button>
                           </AlertDialogTrigger>
@@ -238,9 +243,9 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
                               </AlertDialogTitle>
                               <AlertDialogDescription>
                                 Se generará el asiento de transferencia del resultado del ejercicio{" "}
-                                {record.year} a la cuenta de Utilidades Retenidas / Pérdidas Acumuladas.
-                                Esta operación corresponde a la decisión de la Asamblea General Ordinaria
-                                (AGO).
+                                {record.year} a la cuenta de Utilidades Retenidas / Pérdidas
+                                Acumuladas. Esta operación corresponde a la decisión de la Asamblea
+                                General Ordinaria (AGO).
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

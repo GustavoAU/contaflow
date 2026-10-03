@@ -12,7 +12,20 @@ import {
 } from "recharts";
 import type { MonthlyRevExpPoint } from "../services/DashboardAnalyticsService";
 
-const MONTH_LABELS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const MONTH_LABELS = [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic",
+];
 
 type Props = {
   data: MonthlyRevExpPoint[];
@@ -27,7 +40,7 @@ export function RevenueExpenseChart({ data }: Props) {
 
   if (chartData.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex h-64 items-center justify-center text-sm">
         Sin datos para el período seleccionado
       </div>
     );

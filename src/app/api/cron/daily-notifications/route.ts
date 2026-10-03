@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
   console.info(
     `[cron/daily-notifications] Completado en ${elapsed}ms — ` +
-    `${results.length} empresas, ${sent} con emails enviados, ${skipped} sin tareas, ${errors.length} errores`,
+      `${results.length} empresas, ${sent} con emails enviados, ${skipped} sin tareas, ${errors.length} errores`
   );
 
   return NextResponse.json({

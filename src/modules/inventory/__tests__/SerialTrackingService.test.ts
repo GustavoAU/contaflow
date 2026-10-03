@@ -88,16 +88,16 @@ describe("createSerials", () => {
 
     await expect(
       createSerials(tx as never, COMPANY, ITEM, MOVEMENT, [sensitiveSerial], USER)
-    ).rejects.toThrow(expect.objectContaining({
-      message: expect.not.stringContaining(sensitiveSerial),
-    }));
+    ).rejects.toThrow(
+      expect.objectContaining({
+        message: expect.not.stringContaining(sensitiveSerial),
+      })
+    );
   });
 
   it("crea correctamente con notas opcionales", async () => {
     const tx = makeTx();
-    tx.inventorySerial.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: "ser-1" }]);
+    tx.inventorySerial.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: "ser-1" }]);
 
     await createSerials(tx as never, COMPANY, ITEM, MOVEMENT, ["SN-001"], USER, "Factura 001");
 
@@ -143,15 +143,19 @@ describe("validateSerialAvailability", () => {
     tx.inventorySerial.findMany.mockResolvedValue([{ id: "ser-1", status: "AVAILABLE" }]);
 
     await expect(
-      validateSerialAvailability(tx as never, COMPANY, ITEM, ["ser-1", "ser-cross-tenant"], new Decimal("2"))
+      validateSerialAvailability(
+        tx as never,
+        COMPANY,
+        ITEM,
+        ["ser-1", "ser-cross-tenant"],
+        new Decimal("2")
+      )
     ).rejects.toThrow("ERR_SERIAL_NOT_FOUND");
   });
 
   it("lanza error si algún serial no está en estado AVAILABLE (SOLD)", async () => {
     const tx = makeTx();
-    tx.inventorySerial.findMany.mockResolvedValue([
-      { id: "ser-1", status: "SOLD" },
-    ]);
+    tx.inventorySerial.findMany.mockResolvedValue([{ id: "ser-1", status: "SOLD" }]);
 
     await expect(
       validateSerialAvailability(tx as never, COMPANY, ITEM, ["ser-1"], new Decimal("1"))
@@ -160,9 +164,7 @@ describe("validateSerialAvailability", () => {
 
   it("lanza error si algún serial está VOIDED", async () => {
     const tx = makeTx();
-    tx.inventorySerial.findMany.mockResolvedValue([
-      { id: "ser-1", status: "VOIDED" },
-    ]);
+    tx.inventorySerial.findMany.mockResolvedValue([{ id: "ser-1", status: "VOIDED" }]);
 
     await expect(
       validateSerialAvailability(tx as never, COMPANY, ITEM, ["ser-1"], new Decimal("1"))
@@ -171,9 +173,7 @@ describe("validateSerialAvailability", () => {
 
   it("lanza error si algún serial está IN_TRANSIT", async () => {
     const tx = makeTx();
-    tx.inventorySerial.findMany.mockResolvedValue([
-      { id: "ser-1", status: "IN_TRANSIT" },
-    ]);
+    tx.inventorySerial.findMany.mockResolvedValue([{ id: "ser-1", status: "IN_TRANSIT" }]);
 
     await expect(
       validateSerialAvailability(tx as never, COMPANY, ITEM, ["ser-1"], new Decimal("1"))
@@ -186,7 +186,13 @@ describe("validateSerialAvailability", () => {
     tx.inventorySerial.findMany.mockResolvedValue([{ id: sensitiveSerial, status: "SOLD" }]);
 
     try {
-      await validateSerialAvailability(tx as never, COMPANY, ITEM, [sensitiveSerial], new Decimal("1"));
+      await validateSerialAvailability(
+        tx as never,
+        COMPANY,
+        ITEM,
+        [sensitiveSerial],
+        new Decimal("1")
+      );
       expect.fail("should have thrown");
     } catch (e) {
       expect((e as Error).message).not.toContain(sensitiveSerial);
@@ -245,9 +251,7 @@ describe("voidSerialMovement", () => {
 
   it("void ENTRADA: marca seriales como VOIDED (nunca AVAILABLE — ADR-021 D-3)", async () => {
     const tx = makeTx();
-    tx.inventoryMovementSerial.findMany.mockResolvedValue([
-      { serialId: "ser-1" },
-    ]);
+    tx.inventoryMovementSerial.findMany.mockResolvedValue([{ serialId: "ser-1" }]);
 
     await voidSerialMovement(tx as never, COMPANY, MOVEMENT, "ENTRADA");
 

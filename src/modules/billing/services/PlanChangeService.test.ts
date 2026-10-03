@@ -112,38 +112,41 @@ describe("requestPlanChange", () => {
     });
 
     await expect(
-      requestPlanChange(COMPANY_ID, "EARLY_ADOPTER", USER_ID, null, null),
+      requestPlanChange(COMPANY_ID, "EARLY_ADOPTER", USER_ID, null, null)
     ).rejects.toThrow(/no está disponible para el perfil SOLO/);
     expect(prisma.planChangeRequest.create).not.toHaveBeenCalled();
   });
 
   it("rechaza si no hay suscripción", async () => {
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null);
-    await expect(
-      requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null),
-    ).rejects.toThrow(/no tiene una suscripción/i);
+    await expect(requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null)).rejects.toThrow(
+      /no tiene una suscripción/i
+    );
   });
 
   it("rechaza si la suscripción no está ACTIVE", async () => {
-    vi.mocked(prisma.subscription.findUnique).mockResolvedValue({ ...ACTIVE_SUB, status: "PAST_DUE" } as never);
-    await expect(
-      requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null),
-    ).rejects.toThrow(/no está activa/i);
+    vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+      ...ACTIVE_SUB,
+      status: "PAST_DUE",
+    } as never);
+    await expect(requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null)).rejects.toThrow(
+      /no está activa/i
+    );
   });
 
   it("rechaza si ya está en ese plan", async () => {
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(ACTIVE_SUB as never);
-    await expect(
-      requestPlanChange(COMPANY_ID, "MONTHLY", USER_ID, null, null),
-    ).rejects.toThrow(/Ya estás en ese plan/i);
+    await expect(requestPlanChange(COMPANY_ID, "MONTHLY", USER_ID, null, null)).rejects.toThrow(
+      /Ya estás en ese plan/i
+    );
   });
 
   it("rechaza si ya hay una solicitud activa (pre-check)", async () => {
     vi.mocked(prisma.subscription.findUnique).mockResolvedValue(ACTIVE_SUB as never);
     vi.mocked(prisma.planChangeRequest.findFirst).mockResolvedValue({ id: "existing" } as never);
-    await expect(
-      requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null),
-    ).rejects.toThrow(/cambio de plan pendiente/i);
+    await expect(requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null)).rejects.toThrow(
+      /cambio de plan pendiente/i
+    );
   });
 
   it("MEDIUM-1: P2002 en el create (índice único parcial) → mensaje de negocio", async () => {
@@ -157,9 +160,9 @@ describe("requestPlanChange", () => {
     vi.mocked(prisma.planChangeRequest.create).mockRejectedValue(p2002);
     mockTransaction();
 
-    await expect(
-      requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null),
-    ).rejects.toThrow(/cambio de plan pendiente/i);
+    await expect(requestPlanChange(COMPANY_ID, "ANNUAL", USER_ID, null, null)).rejects.toThrow(
+      /cambio de plan pendiente/i
+    );
   });
 });
 
@@ -207,7 +210,9 @@ describe("createPlanChangeCheckout", () => {
 
   it("cleanup: reusa el SubscriptionPayment PENDING existente (no crea otro) y regenera el invoice", async () => {
     vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(PENDING_REQ as never);
-    vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue({ id: "pay-existente" } as never);
+    vi.mocked(prisma.subscriptionPayment.findFirst).mockResolvedValue({
+      id: "pay-existente",
+    } as never);
     vi.mocked(prisma.subscriptionPayment.update).mockResolvedValue({} as never);
     vi.mocked(nowpayments.createNowPaymentsInvoice).mockResolvedValue(INVOICE as never);
     mockTransaction();
@@ -225,7 +230,9 @@ describe("createPlanChangeCheckout", () => {
 
   it("rechaza si la request no existe", async () => {
     vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(null);
-    await expect(createPlanChangeCheckout("nope", USER_ID, null, null)).rejects.toThrow(/no encontrada/i);
+    await expect(createPlanChangeCheckout("nope", USER_ID, null, null)).rejects.toThrow(
+      /no encontrada/i
+    );
     expect(prisma.subscriptionPayment.create).not.toHaveBeenCalled();
   });
 
@@ -235,7 +242,7 @@ describe("createPlanChangeCheckout", () => {
       status: "CONFIRMED",
     } as never);
     await expect(createPlanChangeCheckout("req-1", USER_ID, null, null)).rejects.toThrow(
-      /no está pendiente de pago/i,
+      /no está pendiente de pago/i
     );
     expect(prisma.subscriptionPayment.create).not.toHaveBeenCalled();
   });
@@ -321,7 +328,7 @@ describe("cancelPlanChange", () => {
     mockTransaction();
 
     await expect(cancelPlanChange("req-1", USER_ID, "x", null, null)).rejects.toThrow(
-      /procesada o cancelada/i,
+      /procesada o cancelada/i
     );
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
@@ -329,7 +336,9 @@ describe("cancelPlanChange", () => {
   it("rechaza si no existe", async () => {
     vi.mocked(prisma.planChangeRequest.findUnique).mockResolvedValue(null);
     mockTransaction();
-    await expect(cancelPlanChange("nope", USER_ID, "x", null, null)).rejects.toThrow(/no encontrada/i);
+    await expect(cancelPlanChange("nope", USER_ID, "x", null, null)).rejects.toThrow(
+      /no encontrada/i
+    );
   });
 });
 

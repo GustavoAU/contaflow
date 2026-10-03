@@ -9,7 +9,9 @@ vi.mock("@/modules/invoices/actions/invoice.actions", () => ({
 }));
 
 vi.mock("@/modules/exchange-rates/actions/exchange-rate.actions", () => ({
-  getLatestRateAction: vi.fn().mockResolvedValue({ success: false, error: "Sin tasa BCV registrada" }),
+  getLatestRateAction: vi
+    .fn()
+    .mockResolvedValue({ success: false, error: "Sin tasa BCV registrada" }),
 }));
 
 vi.mock("sonner", () => ({

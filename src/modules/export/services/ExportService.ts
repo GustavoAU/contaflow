@@ -84,11 +84,11 @@ async function fetchInvoices(params: ExportDataParams) {
       "Número Factura": inv.invoiceNumber,
       "Número Control": inv.controlNumber ?? "",
       "Tipo Doc": inv.docType,
-      "Tipo": inv.type,
-      "Fecha": formatDate(inv.date),
-      "Contraparte": inv.counterpartName,
+      Tipo: inv.type,
+      Fecha: formatDate(inv.date),
+      Contraparte: inv.counterpartName,
       "RIF Contraparte": inv.counterpartRif,
-      "Moneda": inv.currency,
+      Moneda: inv.currency,
       "Categoría Fiscal": inv.taxCategory,
       "Base Imponible 16%": String(ivaGeneral?.base ?? 0),
       "IVA 16%": String(ivaGeneral?.amount ?? 0),
@@ -99,7 +99,7 @@ async function fetchInvoices(params: ExportDataParams) {
       "Ret. IVA": String(inv.ivaRetentionAmount),
       "Comprobante Ret. IVA": inv.ivaRetentionVoucher ?? "",
       "Ret. ISLR": String(inv.islrRetentionAmount),
-      "IGTF": String(inv.igtfAmount),
+      IGTF: String(inv.igtfAmount),
       "Estado Pago": inv.paymentStatus,
       "Doc. Relacionado": inv.relatedDocNumber ?? "",
     };
@@ -135,11 +135,11 @@ async function fetchTransactions(params: ExportDataParams) {
     for (const entry of tx.entries) {
       flatRows.push({
         "Número Asiento": tx.number,
-        "Fecha": formatDate(tx.date),
-        "Descripción": tx.description,
-        "Referencia": tx.reference ?? "",
-        "Tipo": tx.type,
-        "Estado": tx.status,
+        Fecha: formatDate(tx.date),
+        Descripción: tx.description,
+        Referencia: tx.reference ?? "",
+        Tipo: tx.type,
+        Estado: tx.status,
         "Código Cuenta": entry.account.code,
         "Nombre Cuenta": entry.account.name,
         "Debe (+) / Haber (-)": String(entry.amount),
@@ -178,7 +178,7 @@ async function fetchRetenciones(params: ExportDataParams) {
 
   return rows.map((r) => ({
     "N° Comprobante": r.voucherNumber ?? "",
-    "Proveedor": r.providerName,
+    Proveedor: r.providerName,
     "RIF Proveedor": r.providerRif,
     "N° Factura": r.invoiceNumber,
     "Fecha Factura": formatDate(r.invoiceDate),
@@ -190,8 +190,8 @@ async function fetchRetenciones(params: ExportDataParams) {
     "Ret. ISLR": String(r.islrAmount ?? 0),
     "% Ret. ISLR": String(r.islrRetentionPct ?? 0),
     "Total Retenido": String(r.totalRetention),
-    "Tipo": r.type,
-    "Estado": r.status,
+    Tipo: r.type,
+    Estado: r.status,
   }));
 }
 
@@ -230,14 +230,14 @@ async function fetchFixedAssets(params: ExportDataParams) {
   for (const asset of rows) {
     if (asset.entries.length === 0) {
       flatRows.push({
-        "Activo": asset.name,
-        "Descripción": asset.description ?? "",
+        Activo: asset.name,
+        Descripción: asset.description ?? "",
         "Fecha Adquisición": formatDate(asset.acquisitionDate),
         "Costo Adquisición": String(asset.acquisitionCost),
         "Valor Residual": String(asset.residualValue),
         "Vida Útil (meses)": asset.usefulLifeMonths,
         "Método Depreciación": asset.depreciationMethod,
-        "Estado": asset.status,
+        Estado: asset.status,
         "Período Año": "",
         "Período Mes": "",
         "Depreciación Período": "",
@@ -247,14 +247,14 @@ async function fetchFixedAssets(params: ExportDataParams) {
     } else {
       for (const entry of asset.entries) {
         flatRows.push({
-          "Activo": asset.name,
-          "Descripción": asset.description ?? "",
+          Activo: asset.name,
+          Descripción: asset.description ?? "",
           "Fecha Adquisición": formatDate(asset.acquisitionDate),
           "Costo Adquisición": String(asset.acquisitionCost),
           "Valor Residual": String(asset.residualValue),
           "Vida Útil (meses)": asset.usefulLifeMonths,
           "Método Depreciación": asset.depreciationMethod,
-          "Estado": asset.status,
+          Estado: asset.status,
           "Período Año": entry.periodYear,
           "Período Mes": entry.periodMonth,
           "Depreciación Período": String(entry.amount),
@@ -273,7 +273,9 @@ async function fetchForma30(params: ExportDataParams) {
 
   // Enumerate each month in [dateFrom, dateTo]
   // Fechas de NEGOCIO: leer y construir en UTC de punta a punta.
-  const start = new Date(Date.UTC(params.dateFrom.getUTCFullYear(), params.dateFrom.getUTCMonth(), 1));
+  const start = new Date(
+    Date.UTC(params.dateFrom.getUTCFullYear(), params.dateFrom.getUTCMonth(), 1)
+  );
   const end = new Date(Date.UTC(params.dateTo.getUTCFullYear(), params.dateTo.getUTCMonth(), 1));
 
   const cursor = new Date(start);
@@ -281,14 +283,10 @@ async function fetchForma30(params: ExportDataParams) {
     const year = cursor.getUTCFullYear();
     const month = cursor.getUTCMonth() + 1; // 1-12
     try {
-      const result = await DeclaracionIVAService.calculate(
-        params.companyId,
-        year,
-        month
-      );
+      const result = await DeclaracionIVAService.calculate(params.companyId, year, month);
       rows.push({
-        "Año": year,
-        "Mes": month,
+        Año: year,
+        Mes: month,
         "Ventas Gravadas 16% Base": result.seccionA.general.base.toFixed(2),
         "Débito Fiscal 16%": result.seccionA.general.tax.toFixed(2),
         "Ventas Gravadas 8% Base": result.seccionA.reducida.base.toFixed(2),
@@ -306,8 +304,8 @@ async function fetchForma30(params: ExportDataParams) {
     } catch {
       // Period may not exist — include empty row so the month is visible
       rows.push({
-        "Año": year,
-        "Mes": month,
+        Año: year,
+        Mes: month,
         "Ventas Gravadas 16% Base": "",
         "Débito Fiscal 16%": "",
         "Ventas Gravadas 8% Base": "",
@@ -360,21 +358,21 @@ async function fetchEmployees(companyId: string) {
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
   return rows.map((e) => ({
-    "Nombre": e.firstName,
-    "Apellido": e.lastName,
+    Nombre: e.firstName,
+    Apellido: e.lastName,
     "Tipo Cédula": e.cedulaType,
-    "Cédula": e.cedulaNumber,
+    Cédula: e.cedulaNumber,
     "Tipo Contrato": e.contractType,
     "Régimen LOTTT": e.employeeRegime,
     "Fecha Ingreso": formatDate(e.hireDate),
     "Fecha Egreso": formatDate(e.terminationDate),
-    "Estado": e.status,
-    "Cargo": e.position,
-    "Departamento": e.department ?? "",
+    Estado: e.status,
+    Cargo: e.position,
+    Departamento: e.department ?? "",
     "Centro de Costo": e.costCenter ?? "",
-    "Email": e.email ?? "",
-    "Teléfono": e.phone ?? "",
-    "Banco": e.bankName ?? "",
+    Email: e.email ?? "",
+    Teléfono: e.phone ?? "",
+    Banco: e.bankName ?? "",
     "Salario Vigente": e.salaryHistory[0] ? String(e.salaryHistory[0].amount) : "",
     "Vigencia Salario": e.salaryHistory[0] ? formatDate(e.salaryHistory[0].effectiveFrom) : "",
   }));
@@ -430,10 +428,10 @@ async function fetchInventoryItems(companyId: string) {
     orderBy: { name: "asc" },
   });
   return rows.map((i) => ({
-    "Nombre": i.name,
+    Nombre: i.name,
     "SKU/Código": i.sku,
-    "Tipo": i.itemType,
-    "Stock": String(i.stockQuantity),
+    Tipo: i.itemType,
+    Stock: String(i.stockQuantity),
     "UdM Base": `${i.baseUnitName} (${i.baseUnitAbbr})`,
     "Costo Promedio": String(i.averageCost),
     "Cta. Inventario": i.account ? `${i.account.code} ${i.account.name}` : "",
@@ -473,15 +471,15 @@ async function fetchExpenses(params: ExportDataParams) {
   return rows.map((e) => ({
     "Fecha Registro": formatDate(e.createdAt),
     "Fecha Factura Prov.": formatDate(e.invoiceDate),
-    "Concepto": e.concept,
-    "Categoría": e.category.name,
-    "Proveedor": e.vendor?.name ?? e.supplierName ?? "",
-    "Monto": String(e.amount),
-    "Moneda": e.currency,
+    Concepto: e.concept,
+    Categoría: e.category.name,
+    Proveedor: e.vendor?.name ?? e.supplierName ?? "",
+    Monto: String(e.amount),
+    Moneda: e.currency,
     "Tasa Cambio": e.exchangeRate ? String(e.exchangeRate) : "",
     "Monto Bs.": String(e.amountVes),
     "Tiene IVA": e.hasIva ? "SI" : "NO",
-    "IVA": e.ivaAmount ? String(e.ivaAmount) : "",
+    IVA: e.ivaAmount ? String(e.ivaAmount) : "",
     "Deducible ISLR": e.isDeductible ? "SI" : "NO",
     "Nro. Factura": e.invoiceNumber ?? "",
   }));
@@ -496,18 +494,27 @@ export async function generateExportZip(
 
   // Fiscal + operaciones en paralelo — las funciones que no usan rango de fecha
   // siempre exportan todo el historial (employees, inventory)
-  const [invoices, transactions, retenciones, assets, forma30, employees, payrollRuns, inventory, expenses] =
-    await Promise.all([
-      fetchInvoices(params),
-      fetchTransactions(params),
-      fetchRetenciones(params),
-      fetchFixedAssets(params),
-      fetchForma30(params),
-      fetchEmployees(params.companyId),
-      fetchPayrollRuns(params),
-      fetchInventoryItems(params.companyId),
-      fetchExpenses(params),
-    ]);
+  const [
+    invoices,
+    transactions,
+    retenciones,
+    assets,
+    forma30,
+    employees,
+    payrollRuns,
+    inventory,
+    expenses,
+  ] = await Promise.all([
+    fetchInvoices(params),
+    fetchTransactions(params),
+    fetchRetenciones(params),
+    fetchFixedAssets(params),
+    fetchForma30(params),
+    fetchEmployees(params.companyId),
+    fetchPayrollRuns(params),
+    fetchInventoryItems(params.companyId),
+    fetchExpenses(params),
+  ]);
 
   // ── Libros IVA ────────────────────────────────────────────────────────────
   const ventas = invoices.filter((r) => r["Tipo"] === "SALE");
@@ -549,7 +556,7 @@ export async function generateExportZip(
 
   // ── README ────────────────────────────────────────────────────────────────
   const from = params.allHistory ? "todo-el-historial" : formatDate(params.dateFrom);
-  const to   = params.allHistory ? "" : formatDate(params.dateTo);
+  const to = params.allHistory ? "" : formatDate(params.dateTo);
   const periodo = params.allHistory ? "Todo el historial" : `${from} a ${to}`;
 
   zip.file(

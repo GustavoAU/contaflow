@@ -86,7 +86,9 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
   }
 
   function handleVoid(movementId: string, itemName: string) {
-    if (!confirm(`¿Anular el borrador de movimiento de "${itemName}"? Esta acción no genera asiento.`))
+    if (
+      !confirm(`¿Anular el borrador de movimiento de "${itemName}"? Esta acción no genera asiento.`)
+    )
       return;
 
     setVoidingId(movementId);
@@ -115,7 +117,7 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
 
       <div className="space-y-3">
         {movements.length === 0 ? (
-          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-6 text-center">
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-6 text-center">
             <p className="text-sm font-medium text-green-800">Sin movimientos pendientes</p>
             <p className="mt-1 text-xs text-green-600">
               Todos los movimientos han sido contabilizados.
@@ -124,17 +126,37 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
         ) : (
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
+              <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-left">Producto</th>
-                  <th scope="col" className="px-4 py-3 text-center">Tipo</th>
-                  <th scope="col" className="px-4 py-3 text-right">Cantidad</th>
-                  <th scope="col" className="px-4 py-3 text-right">Costo Unit.</th>
-                  <th scope="col" className="px-4 py-3 text-right">Total</th>
-                  <th scope="col" className="px-4 py-3 text-left">Fecha</th>
-                  <th scope="col" className="px-4 py-3 text-left">Referencia</th>
-                  <th scope="col" className="px-4 py-3 text-left">Cuentas</th>
-                  {canPost && <th scope="col" className="px-4 py-3 text-center">Acciones</th>}
+                  <th scope="col" className="px-4 py-3 text-left">
+                    Producto
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-center">
+                    Tipo
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right">
+                    Cantidad
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right">
+                    Costo Unit.
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right">
+                    Total
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left">
+                    Fecha
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left">
+                    Referencia
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left">
+                    Cuentas
+                  </th>
+                  {canPost && (
+                    <th scope="col" className="px-4 py-3 text-center">
+                      Acciones
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -154,7 +176,7 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
                     <tr key={mov.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{mov.item.name}</div>
-                        <div className="text-xs text-gray-400 font-mono">{mov.item.sku}</div>
+                        <div className="font-mono text-xs text-gray-400">{mov.item.sku}</div>
                         {needsTracking && (
                           <span className="mt-0.5 inline-block rounded bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">
                             {mov.item.trackingType === "LOT" ? "Lote" : "Serie"}
@@ -190,9 +212,7 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
                         {/* Fecha de negocio (medianoche UTC) — con America/Caracas se mostraba −1 día */}
                         {new Date(mov.date).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500">
-                        {mov.reference ?? "—"}
-                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{mov.reference ?? "—"}</td>
                       <td className="px-4 py-3">
                         {!hasAccounts ? (
                           <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">
@@ -212,15 +232,23 @@ export function PendingMovementsList({ movements, companyId, canPost }: Props) {
                             <button
                               onClick={() => handlePost(mov)}
                               disabled={!canPostThis || isPosting || isVoiding}
-                              title={!canPostThis ? "Configure las cuentas contables del producto primero" : ""}
-                              className="rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={
+                                !canPostThis
+                                  ? "Configure las cuentas contables del producto primero"
+                                  : ""
+                              }
+                              className="rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               {isPosting ? (
                                 <span className="flex items-center gap-1">
                                   <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
                                   Contabilizando...
                                 </span>
-                              ) : needsTracking ? "Registrar y contabilizar" : "Contabilizar"}
+                              ) : needsTracking ? (
+                                "Registrar y contabilizar"
+                              ) : (
+                                "Contabilizar"
+                              )}
                             </button>
                             <button
                               onClick={() => handleVoid(mov.id, mov.item.name)}

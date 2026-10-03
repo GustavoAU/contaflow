@@ -72,9 +72,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const localization = esES as any;
 
   return (
-    <ClerkProvider nonce={nonce} afterSignOutUrl="/sign-in" localization={localization} appearance={clerkAppearance}>
+    <ClerkProvider
+      nonce={nonce}
+      afterSignOutUrl="/sign-in"
+      localization={localization}
+      appearance={clerkAppearance}
+    >
       <html lang={locale}>
-        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+          suppressHydrationWarning
+        >
           <ThemeProvider>
             <PageTransitionProvider>
               <PageTransitionBar />

@@ -19,7 +19,8 @@ export default async function VacationRequestsPage({ params }: Props) {
     where: { companyId, userId },
     select: { role: true },
   });
-  if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) redirect(`/company/${companyId}/payroll`);
+  if (!member || !canAccess(member.role, ROLES.ACCOUNTING))
+    redirect(`/company/${companyId}/payroll`);
 
   const canApprove = canAccess(member.role, ROLES.ACCOUNTING);
 
@@ -30,13 +31,13 @@ export default async function VacationRequestsPage({ params }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Solicitudes de Vacaciones</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Gestión y aprobación de solicitudes del equipo
           </p>
         </div>
         <Link
           href={`/company/${companyId}/payroll`}
-          className="text-sm text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground text-sm"
         >
           ← Nómina
         </Link>
@@ -51,7 +52,7 @@ export default async function VacationRequestsPage({ params }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">
+          <h2 className="text-sm font-semibold tracking-wider text-zinc-500 uppercase">
             Pendientes de revisión ({pendingRequests.length})
           </h2>
           <VacationRequestList

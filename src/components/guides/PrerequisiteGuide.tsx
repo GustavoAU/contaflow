@@ -42,8 +42,7 @@ const CONFIGS: Record<PrerequisiteType, PrerequisiteConfig> = {
       "Para procesar una nómina necesitas al menos un empleado activo registrado en el sistema.",
     fixLabel: "Registrar Empleados",
     fixHref: (id) => `/company/${id}/payroll/employees/new`,
-    tourDescription:
-      'Ve a "Empleados" en el módulo de Nómina para registrar el primer empleado.',
+    tourDescription: 'Ve a "Empleados" en el módulo de Nómina para registrar el primer empleado.',
   },
 };
 

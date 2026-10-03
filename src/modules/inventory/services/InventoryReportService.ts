@@ -14,9 +14,9 @@ export type StockSummaryItem = {
   unit: string;
   stockQuantity: string;
   averageCost: string;
-  totalValue: string;       // stockQuantity × averageCost
+  totalValue: string; // stockQuantity × averageCost
   minimumStock: string | null;
-  isLowStock: boolean;      // stockQuantity <= minimumStock (si minimumStock != null)
+  isLowStock: boolean; // stockQuantity <= minimumStock (si minimumStock != null)
 };
 
 export type StockSummary = {
@@ -27,9 +27,9 @@ export type StockSummary = {
 
 export type MovementReportItem = {
   id: string;
-  date: string;             // ISO date "YYYY-MM-DD"
-  type: string;             // "ENTRADA" | "SALIDA" | "AJUSTE"
-  status: string;           // "DRAFT" | "POSTED"
+  date: string; // ISO date "YYYY-MM-DD"
+  type: string; // "ENTRADA" | "SALIDA" | "AJUSTE"
+  status: string; // "DRAFT" | "POSTED"
   itemId: string;
   itemSku: string;
   itemName: string;
@@ -55,15 +55,15 @@ export type RotationReportItem = {
   sku: string;
   name: string;
   unit: string;
-  stockQuantity: string;   // Decimal string
-  averageCost: string;     // Bs. CPP
+  stockQuantity: string; // Decimal string
+  averageCost: string; // Bs. CPP
   /** Unidades facturadas (SALE FACTURA) en el período */
   unitsSold: string;
   /** Subtotal Bs. facturado (sin IVA) en el período */
   revenueVes: string;
   /** Días desde el último movimiento (ENTRADA/SALIDA/AJUSTE). null = sin movimientos */
   daysSinceMovement: number | null;
-  lastMovementDate: string | null;  // "YYYY-MM-DD"
+  lastMovementDate: string | null; // "YYYY-MM-DD"
 };
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -97,9 +97,7 @@ export class InventoryReportService {
       const value = qty.times(cost);
       totalValue = totalValue.plus(value);
 
-      const minStock = item.minimumStock
-        ? new Decimal(item.minimumStock.toString())
-        : null;
+      const minStock = item.minimumStock ? new Decimal(item.minimumStock.toString()) : null;
       const isLowStock = minStock !== null && qty.lte(minStock);
       if (isLowStock) lowStockCount++;
 
@@ -238,21 +236,15 @@ export class InventoryReportService {
       }),
     ]);
 
-    const salesMap = new Map(
-      salesAgg.map((s) => [s.inventoryItemId as string, s._sum])
-    );
-    const lastMovMap = new Map(
-      lastMovAgg.map((m) => [m.itemId, m._max.date])
-    );
+    const salesMap = new Map(salesAgg.map((s) => [s.inventoryItemId as string, s._sum]));
+    const lastMovMap = new Map(lastMovAgg.map((m) => [m.itemId, m._max.date]));
     const today = new Date();
 
     return items.map((item) => {
       const sales = salesMap.get(item.id);
       const lastMov = lastMovMap.get(item.id) ?? null;
       const daysSinceMovement =
-        lastMov !== null
-          ? Math.floor((today.getTime() - lastMov.getTime()) / 86_400_000)
-          : null;
+        lastMov !== null ? Math.floor((today.getTime() - lastMov.getTime()) / 86_400_000) : null;
 
       return {
         id: item.id,
@@ -261,12 +253,8 @@ export class InventoryReportService {
         unit: item.baseUnitName,
         stockQuantity: new Decimal(item.stockQuantity.toString()).toFixed(4),
         averageCost: new Decimal(item.averageCost.toString()).toFixed(2),
-        unitsSold: sales?.quantity
-          ? new Decimal(sales.quantity.toString()).toFixed(4)
-          : "0.0000",
-        revenueVes: sales?.subtotal
-          ? new Decimal(sales.subtotal.toString()).toFixed(2)
-          : "0.00",
+        unitsSold: sales?.quantity ? new Decimal(sales.quantity.toString()).toFixed(4) : "0.0000",
+        revenueVes: sales?.subtotal ? new Decimal(sales.subtotal.toString()).toFixed(2) : "0.00",
         daysSinceMovement,
         lastMovementDate: lastMov ? lastMov.toISOString().slice(0, 10) : null,
       };

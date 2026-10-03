@@ -85,6 +85,8 @@ describe("buildCsp — estilos (I-1)", () => {
 
   it("el nonce de estilos es el mismo del request, no uno fijo", () => {
     const otro = "b3Ryby1ub25jZQ==";
-    expect(buildCsp(otro, styleSrcObserved(otro))).toContain(`style-src-elem 'self' 'nonce-${otro}'`);
+    expect(buildCsp(otro, styleSrcObserved(otro))).toContain(
+      `style-src-elem 'self' 'nonce-${otro}'`
+    );
   });
 });

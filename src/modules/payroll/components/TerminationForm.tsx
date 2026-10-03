@@ -50,8 +50,7 @@ const REASON_NOTES: Record<string, string> = {
     "Art. 80 LOTTT: el trabajador adeuda preaviso al patrono. Solo se pagan prestaciones, vacaciones y utilidades fraccionadas.",
   CONTRACT_EXPIRY:
     "Contrato determinado vencido. Solo prestaciones y conceptos fraccionados. Si el patrono no notificó con 30 días de anticipación, puede corresponder un mes de salario adicional (ajuste manual).",
-  DEATH:
-    "Fallecimiento: prestaciones y beneficios corresponden a los herederos legales.",
+  DEATH: "Fallecimiento: prestaciones y beneficios corresponden a los herederos legales.",
   DISABILITY:
     "Incapacidad total permanente (Art. 72 LOPCYMAT): prestaciones + posible indemnización adicional según dictamen médico.",
 };
@@ -61,9 +60,7 @@ export default function TerminationForm({ companyId, employees }: Props) {
   const [isPending, startTransition] = useTransition();
   const [employeeId, setEmployeeId] = useState("");
   const [reason, setReason] = useState("RESIGNATION");
-  const [terminationDate, setTerminationDate] = useState(
-    todayLocalISO()
-  );
+  const [terminationDate, setTerminationDate] = useState(todayLocalISO());
   const [idempotencyKey] = useState(generateUUID);
 
   function handleSubmit(e: React.FormEvent) {
@@ -90,13 +87,11 @@ export default function TerminationForm({ companyId, employees }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Empleado
-        </label>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Empleado</label>
         <select
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           required
         >
           <option value="">— Seleccionar empleado —</option>
@@ -109,34 +104,32 @@ export default function TerminationForm({ companyId, employees }: Props) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Causa de egreso
-        </label>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Causa de egreso</label>
         <select
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           {REASONS.map((r) => (
-            <option key={r.value} value={r.value}>{r.label}</option>
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
           ))}
         </select>
         {REASON_NOTES[reason] && (
-          <p className="mt-1 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+          <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
             {REASON_NOTES[reason]}
           </p>
         )}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Fecha de egreso
-        </label>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Fecha de egreso</label>
         <input
           type="date"
           value={terminationDate}
           onChange={(e) => setTerminationDate(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           required
         />
       </div>
@@ -148,7 +141,8 @@ export default function TerminationForm({ companyId, employees }: Props) {
           aria-busy={isPending}
           className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Calculando…" : "Calcular liquidación"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}
+          {isPending ? "Calculando…" : "Calcular liquidación"}
         </button>
         <button
           type="button"

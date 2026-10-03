@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Decimal from "decimal.js";
-import { computeLineTotals, deriveInvoiceTaxLines, validateStockForLines } from "../services/InvoiceLineService";
+import {
+  computeLineTotals,
+  deriveInvoiceTaxLines,
+  validateStockForLines,
+} from "../services/InvoiceLineService";
 import type { InvoiceLineInput } from "../schemas/invoice.schema";
 
 // ─── computeLineTotals ────────────────────────────────────────────────────────
@@ -48,8 +52,20 @@ describe("computeLineTotals", () => {
 describe("deriveInvoiceTaxLines", () => {
   it("agrupa dos líneas GENERAL_16 en un solo IVA_GENERAL", () => {
     const computed = computeLineTotals([
-      { lineNumber: 1, nameSnapshot: "A", quantity: "1", unitPriceVes: "100", ivaRate: "GENERAL_16" },
-      { lineNumber: 2, nameSnapshot: "B", quantity: "1", unitPriceVes: "200", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "A",
+        quantity: "1",
+        unitPriceVes: "100",
+        ivaRate: "GENERAL_16",
+      },
+      {
+        lineNumber: 2,
+        nameSnapshot: "B",
+        quantity: "1",
+        unitPriceVes: "200",
+        ivaRate: "GENERAL_16",
+      },
     ]);
     const taxLines = deriveInvoiceTaxLines(computed);
     expect(taxLines).toHaveLength(1);
@@ -59,7 +75,13 @@ describe("deriveInvoiceTaxLines", () => {
 
   it("línea ADICIONAL_31 produce IVA_GENERAL (16%) + IVA_ADICIONAL (15%)", () => {
     const computed = computeLineTotals([
-      { lineNumber: 1, nameSnapshot: "Lujo", quantity: "1", unitPriceVes: "1000", ivaRate: "ADICIONAL_31" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Lujo",
+        quantity: "1",
+        unitPriceVes: "1000",
+        ivaRate: "ADICIONAL_31",
+      },
     ]);
     const taxLines = deriveInvoiceTaxLines(computed);
     expect(taxLines).toHaveLength(2);
@@ -71,7 +93,13 @@ describe("deriveInvoiceTaxLines", () => {
 
   it("línea EXENTO produce taxLine tipo EXENTO con amount = 0", () => {
     const computed = computeLineTotals([
-      { lineNumber: 1, nameSnapshot: "Servicio", quantity: "1", unitPriceVes: "500", ivaRate: "EXENTO" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Servicio",
+        quantity: "1",
+        unitPriceVes: "500",
+        ivaRate: "EXENTO",
+      },
     ]);
     const taxLines = deriveInvoiceTaxLines(computed);
     expect(taxLines[0].taxType).toBe("EXENTO");
@@ -93,16 +121,25 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("retorna ok:true con warnings cuando hay stock insuficiente en modo WARN", async () => {
-    mockTx.inventoryItem.findMany.mockResolvedValue([{
-      id: "item-1",
-      stockQuantity: new Decimal("1"),
-      name: "Laptop",
-      baseUnitId: "unit-1",
-      sku: "LAP-001",
-    }]);
+    mockTx.inventoryItem.findMany.mockResolvedValue([
+      {
+        id: "item-1",
+        stockQuantity: new Decimal("1"),
+        name: "Laptop",
+        baseUnitId: "unit-1",
+        sku: "LAP-001",
+      },
+    ]);
 
     const lines: InvoiceLineInput[] = [
-      { lineNumber: 1, nameSnapshot: "Laptop", inventoryItemId: "item-1", quantity: "5", unitPriceVes: "100", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Laptop",
+        inventoryItemId: "item-1",
+        quantity: "5",
+        unitPriceVes: "100",
+        ivaRate: "GENERAL_16",
+      },
     ];
 
     const result = await validateStockForLines(lines, "company-1", "WARN", false, mockTx as never);
@@ -116,16 +153,25 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("retorna ok:true con warnings vacíos cuando hay stock suficiente en modo WARN", async () => {
-    mockTx.inventoryItem.findMany.mockResolvedValue([{
-      id: "item-1",
-      stockQuantity: new Decimal("10"),
-      name: "Mouse",
-      baseUnitId: "unit-1",
-      sku: "MOU-001",
-    }]);
+    mockTx.inventoryItem.findMany.mockResolvedValue([
+      {
+        id: "item-1",
+        stockQuantity: new Decimal("10"),
+        name: "Mouse",
+        baseUnitId: "unit-1",
+        sku: "MOU-001",
+      },
+    ]);
 
     const lines: InvoiceLineInput[] = [
-      { lineNumber: 1, nameSnapshot: "Mouse", inventoryItemId: "item-1", quantity: "2", unitPriceVes: "50", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Mouse",
+        inventoryItemId: "item-1",
+        quantity: "2",
+        unitPriceVes: "50",
+        ivaRate: "GENERAL_16",
+      },
     ];
 
     const result = await validateStockForLines(lines, "company-1", "WARN", false, mockTx as never);
@@ -138,7 +184,13 @@ describe("validateStockForLines — WARN mode", () => {
 
   it("retorna ok:true sin warnings si no hay líneas con inventoryItemId", async () => {
     const lines: InvoiceLineInput[] = [
-      { lineNumber: 1, nameSnapshot: "Servicio", quantity: "1", unitPriceVes: "100", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Servicio",
+        quantity: "1",
+        unitPriceVes: "100",
+        ivaRate: "GENERAL_16",
+      },
     ];
 
     const result = await validateStockForLines(lines, "company-1", "WARN", false, mockTx as never);
@@ -148,16 +200,25 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("lanza error en modo BLOCK con stock insuficiente", async () => {
-    mockTx.inventoryItem.findMany.mockResolvedValue([{
-      id: "item-2",
-      stockQuantity: new Decimal("0"),
-      name: "Teclado",
-      baseUnitId: "unit-1",
-      sku: "KEY-001",
-    }]);
+    mockTx.inventoryItem.findMany.mockResolvedValue([
+      {
+        id: "item-2",
+        stockQuantity: new Decimal("0"),
+        name: "Teclado",
+        baseUnitId: "unit-1",
+        sku: "KEY-001",
+      },
+    ]);
 
     const lines: InvoiceLineInput[] = [
-      { lineNumber: 1, nameSnapshot: "Teclado", inventoryItemId: "item-2", quantity: "1", unitPriceVes: "80", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Teclado",
+        inventoryItemId: "item-2",
+        quantity: "1",
+        unitPriceVes: "80",
+        ivaRate: "GENERAL_16",
+      },
     ];
 
     await expect(
@@ -166,16 +227,25 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("lanza STOCK_CONFIRM_REQUIRED en modo CONFIRM sin confirmación", async () => {
-    mockTx.inventoryItem.findMany.mockResolvedValue([{
-      id: "item-3",
-      stockQuantity: new Decimal("0"),
-      name: "Monitor",
-      baseUnitId: "unit-1",
-      sku: "MON-001",
-    }]);
+    mockTx.inventoryItem.findMany.mockResolvedValue([
+      {
+        id: "item-3",
+        stockQuantity: new Decimal("0"),
+        name: "Monitor",
+        baseUnitId: "unit-1",
+        sku: "MON-001",
+      },
+    ]);
 
     const lines: InvoiceLineInput[] = [
-      { lineNumber: 1, nameSnapshot: "Monitor", inventoryItemId: "item-3", quantity: "1", unitPriceVes: "200", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Monitor",
+        inventoryItemId: "item-3",
+        quantity: "1",
+        unitPriceVes: "200",
+        ivaRate: "GENERAL_16",
+      },
     ];
 
     await expect(
@@ -184,19 +254,34 @@ describe("validateStockForLines — WARN mode", () => {
   });
 
   it("retorna ok:true en modo CONFIRM con stockConfirmed=true aunque haya insuficiente", async () => {
-    mockTx.inventoryItem.findMany.mockResolvedValue([{
-      id: "item-4",
-      stockQuantity: new Decimal("0"),
-      name: "Impresora",
-      baseUnitId: "unit-1",
-      sku: "IMP-001",
-    }]);
+    mockTx.inventoryItem.findMany.mockResolvedValue([
+      {
+        id: "item-4",
+        stockQuantity: new Decimal("0"),
+        name: "Impresora",
+        baseUnitId: "unit-1",
+        sku: "IMP-001",
+      },
+    ]);
 
     const lines: InvoiceLineInput[] = [
-      { lineNumber: 1, nameSnapshot: "Impresora", inventoryItemId: "item-4", quantity: "1", unitPriceVes: "300", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "Impresora",
+        inventoryItemId: "item-4",
+        quantity: "1",
+        unitPriceVes: "300",
+        ivaRate: "GENERAL_16",
+      },
     ];
 
-    const result = await validateStockForLines(lines, "company-1", "CONFIRM", true, mockTx as never);
+    const result = await validateStockForLines(
+      lines,
+      "company-1",
+      "CONFIRM",
+      true,
+      mockTx as never
+    );
 
     expect(result.ok).toBe(true);
   });
@@ -205,7 +290,14 @@ describe("validateStockForLines — WARN mode", () => {
     mockTx.inventoryItem.findMany.mockResolvedValue([]);
 
     const lines: InvoiceLineInput[] = [
-      { lineNumber: 1, nameSnapshot: "X", inventoryItemId: "item-99", quantity: "1", unitPriceVes: "100", ivaRate: "GENERAL_16" },
+      {
+        lineNumber: 1,
+        nameSnapshot: "X",
+        inventoryItemId: "item-99",
+        quantity: "1",
+        unitPriceVes: "100",
+        ivaRate: "GENERAL_16",
+      },
     ];
 
     await expect(

@@ -12,7 +12,10 @@ export async function getNotificationsAction(
   companyId: string
 ): Promise<ActionResult<NotificationAlert[]>> {
   // Notificaciones contables: solo roles con acceso contable
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.read,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {

@@ -302,7 +302,9 @@ describe("banking.actions", () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
 
-    const result = await (await import("../actions/banking.actions")).createBankAccountAction({
+    const result = await (
+      await import("../actions/banking.actions")
+    ).createBankAccountAction({
       companyId: COMPANY_ID,
       accountId: "acc-1",
       name: "Cuenta corriente",
@@ -322,7 +324,9 @@ describe("banking.actions", () => {
     vi.mocked(auth).mockResolvedValue({ userId: USER_ID } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
 
-    const result = await (await import("../actions/banking.actions")).createBankAccountAction({
+    const result = await (
+      await import("../actions/banking.actions")
+    ).createBankAccountAction({
       companyId: COMPANY_ID,
       accountId: "acc-1",
       name: "Cuenta corriente",

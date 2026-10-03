@@ -8,14 +8,14 @@ type Theme = "light" | "dark" | "system";
 const CYCLE: Theme[] = ["light", "dark", "system"];
 
 const ICONS = {
-  light:  SunIcon,
-  dark:   MoonIcon,
+  light: SunIcon,
+  dark: MoonIcon,
   system: MonitorIcon,
 } as const;
 
 const LABELS = {
-  light:  "Claro",
-  dark:   "Oscuro",
+  light: "Claro",
+  dark: "Oscuro",
   system: "Sistema",
 } as const;
 
@@ -39,9 +39,9 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
       onClick={handleClick}
       title={`Tema: ${LABELS[theme]}. Clic para cambiar.`}
       aria-label={`Cambiar tema (actual: ${LABELS[theme]})`}
-      className="flex items-center gap-2.5 w-full px-2 py-1.75 rounded-md text-13 font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors overflow-hidden whitespace-nowrap"
+      className="text-13 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex w-full items-center gap-2.5 overflow-hidden rounded-md px-2 py-1.75 font-medium whitespace-nowrap transition-colors"
     >
-      <Icon className="w-3.75 h-3.75 shrink-0" />
+      <Icon className="h-3.75 w-3.75 shrink-0" />
       {!collapsed && <span>{LABELS[theme]}</span>}
     </button>
   );

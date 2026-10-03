@@ -29,11 +29,11 @@ export interface InvoiceGLConfig {
   apAccountId: string | null;
   salesAccountId: string | null;
   purchaseExpenseAccountId: string | null; // legacy — inventario periódico (no usado en posting)
-  inventoryAccountId: string | null;       // ASSET — Inventario de Mercancías (inventario perpetuo)
+  inventoryAccountId: string | null; // ASSET — Inventario de Mercancías (inventario perpetuo)
   ivaDFAccountId: string | null;
   ivaCFAccountId: string | null;
   ivaRetentionPayableAccountId: string | null; // LIABILITY — Retenciones IVA p.p. (GAP-03)
-  igtfPayableAccountId: string | null;         // H-6 — IGTF Percibido por Enterar (ADR-030)
+  igtfPayableAccountId: string | null; // H-6 — IGTF Percibido por Enterar (ADR-030)
 }
 
 export interface InvoiceForGL {
@@ -133,9 +133,10 @@ export class InvoiceGLPostingService {
     const baseTotal = total.minus(ivaTotal);
 
     // H-6: IGTF percibido — tributo separado del IVA (Decreto Constituyente IGTF 2022)
-    const igtfAmount = invoice.igtfAmount && invoice.igtfAmount.greaterThan(0)
-      ? new Decimal(invoice.igtfAmount.toString())
-      : new Decimal(0);
+    const igtfAmount =
+      invoice.igtfAmount && invoice.igtfAmount.greaterThan(0)
+        ? new Decimal(invoice.igtfAmount.toString())
+        : new Decimal(0);
 
     let desc = `Causación ${invoice.type === "SALE" ? "venta" : "compra"} — ${invoice.invoiceNumber} (${invoice.counterpartName})`;
 
@@ -160,22 +161,47 @@ export class InvoiceGLPostingService {
     }>;
 
     // ADR-054: tercero de la línea CxC/CxP — resuelto una sola vez, antes de armar entries.
-    const partyId = invoice.type === "SALE"
-      ? await resolvePartyIdByLinkOrRif(db, companyId, "customer", invoice.customerId, invoice.counterpartRif)
-      : await resolvePartyIdByLinkOrRif(db, companyId, "vendor", invoice.vendorId, invoice.counterpartRif);
+    const partyId =
+      invoice.type === "SALE"
+        ? await resolvePartyIdByLinkOrRif(
+            db,
+            companyId,
+            "customer",
+            invoice.customerId,
+            invoice.counterpartRif
+          )
+        : await resolvePartyIdByLinkOrRif(
+            db,
+            companyId,
+            "vendor",
+            invoice.vendorId,
+            invoice.counterpartRif
+          );
 
     if (invoice.type === "SALE") {
       // H-6: CxC incluye IGTF cuando aplica (total + igtf es el total exigible al cliente)
-      const arAmount = igtfAmount.greaterThan(0) && config.igtfPayableAccountId
-        ? total.plus(igtfAmount)
-        : total;
+      const arAmount =
+        igtfAmount.greaterThan(0) && config.igtfPayableAccountId ? total.plus(igtfAmount) : total;
 
       entries = [
-        { accountId: config.arAccountId!, amount: arAmount, description: `${desc} — CxC`, customerId: partyId },
-        { accountId: config.salesAccountId!, amount: baseTotal.negated(), description: `${desc} — ingresos` },
+        {
+          accountId: config.arAccountId!,
+          amount: arAmount,
+          description: `${desc} — CxC`,
+          customerId: partyId,
+        },
+        {
+          accountId: config.salesAccountId!,
+          amount: baseTotal.negated(),
+          description: `${desc} — ingresos`,
+        },
       ];
       if (ivaTotal.greaterThan(0)) {
-        entries.push({ accountId: config.ivaDFAccountId!, amount: ivaTotal.negated(), description: `${desc} — IVA débito fiscal` });
+        entries.push({
+          accountId: config.ivaDFAccountId!,
+          amount: ivaTotal.negated(),
+          description: `${desc} — IVA débito fiscal`,
+        });
       }
       // H-6: Cr IGTF Percibido por Enterar si configurado; si no → IGTF_GL_SKIPPED
       if (igtfAmount.greaterThan(0)) {
@@ -231,11 +257,24 @@ export class InvoiceGLPostingService {
         : total;
 
       entries = [
-        { accountId: config.inventoryAccountId!, amount: baseTotal, description: `${desc} — inventario` },
-        { accountId: config.apAccountId!, amount: apAmount.negated(), description: `${desc} — CxP`, vendorId: partyId },
+        {
+          accountId: config.inventoryAccountId!,
+          amount: baseTotal,
+          description: `${desc} — inventario`,
+        },
+        {
+          accountId: config.apAccountId!,
+          amount: apAmount.negated(),
+          description: `${desc} — CxP`,
+          vendorId: partyId,
+        },
       ];
       if (ivaTotal.greaterThan(0)) {
-        entries.push({ accountId: config.ivaCFAccountId!, amount: ivaTotal, description: `${desc} — IVA crédito fiscal` });
+        entries.push({
+          accountId: config.ivaCFAccountId!,
+          amount: ivaTotal,
+          description: `${desc} — IVA crédito fiscal`,
+        });
       }
       // GAP-03: Cr separado para Retenciones IVA por Pagar (2110)
       if (ivaRetentionTotal.greaterThan(0) && config.ivaRetentionPayableAccountId) {
@@ -249,7 +288,9 @@ export class InvoiceGLPostingService {
 
     // Guarda semántica: base negativa indica dato corrupto — no aplica en reversals
     if (!isReversal && baseTotal.lessThan(0)) {
-      throw new Error(`InvoiceGLPosting: base negativa — totalAmountVes menor que IVA (factura ${invoice.invoiceNumber})`);
+      throw new Error(
+        `InvoiceGLPosting: base negativa — totalAmountVes menor que IVA (factura ${invoice.invoiceNumber})`
+      );
     }
 
     // Fix A2: reversal niega todos los signos → Σ entries = 0 se mantiene (DR = CR)
@@ -258,9 +299,14 @@ export class InvoiceGLPostingService {
     }
 
     const docType = invoice.docType ?? "";
-    const prefix = docType === "NOTA_CREDITO" ? "NC"
-      : docType === "NOTA_DEBITO" ? "ND"
-      : invoice.type === "SALE" ? "FAC" : "CMP";
+    const prefix =
+      docType === "NOTA_CREDITO"
+        ? "NC"
+        : docType === "NOTA_DEBITO"
+          ? "ND"
+          : invoice.type === "SALE"
+            ? "FAC"
+            : "CMP";
     const glTx = await db.transaction.create({
       data: {
         companyId,

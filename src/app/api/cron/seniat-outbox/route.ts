@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   }
 
   console.info(
-    `[cron/seniat-outbox] ${orphans.length} huérfanas encontradas, ${published} re-publicadas a QStash`,
+    `[cron/seniat-outbox] ${orphans.length} huérfanas encontradas, ${published} re-publicadas a QStash`
   );
 
   return NextResponse.json({

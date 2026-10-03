@@ -54,10 +54,7 @@ export function VacationRequestForm({ companyId, employeeId, balance, onSuccess 
     return (
       <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
         Solicitud enviada correctamente. Pendiente de aprobación.
-        <button
-          className="ml-3 underline"
-          onClick={() => setSuccess(false)}
-        >
+        <button className="ml-3 underline" onClick={() => setSuccess(false)}>
           Nueva solicitud
         </button>
       </div>
@@ -77,9 +74,7 @@ export function VacationRequestForm({ companyId, employeeId, balance, onSuccess 
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-xs font-medium text-zinc-600 mb-1">
-            Fecha inicio
-          </label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">Fecha inicio</label>
           <input
             type="date"
             value={form.startDate}
@@ -89,9 +84,7 @@ export function VacationRequestForm({ companyId, employeeId, balance, onSuccess 
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-600 mb-1">
-            Fecha fin
-          </label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">Fecha fin</label>
           <input
             type="date"
             value={form.endDate}
@@ -103,9 +96,7 @@ export function VacationRequestForm({ companyId, employeeId, balance, onSuccess 
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-zinc-600 mb-1">
-          Días a disfrutar
-        </label>
+        <label className="mb-1 block text-xs font-medium text-zinc-600">Días a disfrutar</label>
         <input
           type="number"
           min="1"
@@ -122,7 +113,7 @@ export function VacationRequestForm({ companyId, employeeId, balance, onSuccess 
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-zinc-600 mb-1">
+        <label className="mb-1 block text-xs font-medium text-zinc-600">
           Observaciones (opcional)
         </label>
         <textarea
@@ -131,7 +122,7 @@ export function VacationRequestForm({ companyId, employeeId, balance, onSuccess 
           maxLength={500}
           rows={2}
           placeholder="ej. Vacaciones anuales reglamentarias"
-          className="w-full rounded border px-3 py-2 text-sm resize-none"
+          className="w-full resize-none rounded border px-3 py-2 text-sm"
         />
       </div>
 

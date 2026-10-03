@@ -19,7 +19,9 @@ export function ScreenshotLightbox({ src, alt, width, height, priority }: Props)
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
     return () => {
@@ -61,21 +63,11 @@ export function ScreenshotLightbox({ src, alt, width, height, priority }: Props)
             aria-modal
             aria-label={alt}
           >
-            <button
-              className={styles.lbClose}
-              onClick={() => setOpen(false)}
-              aria-label="Cerrar"
-            >
+            <button className={styles.lbClose} onClick={() => setOpen(false)} aria-label="Cerrar">
               <XIcon />
             </button>
             <div className={styles.lbImgWrap} onClick={(e) => e.stopPropagation()}>
-              <Image
-                src={src}
-                alt={alt}
-                width={1920}
-                height={1200}
-                className={styles.lbImg}
-              />
+              <Image src={src} alt={alt} width={1920} height={1200} className={styles.lbImg} />
             </div>
           </div>,
           document.body

@@ -109,8 +109,8 @@ describe("NotificationEmailService.sendDailyDigests", () => {
     const co2 = { id: "co-2", name: "Empresa 2", members: [{ userId: "u-2" }] };
     mockCompanies.mockResolvedValue([COMPANY, co2] as never);
     mockPendingTasks
-      .mockResolvedValueOnce({ tasks: [TASK_ERROR], totalCount: 1 })   // co-1: enviar
-      .mockResolvedValueOnce({ tasks: [], totalCount: 0 });             // co-2: skip
+      .mockResolvedValueOnce({ tasks: [TASK_ERROR], totalCount: 1 }) // co-1: enviar
+      .mockResolvedValueOnce({ tasks: [], totalCount: 0 }); // co-2: skip
 
     const results = await NotificationEmailService.sendDailyDigests();
 
@@ -157,4 +157,3 @@ describe("NotificationEmailService.sendDailyDigests", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });
-

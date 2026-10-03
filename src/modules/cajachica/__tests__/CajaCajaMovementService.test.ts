@@ -34,7 +34,7 @@ type FakeMovementRow = { id: string; companyId: string };
 function makeTx(
   overrides: TxOverrides = {},
   createOverrides: Record<string, unknown> = {},
-  options: MakeTxOptions = {},
+  options: MakeTxOptions = {}
 ) {
   // Tabla falsa de CajaCajaMovement: `count` refleja las filas realmente existentes.
   // getNextVoucherNumber deriva el correlativo de ese conteo, así que un
@@ -97,15 +97,17 @@ function makeTx(
         voidedAt: null,
         ...createOverrides,
       };
-    },
+    }
   );
 
-  const movementCount = vi.fn().mockImplementation(
-    async (args?: { where?: { companyId?: string } }) =>
-      movementRows.filter(
-        (r) => args?.where?.companyId === undefined || r.companyId === args.where.companyId,
-      ).length,
-  );
+  const movementCount = vi
+    .fn()
+    .mockImplementation(
+      async (args?: { where?: { companyId?: string } }) =>
+        movementRows.filter(
+          (r) => args?.where?.companyId === undefined || r.companyId === args.where.companyId
+        ).length
+    );
 
   const auditCreate = vi.fn().mockResolvedValue({});
 
@@ -124,23 +126,29 @@ function makeTx(
     // y también exige que el FiscalYear del período esté OPEN.
     accountingPeriod: {
       findUnique: vi.fn().mockResolvedValue({
-        id: "period-1", year: 2026, month: 6, status: "OPEN", fiscalYear: { status: "OPEN" },
+        id: "period-1",
+        year: 2026,
+        month: 6,
+        status: "OPEN",
+        fiscalYear: { status: "OPEN" },
       }),
     },
     // assertAccountOfType (guard) + segunda consulta para code/name. Ambas usan
     // account.findFirst; por defecto devuelve una cuenta EXPENSE válida con code/name.
     account: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue({ id: EXPENSE_ACCOUNT, type: "EXPENSE", code: "5101", name: "Gastos varios" }),
+      findFirst: vi.fn().mockResolvedValue({
+        id: EXPENSE_ACCOUNT,
+        type: "EXPENSE",
+        code: "5101",
+        name: "Gastos varios",
+      }),
     },
     cajaCajaMovement: { count: movementCount, create: movementCreate },
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return { tx, movementCreate, movementCount, auditCreate, movementRows };
 }
 
@@ -201,7 +209,7 @@ function restoreRows<T extends object>(rows: T[], snapshot: T[]): void {
  */
 function vouchersCreated(create: { mock: { calls: unknown[][] } }): string[] {
   return create.mock.calls.map(
-    (call) => (call[0] as { data: { voucherNumber: string } }).data.voucherNumber,
+    (call) => (call[0] as { data: { voucherNumber: string } }).data.voucherNumber
   );
 }
 
@@ -220,7 +228,9 @@ describe("createMovement — guard de tipo de cuenta (HC-09 / ADR-036 D-3)", () 
     const movementCreate = vi.fn();
     makeTx({
       account: {
-        findFirst: vi.fn().mockResolvedValue({ id: EXPENSE_ACCOUNT, type: "ASSET", code: "1010", name: "Caja" }),
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ id: EXPENSE_ACCOUNT, type: "ASSET", code: "1010", name: "Caja" }),
       },
       cajaCajaMovement: { count: vi.fn().mockResolvedValue(0), create: movementCreate },
     });
@@ -234,10 +244,7 @@ describe("createMovement — persistencia de providerRif (HC-10 / ADR-037)", () 
 
   it("persiste providerRif en create.data cuando viene", async () => {
     const { movementCreate } = makeTx({}, { providerRif: "J-12345678-9" });
-    const result = await createMovement(
-      { ...baseInput, providerRif: "J-12345678-9" },
-      USER_ID
-    );
+    const result = await createMovement({ ...baseInput, providerRif: "J-12345678-9" }, USER_ID);
     expect(movementCreate).toHaveBeenCalledTimes(1);
     expect(movementCreate.mock.calls[0][0].data).toMatchObject({
       providerRif: "J-12345678-9",
@@ -358,9 +365,11 @@ describe("createMovement — correlativo CCC- (getNextVoucherNumber)", () => {
 
     await createMovement(baseInput, USER_ID);
 
-    const audited = (auditCreate.mock.calls[0][0] as {
-      data: { newValue: { voucherNumber: string } };
-    }).data.newValue.voucherNumber;
+    const audited = (
+      auditCreate.mock.calls[0][0] as {
+        data: { newValue: { voucherNumber: string } };
+      }
+    ).data.newValue.voucherNumber;
     expect(audited).toBe("CCC-2026-00003");
     expect(audited).toBe(vouchersCreated(movementCreate)[0]);
   });

@@ -25,7 +25,10 @@ export interface EmailResult {
 export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("[EmailService] RESEND_API_KEY no configurado — email no enviado:", payload.subject);
+    console.warn(
+      "[EmailService] RESEND_API_KEY no configurado — email no enviado:",
+      payload.subject
+    );
     return { ok: false, error: "RESEND_API_KEY no configurado" };
   }
 
@@ -35,7 +38,7 @@ export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
     const res = await fetch(RESEND_API, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -53,7 +56,7 @@ export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
       return { ok: false, error: `HTTP ${res.status}: ${body}` };
     }
 
-    const data = await res.json() as { id?: string };
+    const data = (await res.json()) as { id?: string };
     return { ok: true, id: data.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

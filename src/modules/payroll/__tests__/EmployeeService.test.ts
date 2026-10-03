@@ -68,15 +68,13 @@ const BASE_SALARY = {
 
 // Interactive $transaction mock
 function mockTx(overrides: Record<string, unknown> = {}) {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({
-        employee: prisma.employee,
-        salaryHistory: prisma.salaryHistory,
-        auditLog: prisma.auditLog,
-        ...overrides,
-      })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({
+      employee: prisma.employee,
+      salaryHistory: prisma.salaryHistory,
+      auditLog: prisma.auditLog,
+      ...overrides,
+    })) as never);
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -224,12 +222,19 @@ describe("EmployeeService.setActiveStatus", () => {
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
     vi.mocked(prisma.employee.update).mockResolvedValue({
-      ...BASE_EMPLOYEE, status: "INACTIVE" as const, salaryHistory: [],
+      ...BASE_EMPLOYEE,
+      status: "INACTIVE" as const,
+      salaryHistory: [],
     } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     const result = await EmployeeService.setActiveStatus(
-      COMPANY_ID, USER_ID, EMP_ID, "INACTIVE", "10.0.0.1", "vitest",
+      COMPANY_ID,
+      USER_ID,
+      EMP_ID,
+      "INACTIVE",
+      "10.0.0.1",
+      "vitest"
     );
 
     expect(result.status).toBe("INACTIVE");
@@ -247,10 +252,13 @@ describe("EmployeeService.setActiveStatus", () => {
   it("reactiva con su propia accion de auditoria", async () => {
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue({
-      ...BASE_EMPLOYEE, status: "INACTIVE" as const,
+      ...BASE_EMPLOYEE,
+      status: "INACTIVE" as const,
     } as never);
     vi.mocked(prisma.employee.update).mockResolvedValue({
-      ...BASE_EMPLOYEE, status: "ACTIVE" as const, salaryHistory: [],
+      ...BASE_EMPLOYEE,
+      status: "ACTIVE" as const,
+      salaryHistory: [],
     } as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
@@ -266,7 +274,8 @@ describe("EmployeeService.setActiveStatus", () => {
   it("NO revierte un egreso — eso exige re-contratacion", async () => {
     mockTx();
     vi.mocked(prisma.employee.findFirst).mockResolvedValue({
-      ...BASE_EMPLOYEE, status: "TERMINATED" as const,
+      ...BASE_EMPLOYEE,
+      status: "TERMINATED" as const,
     } as never);
 
     await expect(

@@ -7,10 +7,7 @@ export type {
   DigitalVoidResult,
 } from "./provider.types";
 
-export {
-  DigitalInvoiceProviderError,
-  DigitalInvoiceTimeoutError,
-} from "./provider.types";
+export { DigitalInvoiceProviderError, DigitalInvoiceTimeoutError } from "./provider.types";
 
 export {
   createDigitalInvoiceProvider,

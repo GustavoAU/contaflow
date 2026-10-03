@@ -27,7 +27,8 @@ function makeMockTx() {
     // pedidas existen y son de esta empresa.
     account: {
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.map((id) => ({ id }))),
+        where.id.in.map((id) => ({ id }))
+      ),
     },
   };
 }
@@ -348,9 +349,9 @@ describe("FixedAssetService.dispose — baseline guards", () => {
     mockTx.fixedAsset.findFirstOrThrow.mockResolvedValue(makeAsset({ status: "DISPOSED" }));
     mockTx.depreciationEntry.aggregate.mockResolvedValue({ _sum: { amount: null } });
 
-    await expect(
-      FixedAssetService.dispose(makeInput(), USER_ID, mockTx as never)
-    ).rejects.toThrow("El activo ya fue dado de baja");
+    await expect(FixedAssetService.dispose(makeInput(), USER_ID, mockTx as never)).rejects.toThrow(
+      "El activo ya fue dado de baja"
+    );
   });
 
   it("marks asset status as DISPOSED after successful baja", async () => {
@@ -391,8 +392,7 @@ describe("FixedAssetService.dispose — baseline guards", () => {
       createCall.data.entries.create;
 
     const costEntry = entries.find(
-      (e) =>
-        e.accountId === "acc-asset" && e.description.includes("costo histórico")
+      (e) => e.accountId === "acc-asset" && e.description.includes("costo histórico")
     );
     expect(costEntry).toBeDefined();
     expect(new Decimal(costEntry!.amount.toString()).equals(new Decimal("-5000"))).toBe(true);
@@ -411,8 +411,7 @@ describe("FixedAssetService.dispose — baseline guards", () => {
       createCall.data.entries.create;
 
     const depAccEntry = entries.find(
-      (e) =>
-        e.accountId === "acc-dep-accumulated" && e.description.includes("dep. acum.")
+      (e) => e.accountId === "acc-dep-accumulated" && e.description.includes("dep. acum.")
     );
     expect(depAccEntry).toBeDefined();
     expect(new Decimal(depAccEntry!.amount.toString()).equals(new Decimal("300"))).toBe(true);
@@ -430,8 +429,9 @@ describe("FixedAssetService.dispose — guard de cuenta ajena", () => {
     mockTx.account.findMany.mockResolvedValue([]); // gainLossAccountId no es de esta empresa
 
     const input = makeInput({ gainLossAccountId: "acc-ajena" });
-    await expect(FixedAssetService.dispose(input, USER_ID, mockTx as never))
-      .rejects.toThrow(/no existe o no pertenece/);
+    await expect(FixedAssetService.dispose(input, USER_ID, mockTx as never)).rejects.toThrow(
+      /no existe o no pertenece/
+    );
     expect(mockTx.transaction.create).not.toHaveBeenCalled();
   });
 });

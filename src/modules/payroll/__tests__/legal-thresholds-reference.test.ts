@@ -57,8 +57,12 @@ describe("legal-thresholds-reference", () => {
     expect(IVSS_PAT_RATE_REFERENCE_PCT.MEDIO.eq(new Decimal("10.00"))).toBe(true);
     expect(IVSS_PAT_RATE_REFERENCE_PCT.MAXIMO.eq(new Decimal("11.00"))).toBe(true);
     // Derivadas, no tecleadas dos veces.
-    expect(IVSS_PAT_RATE_REFERENCE_PCT.MINIMO.eq(IVSS_PAT_RATE_BY_RISK.MINIMO.times(100))).toBe(true);
+    expect(IVSS_PAT_RATE_REFERENCE_PCT.MINIMO.eq(IVSS_PAT_RATE_BY_RISK.MINIMO.times(100))).toBe(
+      true
+    );
     expect(IVSS_PAT_RATE_REFERENCE_PCT.MEDIO.eq(IVSS_PAT_RATE_BY_RISK.MEDIO.times(100))).toBe(true);
-    expect(IVSS_PAT_RATE_REFERENCE_PCT.MAXIMO.eq(IVSS_PAT_RATE_BY_RISK.MAXIMO.times(100))).toBe(true);
+    expect(IVSS_PAT_RATE_REFERENCE_PCT.MAXIMO.eq(IVSS_PAT_RATE_BY_RISK.MAXIMO.times(100))).toBe(
+      true
+    );
   });
 });

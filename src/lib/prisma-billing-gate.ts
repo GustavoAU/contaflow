@@ -85,7 +85,7 @@ export function extractCompanyId(args: unknown): string | null {
 // con SubscriptionService.getSubscriptionState.
 export function computeWriteAllowed(
   sub: { status: string; currentPeriodEnd: Date } | null,
-  now: number,
+  now: number
 ): boolean {
   if (!sub) return true;
   const withinPeriod = sub.currentPeriodEnd.getTime() >= now;

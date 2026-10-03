@@ -30,23 +30,33 @@ export function BackfillBenefitsButton({ companyId }: Props) {
   } | null>(null);
 
   function handleClick() {
-    if (!window.confirm(
-      "¿Poner al día las prestaciones sociales atrasadas? Esto acumulará TODOS los " +
-      "trimestres faltantes (desde la fecha de contratación de cada empleado hasta hoy) " +
-      "que aún no tengan acumulación registrada, posteando el ajuste en el período " +
-      "contable activo actual. No se puede deshacer desde aquí."
-    )) return;
+    if (
+      !window.confirm(
+        "¿Poner al día las prestaciones sociales atrasadas? Esto acumulará TODOS los " +
+          "trimestres faltantes (desde la fecha de contratación de cada empleado hasta hoy) " +
+          "que aún no tengan acumulación registrada, posteando el ajuste en el período " +
+          "contable activo actual. No se puede deshacer desde aquí."
+      )
+    )
+      return;
 
     setResult(null);
     startTransition(async () => {
       const res = await backfillBenefitsAction(companyId);
       if (res.success) {
         setResult(res.data);
-        const conErrores = res.data.errors.length > 0 ? ` (${res.data.errors.length} con problemas, ver detalle)` : "";
+        const conErrores =
+          res.data.errors.length > 0
+            ? ` (${res.data.errors.length} con problemas, ver detalle)`
+            : "";
         if (res.data.quartersProcessed > 0) {
-          toast.success(`Puesto al día: ${res.data.quartersProcessed} trimestre(s) en ${res.data.employeesProcessed} empleado(s)${conErrores}`);
+          toast.success(
+            `Puesto al día: ${res.data.quartersProcessed} trimestre(s) en ${res.data.employeesProcessed} empleado(s)${conErrores}`
+          );
         } else if (res.data.errors.length > 0) {
-          toast.error(`No se procesó ningún trimestre — ${res.data.errors.length} problema(s), ver detalle abajo`);
+          toast.error(
+            `No se procesó ningún trimestre — ${res.data.errors.length} problema(s), ver detalle abajo`
+          );
         } else {
           toast.success("No había trimestres pendientes de acumular");
         }
@@ -59,12 +69,11 @@ export function BackfillBenefitsButton({ companyId }: Props) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-500">
-        Si un trimestre pasado quedó sin acumular (ej. el período contable de ese
-        trimestre ya cerró, o la empresa no procesaba prestaciones antes de usar
-        ContaFlow), «Ejecutar acumulación» arriba no puede corregirlo — exige un
-        período abierto dentro de ese trimestre. Este botón pone al día a cada
-        empleado desde su fecha de contratación, posteando el ajuste en el
-        período activo actual.
+        Si un trimestre pasado quedó sin acumular (ej. el período contable de ese trimestre ya
+        cerró, o la empresa no procesaba prestaciones antes de usar ContaFlow), «Ejecutar
+        acumulación» arriba no puede corregirlo — exige un período abierto dentro de ese trimestre.
+        Este botón pone al día a cada empleado desde su fecha de contratación, posteando el ajuste
+        en el período activo actual.
       </p>
       <button
         type="button"
@@ -81,11 +90,12 @@ export function BackfillBenefitsButton({ companyId }: Props) {
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
           <p className="font-medium text-green-800">Trimestres puestos al día</p>
           <p className="mt-1 text-green-700">
-            Trimestres procesados: <span className="font-mono font-semibold">{result.quartersProcessed}</span>
-            &nbsp;·&nbsp;
-            Empleados: <span className="font-mono font-semibold">{result.employeesProcessed}</span>
-            &nbsp;·&nbsp;
-            Total acumulado: <span className="font-mono font-semibold">
+            Trimestres procesados:{" "}
+            <span className="font-mono font-semibold">{result.quartersProcessed}</span>
+            &nbsp;·&nbsp; Empleados:{" "}
+            <span className="font-mono font-semibold">{result.employeesProcessed}</span>
+            &nbsp;·&nbsp; Total acumulado:{" "}
+            <span className="font-mono font-semibold">
               {Number(result.totalAccrued).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
             </span>
           </p>
@@ -100,8 +110,11 @@ export function BackfillBenefitsButton({ companyId }: Props) {
           <ul className="mt-1 space-y-1 text-xs text-amber-700">
             {result.errors.map((e, i) => (
               <li key={i}>
-                <span className="font-mono font-semibold">Q{e.quarter}/{e.year}</span>
-                {" — "}{e.employeeName}: {e.message}
+                <span className="font-mono font-semibold">
+                  Q{e.quarter}/{e.year}
+                </span>
+                {" — "}
+                {e.employeeName}: {e.message}
               </li>
             ))}
           </ul>

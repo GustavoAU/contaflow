@@ -10,7 +10,7 @@ type Props = {
 export function BankReconciliationChart({ data }: Props) {
   if (data.total === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex h-64 items-center justify-center text-sm">
         Sin transacciones bancarias importadas
       </div>
     );
@@ -45,9 +45,9 @@ export function BankReconciliationChart({ data }: Props) {
       </ResponsiveContainer>
       <p className="text-2xl font-bold tabular-nums">
         {data.ratioPercent}
-        <span className="text-base font-normal text-muted-foreground">%</span>
+        <span className="text-muted-foreground text-base font-normal">%</span>
       </p>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         {data.reconciled} de {data.total} transacciones conciliadas
       </p>
     </div>

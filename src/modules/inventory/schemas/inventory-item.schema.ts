@@ -5,17 +5,21 @@ export const ITEM_TYPES = ["GOODS", "SERVICE", "RAW_MATERIAL", "FINISHED_GOOD"] 
 export type ItemTypeValue = (typeof ITEM_TYPES)[number];
 
 // Tipos que requieren movimientos físicos y cuentas contables
-export const PHYSICAL_ITEM_TYPES = new Set<ItemTypeValue>(["GOODS", "RAW_MATERIAL", "FINISHED_GOOD"]);
+export const PHYSICAL_ITEM_TYPES = new Set<ItemTypeValue>([
+  "GOODS",
+  "RAW_MATERIAL",
+  "FINISHED_GOOD",
+]);
 
 // BC-001: Alícuota IVA por defecto — Ley IVA venezolana Art. 27
 export const TAX_RATE_OPTIONS = ["GENERAL", "REDUCED", "LUXURY", "EXEMPT", "EXONERATED"] as const;
 export type DefaultTaxRate = (typeof TAX_RATE_OPTIONS)[number];
 
 export const TAX_RATE_LABELS: Record<DefaultTaxRate, string> = {
-  GENERAL:    "16% — Alícuota general",
-  REDUCED:    "8% — Reducida (canasta básica, medicamentos)",
-  LUXURY:     "31% — Lujo (16% + 15% adicional)",
-  EXEMPT:     "0% — Exento (Ley IVA Art. 15)",
+  GENERAL: "16% — Alícuota general",
+  REDUCED: "8% — Reducida (canasta básica, medicamentos)",
+  LUXURY: "31% — Lujo (16% + 15% adicional)",
+  EXEMPT: "0% — Exento (Ley IVA Art. 15)",
   EXONERATED: "0% — Exonerado por decreto presidencial (Ley IVA Art. 19)",
 };
 
@@ -40,7 +44,8 @@ export const CreateInventoryItemSchema = z
       return true; // SERVICE no requiere cuentas
     },
     {
-      message: "Los productos físicos (Mercancía, MP, PT) requieren Cuenta de Inventario y Cuenta COGS para la contabilización.",
+      message:
+        "Los productos físicos (Mercancía, MP, PT) requieren Cuenta de Inventario y Cuenta COGS para la contabilización.",
       path: ["accountId"],
     }
   );

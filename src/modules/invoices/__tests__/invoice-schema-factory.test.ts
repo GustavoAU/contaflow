@@ -14,11 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { getFiscalConfig, VEN_FISCAL_CONFIG } from "@/lib/countries";
 import type { FiscalConfig } from "@/lib/countries/types";
-import {
-  CreateInvoiceSchema,
-  TaxLineSchema,
-  getInvoiceSchemas,
-} from "../schemas/invoice.schema";
+import { CreateInvoiceSchema, TaxLineSchema, getInvoiceSchemas } from "../schemas/invoice.schema";
 import { getQuotationSchemas } from "@/modules/orders/schemas/quotation.schema";
 
 /** País sintético para probar que lo que varía son los VALORES, no la estructura. */
@@ -77,22 +73,32 @@ describe("MP-5a — VEN sin regresión", () => {
     expect(sinControl.success).toBe(false);
 
     const malo = CreateInvoiceSchema.safeParse(
-      validInvoice({ type: "PURCHASE", controlNumber: "1-23" }),
+      validInvoice({ type: "PURCHASE", controlNumber: "1-23" })
     );
     expect(malo.success).toBe(false);
     if (!malo.success) expect(malo.error.issues[0].message).toContain("00-00000001");
 
     const bueno = CreateInvoiceSchema.safeParse(
-      validInvoice({ type: "PURCHASE", controlNumber: "00-12345678" }),
+      validInvoice({ type: "PURCHASE", controlNumber: "00-12345678" })
     );
     expect(bueno.success).toBe(true);
   });
 
   it("mantiene las alícuotas canónicas venezolanas (ADR-006 D-3)", () => {
-    const ok = TaxLineSchema.safeParse({ taxType: "IVA_GENERAL", base: "100", rate: "16", amount: "16" });
+    const ok = TaxLineSchema.safeParse({
+      taxType: "IVA_GENERAL",
+      base: "100",
+      rate: "16",
+      amount: "16",
+    });
     expect(ok.success).toBe(true);
 
-    const mala = TaxLineSchema.safeParse({ taxType: "IVA_GENERAL", base: "100", rate: "19", amount: "19" });
+    const mala = TaxLineSchema.safeParse({
+      taxType: "IVA_GENERAL",
+      base: "100",
+      rate: "19",
+      amount: "19",
+    });
     expect(mala.success).toBe(false);
     if (!mala.success) expect(mala.error.issues[0].message).toContain("debe ser 16%");
   });
@@ -113,7 +119,9 @@ describe("MP-5a — lo que varía son los VALORES, no la ESTRUCTURA", () => {
   const fake = getInvoiceSchemas(FAKE_COUNTRY);
 
   it("otro país trae su propio formato de ID tributario y su mensaje", () => {
-    expect(fake.create.safeParse(validInvoice({ counterpartRif: "123456789-0" })).success).toBe(true);
+    expect(fake.create.safeParse(validInvoice({ counterpartRif: "123456789-0" })).success).toBe(
+      true
+    );
 
     const r = fake.create.safeParse(validInvoice({ counterpartRif: "J-12345678-9" }));
     expect(r.success).toBe(false);
@@ -124,16 +132,26 @@ describe("MP-5a — lo que varía son los VALORES, no la ESTRUCTURA", () => {
     // El RIF también va en formato del país sintético: si no, fallaría por eso
     // y el test pasaría a medir otra cosa.
     const r = fake.create.safeParse(
-      validInvoice({ type: "PURCHASE", counterpartRif: "123456789-0" }),
+      validInvoice({ type: "PURCHASE", counterpartRif: "123456789-0" })
     );
     expect(r.success).toBe(true);
   });
 
   it("las alícuotas canónicas salen de la config del país", () => {
-    const ok = fake.taxLine.safeParse({ taxType: "IVA_GENERAL", base: "100", rate: "19", amount: "19" });
+    const ok = fake.taxLine.safeParse({
+      taxType: "IVA_GENERAL",
+      base: "100",
+      rate: "19",
+      amount: "19",
+    });
     expect(ok.success).toBe(true);
 
-    const mala = fake.taxLine.safeParse({ taxType: "IVA_GENERAL", base: "100", rate: "16", amount: "16" });
+    const mala = fake.taxLine.safeParse({
+      taxType: "IVA_GENERAL",
+      base: "100",
+      rate: "16",
+      amount: "16",
+    });
     expect(mala.success).toBe(false);
   });
 

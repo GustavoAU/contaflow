@@ -13,17 +13,14 @@ import type {
   DigitalInvoiceResult,
   DigitalVoidResult,
 } from "../../provider.types";
-import {
-  DigitalInvoiceProviderError,
-  DigitalInvoiceTimeoutError,
-} from "../../provider.types";
+import { DigitalInvoiceProviderError, DigitalInvoiceTimeoutError } from "../../provider.types";
 import type { HKAInvoiceRequest, HKAInvoiceResponse, HKAVoidResponse } from "./hka.types";
 
 const HKA_TIMEOUT_MS = 10_000;
 
 export interface HKAProviderConfig {
-  apiKey:   string; // descifrado en memoria — nunca loguear
-  baseUrl:  string; // ej: https://api.thefactoryhka.com/v1
+  apiKey: string; // descifrado en memoria — nunca loguear
+  baseUrl: string; // ej: https://api.thefactoryhka.com/v1
 }
 
 export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
@@ -40,13 +37,13 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
       const timeout = setTimeout(() => controller.abort(), HKA_TIMEOUT_MS);
       try {
         response = await fetch(`${this.config.baseUrl}/facturas`, {
-          method:  "POST",
+          method: "POST",
           headers: {
-            "Content-Type":  "application/json",
-            "Authorization": `Bearer ${this.config.apiKey}`,
-            "X-Source":      "ContaFlow",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.config.apiKey}`,
+            "X-Source": "ContaFlow",
           },
-          body:   JSON.stringify(body),
+          body: JSON.stringify(body),
           signal: controller.signal,
         });
       } finally {
@@ -60,7 +57,7 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
         `Error de red al contactar HKA: ${err instanceof Error ? err.message : String(err)}`,
         this.name,
         true,
-        err,
+        err
       );
     }
 
@@ -69,7 +66,7 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
       throw new DigitalInvoiceProviderError(
         `HKA respondió ${response.status}`,
         this.name,
-        retryable,
+        retryable
       );
     }
 
@@ -79,7 +76,7 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
       throw new DigitalInvoiceProviderError(
         `HKA rechazó la factura: ${data.mensaje}`,
         this.name,
-        false,
+        false
       );
     }
 
@@ -90,10 +87,10 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
     let response: Response;
     try {
       response = await fetch(`${this.config.baseUrl}/facturas/${controlNumber}/anular`, {
-        method:  "POST",
+        method: "POST",
         headers: {
-          "Content-Type":  "application/json",
-          "Authorization": `Bearer ${this.config.apiKey}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.config.apiKey}`,
         },
         body: JSON.stringify({ motivo: reason }),
       });
@@ -102,7 +99,7 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
         `Error de red al anular en HKA: ${err instanceof Error ? err.message : String(err)}`,
         this.name,
         true,
-        err,
+        err
       );
     }
 
@@ -110,13 +107,13 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
       throw new DigitalInvoiceProviderError(
         `HKA respondió ${response.status} al anular`,
         this.name,
-        response.status >= 500,
+        response.status >= 500
       );
     }
 
     const data = (await response.json()) as HKAVoidResponse;
     return {
-      success:  data.codigo_respuesta === "00",
+      success: data.codigo_respuesta === "00",
       voidedAt: new Date(data.fecha_anulacion),
     };
   }
@@ -124,7 +121,7 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
   async healthCheck(): Promise<boolean> {
     try {
       const response = await fetch(`${this.config.baseUrl}/health`, {
-        headers: { "Authorization": `Bearer ${this.config.apiKey}` },
+        headers: { Authorization: `Bearer ${this.config.apiKey}` },
       });
       return response.ok;
     } catch {
@@ -137,23 +134,23 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
   private mapToHKARequest(invoice: DigitalInvoiceSubmission): HKAInvoiceRequest {
     // TODO: confirmar nombres exactos de campos con documentación HKA
     return {
-      rif_emisor:      invoice.companyRif,
-      nombre_emisor:   invoice.companyName,
-      rif_receptor:    invoice.customerRif,
+      rif_emisor: invoice.companyRif,
+      nombre_emisor: invoice.companyName,
+      rif_receptor: invoice.customerRif,
       nombre_receptor: invoice.customerName,
-      fecha:           invoice.invoiceDate.toISOString().split("T")[0],
-      tipo_documento:  this.mapDocType(invoice.docType),
+      fecha: invoice.invoiceDate.toISOString().split("T")[0],
+      tipo_documento: this.mapDocType(invoice.docType),
       lineas: invoice.lines.map((l) => ({
         descripcion: l.description,
-        cantidad:    l.quantity.toFixed(4),
+        cantidad: l.quantity.toFixed(4),
         precio_unit: l.unitPrice.toFixed(4),
-        tasa_iva:    String(l.taxRate),
+        tasa_iva: String(l.taxRate),
         monto_total: l.total.toFixed(2),
       })),
-      subtotal:  invoice.subtotal.toFixed(2),
+      subtotal: invoice.subtotal.toFixed(2),
       monto_iva: invoice.ivaAmount.toFixed(2),
-      total:     invoice.total.toFixed(2),
-      moneda:    invoice.currency,
+      total: invoice.total.toFixed(2),
+      moneda: invoice.currency,
       ...(invoice.exchangeRate && { tasa_cambio: invoice.exchangeRate.toFixed(4) }),
       ...(invoice.relatedControlNumber && {
         numero_control_relacionado: invoice.relatedControlNumber,
@@ -162,18 +159,18 @@ export class HKADigitalInvoiceProvider implements DigitalInvoiceProvider {
   }
 
   private mapDocType(docType: DigitalInvoiceSubmission["docType"]): "01" | "02" | "03" {
-    if (docType === "FACTURA")       return "01";
-    if (docType === "NOTA_DEBITO")   return "02";
+    if (docType === "FACTURA") return "01";
+    if (docType === "NOTA_DEBITO") return "02";
     return "03";
   }
 
   private mapToResult(data: HKAInvoiceResponse): DigitalInvoiceResult {
     return {
-      controlNumber:       data.numero_control,
-      qrCodeData:          data.qr_url,
+      controlNumber: data.numero_control,
+      qrCodeData: data.qr_url,
       providerReferenceId: data.id_transaccion,
-      issuedAt:            new Date(data.fecha_emision),
-      isContingency:       data.contingencia,
+      issuedAt: new Date(data.fecha_emision),
+      isContingency: data.contingencia,
     };
   }
 }

@@ -27,9 +27,7 @@ export default async function ConceptsPage({ params }: Props) {
   // Solo ACCOUNTING o superior
   if (!canAccess(member.role, ROLES.ACCOUNTING)) {
     return (
-      <div className="p-6 text-sm text-gray-500">
-        No tienes acceso al catálogo de conceptos.
-      </div>
+      <div className="p-6 text-sm text-gray-500">No tienes acceso al catálogo de conceptos.</div>
     );
   }
 

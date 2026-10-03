@@ -18,12 +18,15 @@ export type KpiDashboardData = {
 };
 
 export async function getKpiDashboardAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<KpiDashboardData>> {
   try {
     // Lectura de KPIs del dashboard — limiter de lecturas (120/min por empresa×usuario),
     // no el fiscal (10/min).
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ACCOUNTING,
+      limiter: limiters.read,
+    });
     if (!ctx.ok) return ctx.error;
 
     const [summary, cashFlow] = await Promise.all([

@@ -27,8 +27,11 @@ import { toActionError } from "../utils/action-errors";
 // ─── Guard compartido ─────────────────────────────────────────────────────────
 
 async function guardAccounting(
-  companyId: string,
-): Promise<{ userId: string; ipAddress: string | null; userAgent: string | null } | { success: false; error: string }> {
+  companyId: string
+): Promise<
+  | { userId: string; ipAddress: string | null; userAgent: string | null }
+  | { success: false; error: string }
+> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ACCOUNTING,
     limiter: limiters.fiscal,
@@ -41,7 +44,7 @@ async function guardAccounting(
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function createDistributionAction(
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<IncomeDistributionSummary>> {
   const parsed = CreateIncomeDistributionSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -65,7 +68,7 @@ export async function createDistributionAction(
       parsed.data.companyId,
       new Date(parsed.data.date),
       totalVes,
-      lines,
+      lines
     );
 
     const dist = await createDistribution({
@@ -90,7 +93,7 @@ export async function createDistributionAction(
 }
 
 export async function applyDistributionAction(
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<IncomeDistributionSummary>> {
   const parsed = ApplyDistributionSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -106,7 +109,7 @@ export async function applyDistributionAction(
       parsed.data.companyId,
       guard.userId,
       guard.ipAddress,
-      guard.userAgent,
+      guard.userAgent
     );
     return { success: true, data: dist };
   } catch (err) {
@@ -115,7 +118,7 @@ export async function applyDistributionAction(
 }
 
 export async function voidDistributionAction(
-  rawInput: unknown,
+  rawInput: unknown
 ): Promise<ActionResult<IncomeDistributionSummary>> {
   const parsed = VoidDistributionSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -132,7 +135,7 @@ export async function voidDistributionAction(
       parsed.data.voidReason,
       guard.userId,
       guard.ipAddress,
-      guard.userAgent,
+      guard.userAgent
     );
     return { success: true, data: dist };
   } catch (err) {
@@ -142,8 +145,10 @@ export async function voidDistributionAction(
 
 export async function listDistributionsAction(
   companyId: string,
-  cursor?: string,
-): Promise<ActionResult<{ distributions: IncomeDistributionSummary[]; nextCursor: string | null }>> {
+  cursor?: string
+): Promise<
+  ActionResult<{ distributions: IncomeDistributionSummary[]; nextCursor: string | null }>
+> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;
 
@@ -157,7 +162,7 @@ export async function listDistributionsAction(
 
 export async function getDistributionByIdAction(
   distributionId: string,
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<IncomeDistributionSummary | null>> {
   const guard = await guardAccounting(companyId);
   if ("error" in guard) return guard;

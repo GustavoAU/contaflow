@@ -18,8 +18,8 @@ export const DESPACHO_TIER_RIF_LIMITS: Record<DespachoTier, number | null> = {
 
 // Precio mensual en centavos USD (pago mensual recurrente)
 export const DESPACHO_TIER_PRICES_USD_CENTS: Record<DespachoTier, number> = {
-  STARTER: 11900,   // $119/mes · empresa propia + hasta 5 RIFs gestionados
-  PRO: 24900,       // $249/mes · empresa propia + hasta 25 RIFs gestionados
+  STARTER: 11900, // $119/mes · empresa propia + hasta 5 RIFs gestionados
+  PRO: 24900, // $249/mes · empresa propia + hasta 25 RIFs gestionados
   UNLIMITED: 35900, // $359/mes · empresa propia + RIFs ilimitados
 };
 
@@ -35,7 +35,7 @@ export interface AddManagedClientInput {
 // ─── canAddManagedClient ──────────────────────────────────────────────────────
 
 export async function canAddManagedClient(
-  companyId: string,
+  companyId: string
 ): Promise<{ allowed: boolean; currentCount: number; limit: number | null }> {
   const subscription = await prisma.subscription.findUnique({
     where: { companyId },
@@ -67,7 +67,7 @@ export async function addManagedClient(
   input: AddManagedClientInput,
   callerUserId: string,
   ip: string | null,
-  userAgent: string | null,
+  userAgent: string | null
 ): Promise<{ success: true; client: ManagedClient } | { success: false; error: string }> {
   // MEDIUM-2: normalizar ANTES de validar. Sin canonicalizar, "J-12345678-9" y
   // "j-123456789" pasan ambos la regex, son strings distintos para el
@@ -135,7 +135,7 @@ export async function archiveManagedClient(
   managedClientId: string,
   callerUserId: string,
   ip: string | null,
-  userAgent: string | null,
+  userAgent: string | null
 ): Promise<{ success: true } | { success: false; error: string }> {
   // IDOR guard: busca por id Y despachoCompanyId — ADR-004
   const existing = await prisma.managedClient.findFirst({
@@ -177,7 +177,7 @@ export async function archiveManagedClient(
 
 export async function listManagedClients(
   companyId: string,
-  opts?: { includeArchived?: boolean },
+  opts?: { includeArchived?: boolean }
 ): Promise<ManagedClient[]> {
   const where: PrismaTypes.ManagedClientWhereInput = {
     despachoCompanyId: companyId,
@@ -202,7 +202,7 @@ export async function upgradeDespachoTier(
   newTier: DespachoTier,
   callerUserId: string,
   ip: string | null,
-  userAgent: string | null,
+  userAgent: string | null
 ): Promise<{ success: true; paymentUrl: string } | { success: false; error: string }> {
   const subscription = await prisma.subscription.findUnique({
     where: { companyId },

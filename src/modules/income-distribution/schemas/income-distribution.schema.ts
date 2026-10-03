@@ -6,15 +6,28 @@ import { strictDecimal } from "@/lib/zod-helpers";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const decimalString = z
-  .string()
-  .refine((v) => { try { return strictDecimal(v).greaterThan(0); } catch { return false; } },
-    { error: "Debe ser un número positivo" });
+const decimalString = z.string().refine(
+  (v) => {
+    try {
+      return strictDecimal(v).greaterThan(0);
+    } catch {
+      return false;
+    }
+  },
+  { error: "Debe ser un número positivo" }
+);
 
-const percentageString = z
-  .string()
-  .refine((v) => { try { const d = strictDecimal(v); return d.greaterThan(0) && d.lessThanOrEqualTo(100); } catch { return false; } },
-    { error: "Porcentaje debe estar entre 0.01 y 100" });
+const percentageString = z.string().refine(
+  (v) => {
+    try {
+      const d = strictDecimal(v);
+      return d.greaterThan(0) && d.lessThanOrEqualTo(100);
+    } catch {
+      return false;
+    }
+  },
+  { error: "Porcentaje debe estar entre 0.01 y 100" }
+);
 
 // ─── Line ─────────────────────────────────────────────────────────────────────
 
@@ -36,8 +49,16 @@ export const CreateIncomeDistributionSchema = z
     totalAmountOriginal: decimalString,
     exchangeRate: z
       .string()
-      .refine((v) => { try { return strictDecimal(v).greaterThan(0); } catch { return false; } },
-        { error: "Tasa de cambio debe ser positiva" })
+      .refine(
+        (v) => {
+          try {
+            return strictDecimal(v).greaterThan(0);
+          } catch {
+            return false;
+          }
+        },
+        { error: "Tasa de cambio debe ser positiva" }
+      )
       .default("1"),
     originAccountId: z.string().cuid({ error: "Cuenta origen inválida" }),
     lines: z
@@ -49,9 +70,14 @@ export const CreateIncomeDistributionSchema = z
   .refine(
     (d) => {
       try {
-        const sum = d.lines.reduce((acc, l) => acc.plus(new Decimal(l.percentageShare)), new Decimal(0));
+        const sum = d.lines.reduce(
+          (acc, l) => acc.plus(new Decimal(l.percentageShare)),
+          new Decimal(0)
+        );
         return sum.equals(new Decimal(100));
-      } catch { return false; }
+      } catch {
+        return false;
+      }
     },
     { error: "La suma de los porcentajes debe ser exactamente 100%" }
   )
@@ -76,5 +102,8 @@ export const ApplyDistributionSchema = z.object({
 export const VoidDistributionSchema = z.object({
   distributionId: z.string().cuid(),
   companyId: z.string().cuid(),
-  voidReason: z.string().min(3, { error: "Motivo de anulación requerido (mín. 3 caracteres)" }).max(500),
+  voidReason: z
+    .string()
+    .min(3, { error: "Motivo de anulación requerido (mín. 3 caracteres)" })
+    .max(500),
 });

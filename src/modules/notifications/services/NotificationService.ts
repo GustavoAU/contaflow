@@ -8,8 +8,8 @@ import Decimal from "decimal.js";
 export type AlertSeverity = "error" | "warning" | "info";
 
 export type NotificationAlert = {
-  id: string;           // clave única para React key
-  type: string;         // "INVOICE_OVERDUE" | "INVOICE_DUE_SOON" | ...
+  id: string; // clave única para React key
+  type: string; // "INVOICE_OVERDUE" | "INVOICE_DUE_SOON" | ...
   title: string;
   description: string;
   href: string;
@@ -77,7 +77,9 @@ export class NotificationService {
 
     // ── Facturas vencidas ─────────────────────────────────────────────────────
     for (const inv of overdueInvoices) {
-      const daysOverdue = Math.floor((now.getTime() - inv.dueDate!.getTime()) / (24 * 60 * 60 * 1000));
+      const daysOverdue = Math.floor(
+        (now.getTime() - inv.dueDate!.getTime()) / (24 * 60 * 60 * 1000)
+      );
       alerts.push({
         id: `invoice-overdue-${inv.id}`,
         type: "INVOICE_OVERDUE",
@@ -106,9 +108,10 @@ export class NotificationService {
       alerts.push({
         id: "retenciones-pending",
         type: "RETENCIONES_PENDING",
-        title: pendingRetenciones === 1
-          ? "1 retención sin contabilizar"
-          : `${pendingRetenciones} retenciones sin contabilizar`,
+        title:
+          pendingRetenciones === 1
+            ? "1 retención sin contabilizar"
+            : `${pendingRetenciones} retenciones sin contabilizar`,
         description: "Requieren asiento contable para cerrarse.",
         href: `${base}/retentions`,
         severity: "warning",

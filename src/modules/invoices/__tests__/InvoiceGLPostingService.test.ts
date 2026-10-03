@@ -18,11 +18,11 @@ const FULL_CONFIG: InvoiceGLConfig = {
   apAccountId: "acc-prov",
   salesAccountId: "acc-ventas",
   purchaseExpenseAccountId: "acc-gasto-legacy", // no usado en posting perpetuo
-  inventoryAccountId: "acc-inventario",         // ASSET 1115 — usado en COMPRA
+  inventoryAccountId: "acc-inventario", // ASSET 1115 — usado en COMPRA
   ivaDFAccountId: "acc-iva-df",
   ivaCFAccountId: "acc-iva-cf",
-  ivaRetentionPayableAccountId: null,           // GAP-03: sin retención por defecto
-  igtfPayableAccountId: null,                   // H-6: sin IGTF por defecto
+  ivaRetentionPayableAccountId: null, // GAP-03: sin retención por defecto
+  igtfPayableAccountId: null, // H-6: sin IGTF por defecto
 };
 
 const SALE_INVOICE: InvoiceForGL = {
@@ -103,7 +103,11 @@ describe("InvoiceGLPostingService.canPost()", () => {
 
   it("retorna false para PURCHASE aunque tenga purchaseExpenseAccountId (legacy no suficiente)", () => {
     // purchaseExpenseAccountId es campo legacy — inventoryAccountId es el requerido ahora
-    const config = { ...FULL_CONFIG, inventoryAccountId: null, purchaseExpenseAccountId: "acc-gasto" };
+    const config = {
+      ...FULL_CONFIG,
+      inventoryAccountId: null,
+      purchaseExpenseAccountId: "acc-gasto",
+    };
     expect(InvoiceGLPostingService.canPost("PURCHASE", config)).toBe(false);
   });
 });
@@ -113,7 +117,9 @@ describe("InvoiceGLPostingService.canPost()", () => {
 describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
   let db: ReturnType<typeof makeMockDb>;
 
-  beforeEach(() => { db = makeMockDb(); });
+  beforeEach(() => {
+    db = makeMockDb();
+  });
 
   it("crea Transaction + 3 JournalEntries balanceadas (Dr CxC / Cr Ventas / Cr IVA-DF)", async () => {
     const txId = await InvoiceGLPostingService.postInvoice(
@@ -128,7 +134,10 @@ describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
 
     expect(entries).toHaveLength(3);
 
@@ -180,7 +189,8 @@ describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
 
     // Invariante: Σ = 0
     const sum = entries.reduce(
-      (s, e) => s.plus(new Decimal((e as { accountId: string; amount: Decimal }).amount.toString())),
+      (s, e) =>
+        s.plus(new Decimal((e as { accountId: string; amount: Decimal }).amount.toString())),
       new Decimal(0)
     );
     expect(sum.abs().lessThan(new Decimal("0.01"))).toBe(true);
@@ -209,7 +219,9 @@ describe("InvoiceGLPostingService.postInvoice() — VENTA", () => {
 describe("InvoiceGLPostingService.postInvoice() — COMPRA (inventario perpetuo)", () => {
   let db: ReturnType<typeof makeMockDb>;
 
-  beforeEach(() => { db = makeMockDb(); });
+  beforeEach(() => {
+    db = makeMockDb();
+  });
 
   // Error 4 dictamen SENIAT: compras deben ir a Dr Inventario (ASSET), no Dr Gasto
   it("Error 4 SENIAT: Dr Inventario (ASSET 1115) / Dr IVA-CF / Cr Proveedores", async () => {
@@ -225,7 +237,11 @@ describe("InvoiceGLPostingService.postInvoice() — COMPRA (inventario perpetuo)
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal; description: string }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+      description: string;
+    }>;
 
     expect(entries).toHaveLength(3);
 
@@ -255,7 +271,13 @@ describe("InvoiceGLPostingService.postInvoice() — COMPRA (inventario perpetuo)
   });
 
   it("número de transaction usa prefijo CMP-", async () => {
-    await InvoiceGLPostingService.postInvoice(PURCHASE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+    await InvoiceGLPostingService.postInvoice(
+      PURCHASE_INVOICE,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
+    );
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((createCall.data as any).number).toBe("CMP-C-0001");
@@ -278,16 +300,29 @@ describe("InvoiceGLPostingService — IVA adicional de lujo (31%)", () => {
       totalAmountVes: new Decimal("293164.90"),
       taxLines: [
         { taxType: "IVA_GENERAL", base: new Decimal("223790.00"), amount: new Decimal("35806.40") },
-        { taxType: "IVA_ADICIONAL", base: new Decimal("223790.00"), amount: new Decimal("33568.50") },
+        {
+          taxType: "IVA_ADICIONAL",
+          base: new Decimal("223790.00"),
+          amount: new Decimal("33568.50"),
+        },
       ],
     };
 
-    const txId = await InvoiceGLPostingService.postInvoice(luxuryInvoice, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+    const txId = await InvoiceGLPostingService.postInvoice(
+      luxuryInvoice,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
+    );
     expect(txId).toBe(TX_ID);
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
     expect(entries).toHaveLength(3);
 
     const cxcEntry = entries.find((e) => e.accountId === "acc-cxc");
@@ -330,7 +365,10 @@ describe("InvoiceGLPostingService — moneda extranjera (NIC 21)", () => {
     const db = makeMockDb();
     await InvoiceGLPostingService.postInvoice(
       { ...SALE_INVOICE, currency: "VES" },
-      FULL_CONFIG, COMPANY_ID, USER_ID, db
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
     );
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
@@ -343,7 +381,10 @@ describe("InvoiceGLPostingService — moneda extranjera (NIC 21)", () => {
     const db = makeMockDb();
     await InvoiceGLPostingService.postInvoice(
       { ...SALE_INVOICE, currency: "USD", exchangeRateVes: null },
-      FULL_CONFIG, COMPANY_ID, USER_ID, db
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
     );
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
@@ -356,7 +397,12 @@ describe("InvoiceGLPostingService — moneda extranjera (NIC 21)", () => {
 // ─── ADR-054: tercero en la línea CxC/CxP ─────────────────────────────────────
 
 describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
-  function makeDbWithParties(overrides: Partial<{ customerFound: { id: string } | null; vendorFound: { id: string } | null }> = {}) {
+  function makeDbWithParties(
+    overrides: Partial<{
+      customerFound: { id: string } | null;
+      vendorFound: { id: string } | null;
+    }> = {}
+  ) {
     return {
       transaction: { create: vi.fn().mockResolvedValue({ id: TX_ID }) },
       invoice: { update: vi.fn().mockResolvedValue({ id: INVOICE_ID, transactionId: TX_ID }) },
@@ -369,13 +415,19 @@ describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
     const db = makeDbWithParties();
     await InvoiceGLPostingService.postInvoice(
       { ...SALE_INVOICE, customerId: "cust-linked", counterpartRif: "J-11111111-1" },
-      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
     );
 
     expect(vi.mocked(db.customer.findFirst)).not.toHaveBeenCalled();
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; customerId?: string }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      customerId?: string;
+    }>;
     expect(entries.find((e) => e.accountId === "acc-cxc")?.customerId).toBe("cust-linked");
   });
 
@@ -383,7 +435,10 @@ describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
     const db = makeDbWithParties({ customerFound: { id: "cust-por-rif" } });
     await InvoiceGLPostingService.postInvoice(
       { ...SALE_INVOICE, counterpartRif: "j 12345678 9" },
-      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
     );
 
     expect(vi.mocked(db.customer.findFirst)).toHaveBeenCalledWith({
@@ -392,7 +447,10 @@ describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
     });
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; customerId?: string }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      customerId?: string;
+    }>;
     expect(entries.find((e) => e.accountId === "acc-cxc")?.customerId).toBe("cust-por-rif");
   });
 
@@ -400,12 +458,18 @@ describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
     const db = makeDbWithParties({ customerFound: null });
     await InvoiceGLPostingService.postInvoice(
       { ...SALE_INVOICE, counterpartRif: "J-99999999-9" },
-      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
     );
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; customerId?: string }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      customerId?: string;
+    }>;
     expect(entries.find((e) => e.accountId === "acc-cxc")?.customerId).toBeUndefined();
   });
 
@@ -413,13 +477,19 @@ describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
     const db = makeDbWithParties();
     await InvoiceGLPostingService.postInvoice(
       { ...PURCHASE_INVOICE, vendorId: "vend-linked", counterpartRif: "J-22222222-2" },
-      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
     );
 
     expect(vi.mocked(db.vendor.findFirst)).not.toHaveBeenCalled();
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; vendorId?: string }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      vendorId?: string;
+    }>;
     expect(entries.find((e) => e.accountId === "acc-prov")?.vendorId).toBe("vend-linked");
   });
 
@@ -427,12 +497,18 @@ describe("InvoiceGLPostingService — ADR-054 tercero en CxC/CxP", () => {
     const db = makeDbWithParties({ vendorFound: { id: "vend-por-rif" } });
     await InvoiceGLPostingService.postInvoice(
       { ...PURCHASE_INVOICE, counterpartRif: "J-33333333-3" },
-      FULL_CONFIG, COMPANY_ID, USER_ID, db,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
     );
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; vendorId?: string }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      vendorId?: string;
+    }>;
     expect(entries.find((e) => e.accountId === "acc-prov")?.vendorId).toBe("vend-por-rif");
   });
 
@@ -501,7 +577,10 @@ describe("InvoiceGLPostingService — GAP-03 retención IVA split", () => {
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
 
     // Debe haber 4 líneas: Dr Inventario + Dr IVA-CF + Cr Proveedores(neto) + Cr Ret.IVA
     expect(entries).toHaveLength(4);
@@ -535,11 +614,20 @@ describe("InvoiceGLPostingService — GAP-03 retención IVA split", () => {
     // retención = 0 → no split
     const db = makeDbWithRetenciones("0.00");
 
-    await InvoiceGLPostingService.postInvoice(PURCHASE_INVOICE, configWithRet, COMPANY_ID, USER_ID, db);
+    await InvoiceGLPostingService.postInvoice(
+      PURCHASE_INVOICE,
+      configWithRet,
+      COMPANY_ID,
+      USER_ID,
+      db
+    );
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
 
     // Solo 3 entradas — sin split
     expect(entries).toHaveLength(3);
@@ -555,12 +643,21 @@ describe("InvoiceGLPostingService — GAP-03 retención IVA split", () => {
     // FULL_CONFIG tiene ivaRetentionPayableAccountId: null
     const db = makeMockDb();
     // makeMockDb() no tiene retencion.findMany → si se llama, lanzaría error
-    await InvoiceGLPostingService.postInvoice(PURCHASE_INVOICE, FULL_CONFIG, COMPANY_ID, USER_ID, db);
+    await InvoiceGLPostingService.postInvoice(
+      PURCHASE_INVOICE,
+      FULL_CONFIG,
+      COMPANY_ID,
+      USER_ID,
+      db
+    );
 
     // Sin retención config → Cr Proveedor = total completo
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
     const apEntry = entries.find((e) => e.accountId === "acc-prov");
     expect(new Decimal(apEntry!.amount.toString()).toFixed(2)).toBe("-232.00");
   });
@@ -598,7 +695,10 @@ describe("InvoiceGLPostingService — H-6: IGTF en asiento de venta", () => {
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
     const arEntry = entries.find((e) => e.accountId === "acc-cxc");
     const igtfEntry = entries.find((e) => e.accountId === IGTF_ACCOUNT_ID);
 
@@ -616,7 +716,10 @@ describe("InvoiceGLPostingService — H-6: IGTF en asiento de venta", () => {
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
     const arEntry = entries.find((e) => e.accountId === "acc-cxc");
 
     // CxC = total solamente (IGTF no incluido porque no hay cuenta configurada)
@@ -636,7 +739,10 @@ describe("InvoiceGLPostingService — H-6: IGTF en asiento de venta", () => {
 
     const createCall = vi.mocked(db.transaction.create).mock.calls[0][0];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = (createCall.data as any).entries.create as Array<{ accountId: string; amount: Decimal }>;
+    const entries = (createCall.data as any).entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
     const arEntry = entries.find((e) => e.accountId === "acc-cxc");
     const igtfEntry = entries.find((e) => e.accountId === IGTF_ACCOUNT_ID);
 

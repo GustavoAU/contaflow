@@ -47,10 +47,8 @@ beforeEach(() => {
   vi.mocked(prisma.companySettings.upsert).mockResolvedValue({} as never);
   vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   // $transaction interactivo: corre el callback con un tx que expone companySettings + auditLog.
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({ companySettings: prisma.companySettings, auditLog: prisma.auditLog })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({ companySettings: prisma.companySettings, auditLog: prisma.auditLog })) as never);
 });
 
 // ─── getCajaChicaStepUpThresholdAction ──────────────────────────────────────────
@@ -139,7 +137,7 @@ describe("updateCajaChicaStepUpThresholdAction", () => {
     );
   });
 
-  it("threshold vacío \"\" → upsert con null (default global)", async () => {
+  it('threshold vacío "" → upsert con null (default global)', async () => {
     const res = await updateCajaChicaStepUpThresholdAction({
       companyId: COMPANY_ID,
       threshold: "",

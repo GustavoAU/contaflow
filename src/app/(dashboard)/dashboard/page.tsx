@@ -30,13 +30,15 @@ export default async function DashboardPage() {
 
   // Fetch latest accounting period per active company (single batched query)
   const companyIds = companies.map((c) => c.id);
-  const rawPeriods = companyIds.length > 0
-    ? await prisma.accountingPeriod.findMany({ // ADR-004-EXCEPTION: cross-company intencional — selector de empresa del usuario
-        where: { companyId: { in: companyIds } },
-        orderBy: [{ year: "desc" }, { month: "desc" }],
-        select: { companyId: true, year: true, month: true, status: true },
-      })
-    : [];
+  const rawPeriods =
+    companyIds.length > 0
+      ? await prisma.accountingPeriod.findMany({
+          // ADR-004-EXCEPTION: cross-company intencional — selector de empresa del usuario
+          where: { companyId: { in: companyIds } },
+          orderBy: [{ year: "desc" }, { month: "desc" }],
+          select: { companyId: true, year: true, month: true, status: true },
+        })
+      : [];
 
   const periodMap = new Map<string, { year: number; month: number; status: string }>();
   for (const p of rawPeriods) {
@@ -58,7 +60,6 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-zinc-50">
       <div className="mx-auto max-w-5xl px-4 py-12">
-
         {/* ─── Encabezado ────────────────────────────────────────────────── */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -90,7 +91,7 @@ export default async function DashboardPage() {
               🏢
             </div>
             <p className="text-lg font-semibold text-zinc-700">No tienes empresas activas</p>
-            <p className="text-muted-foreground mb-6 mt-1 text-sm">
+            <p className="text-muted-foreground mt-1 mb-6 text-sm">
               Crea tu primera empresa para comenzar a contabilizar
             </p>
             <Button asChild>
@@ -115,9 +116,14 @@ export default async function DashboardPage() {
               {archivedCompanies.map((company) => (
                 <div key={company.id} className="rounded-xl border bg-white p-5 opacity-60">
                   <div className="mb-4 flex items-start gap-3">
-                    <CompanyAvatar id={company.id} name={company.name} size="md" className="grayscale" />
+                    <CompanyAvatar
+                      id={company.id}
+                      name={company.name}
+                      size="md"
+                      className="grayscale"
+                    />
                     <div className="min-w-0 flex-1 pt-0.5">
-                      <h2 className="line-clamp-2 font-semibold leading-tight text-zinc-500">
+                      <h2 className="line-clamp-2 leading-tight font-semibold text-zinc-500">
                         {company.name}
                       </h2>
                       {company.rif && (
@@ -135,7 +141,6 @@ export default async function DashboardPage() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

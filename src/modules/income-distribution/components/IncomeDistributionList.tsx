@@ -18,9 +18,10 @@ const STATUS_CONFIG = {
 };
 
 function fmt(amount: string) {
-  return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-    parseFloat(amount)
-  );
+  return new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(parseFloat(amount));
 }
 
 type Props = {
@@ -76,45 +77,56 @@ export function IncomeDistributionList({ companyId, distributions, nextCursor, o
             {/* Header row */}
             <button
               onClick={() => setExpanded(isOpen ? null : dist.id)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
             >
               <Icon className="h-4 w-4 shrink-0 text-zinc-500" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                     {dist.referenceNumber ?? "Borrador"}
                   </span>
-                  <Badge variant={cfg.variant} className="text-xs">{cfg.label}</Badge>
+                  <Badge variant={cfg.variant} className="text-xs">
+                    {cfg.label}
+                  </Badge>
                   {dist.currencyCode !== "VES" && (
                     <span className="text-xs text-zinc-500">{dist.currencyCode}</span>
                   )}
                 </div>
-                <div className="text-xs text-zinc-500 mt-0.5">
-                  {new Date(dist.date).toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}
+                <div className="mt-0.5 text-xs text-zinc-500">
+                  {new Date(dist.date).toLocaleDateString("es-VE", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    timeZone: "UTC",
+                  })}
                   {" · "}
                   {dist.lines.length} destinatario{dist.lines.length !== 1 ? "s" : ""}
                   {dist.description && ` · ${dist.description}`}
                 </div>
               </div>
-              <div className="text-right shrink-0">
+              <div className="shrink-0 text-right">
                 <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   Bs.D {fmt(dist.totalAmountVes)}
                 </p>
                 {dist.currencyCode !== "VES" && (
-                  <p className="text-xs text-zinc-400">{dist.currencyCode} {fmt(dist.totalAmountOriginal)}</p>
+                  <p className="text-xs text-zinc-400">
+                    {dist.currencyCode} {fmt(dist.totalAmountOriginal)}
+                  </p>
                 )}
               </div>
-              <ChevronRight className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+              <ChevronRight
+                className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
+              />
             </button>
 
             {/* Detail panel */}
             {isOpen && (
-              <div className="border-t px-4 py-3 space-y-3">
+              <div className="space-y-3 border-t px-4 py-3">
                 {/* Lines table */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-zinc-500 border-b">
+                      <tr className="border-b text-zinc-500">
                         <th className="py-1.5 text-left font-medium">Destinatario</th>
                         <th className="py-1.5 text-left font-medium">Cuenta</th>
                         <th className="py-1.5 text-right font-medium">%</th>
@@ -124,10 +136,18 @@ export function IncomeDistributionList({ companyId, distributions, nextCursor, o
                     <tbody>
                       {dist.lines.map((line) => (
                         <tr key={line.id} className="border-b last:border-0">
-                          <td className="py-1.5 text-zinc-700 dark:text-zinc-300">{line.recipientCompanyName}</td>
-                          <td className="py-1.5 text-zinc-500">{line.accountCode} — {line.accountName}</td>
-                          <td className="py-1.5 text-right text-zinc-700 dark:text-zinc-300">{parseFloat(line.percentageShare).toFixed(2)}%</td>
-                          <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">{fmt(line.amountVes)}</td>
+                          <td className="py-1.5 text-zinc-700 dark:text-zinc-300">
+                            {line.recipientCompanyName}
+                          </td>
+                          <td className="py-1.5 text-zinc-500">
+                            {line.accountCode} — {line.accountName}
+                          </td>
+                          <td className="py-1.5 text-right text-zinc-700 dark:text-zinc-300">
+                            {parseFloat(line.percentageShare).toFixed(2)}%
+                          </td>
+                          <td className="py-1.5 text-right font-medium text-zinc-900 dark:text-zinc-100">
+                            {fmt(line.amountVes)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -136,7 +156,10 @@ export function IncomeDistributionList({ companyId, distributions, nextCursor, o
 
                 {/* Cuenta origen */}
                 <p className="text-xs text-zinc-500">
-                  Cuenta origen: <span className="font-medium text-zinc-700">{dist.originAccountCode} — {dist.originAccountName}</span>
+                  Cuenta origen:{" "}
+                  <span className="font-medium text-zinc-700">
+                    {dist.originAccountCode} — {dist.originAccountName}
+                  </span>
                 </p>
 
                 {/* Actions */}
@@ -169,7 +192,7 @@ export function IncomeDistributionList({ companyId, distributions, nextCursor, o
       })}
 
       {nextCursor && (
-        <p className="text-center text-xs text-zinc-400 pt-2">
+        <p className="pt-2 text-center text-xs text-zinc-400">
           Hay más registros — implementar paginación si se necesita.
         </p>
       )}
@@ -179,7 +202,10 @@ export function IncomeDistributionList({ companyId, distributions, nextCursor, o
           companyId={companyId}
           distribution={voidTarget}
           onClose={() => setVoidTarget(null)}
-          onSuccess={() => { setVoidTarget(null); onRefresh(); }}
+          onSuccess={() => {
+            setVoidTarget(null);
+            onRefresh();
+          }}
         />
       )}
     </div>

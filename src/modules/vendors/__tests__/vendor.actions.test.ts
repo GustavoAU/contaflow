@@ -38,14 +38,25 @@ import {
 } from "../actions/vendor.actions";
 
 const NOW = new Date("2026-01-01");
-const vendor = { id: "v1", companyId: "c1", name: "Acme", rif: null, email: null, phone: null, address: null, deletedAt: null, createdAt: NOW, updatedAt: NOW };
+const vendor = {
+  id: "v1",
+  companyId: "c1",
+  name: "Acme",
+  rif: null,
+  email: null,
+  phone: null,
+  address: null,
+  deletedAt: null,
+  createdAt: NOW,
+  updatedAt: NOW,
+};
 
 function setAuth(userId: string | null) {
   mockAuth.mockResolvedValue({ userId });
 }
 function setMember(role: string | null) {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-    role ? { role } as never : null as never,
+    role ? ({ role } as never) : (null as never)
   );
 }
 
@@ -78,7 +89,10 @@ describe("Auth guard — sin sesión", () => {
 
 // ── Role guard ─────────────────────────────────────────────────────────────
 describe("Role guard — VIEWER no puede mutar", () => {
-  beforeEach(() => { setAuth("u1"); setMember("VIEWER"); });
+  beforeEach(() => {
+    setAuth("u1");
+    setMember("VIEWER");
+  });
 
   it("createVendorAction rechaza VIEWER", async () => {
     const r = await createVendorAction("c1", { name: "X" });
@@ -115,7 +129,10 @@ describe("Rate limit guard (HIGH-2)", () => {
 
 // ── Schema validation (HIGH-3 RIF + MEDIUM-1 trim) ─────────────────────────
 describe("Schema validation", () => {
-  beforeEach(() => { setAuth("u1"); setMember("ADMINISTRATIVE"); });
+  beforeEach(() => {
+    setAuth("u1");
+    setMember("ADMINISTRATIVE");
+  });
 
   it("rechaza RIF con formato inválido (HIGH-3)", async () => {
     const r = await createVendorAction("c1", { name: "Acme", rif: "INVALID" });
@@ -143,7 +160,10 @@ describe("Schema validation", () => {
 
 // ── Flujo exitoso ──────────────────────────────────────────────────────────
 describe("Flujo exitoso", () => {
-  beforeEach(() => { setAuth("u1"); setMember("ADMINISTRATIVE"); });
+  beforeEach(() => {
+    setAuth("u1");
+    setMember("ADMINISTRATIVE");
+  });
 
   it("listVendorsAction retorna lista", async () => {
     setMember("ACCOUNTANT");
@@ -188,7 +208,10 @@ describe("Flujo exitoso", () => {
 
   it("deleteVendorAction con OWNER soft-deletes y retorna linkedCount", async () => {
     setMember("OWNER");
-    vi.mocked(VendorService.softDelete).mockResolvedValue({ deleted: true, linkedCount: 2 } as never);
+    vi.mocked(VendorService.softDelete).mockResolvedValue({
+      deleted: true,
+      linkedCount: 2,
+    } as never);
     const r = await deleteVendorAction("c1", "v1");
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.linkedCount).toBe(2);

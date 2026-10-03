@@ -16,7 +16,6 @@ export const CERTIFIED_VERSION: string | null = null;
 // homologación en el futuro), así que R-7/Z-4/Z-5 y el resto del flujo de
 // SeniatSubmission se dejan intactos a propósito — solo se quita la etiqueta
 // del footer, que ya no describe la realidad actual.
-export const CERTIFIED_VERSION_LABEL =
-  CERTIFIED_VERSION
-    ? `ContaFlow v${CERTIFIED_VERSION} · Homologado SENIAT`
-    : `ContaFlow v${APP_VERSION}`;
+export const CERTIFIED_VERSION_LABEL = CERTIFIED_VERSION
+  ? `ContaFlow v${CERTIFIED_VERSION} · Homologado SENIAT`
+  : `ContaFlow v${APP_VERSION}`;

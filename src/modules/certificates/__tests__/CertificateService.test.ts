@@ -24,12 +24,10 @@ vi.mock("node-forge", () => {
       notAfter: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000),
     },
     subject: {
-      getField: (name: string) =>
-        name === "CN" ? { value: "Empresa Test C.A." } : null,
+      getField: (name: string) => (name === "CN" ? { value: "Empresa Test C.A." } : null),
     },
     issuer: {
-      getField: (name: string) =>
-        name === "CN" ? { value: "Empresa Test C.A." } : null,
+      getField: (name: string) => (name === "CN" ? { value: "Empresa Test C.A." } : null),
     },
     setSubject: vi.fn(),
     setIssuer: vi.fn(),
@@ -64,7 +62,9 @@ vi.mock("node-forge", () => {
         },
         createCertificate: vi.fn().mockReturnValue(fakeCert),
         certificateToAsn1: vi.fn().mockReturnValue({}),
-        privateKeyToPem: vi.fn().mockReturnValue("-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----"),
+        privateKeyToPem: vi
+          .fn()
+          .mockReturnValue("-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----"),
         publicKeyFromPem: vi.fn().mockReturnValue(fakePublicKey),
       },
       pkcs12: {
@@ -95,8 +95,12 @@ import prisma from "@/lib/prisma";
 import { CertificateService, decryptCertificate } from "../services/CertificateService";
 
 // CERT_ENCRYPTION_SECRET required by deriveKey after Bloque F hardening
-beforeAll(() => { process.env.CERT_ENCRYPTION_SECRET = "test-secret-32-chars-minimum-ok"; });
-afterAll(() => { delete process.env.CERT_ENCRYPTION_SECRET; });
+beforeAll(() => {
+  process.env.CERT_ENCRYPTION_SECRET = "test-secret-32-chars-minimum-ok";
+});
+afterAll(() => {
+  delete process.env.CERT_ENCRYPTION_SECRET;
+});
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -142,7 +146,7 @@ describe("CertificateService.generateSelfSigned", () => {
       RIF,
       USER_ID,
       "127.0.0.1",
-      "Mozilla/5.0",
+      "Mozilla/5.0"
     );
 
     expect(result.isSelfSigned).toBe(true);
@@ -154,7 +158,7 @@ describe("CertificateService.generateSelfSigned", () => {
           isSelfSigned: true,
           createdBy: USER_ID,
         }),
-      }),
+      })
     );
   });
 
@@ -166,7 +170,7 @@ describe("CertificateService.generateSelfSigned", () => {
       RIF,
       USER_ID,
       null,
-      null,
+      null
     );
 
     expect(result.thumbprint).toMatch(/^[a-f0-9]{64}$/);
@@ -180,7 +184,7 @@ describe("CertificateService.generateSelfSigned", () => {
       RIF,
       USER_ID,
       null,
-      null,
+      null
     );
 
     const twoYearsFromNow = Date.now() + 2 * 365 * 24 * 60 * 60 * 1000;
@@ -196,7 +200,7 @@ describe("CertificateService.generateSelfSigned", () => {
       RIF,
       USER_ID,
       "192.168.1.1",
-      "TestAgent",
+      "TestAgent"
     );
 
     expect(mockTx.auditLog.create).toHaveBeenCalledOnce();
@@ -207,7 +211,7 @@ describe("CertificateService.generateSelfSigned", () => {
           ipAddress: "192.168.1.1",
           userAgent: "TestAgent",
         }),
-      }),
+      })
     );
   });
 
@@ -222,17 +226,19 @@ describe("CertificateService.generateSelfSigned", () => {
         RIF,
         USER_ID,
         null,
-        null,
-      ),
+        null
+      )
     ).rejects.toThrow("ya tiene un certificado activo");
   });
 
   it("encryptedP12 almacenado no es el p12 sin cifrar", async () => {
     let capturedData: Record<string, unknown> | null = null;
-    mockTx.companyCertificate.create.mockImplementation(({ data }: { data: Record<string, unknown> }) => {
-      capturedData = data;
-      return { id: "cert-1", ...FAKE_CERT_RECORD };
-    });
+    mockTx.companyCertificate.create.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) => {
+        capturedData = data;
+        return { id: "cert-1", ...FAKE_CERT_RECORD };
+      }
+    );
 
     await CertificateService.generateSelfSigned(
       mockTx as never,
@@ -241,7 +247,7 @@ describe("CertificateService.generateSelfSigned", () => {
       RIF,
       USER_ID,
       null,
-      null,
+      null
     );
 
     // El campo encryptedP12 debe ser Uint8Array (AES-256-GCM, compatible Prisma Bytes), no el PKCS#12 raw
@@ -272,8 +278,8 @@ describe("CertificateService.loadOfficialCertificate", () => {
         Buffer.from("notap12"),
         USER_ID,
         null,
-        null,
-      ),
+        null
+      )
     ).rejects.toThrow("El archivo .p12 no es válido");
   });
 
@@ -284,7 +290,7 @@ describe("CertificateService.loadOfficialCertificate", () => {
       Buffer.from("fakep12content"),
       USER_ID,
       null,
-      null,
+      null
     );
 
     expect(mockTx.companyCertificate.upsert).toHaveBeenCalledWith(
@@ -293,7 +299,7 @@ describe("CertificateService.loadOfficialCertificate", () => {
           commonName: "Empresa Test C.A.",
           issuedBy: "Empresa Test C.A.",
         }),
-      }),
+      })
     );
   });
 
@@ -304,7 +310,7 @@ describe("CertificateService.loadOfficialCertificate", () => {
       Buffer.from("fakep12content"),
       USER_ID,
       null,
-      null,
+      null
     );
 
     expect(mockTx.companyCertificate.upsert).toHaveBeenCalledOnce();
@@ -317,13 +323,13 @@ describe("CertificateService.loadOfficialCertificate", () => {
       Buffer.from("fakep12content"),
       USER_ID,
       "10.0.0.1",
-      "Chrome/99",
+      "Chrome/99"
     );
 
     expect(mockTx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "CERTIFICATE_LOADED" }),
-      }),
+      })
     );
   });
 });

@@ -20,7 +20,12 @@ type Props = {
 type Tab = "budgets" | "cashflow";
 
 export function BudgetPageClient({
-  companyId, initialBudgets, initialCashFlow, accounts, canWrite, canDelete,
+  companyId,
+  initialBudgets,
+  initialCashFlow,
+  accounts,
+  canWrite,
+  canDelete,
 }: Props) {
   const [tab, setTab] = useState<Tab>("budgets");
 
@@ -28,7 +33,7 @@ export function BudgetPageClient({
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-zinc-900">Presupuestos y Proyecciones</h1>
-        <p className="text-sm text-zinc-500 mt-1">
+        <p className="mt-1 text-sm text-zinc-500">
           Define presupuestos anuales por cuenta y monitorea la ejecución presupuestaria.
         </p>
       </div>
@@ -37,7 +42,7 @@ export function BudgetPageClient({
       <div className="flex border-b border-zinc-200">
         <button
           onClick={() => setTab("budgets")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
             tab === "budgets"
               ? "border-indigo-600 text-indigo-600"
               : "border-transparent text-zinc-500 hover:text-zinc-700"
@@ -48,7 +53,7 @@ export function BudgetPageClient({
         </button>
         <button
           onClick={() => setTab("cashflow")}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`-mb-px flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
             tab === "cashflow"
               ? "border-indigo-600 text-indigo-600"
               : "border-transparent text-zinc-500 hover:text-zinc-700"
@@ -69,12 +74,7 @@ export function BudgetPageClient({
         />
       )}
 
-      {tab === "cashflow" && (
-        <CashFlowWidget
-          companyId={companyId}
-          initial={initialCashFlow}
-        />
-      )}
+      {tab === "cashflow" && <CashFlowWidget companyId={companyId} initial={initialCashFlow} />}
     </div>
   );
 }

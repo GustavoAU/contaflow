@@ -27,13 +27,9 @@ export function ModuleTabs({ tabs, color = DEFAULT_TAB_COLOR, className }: Props
   const activeStyle = TAB_ACTIVE[color] ?? TAB_ACTIVE[DEFAULT_TAB_COLOR];
 
   return (
-    <nav
-      aria-label="Sección"
-      className={cn("flex border-b border-zinc-200", className)}
-    >
+    <nav aria-label="Sección" className={cn("flex border-b border-zinc-200", className)}>
       {tabs.map((tab) => {
-        const isActive =
-          pathname === tab.href || pathname.startsWith(tab.href + "/");
+        const isActive = pathname === tab.href || pathname.startsWith(tab.href + "/");
         return (
           <Link
             key={tab.href}
@@ -46,7 +42,7 @@ export function ModuleTabs({ tabs, color = DEFAULT_TAB_COLOR, className }: Props
               }
             }}
             className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors",
               isActive ? activeStyle : TAB_INACTIVE
             )}
           >

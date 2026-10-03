@@ -50,19 +50,19 @@ export function ExportForm({ companyId }: Props) {
   }
 
   return (
-    <div className="rounded-lg border p-6 space-y-4">
+    <div className="space-y-4 rounded-lg border p-6">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="font-semibold text-lg">Nueva exportación</h2>
+        <h2 className="text-lg font-semibold">Nueva exportación</h2>
 
         {/* Toggle: rango de fechas vs todo el historial */}
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+        <label className="flex cursor-pointer items-center gap-2 text-sm select-none">
           <input
             type="checkbox"
             checked={allHistory}
             onChange={(e) => setAllHistory(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 accent-primary"
+            className="accent-primary h-4 w-4 rounded border-gray-300"
           />
-          <HistoryIcon className="h-4 w-4 text-muted-foreground" />
+          <HistoryIcon className="text-muted-foreground h-4 w-4" />
           <span className="text-muted-foreground">Todo el historial</span>
         </label>
       </div>
@@ -79,7 +79,7 @@ export function ExportForm({ companyId }: Props) {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 required
               />
             </div>
@@ -92,27 +92,27 @@ export function ExportForm({ companyId }: Props) {
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="focus:ring-ring w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 required
               />
             </div>
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           {allHistory
             ? "El ZIP incluirá todo el historial: libros IVA, asientos, retenciones, activos, Forma 30, empleados, nóminas, inventario y gastos."
             : "Rango máximo: 366 días. El ZIP incluye libros IVA, asientos contables, retenciones, activos fijos, Forma 30, empleados, nóminas, inventario y gastos."}
         </p>
 
         {error && (
-          <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">
             {error}
           </div>
         )}
 
         {jobId && (
-          <div className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800 flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
             <span>Exportación lista.</span>
             <a
               href={`/api/export/download?jobId=${jobId}`}
@@ -125,7 +125,12 @@ export function ExportForm({ companyId }: Props) {
           </div>
         )}
 
-        <Button type="submit" disabled={isPending} className="w-full sm:w-auto" aria-busy={isPending}>
+        <Button
+          type="submit"
+          disabled={isPending}
+          className="w-full sm:w-auto"
+          aria-busy={isPending}
+        >
           {isPending ? (
             <>
               <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />

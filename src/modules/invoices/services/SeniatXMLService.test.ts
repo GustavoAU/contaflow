@@ -16,9 +16,7 @@ const BASE_PARAMS: SeniatXMLParams = {
   currency: "VES",
   counterpartName: "Cliente ABC S.A.",
   counterpartRif: "J-98765432-1",
-  taxLines: [
-    { taxType: "IVA_GENERAL", base: "1000.00", rate: "16.00", amount: "160.00" },
-  ],
+  taxLines: [{ taxType: "IVA_GENERAL", base: "1000.00", rate: "16.00", amount: "160.00" }],
 };
 
 // ─── generate() ───────────────────────────────────────────────────────────────
@@ -267,18 +265,21 @@ describe("SeniatXMLService.generate — factura de lujo (base contada UNA vez)",
 
 describe("SeniatXMLService.filename", () => {
   it("genera nombre para factura de venta", () => {
-    expect(SeniatXMLService.filename({ invoiceType: "SALE", invoiceNumber: "0001234" }))
-      .toBe("factura-venta-0001234.xml");
+    expect(SeniatXMLService.filename({ invoiceType: "SALE", invoiceNumber: "0001234" })).toBe(
+      "factura-venta-0001234.xml"
+    );
   });
 
   it("genera nombre para factura de compra", () => {
-    expect(SeniatXMLService.filename({ invoiceType: "PURCHASE", invoiceNumber: "0001234" }))
-      .toBe("factura-compra-0001234.xml");
+    expect(SeniatXMLService.filename({ invoiceType: "PURCHASE", invoiceNumber: "0001234" })).toBe(
+      "factura-compra-0001234.xml"
+    );
   });
 
   it("reemplaza caracteres no alfanuméricos en el número por guión bajo", () => {
-    expect(SeniatXMLService.filename({ invoiceType: "SALE", invoiceNumber: "001/234" }))
-      .toBe("factura-venta-001_234.xml");
+    expect(SeniatXMLService.filename({ invoiceType: "SALE", invoiceNumber: "001/234" })).toBe(
+      "factura-venta-001_234.xml"
+    );
   });
 });
 

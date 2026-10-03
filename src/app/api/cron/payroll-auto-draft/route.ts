@@ -68,8 +68,8 @@ export async function GET(request: NextRequest) {
 
   console.info(
     `[cron/payroll-auto-draft] Completado en ${elapsed}ms — ` +
-    `${results.length}/${total} empresas, ${creadas.length} borradores creados, ` +
-    `${omitidas.length} omitidas, ${fallidas.length} fallidas${truncated ? " (LOTE TRUNCADO)" : ""}`,
+      `${results.length}/${total} empresas, ${creadas.length} borradores creados, ` +
+      `${omitidas.length} omitidas, ${fallidas.length} fallidas${truncated ? " (LOTE TRUNCADO)" : ""}`
   );
 
   return NextResponse.json({
@@ -84,11 +84,13 @@ export async function GET(request: NextRequest) {
     // Sólo lo que no salió bien: nombrar a TODAS las empresas cada corte es más
     // superficie de la necesaria en un cuerpo que queda en los logs de Vercel.
     // El motivo nunca lleva datos de trabajadores (ver `clasificar`).
-    details: results.filter((r) => r.status !== "CREADA").map((r) => ({
-      company: r.companyName,
-      status: r.status,
-      period: r.periodStart ? `${r.periodStart}..${r.periodEnd}` : null,
-      motivo: r.motivo,
-    })),
+    details: results
+      .filter((r) => r.status !== "CREADA")
+      .map((r) => ({
+        company: r.companyName,
+        status: r.status,
+        period: r.periodStart ? `${r.periodStart}..${r.periodEnd}` : null,
+        motivo: r.motivo,
+      })),
   });
 }

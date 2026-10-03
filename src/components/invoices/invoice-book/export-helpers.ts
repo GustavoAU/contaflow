@@ -79,7 +79,10 @@ export async function exportInvoiceBookExcel(
         row.taxCategory,
         row.relatedDocNumber ?? "",
         ...(type === "PURCHASE" ? [row.importFormNumber ?? ""] : []),
-        "—", "", "", "",
+        "—",
+        "",
+        "",
+        "",
         row.ivaRetentionAmount,
         row.ivaRetentionVoucher ?? "",
         ...(type === "PURCHASE" ? [row.islrRetentionAmount] : []),
@@ -119,12 +122,21 @@ export async function exportInvoiceBookExcel(
   const s = result.summary;
   ws.addRow([]);
   ws.addRow([
-    "TOTALES", "", "", "", "", "", "", "",
+    "TOTALES",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
     ...(type === "PURCHASE" ? [""] : []),
     "",
-    s.totalBase, "",
+    s.totalBase,
+    "",
     s.totalIva,
-    s.totalIvaRetention, "",
+    s.totalIvaRetention,
+    "",
     ...(type === "PURCHASE" ? [s.totalIslrRetention] : []),
     ...(type === "SALE" ? ["", s.totalIgtf] : []),
     Number(s.totalAmount),
@@ -153,13 +165,12 @@ export function buildInvoiceBookTXT(
   month: number
 ): string {
   const DOC_TYPE: Record<string, string> = {
-    FACTURA:      "01",
-    NOTA_DEBITO:  "02",
+    FACTURA: "01",
+    NOTA_DEBITO: "02",
     NOTA_CREDITO: "03",
   };
 
-  const fmtNum = (v: string | number) =>
-    parseFloat(String(v)).toFixed(2);
+  const fmtNum = (v: string | number) => parseFloat(String(v)).toFixed(2);
 
   const fmtDateSivit = (d: Date | string) => {
     const dt = d instanceof Date ? d : new Date(d);
@@ -180,14 +191,18 @@ export function buildInvoiceBookTXT(
 
   const rowFields = result.rows.map((row) => {
     // Agregar bases e IVA por alícuota
-    let base16 = 0, iva16 = 0, base8 = 0, iva8 = 0, exento = 0;
+    let base16 = 0,
+      iva16 = 0,
+      base8 = 0,
+      iva8 = 0,
+      exento = 0;
     for (const tl of row.taxLines) {
       if (tl.taxType === "IVA_GENERAL" || tl.taxType === "IVA_ADICIONAL") {
         base16 += parseFloat(tl.base);
-        iva16  += parseFloat(tl.amount);
+        iva16 += parseFloat(tl.amount);
       } else if (tl.taxType === "IVA_REDUCIDO") {
         base8 += parseFloat(tl.base);
-        iva8  += parseFloat(tl.amount);
+        iva8 += parseFloat(tl.amount);
       } else {
         exento += parseFloat(tl.base);
       }
@@ -222,7 +237,12 @@ export function buildInvoiceBookTXT(
     "",
     `# TOTALES`,
     [
-      "TOTAL", "", "", "", "", "",
+      "TOTAL",
+      "",
+      "",
+      "",
+      "",
+      "",
       sumColumn(6),
       sumColumn(7),
       sumColumn(8),

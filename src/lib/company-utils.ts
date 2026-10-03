@@ -11,7 +11,7 @@ export const AVATAR_COLORS = [
 
 export function hashIdx(id: string): number {
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = ((h * 31) + id.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return h % AVATAR_COLORS.length;
 }
 

@@ -41,13 +41,12 @@ function setAuth(userId: string | null) {
 }
 function setMember(role: string | null) {
   vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(
-    role ? ({ role } as never) : (null as never),
+    role ? ({ role } as never) : (null as never)
   );
 }
 function setTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 beforeEach(() => {
@@ -133,7 +132,10 @@ describe("grantPermissionAction", () => {
   });
 
   it("rechaza si rate limit excedido", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValueOnce({ allowed: false, error: "Demasiadas solicitudes. Intenta más tarde." });
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      error: "Demasiadas solicitudes. Intenta más tarde.",
+    });
     const r = await grantPermissionAction({
       companyId: COMPANY_ID,
       role: "ACCOUNTANT",

@@ -52,17 +52,21 @@ import { BalanceSheetService } from "../services/BalanceSheetService";
 import { IncomeStatementService } from "../services/IncomeStatementService";
 
 // ─── Constantes fiscales venezolanas vigentes ─────────────────────────────────
-const IVA_GENERAL         = new Decimal("0.16");  // LIVA Art. 27 — 16%
-const IVA_RETENCION_PCT   = new Decimal("0.75");  // SNAT/2005/0056 — 75%
-const ISLR_HONORARIOS_PCT = new Decimal("0.03");  // Decreto 1808 — 3% serv. prof.
-const COMPANYID           = "cmp_test_audit_iva";
+const IVA_GENERAL = new Decimal("0.16"); // LIVA Art. 27 — 16%
+const IVA_RETENCION_PCT = new Decimal("0.75"); // SNAT/2005/0056 — 75%
+const ISLR_HONORARIOS_PCT = new Decimal("0.03"); // Decreto 1808 — 3% serv. prof.
+const COMPANYID = "cmp_test_audit_iva";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function bs(v: Decimal): string {
   return v.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(2);
 }
-function dec(s: string | number): Decimal { return new Decimal(s); }
-function makeEntryAmt(v: string) { return { amount: { toString: () => v } }; }
+function dec(s: string | number): Decimal {
+  return new Decimal(s);
+}
+function makeEntryAmt(v: string) {
+  return { amount: { toString: () => v } };
+}
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const PERIOD_OPEN = {
@@ -79,11 +83,35 @@ const PERIOD_OPEN = {
 };
 
 const ACCOUNTS = {
-  CLIENTES:            { id: "acc_1305", code: "1305", name: "Clientes",               type: "ASSET",     isCurrent: true  },
-  IVA_RET_COBRAR:      { id: "acc_1120", code: "1120", name: "IVA Retención/Cobrar",   type: "ASSET",     isCurrent: true  },
-  ISLR_RET_COBRAR:     { id: "acc_1130", code: "1130", name: "ISLR Retención/Cobrar",  type: "ASSET",     isCurrent: true  },
-  INGRESOS_VENTAS:     { id: "acc_4110", code: "4110", name: "Ventas de Mercancías",   type: "REVENUE",   isCurrent: false },
-  IVA_DEBITO_FISCAL:   { id: "acc_2195", code: "2195", name: "IVA Débito Fiscal",      type: "LIABILITY", isCurrent: true  },
+  CLIENTES: { id: "acc_1305", code: "1305", name: "Clientes", type: "ASSET", isCurrent: true },
+  IVA_RET_COBRAR: {
+    id: "acc_1120",
+    code: "1120",
+    name: "IVA Retención/Cobrar",
+    type: "ASSET",
+    isCurrent: true,
+  },
+  ISLR_RET_COBRAR: {
+    id: "acc_1130",
+    code: "1130",
+    name: "ISLR Retención/Cobrar",
+    type: "ASSET",
+    isCurrent: true,
+  },
+  INGRESOS_VENTAS: {
+    id: "acc_4110",
+    code: "4110",
+    name: "Ventas de Mercancías",
+    type: "REVENUE",
+    isCurrent: false,
+  },
+  IVA_DEBITO_FISCAL: {
+    id: "acc_2195",
+    code: "2195",
+    name: "IVA Débito Fiscal",
+    type: "LIABILITY",
+    isCurrent: true,
+  },
 };
 
 const BASE_VENTA_INPUT = {
@@ -93,18 +121,18 @@ const BASE_VENTA_INPUT = {
   date: new Date("2026-05-20"),
   type: "DIARIO" as const,
   entries: [
-    { accountId: ACCOUNTS.CLIENTES.id,          debit: "101000.00", credit: ""          },
-    { accountId: ACCOUNTS.IVA_RET_COBRAR.id,    debit:  "12000.00", credit: ""          },
-    { accountId: ACCOUNTS.ISLR_RET_COBRAR.id,   debit:   "3000.00", credit: ""          },
-    { accountId: ACCOUNTS.INGRESOS_VENTAS.id,   debit: "",          credit: "100000.00" },
-    { accountId: ACCOUNTS.IVA_DEBITO_FISCAL.id, debit: "",          credit:  "16000.00" },
+    { accountId: ACCOUNTS.CLIENTES.id, debit: "101000.00", credit: "" },
+    { accountId: ACCOUNTS.IVA_RET_COBRAR.id, debit: "12000.00", credit: "" },
+    { accountId: ACCOUNTS.ISLR_RET_COBRAR.id, debit: "3000.00", credit: "" },
+    { accountId: ACCOUNTS.INGRESOS_VENTAS.id, debit: "", credit: "100000.00" },
+    { accountId: ACCOUNTS.IVA_DEBITO_FISCAL.id, debit: "", credit: "16000.00" },
   ],
 };
 
 function setupHappyPath(txNumberOverride = "2026-05-000001") {
   vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
   vi.mocked(prisma.account.findMany).mockResolvedValue(
-    Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never,
+    Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never
   );
   vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(PERIOD_OPEN as never);
 
@@ -124,7 +152,7 @@ function setupHappyPath(txNumberOverride = "2026-05-000001") {
         create: vi.fn().mockResolvedValue(createdTx),
       },
       auditLog: { create: vi.fn() },
-    } as never),
+    } as never)
   );
 
   return createdTx;
@@ -137,12 +165,12 @@ function setupHappyPath(txNumberOverride = "2026-05-000001") {
 describe("BLOQUE 1 — Aritmética fiscal centesimal (LIVA + Decreto 1808)", () => {
   it("C-01: IVA causado = base × 16% exacto sin error IEEE 754", () => {
     const base = dec("100000.00");
-    const iva  = base.times(IVA_GENERAL);
+    const iva = base.times(IVA_GENERAL);
     expect(bs(iva)).toBe("16000.00");
   });
 
   it("C-02: Retención IVA = IVA causado × 75%", () => {
-    const iva    = dec("16000.00");
+    const iva = dec("16000.00");
     const retIva = iva.times(IVA_RETENCION_PCT);
     expect(bs(retIva)).toBe("12000.00");
     expect(bs(iva.minus(retIva))).toBe("4000.00"); // 25% no retenido
@@ -154,13 +182,13 @@ describe("BLOQUE 1 — Aritmética fiscal centesimal (LIVA + Decreto 1808)", () 
   });
 
   it("C-04: Partida doble cuadra exactamente — Σdébitos = Σcréditos = 116.000,00", () => {
-    const base       = dec("100000.00");
-    const iva        = base.times(IVA_GENERAL).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const retIva     = iva.times(IVA_RETENCION_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const retIslr    = base.times(ISLR_HONORARIOS_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const base = dec("100000.00");
+    const iva = base.times(IVA_GENERAL).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const retIva = iva.times(IVA_RETENCION_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const retIslr = base.times(ISLR_HONORARIOS_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     const netoCobrar = base.plus(iva).minus(retIva).minus(retIslr);
 
-    const sumaDebitos  = netoCobrar.plus(retIva).plus(retIslr);
+    const sumaDebitos = netoCobrar.plus(retIva).plus(retIslr);
     const sumaCreditos = base.plus(iva);
 
     expect(sumaDebitos.toFixed(2)).toBe(sumaCreditos.toFixed(2));
@@ -168,23 +196,23 @@ describe("BLOQUE 1 — Aritmética fiscal centesimal (LIVA + Decreto 1808)", () 
   });
 
   it("C-05: Neto a cobrar del cliente = 101.000,00", () => {
-    const base       = dec("100000.00");
-    const iva        = base.times(IVA_GENERAL).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const retIva     = iva.times(IVA_RETENCION_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
-    const retIslr    = base.times(ISLR_HONORARIOS_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const base = dec("100000.00");
+    const iva = base.times(IVA_GENERAL).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const retIva = iva.times(IVA_RETENCION_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const retIslr = base.times(ISLR_HONORARIOS_PCT).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     expect(bs(base.plus(iva).minus(retIva).minus(retIslr))).toBe("101000.00");
   });
 
   it("C-06: Base con centavos — Decimal.js correcto, float nativo falla (IEEE 754)", () => {
     // 123456.78 * 0.16 con float = 19753.1248... (no 19753.08)
     const base = dec("123456.78");
-    const iva  = base.times(IVA_GENERAL).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const iva = base.times(IVA_GENERAL).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     expect(bs(iva)).toBe("19753.08");
 
     const floatResult = 123456.78 * 0.16;
     expect(parseFloat(floatResult.toFixed(2))).toBe(19753.08); // coincide por azar en este caso
     // El riesgo real aparece con divisiones y acumulaciones
-    const floatChain = ((123456.78 * 0.16) * 0.75 * 12) / 12; // debería ser 19753.08
+    const floatChain = (123456.78 * 0.16 * 0.75 * 12) / 12; // debería ser 19753.08
     expect(new Decimal(floatChain.toString()).toDecimalPlaces(4).toFixed(4)).not.toBe("19753.0800");
   });
 
@@ -215,13 +243,13 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
   it("C-09: Sin período abierto — rechaza con mensaje de negocio", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.account.findMany).mockResolvedValue(
-      Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never,
+      Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never
     );
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null as never);
 
-    await expect(
-      TransactionService.createBalancedTransaction(BASE_VENTA_INPUT),
-    ).rejects.toThrow("No existe un período contable abierto");
+    await expect(TransactionService.createBalancedTransaction(BASE_VENTA_INPUT)).rejects.toThrow(
+      "No existe un período contable abierto"
+    );
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -229,12 +257,12 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
   it("C-10: Año fiscal cerrado — rechaza antes de consultar período", async () => {
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue({ id: "fyc-1" } as never);
     vi.mocked(prisma.account.findMany).mockResolvedValue(
-      Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never,
+      Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never
     );
 
-    await expect(
-      TransactionService.createBalancedTransaction(BASE_VENTA_INPUT),
-    ).rejects.toThrow("ejercicio económico 2026 está cerrado");
+    await expect(TransactionService.createBalancedTransaction(BASE_VENTA_INPUT)).rejects.toThrow(
+      "ejercicio económico 2026 está cerrado"
+    );
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -244,12 +272,14 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(PERIOD_OPEN as never);
     // Solo devuelve 4 de las 5 cuentas — la quinta es cross-tenant
     vi.mocked(prisma.account.findMany).mockResolvedValue(
-      Object.values(ACCOUNTS).slice(0, 4).map((a) => ({ id: a.id })) as never,
+      Object.values(ACCOUNTS)
+        .slice(0, 4)
+        .map((a) => ({ id: a.id })) as never
     );
 
-    await expect(
-      TransactionService.createBalancedTransaction(BASE_VENTA_INPUT),
-    ).rejects.toThrow("no pertenecen a esta empresa");
+    await expect(TransactionService.createBalancedTransaction(BASE_VENTA_INPUT)).rejects.toThrow(
+      "no pertenecen a esta empresa"
+    );
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -262,27 +292,27 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
       date: new Date("2026-05-20"),
       type: "DIARIO" as const,
       entries: [
-        { accountId: ACCOUNTS.CLIENTES.id,        debit: "101000.00", credit: ""         },
-        { accountId: ACCOUNTS.INGRESOS_VENTAS.id,  debit: "",          credit: "99999.00" },
+        { accountId: ACCOUNTS.CLIENTES.id, debit: "101000.00", credit: "" },
+        { accountId: ACCOUNTS.INGRESOS_VENTAS.id, debit: "", credit: "99999.00" },
         // Débitos 101.000 ≠ Créditos 99.999 → descuadrado
       ],
     };
 
-    await expect(
-      TransactionService.createBalancedTransaction(unbalancedInput),
-    ).rejects.toThrow(/desbalanceado/i);
+    await expect(TransactionService.createBalancedTransaction(unbalancedInput)).rejects.toThrow(
+      /desbalanceado/i
+    );
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it("C-13: Número correlativo incrementa desde el último del mes", async () => {
-    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(
-      { number: "2026-05-000042" } as never,
-    );
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue({
+      number: "2026-05-000042",
+    } as never);
     const number = await TransactionService.generateTransactionNumber(
       COMPANYID,
       new Date("2026-05-20"),
-      prisma as never,
+      prisma as never
     );
     expect(number).toBe("2026-05-000043");
   });
@@ -292,7 +322,7 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
     const number = await TransactionService.generateTransactionNumber(
       COMPANYID,
       new Date("2026-06-01"),
-      prisma as never,
+      prisma as never
     );
     expect(number).toBe("2026-06-000001");
   });
@@ -309,7 +339,11 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
       type: "DIARIO",
       entries: [
         { accountId: ACCOUNTS.CLIENTES.id, amount: new Decimal("101000.00"), description: null },
-        { accountId: ACCOUNTS.INGRESOS_VENTAS.id, amount: new Decimal("-100000.00"), description: null },
+        {
+          accountId: ACCOUNTS.INGRESOS_VENTAS.id,
+          amount: new Decimal("-100000.00"),
+          description: null,
+        },
       ],
     } as never);
 
@@ -321,9 +355,15 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
 
     await expect(
       TransactionService.voidTransaction(
-        { transactionId: "tx_original", userId: "usr_admin", reason: "Prueba de anulación período cerrado" },
-        COMPANYID, "1.2.3.4", "vitest-agent",
-      ),
+        {
+          transactionId: "tx_original",
+          userId: "usr_admin",
+          reason: "Prueba de anulación período cerrado",
+        },
+        COMPANYID,
+        "1.2.3.4",
+        "vitest-agent"
+      )
     ).rejects.toThrow(/período cerrado/i);
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -350,9 +390,15 @@ describe("BLOQUE 2 — TransactionService: asiento fiscal y bloqueos", () => {
 
     await expect(
       TransactionService.voidTransaction(
-        { transactionId: "tx_original", userId: "usr_admin", reason: "Anulación en año cerrado test" },
-        COMPANYID, "1.2.3.4", "vitest-agent",
-      ),
+        {
+          transactionId: "tx_original",
+          userId: "usr_admin",
+          reason: "Anulación en año cerrado test",
+        },
+        COMPANYID,
+        "1.2.3.4",
+        "vitest-agent"
+      )
     ).rejects.toThrow(/año fiscal.*cerrado/i);
   });
 });
@@ -374,15 +420,13 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
         ACCOUNTS.ISLR_RET_COBRAR,
         ACCOUNTS.IVA_DEBITO_FISCAL,
       ] as never)
-      .mockResolvedValueOnce([
-        ACCOUNTS.INGRESOS_VENTAS,
-      ] as never);
+      .mockResolvedValueOnce([ACCOUNTS.INGRESOS_VENTAS] as never);
     vi.mocked(prisma.journalEntry.groupBy)
       .mockResolvedValueOnce([
-        { accountId: ACCOUNTS.CLIENTES.id,          _sum: { amount: "101000.00"  } },
-        { accountId: ACCOUNTS.IVA_RET_COBRAR.id,    _sum: { amount: "12000.00"   } },
-        { accountId: ACCOUNTS.ISLR_RET_COBRAR.id,   _sum: { amount: "3000.00"    } },
-        { accountId: ACCOUNTS.IVA_DEBITO_FISCAL.id, _sum: { amount: "-16000.00"  } },
+        { accountId: ACCOUNTS.CLIENTES.id, _sum: { amount: "101000.00" } },
+        { accountId: ACCOUNTS.IVA_RET_COBRAR.id, _sum: { amount: "12000.00" } },
+        { accountId: ACCOUNTS.ISLR_RET_COBRAR.id, _sum: { amount: "3000.00" } },
+        { accountId: ACCOUNTS.IVA_DEBITO_FISCAL.id, _sum: { amount: "-16000.00" } },
       ] as never)
       .mockResolvedValueOnce([
         { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } },
@@ -395,13 +439,13 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
 
     expect(balance.totalCurrentAssets).toBe("116000.00"); // 101+12+3
 
-    const cli  = balance.currentAssets.find((r) => r.code === "1305");
+    const cli = balance.currentAssets.find((r) => r.code === "1305");
     const ivaR = balance.currentAssets.find((r) => r.code === "1120");
     const islR = balance.currentAssets.find((r) => r.code === "1130");
 
-    expect(cli?.balance).toBe("101000.00");  // neto a cobrar del cliente
-    expect(ivaR?.balance).toBe("12000.00");  // IVA retenido 75%
-    expect(islR?.balance).toBe("3000.00");   // ISLR retenido 3%
+    expect(cli?.balance).toBe("101000.00"); // neto a cobrar del cliente
+    expect(ivaR?.balance).toBe("12000.00"); // IVA retenido 75%
+    expect(islR?.balance).toBe("3000.00"); // ISLR retenido 3%
   });
 
   it("C-18: IVA Débito Fiscal presentado POSITIVO en Pasivos (negación del crédito)", async () => {
@@ -409,7 +453,7 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
     const balance = await BalanceSheetService.compute(COMPANYID, new Date("2026-05-31"));
 
     const ivaD = balance.currentLiabilities.find((r) => r.code === "2195");
-    expect(ivaD?.balance).toBe("16000.00");          // negado → positivo
+    expect(ivaD?.balance).toBe("16000.00"); // negado → positivo
     expect(balance.totalCurrentLiabilities).toBe("16000.00");
   });
 
@@ -436,8 +480,12 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
       .mockResolvedValueOnce([ACCOUNTS.CLIENTES] as never)
       .mockResolvedValueOnce([ACCOUNTS.INGRESOS_VENTAS] as never);
     vi.mocked(prisma.journalEntry.groupBy)
-      .mockResolvedValueOnce([{ accountId: ACCOUNTS.CLIENTES.id, _sum: { amount: "101000.00" } }] as never)
-      .mockResolvedValueOnce([{ accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } }] as never);
+      .mockResolvedValueOnce([
+        { accountId: ACCOUNTS.CLIENTES.id, _sum: { amount: "101000.00" } },
+      ] as never)
+      .mockResolvedValueOnce([
+        { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } },
+      ] as never);
 
     const balance = await BalanceSheetService.compute(COMPANYID);
     // Activos=101.000, Pasivos=0, Patrimonio(netIncome)=100.000 → diff=1.000 > BALANCE_TOLERANCE
@@ -448,7 +496,13 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
     // Reproduce el escenario de la screenshot: "(196.441,67)"
     vi.mocked(prisma.account.findMany)
       .mockResolvedValueOnce([
-        { id: "acc_1510", code: "1510", name: "Dep. Acum. Equipos", type: "CONTRA_ASSET", isCurrent: false },
+        {
+          id: "acc_1510",
+          code: "1510",
+          name: "Dep. Acum. Equipos",
+          type: "CONTRA_ASSET",
+          isCurrent: false,
+        },
       ] as never)
       .mockResolvedValueOnce([] as never);
     vi.mocked(prisma.journalEntry.groupBy)
@@ -472,7 +526,9 @@ describe("BLOQUE 3 — BalanceSheetService: cuadre A = P + Pat", () => {
       .mockResolvedValueOnce([] as never);
     // groupBy ya agrega en BD — devolvemos la suma total directamente
     vi.mocked(prisma.journalEntry.groupBy)
-      .mockResolvedValueOnce([{ accountId: ACCOUNTS.CLIENTES.id, _sum: { amount: "101000.00" } }] as never)
+      .mockResolvedValueOnce([
+        { accountId: ACCOUNTS.CLIENTES.id, _sum: { amount: "101000.00" } },
+      ] as never)
       .mockResolvedValueOnce([] as never);
 
     const balance = await BalanceSheetService.compute(COMPANYID /* sin dateTo */);
@@ -488,15 +544,15 @@ describe("BLOQUE 4 — IncomeStatementService: período y signo de cuentas", () 
   beforeEach(() => vi.clearAllMocks());
 
   it("C-24: Ingresos con saldo crédito (negativo en BD) se presentan POSITIVOS", async () => {
-    vi.mocked(prisma.account.findMany).mockResolvedValueOnce([
-      ACCOUNTS.INGRESOS_VENTAS,
-    ] as never);
+    vi.mocked(prisma.account.findMany).mockResolvedValueOnce([ACCOUNTS.INGRESOS_VENTAS] as never);
     vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
       { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } },
     ] as never);
 
     const er = await IncomeStatementService.compute(
-      COMPANYID, new Date("2026-05-01"), new Date("2026-05-31"),
+      COMPANYID,
+      new Date("2026-05-01"),
+      new Date("2026-05-31")
     );
     expect(er.totalRevenues).toBe("100000.00");
     expect(er.revenues[0].balance).toBe("100000.00");
@@ -510,7 +566,7 @@ describe("BLOQUE 4 — IncomeStatementService: período y signo de cuentas", () 
     ] as never);
     vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
       { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-100000.00" } },
-      { accountId: "acc_6110",                  _sum: { amount: "20000.00"   } },
+      { accountId: "acc_6110", _sum: { amount: "20000.00" } },
     ] as never);
 
     const er = await IncomeStatementService.compute(COMPANYID);
@@ -526,7 +582,7 @@ describe("BLOQUE 4 — IncomeStatementService: período y signo de cuentas", () 
     ] as never);
     vi.mocked(prisma.journalEntry.groupBy).mockResolvedValueOnce([
       { accountId: ACCOUNTS.INGRESOS_VENTAS.id, _sum: { amount: "-10000.00" } },
-      { accountId: "acc_6110",                  _sum: { amount: "50000.00"  } },
+      { accountId: "acc_6110", _sum: { amount: "50000.00" } },
     ] as never);
 
     const er = await IncomeStatementService.compute(COMPANYID);
@@ -565,7 +621,7 @@ describe("BLOQUE 5 — Regresiones: hallazgos críticos de auditoría", () => {
     // "No existe...", no "no corresponde al período abierto".
     vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
     vi.mocked(prisma.account.findMany).mockResolvedValue(
-      Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never,
+      Object.values(ACCOUNTS).map((a) => ({ id: a.id })) as never
     );
     vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(null as never);
 
@@ -575,9 +631,9 @@ describe("BLOQUE 5 — Regresiones: hallazgos críticos de auditoría", () => {
       date: new Date("2026-01-15"),
     };
 
-    await expect(
-      TransactionService.createBalancedTransaction(backdatedInput),
-    ).rejects.toThrow("No existe un período contable abierto");
+    await expect(TransactionService.createBalancedTransaction(backdatedInput)).rejects.toThrow(
+      "No existe un período contable abierto"
+    );
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -586,10 +642,14 @@ describe("BLOQUE 5 — Regresiones: hallazgos críticos de auditoría", () => {
     vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
 
     const n1 = await TransactionService.generateTransactionNumber(
-      "empresa_a", new Date("2026-05-01"), prisma as never,
+      "empresa_a",
+      new Date("2026-05-01"),
+      prisma as never
     );
     const n2 = await TransactionService.generateTransactionNumber(
-      "empresa_b", new Date("2026-05-01"), prisma as never,
+      "empresa_b",
+      new Date("2026-05-01"),
+      prisma as never
     );
     // Ambas empresas arrancan desde 000001 — correcto para el aislamiento multi-tenant
     expect(n1).toBe("2026-05-000001");
@@ -607,9 +667,7 @@ describe("BLOQUE 5 — Regresiones: hallazgos críticos de auditoría", () => {
       entries: [{ accountId: "acc_1305", debit: "1000", credit: "" }],
     };
 
-    await expect(
-      TransactionService.createBalancedTransaction(singleLineInput),
-    ).rejects.toThrow();
+    await expect(TransactionService.createBalancedTransaction(singleLineInput)).rejects.toThrow();
 
     expect(prisma.account.findMany).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();

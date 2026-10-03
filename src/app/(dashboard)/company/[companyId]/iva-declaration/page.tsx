@@ -22,16 +22,16 @@ export default async function IvaDeclarationPage({ params }: Props) {
   });
 
   const fiscalTabs = [
-    { label: "Libros IVA",    href: `/company/${companyId}/invoices` },
-    { label: "Retenciones",   href: `/company/${companyId}/retentions` },
-    { label: "Decl. IVA",     href: `/company/${companyId}/iva-declaration` },
+    { label: "Libros IVA", href: `/company/${companyId}/invoices` },
+    { label: "Retenciones", href: `/company/${companyId}/retentions` },
+    { label: "Decl. IVA", href: `/company/${companyId}/iva-declaration` },
   ];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Declaración IVA — Forma 30</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-1 text-sm">
           Resumen mensual de débitos y créditos fiscales para la Forma 30 SENIAT
         </p>
       </div>

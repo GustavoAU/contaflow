@@ -40,7 +40,15 @@ export function LedgerExportButton({ accounts, period, companyName }: Props) {
         parseFloat(account.totalCredit),
         parseFloat(account.balance),
       ]);
-      ws.addRow(["", "Fecha", "Número", "Descripción", "Débito (Bs.)", "Crédito (Bs.)", "Saldo acumulado (Bs.)"]);
+      ws.addRow([
+        "",
+        "Fecha",
+        "Número",
+        "Descripción",
+        "Débito (Bs.)",
+        "Crédito (Bs.)",
+        "Saldo acumulado (Bs.)",
+      ]);
 
       for (const entry of account.entries) {
         ws.addRow([

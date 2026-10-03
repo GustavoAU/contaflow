@@ -26,11 +26,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  addMemberAction,
-  removeMemberAction,
-  getMembersAction,
-} from "../actions/member.actions";
+import { addMemberAction, removeMemberAction, getMembersAction } from "../actions/member.actions";
 import type { MemberRow } from "../services/MemberService";
 import type { UserRole } from "@prisma/client";
 
@@ -202,21 +198,22 @@ export function SeniatAccessPanel({
 
   return (
     <>
-      <div className="rounded-lg border p-6 space-y-5">
+      <div className="space-y-5 rounded-lg border p-6">
         {/* Header */}
         <div className="flex items-center gap-2">
-          <ShieldCheckIcon className="h-5 w-5 text-muted-foreground" aria-hidden />
+          <ShieldCheckIcon className="text-muted-foreground h-5 w-5" aria-hidden />
           <div>
             <h2 className="text-lg font-semibold">Acceso Auditoría SENIAT</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Gestiona el acceso del funcionario SENIAT conforme a la PA 121. Solo visible para el Propietario.
+              Gestiona el acceso del funcionario SENIAT conforme a la PA 121. Solo visible para el
+              Propietario.
             </p>
           </div>
         </div>
 
         {/* Estado: sin miembro SENIAT asignado */}
         {!seniatMember && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-3">
+          <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
             <div className="flex items-center gap-2">
               <ShieldAlertIcon className="h-4 w-4 text-amber-600 dark:text-amber-500" aria-hidden />
               <p className="text-sm font-semibold text-amber-600 dark:text-amber-500">
@@ -274,15 +271,18 @@ export function SeniatAccessPanel({
 
         {/* Estado: acceso SENIAT activo */}
         {seniatMember && (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800 p-4 space-y-3">
+          <div className="space-y-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
             <div className="flex items-center gap-2">
-              <CheckCircle2Icon className="h-4 w-4 text-emerald-600 dark:text-emerald-500" aria-hidden />
+              <CheckCircle2Icon
+                className="h-4 w-4 text-emerald-600 dark:text-emerald-500"
+                aria-hidden
+              />
               <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-500">
                 Acceso SENIAT activo — PA 121 cumplida
               </p>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {seniatMember.user.name ?? "Auditor SENIAT"}
@@ -291,14 +291,14 @@ export function SeniatAccessPanel({
                   {seniatMember.user.email}
                 </p>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex shrink-0 gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleViewCredentials}
-                  className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                  className="focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none dark:focus:ring-offset-gray-900"
                 >
-                  <CopyIcon className="h-4 w-4 mr-1.5" aria-hidden />
+                  <CopyIcon className="mr-1.5 h-4 w-4" aria-hidden />
                   Ver credenciales
                 </Button>
                 <Button
@@ -307,33 +307,33 @@ export function SeniatAccessPanel({
                   onClick={handleRevoke}
                   disabled={isPendingRevoke}
                   aria-busy={isPendingRevoke}
-                  className="focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                  className="focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:outline-none dark:focus:ring-offset-gray-900"
                 >
                   {isPendingRevoke ? (
-                    <Loader2Icon className="h-4 w-4 animate-spin mr-1.5" aria-hidden />
+                    <Loader2Icon className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
                   ) : (
-                    <UserXIcon className="h-4 w-4 mr-1.5" aria-hidden />
+                    <UserXIcon className="mr-1.5 h-4 w-4" aria-hidden />
                   )}
                   Revocar acceso
                 </Button>
               </div>
             </div>
 
-            <div className="rounded-md bg-muted/50 px-3 py-2.5 space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="bg-muted/50 space-y-1 rounded-md px-3 py-2.5">
+              <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                 Acceso de lectura incluye
               </p>
-              <ul className="text-xs text-muted-foreground space-y-0.5">
+              <ul className="text-muted-foreground space-y-0.5 text-xs">
                 <li className="flex items-center gap-1.5">
-                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                  <span className="bg-muted-foreground/50 h-1 w-1 shrink-0 rounded-full" />
                   Informe de Auditoría de Facturas (Libros de Ventas y Compras)
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                  <span className="bg-muted-foreground/50 h-1 w-1 shrink-0 rounded-full" />
                   Informe de Auditoría de Caja (Registros de Cobro/Pago)
                 </li>
                 <li className="flex items-center gap-1.5">
-                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                  <span className="bg-muted-foreground/50 h-1 w-1 shrink-0 rounded-full" />
                   Estado de transmisiones PA-121 (PENDING / SENT / FAILED)
                 </li>
               </ul>
@@ -351,33 +351,33 @@ export function SeniatAccessPanel({
               Credenciales de Acceso SENIAT
             </DialogTitle>
             <DialogDescription>
-              Equivalente al &ldquo;sobre sellado&rdquo; requerido por PA 121. Entrega este documento
-              en mano al funcionario del SENIAT.
+              Equivalente al &ldquo;sobre sellado&rdquo; requerido por PA 121. Entrega este
+              documento en mano al funcionario del SENIAT.
             </DialogDescription>
           </DialogHeader>
 
-          <pre className="rounded-md bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 text-xs text-gray-700 dark:text-gray-300 overflow-auto max-h-72 font-mono whitespace-pre-wrap">
+          <pre className="max-h-72 overflow-auto rounded-md border border-gray-200 bg-gray-50 p-4 font-mono text-xs whitespace-pre-wrap text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
             {credentialText}
           </pre>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button
               variant="outline"
               onClick={handleCopyCredentials}
-              className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+              className="focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none dark:focus:ring-offset-gray-900"
             >
               {copied ? (
-                <CheckCircle2Icon className="h-4 w-4 mr-1.5 text-emerald-500" aria-hidden />
+                <CheckCircle2Icon className="mr-1.5 h-4 w-4 text-emerald-500" aria-hidden />
               ) : (
-                <CopyIcon className="h-4 w-4 mr-1.5" aria-hidden />
+                <CopyIcon className="mr-1.5 h-4 w-4" aria-hidden />
               )}
               {copied ? "Copiado" : "Copiar al portapapeles"}
             </Button>
             <Button
               onClick={handlePrintCredentials}
-              className="focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+              className="focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none dark:focus:ring-offset-gray-900"
             >
-              <PrinterIcon className="h-4 w-4 mr-1.5" aria-hidden />
+              <PrinterIcon className="mr-1.5 h-4 w-4" aria-hidden />
               Imprimir / PDF
             </Button>
           </DialogFooter>

@@ -21,7 +21,9 @@ import { toActionError } from "../utils/action-errors";
 // ─── Obtener historial de cierres ──────────────────────────────────────────────
 export async function getFiscalYearCloseHistoryAction(
   companyId: string
-): Promise<ActionResult<Awaited<ReturnType<typeof FiscalYearCloseService.getFiscalYearCloseHistory>>>> {
+): Promise<
+  ActionResult<Awaited<ReturnType<typeof FiscalYearCloseService.getFiscalYearCloseHistory>>>
+> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
     if (!ctx.ok) return ctx.error;
@@ -34,16 +36,17 @@ export async function getFiscalYearCloseHistoryAction(
 }
 
 // ─── Cerrar ejercicio económico ────────────────────────────────────────────────
-export async function closeFiscalYearAction(
-  input: unknown
-): Promise<ActionResult<{
-  fiscalYearCloseId: string;
-  closingTransactionId: string;
-  totalRevenue: string;
-  totalExpenses: string;
-  netResult: string;
-  closingEntriesCount: number;
-}> | StepUpError> {
+export async function closeFiscalYearAction(input: unknown): Promise<
+  | ActionResult<{
+      fiscalYearCloseId: string;
+      closingTransactionId: string;
+      totalRevenue: string;
+      totalExpenses: string;
+      netResult: string;
+      closingEntriesCount: number;
+    }>
+  | StepUpError
+> {
   const parsed = CloseFiscalYearSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -65,7 +68,7 @@ export async function closeFiscalYearAction(
     }
 
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting")) {
+    if (!(await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting"))) {
       return { success: false, error: moduleAccessError("accounting") };
     }
 
@@ -121,7 +124,7 @@ export async function appropriateFiscalYearResultAction(
     }
 
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting")) {
+    if (!(await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting"))) {
       return { success: false, error: moduleAccessError("accounting") };
     }
 
@@ -160,7 +163,7 @@ export async function updateFiscalConfigAction(
     const { userId, ipAddress, userAgent } = ctx;
 
     // ADR-025: verifica acceso base + grants granulares al módulo Contabilidad
-    if (!await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting")) {
+    if (!(await hasModuleAccess(parsed.data.companyId, ctx.role, "accounting"))) {
       return { success: false, error: moduleAccessError("accounting") };
     }
 
@@ -175,7 +178,10 @@ export async function updateFiscalConfigAction(
     });
 
     if (accounts.length !== 2) {
-      return { success: false, error: "Una o ambas cuentas no fueron encontradas en esta empresa." };
+      return {
+        success: false,
+        error: "Una o ambas cuentas no fueron encontradas en esta empresa.",
+      };
     }
 
     const nonEquity = accounts.filter((a) => a.type !== "EQUITY");
@@ -190,7 +196,8 @@ export async function updateFiscalConfigAction(
     if (parsed.data.resultAccountId === parsed.data.retainedEarningsAccountId) {
       return {
         success: false,
-        error: "La cuenta Resultado del Ejercicio y la cuenta Utilidades Retenidas no pueden ser la misma.",
+        error:
+          "La cuenta Resultado del Ejercicio y la cuenta Utilidades Retenidas no pueden ser la misma.",
       };
     }
 

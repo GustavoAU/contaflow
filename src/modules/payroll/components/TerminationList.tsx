@@ -49,11 +49,21 @@ export default function TerminationList({ companyId, terminations, employeeNames
       <table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50">
           <tr>
-            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Empleado</th>
-            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Causa</th>
-            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Fecha egreso</th>
-            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Estado</th>
-            <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">Total neto</th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+              Empleado
+            </th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+              Causa
+            </th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+              Fecha egreso
+            </th>
+            <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+              Estado
+            </th>
+            <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">
+              Total neto
+            </th>
             <th scope="col" className="px-4 py-3" />
           </tr>
         </thead>
@@ -63,14 +73,12 @@ export default function TerminationList({ companyId, terminations, employeeNames
               <td className="px-4 py-3 font-medium text-gray-900">
                 {employeeNames[t.employeeId] ?? t.employeeId}
               </td>
-              <td className="px-4 py-3 text-gray-600">
-                {REASON_LABELS[t.reason] ?? t.reason}
-              </td>
-              <td className="px-4 py-3 text-gray-600 font-mono text-xs">
-                {t.terminationDate}
-              </td>
+              <td className="px-4 py-3 text-gray-600">{REASON_LABELS[t.reason] ?? t.reason}</td>
+              <td className="px-4 py-3 font-mono text-xs text-gray-600">{t.terminationDate}</td>
               <td className="px-4 py-3">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[t.status] ?? "bg-gray-100 text-gray-600"}`}>
+                <span
+                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[t.status] ?? "bg-gray-100 text-gray-600"}`}
+                >
                   {STATUS_LABELS[t.status] ?? t.status}
                 </span>
               </td>
@@ -80,7 +88,7 @@ export default function TerminationList({ companyId, terminations, employeeNames
               <td className="px-4 py-3 text-right">
                 <Link
                   href={`/company/${companyId}/payroll/terminations/${t.id}`}
-                  className="text-blue-600 hover:underline text-xs"
+                  className="text-xs text-blue-600 hover:underline"
                 >
                   Ver
                 </Link>

@@ -8,37 +8,37 @@ import type Decimal from "decimal.js";
 
 export interface DigitalInvoiceLine {
   description: string;
-  quantity:    Decimal;
-  unitPrice:   Decimal;
-  taxRate:     number;   // 0 | 8 | 16 | 31
-  total:       Decimal;
+  quantity: Decimal;
+  unitPrice: Decimal;
+  taxRate: number; // 0 | 8 | 16 | 31
+  total: Decimal;
 }
 
 export interface DigitalInvoiceSubmission {
   // Emisor
-  companyRif:     string;
-  companyName:    string;
+  companyRif: string;
+  companyName: string;
   companyAddress: string;
 
   // Receptor
-  customerRif:     string;
-  customerName:    string;
+  customerRif: string;
+  customerName: string;
   customerAddress?: string;
 
   // Documento
   invoiceDate: Date;
-  docType:     "FACTURA" | "NOTA_DEBITO" | "NOTA_CREDITO";
+  docType: "FACTURA" | "NOTA_DEBITO" | "NOTA_CREDITO";
 
   // Líneas
   lines: DigitalInvoiceLine[];
 
   // Totales
-  subtotal:   Decimal;
-  ivaAmount:  Decimal;
-  total:      Decimal;
+  subtotal: Decimal;
+  ivaAmount: Decimal;
+  total: Decimal;
 
   // Moneda
-  currency:      string;
+  currency: string;
   exchangeRate?: Decimal; // solo si currency !== VES
 
   // Para NC/ND: referencia al documento original
@@ -48,11 +48,11 @@ export interface DigitalInvoiceSubmission {
 // ─── Tipos de respuesta ───────────────────────────────────────────────────────
 
 export interface DigitalInvoiceResult {
-  controlNumber:       string;  // Número de control fiscal del proveedor
-  qrCodeData:          string;  // URL o contenido del QR para el PDF
-  providerReferenceId: string;  // ID interno del proveedor (para reconciliación)
-  issuedAt:            Date;
-  isContingency:       boolean; // true si el proveedor emitió en modo contingencia
+  controlNumber: string; // Número de control fiscal del proveedor
+  qrCodeData: string; // URL o contenido del QR para el PDF
+  providerReferenceId: string; // ID interno del proveedor (para reconciliación)
+  issuedAt: Date;
+  isContingency: boolean; // true si el proveedor emitió en modo contingencia
 }
 
 export interface DigitalVoidResult {
@@ -89,7 +89,7 @@ export class DigitalInvoiceProviderError extends Error {
     message: string,
     public readonly providerName: string,
     public readonly retryable: boolean,
-    public readonly cause?: unknown,
+    public readonly cause?: unknown
   ) {
     super(message);
     this.name = "DigitalInvoiceProviderError";

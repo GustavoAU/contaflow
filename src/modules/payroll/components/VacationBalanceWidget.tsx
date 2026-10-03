@@ -22,24 +22,18 @@ function StatCard({
   return (
     <div className={`flex flex-col items-center rounded-xl border p-3 ${color}`}>
       <Icon className="mb-1 h-4 w-4 opacity-70" aria-hidden />
-      <span className="text-xl font-bold leading-none">{value}</span>
+      <span className="text-xl leading-none font-bold">{value}</span>
       <span className="mt-1 text-center text-xs opacity-80">{label}</span>
     </div>
   );
 }
 
 export function VacationBalanceWidget({ balance }: Props) {
-  const {
-    yearsOfService,
-    daysAccrued,
-    initialBalance,
-    daysUsed,
-    daysPending,
-    daysAvailable,
-  } = balance;
+  const { yearsOfService, daysAccrued, initialBalance, daysUsed, daysPending, daysAvailable } =
+    balance;
 
   return (
-    <div className="rounded-xl border bg-white p-4 space-y-4">
+    <div className="space-y-4 rounded-xl border bg-white p-4">
       <div className="flex items-center gap-2">
         <SunIcon className="h-4 w-4 text-amber-500" aria-hidden />
         <h3 className="text-sm font-semibold text-zinc-700">Saldo de Vacaciones</h3>

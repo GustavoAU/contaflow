@@ -31,10 +31,14 @@ describe("CreateVendorSchema — text fields (MEDIUM-1 trim)", () => {
     expect(CreateVendorSchema.safeParse({ name: "A".repeat(201) }).success).toBe(false);
   });
   it("acepta email válido", () => {
-    expect(CreateVendorSchema.safeParse({ name: "Acme", email: "test@example.com" }).success).toBe(true);
+    expect(CreateVendorSchema.safeParse({ name: "Acme", email: "test@example.com" }).success).toBe(
+      true
+    );
   });
   it("rechaza email inválido", () => {
-    expect(CreateVendorSchema.safeParse({ name: "Acme", email: "no-es-email" }).success).toBe(false);
+    expect(CreateVendorSchema.safeParse({ name: "Acme", email: "no-es-email" }).success).toBe(
+      false
+    );
   });
   it('convierte string vacío en null (email) — "" limpia la columna en updates', () => {
     const r = CreateVendorSchema.safeParse({ name: "Acme", email: "" });

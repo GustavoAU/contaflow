@@ -14,12 +14,7 @@ interface Props {
   canWrite: boolean;
 }
 
-export default function SalaryHistoryPanel({
-  companyId,
-  employeeId,
-  history,
-  canWrite,
-}: Props) {
+export default function SalaryHistoryPanel({ companyId, employeeId, history, canWrite }: Props) {
   const [rows, setRows] = useState<SalaryHistoryRow[]>(history);
   const [showForm, setShowForm] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -61,7 +56,7 @@ export default function SalaryHistoryPanel({
       </div>
 
       {showForm && (
-        <div className="rounded border bg-blue-50 p-4 space-y-3">
+        <div className="space-y-3 rounded border bg-blue-50 p-4">
           <p className="text-xs font-medium text-blue-800">Agregar cambio de salario</p>
           <div className="grid grid-cols-3 gap-2">
             <div>
@@ -99,9 +94,7 @@ export default function SalaryHistoryPanel({
               </select>
             </div>
           </div>
-          {error && (
-            <p className="text-xs text-red-600">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button
               type="button"
@@ -109,7 +102,8 @@ export default function SalaryHistoryPanel({
               disabled={isPending}
               className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending && <Loader2Icon className="size-3.5 animate-spin" />}{isPending ? "Guardando..." : "Guardar"}
+              {isPending && <Loader2Icon className="size-3.5 animate-spin" />}
+              {isPending ? "Guardando..." : "Guardar"}
             </button>
             <button
               type="button"
@@ -132,8 +126,12 @@ export default function SalaryHistoryPanel({
                 <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">
                   Vigente desde
                 </th>
-                <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500">Monto</th>
-                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">Moneda</th>
+                <th scope="col" className="px-4 py-2 text-right text-xs font-medium text-gray-500">
+                  Monto
+                </th>
+                <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500">
+                  Moneda
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">

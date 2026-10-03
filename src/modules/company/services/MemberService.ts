@@ -39,9 +39,7 @@ export async function addMember(
 
   const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user) {
-    throw new Error(
-      "Usuario no encontrado. Pídele que inicie sesión en ContaFlow primero."
-    );
+    throw new Error("Usuario no encontrado. Pídele que inicie sesión en ContaFlow primero.");
   }
 
   const existing = await prisma.companyMember.findUnique({

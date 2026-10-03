@@ -8,10 +8,7 @@ import { useState } from "react";
 import { FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  exportCajaCajaCSVAction,
-  exportCajaCajaPDFAction,
-} from "../actions/cajachica.actions";
+import { exportCajaCajaCSVAction, exportCajaCajaPDFAction } from "../actions/cajachica.actions";
 
 type Props = {
   cajaCajaId: string;
@@ -60,9 +57,7 @@ export function CajaCajaExportButtons({ cajaCajaId, companyId }: Props) {
         toast.error(result.error);
         return;
       }
-      const bytes = Uint8Array.from(atob(result.data.pdf), (c) =>
-        c.charCodeAt(0),
-      );
+      const bytes = Uint8Array.from(atob(result.data.pdf), (c) => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: "application/pdf" });
       triggerDownload(blob, result.data.filename);
     } catch {

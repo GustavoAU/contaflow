@@ -39,7 +39,9 @@ export function IncomeDistributionPageClient({ companyId, accounts, companies }:
   }, [companyId]);
 
   // Load on mount
-  useState(() => { load(); });
+  useState(() => {
+    load();
+  });
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-6">
@@ -63,7 +65,7 @@ export function IncomeDistributionPageClient({ companyId, accounts, companies }:
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-xl border bg-white p-5 dark:bg-zinc-950 shadow-sm">
+        <div className="rounded-xl border bg-white p-5 shadow-sm dark:bg-zinc-950">
           <h2 className="mb-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             Nueva distribución
           </h2>
@@ -71,7 +73,10 @@ export function IncomeDistributionPageClient({ companyId, accounts, companies }:
             companyId={companyId}
             accounts={accounts}
             companies={companies}
-            onSuccess={() => { setShowForm(false); load(); }}
+            onSuccess={() => {
+              setShowForm(false);
+              load();
+            }}
             onCancel={() => setShowForm(false)}
           />
         </div>

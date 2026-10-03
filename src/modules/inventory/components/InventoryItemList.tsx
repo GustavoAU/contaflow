@@ -5,8 +5,18 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { XCircleIcon, AlertTriangleIcon, MoreHorizontal, Pencil, Trash2, History } from "lucide-react";
-import { softDeleteInventoryItemAction, getItemMovementsAction } from "../actions/inventory-operations.actions";
+import {
+  XCircleIcon,
+  AlertTriangleIcon,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  History,
+} from "lucide-react";
+import {
+  softDeleteInventoryItemAction,
+  getItemMovementsAction,
+} from "../actions/inventory-operations.actions";
 import { InventoryItemForm } from "./InventoryItemForm";
 import { ItemMovementHistory, type MovementRow } from "./ItemMovementHistory";
 import { UomManager } from "./UomManager";
@@ -24,11 +34,11 @@ export type InventoryItemRow = {
   sku: string;
   name: string;
   description: string | null;
-  unit: string;           // baseUnitName — solo lectura, gestionado vía UomManager
+  unit: string; // baseUnitName — solo lectura, gestionado vía UomManager
   stockQuantity: string;
   averageCost: string;
-  itemType: string;         // R-06: GOODS | SERVICE | RAW_MATERIAL | FINISHED_GOOD
-  defaultTaxRate: string;   // BC-001: alícuota IVA por defecto — Ley IVA Art. 27
+  itemType: string; // R-06: GOODS | SERVICE | RAW_MATERIAL | FINISHED_GOOD
+  defaultTaxRate: string; // BC-001: alícuota IVA por defecto — Ley IVA Art. 27
   minimumStock: string | null; // R-10: alerta bajo stock
   accountId: string | null;
   cogsAccountId: string | null;
@@ -42,10 +52,10 @@ type Props = {
   items: InventoryItemRow[];
   companyId: string;
   accounts: AccountOption[];
-  canEdit: boolean;           // OPERATIONS roles
-  canDelete: boolean;         // ADMIN_ONLY roles
-  canManageUom?: boolean;     // ACCOUNTING roles — gestionar unidades de medida
-  canViewHistory?: boolean;   // WRITERS y superior — default true
+  canEdit: boolean; // OPERATIONS roles
+  canDelete: boolean; // ADMIN_ONLY roles
+  canManageUom?: boolean; // ACCOUNTING roles — gestionar unidades de medida
+  canViewHistory?: boolean; // WRITERS y superior — default true
 };
 
 const ITEM_TYPE_BADGE: Record<string, string> = {
@@ -62,7 +72,15 @@ const ITEM_TYPE_LABEL: Record<string, string> = {
   FINISHED_GOOD: "Prod. terminado",
 };
 
-export function InventoryItemList({ items, companyId, accounts, canEdit, canDelete, canManageUom = false, canViewHistory = true }: Props) {
+export function InventoryItemList({
+  items,
+  companyId,
+  accounts,
+  canEdit,
+  canDelete,
+  canManageUom = false,
+  canViewHistory = true,
+}: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uomItemId, setUomItemId] = useState<string | null>(null);
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
@@ -72,7 +90,11 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
   const [isPendingHistory, startHistory] = useTransition();
 
   function handleDelete(itemId: string, itemName: string) {
-    if (!confirm(`¿Eliminar "${itemName}" del inventario? Esta acción es reversible solo manualmente.`))
+    if (
+      !confirm(
+        `¿Eliminar "${itemName}" del inventario? Esta acción es reversible solo manualmente.`
+      )
+    )
       return;
     startDelete(async () => {
       const r = await softDeleteInventoryItemAction(companyId, itemId);
@@ -93,7 +115,11 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
       const r = await getItemMovementsAction(companyId, item.id);
       if (r.success) {
         setHistoryData((prev) => ({ ...prev, [item.id]: r.data as MovementRow[] }));
-        setHistoryError((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
+        setHistoryError((prev) => {
+          const next = { ...prev };
+          delete next[item.id];
+          return next;
+        });
       } else {
         setHistoryError((prev) => ({ ...prev, [item.id]: r.error }));
       }
@@ -103,7 +129,8 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
   // La columna Historial sólo aparece cuando el rol no tiene dropdown de acciones;
   // en ese caso "Ver historial" está dentro del menú ⋮.
   const showHistorialCol = canViewHistory && !(canEdit || canDelete);
-  const totalCols = 8 + (showHistorialCol ? 1 : 0) + (canManageUom ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
+  const totalCols =
+    8 + (showHistorialCol ? 1 : 0) + (canManageUom ? 1 : 0) + (canEdit || canDelete ? 1 : 0);
 
   return (
     <div className="space-y-3">
@@ -116,24 +143,44 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
+            <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left">SKU</th>
-                <th scope="col" className="px-4 py-3 text-left">Nombre</th>
-                <th scope="col" className="px-4 py-3 text-left">Tipo</th>
-                <th scope="col" className="px-4 py-3 text-left">Unidad</th>
-                <th scope="col" className="px-4 py-3 text-right">Stock</th>
-                <th scope="col" className="px-4 py-3 text-right">CPP (Costo Prom.)</th>
-                <th scope="col" className="px-4 py-3 text-right">Valor en libros</th>
-                <th scope="col" className="px-4 py-3 text-left">Cta. Inventario</th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  SKU
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Nombre
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Tipo
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Unidad
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Stock
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  CPP (Costo Prom.)
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Valor en libros
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Cta. Inventario
+                </th>
                 {canManageUom && (
-                  <th scope="col" className="px-4 py-3 text-center">Unidades</th>
+                  <th scope="col" className="px-4 py-3 text-center">
+                    Unidades
+                  </th>
                 )}
                 {showHistorialCol && (
-                  <th scope="col" className="px-4 py-3 text-center">Historial</th>
+                  <th scope="col" className="px-4 py-3 text-center">
+                    Historial
+                  </th>
                 )}
                 {(canEdit || canDelete) && (
-                  <th scope="col" className="px-4 py-3 text-right w-14"></th>
+                  <th scope="col" className="w-14 px-4 py-3 text-right"></th>
                 )}
               </tr>
             </thead>
@@ -145,52 +192,72 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                 const isEditing = editingId === item.id;
                 const isHistoryOpen = historyItemId === item.id;
                 const minStock = item.minimumStock ? parseFloat(item.minimumStock) : null;
-                const isBelowMin = minStock !== null && stock < minStock && item.itemType !== "SERVICE";
+                const isBelowMin =
+                  minStock !== null && stock < minStock && item.itemType !== "SERVICE";
 
                 return (
                   <>
-                    <tr key={item.id} className={`hover:bg-gray-50 ${isBelowMin ? "bg-amber-50/40" : ""}`}>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600 whitespace-nowrap">{item.sku}</td>
-                      <td className="px-4 py-3 max-w-55">
-                        <p className="font-medium text-gray-900 truncate" title={item.name}>
+                    <tr
+                      key={item.id}
+                      className={`hover:bg-gray-50 ${isBelowMin ? "bg-amber-50/40" : ""}`}
+                    >
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-gray-600">
+                        {item.sku}
+                      </td>
+                      <td className="max-w-55 px-4 py-3">
+                        <p className="truncate font-medium text-gray-900" title={item.name}>
                           {item.name}
                         </p>
                         {item.description && (
-                          <p className="text-xs text-gray-400 truncate">{item.description}</p>
+                          <p className="truncate text-xs text-gray-400">{item.description}</p>
                         )}
                         {isBelowMin && (
-                          <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                          <p className="mt-0.5 text-xs font-semibold text-amber-700">
                             ⚠ Stock bajo (mín: {minStock})
                           </p>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`rounded px-2 py-0.5 text-xs font-medium ${ITEM_TYPE_BADGE[item.itemType] ?? "bg-gray-100 text-gray-600"}`}>
+                        <span
+                          className={`rounded px-2 py-0.5 text-xs font-medium ${ITEM_TYPE_BADGE[item.itemType] ?? "bg-gray-100 text-gray-600"}`}
+                        >
                           {ITEM_TYPE_LABEL[item.itemType] ?? item.itemType}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500">{item.unit}</td>
                       <td className="px-4 py-3 text-right font-mono">
                         {item.itemType === "SERVICE" ? (
-                          <span className="text-gray-400 text-xs">N/A</span>
+                          <span className="text-xs text-gray-400">N/A</span>
                         ) : (
                           /* Q2-5: icono + color — doble indicador daltonismo (WCAG 1.4.1) */
-                          <span className={`inline-flex items-center gap-1 ${
-                            stock === 0
-                              ? "text-red-600 font-semibold"
-                              : isBelowMin
-                                ? "text-amber-600 font-semibold"
-                                : "text-gray-800"
-                          }`}>
-                            {stock === 0 && <XCircleIcon className="h-3.5 w-3.5 shrink-0" aria-label="Sin stock" />}
-                            {stock > 0 && isBelowMin && <AlertTriangleIcon className="h-3.5 w-3.5 shrink-0" aria-label="Stock bajo" />}
+                          <span
+                            className={`inline-flex items-center gap-1 ${
+                              stock === 0
+                                ? "font-semibold text-red-600"
+                                : isBelowMin
+                                  ? "font-semibold text-amber-600"
+                                  : "text-gray-800"
+                            }`}
+                          >
+                            {stock === 0 && (
+                              <XCircleIcon
+                                className="h-3.5 w-3.5 shrink-0"
+                                aria-label="Sin stock"
+                              />
+                            )}
+                            {stock > 0 && isBelowMin && (
+                              <AlertTriangleIcon
+                                className="h-3.5 w-3.5 shrink-0"
+                                aria-label="Stock bajo"
+                              />
+                            )}
                             {stock.toLocaleString("es-VE", { maximumFractionDigits: 2 })}
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-gray-700">
                         {item.itemType === "SERVICE" ? (
-                          <span className="text-gray-400 text-xs">N/A</span>
+                          <span className="text-xs text-gray-400">N/A</span>
                         ) : (
                           cpp.toLocaleString("es-VE", {
                             minimumFractionDigits: 2,
@@ -200,7 +267,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
                         {item.itemType === "SERVICE" ? (
-                          <span className="text-gray-400 text-xs">N/A</span>
+                          <span className="text-xs text-gray-400">N/A</span>
                         ) : (
                           valor.toLocaleString("es-VE", {
                             minimumFractionDigits: 2,
@@ -234,7 +301,11 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                             disabled={isPendingHistory && historyItemId === item.id}
                             className="text-xs text-indigo-600 hover:underline disabled:opacity-50"
                           >
-                            {isHistoryOpen ? "Ocultar" : isPendingHistory && historyItemId === item.id ? "Cargando..." : "Ver historial"}
+                            {isHistoryOpen
+                              ? "Ocultar"
+                              : isPendingHistory && historyItemId === item.id
+                                ? "Cargando..."
+                                : "Ver historial"}
                           </button>
                         </td>
                       )}
@@ -243,7 +314,7 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
-                                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
+                                className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors outline-none hover:bg-zinc-100 hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-blue-500/70"
                                 aria-label="Acciones del producto"
                               >
                                 <MoreHorizontal className="h-4 w-4" />
@@ -251,7 +322,9 @@ export function InventoryItemList({ items, companyId, accounts, canEdit, canDele
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
                               {canEdit && (
-                                <DropdownMenuItem onClick={() => setEditingId(isEditing ? null : item.id)}>
+                                <DropdownMenuItem
+                                  onClick={() => setEditingId(isEditing ? null : item.id)}
+                                >
                                   <Pencil className="h-3.5 w-3.5" />
                                   {isEditing ? "Cancelar edición" : "Editar producto"}
                                 </DropdownMenuItem>

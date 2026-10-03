@@ -4,9 +4,7 @@
 
 ALTER TYPE "AccountType" ADD VALUE IF NOT EXISTS 'CONTRA_ASSET';
 
--- Update existing accumulated depreciation accounts to the correct type.
--- Pattern matches the naming convention used in seed-demo.ts.
-UPDATE "Account"
-SET "type" = 'CONTRA_ASSET'
-WHERE "name" LIKE 'Dep. Acum.%'
-  AND "type" = 'ASSET';
+-- El UPDATE que reclasificaba las cuentas de depreciación acumulada se movió a
+-- 20260511_contra_asset_backfill (ADR-057). Postgres no permite USAR un valor de enum
+-- agregado en la misma transacción (error 55P04 "unsafe use of new value"), y Prisma ejecuta
+-- cada archivo como una sola transacción: al repetir el historial desde cero fallaba aquí.

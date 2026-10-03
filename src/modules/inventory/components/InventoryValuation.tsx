@@ -32,7 +32,7 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
       {/* Resumen ejecutivo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">
+          <p className="text-xs font-medium tracking-wide text-blue-600 uppercase">
             Valor Total Inventario
           </p>
           <p className="mt-1 text-2xl font-bold text-blue-900">
@@ -44,7 +44,8 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
           <p className="mt-0.5 text-xs text-blue-600">Bs. (CPP vigente)</p>
           {rateNum && rateNum > 0 && (
             <p className="mt-0.5 text-xs text-blue-500">
-              ≈ USD ${(total / rateNum).toLocaleString("en-US", {
+              ≈ USD $
+              {(total / rateNum).toLocaleString("en-US", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -53,7 +54,7 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
             Productos activos
           </p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{itemCount}</p>
@@ -62,21 +63,20 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
 
         <div
           className={`rounded-lg border p-4 ${
-            zeroStockCount > 0
-              ? "border-red-200 bg-red-50"
-              : "border-green-200 bg-green-50"
+            zeroStockCount > 0 ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"
           }`}
         >
           {/* Q2-5: icono + texto — doble indicador para daltonismo (WCAG 1.4.1) */}
           <p
-            className={`flex items-center gap-1 text-xs font-medium uppercase tracking-wide ${
+            className={`flex items-center gap-1 text-xs font-medium tracking-wide uppercase ${
               zeroStockCount > 0 ? "text-red-600" : "text-green-600"
             }`}
           >
-            {zeroStockCount > 0
-              ? <XCircleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              : <CheckCircle2Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            }
+            {zeroStockCount > 0 ? (
+              <XCircleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            ) : (
+              <CheckCircle2Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            )}
             Stock agotado
           </p>
           <p
@@ -86,11 +86,7 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
           >
             {zeroStockCount}
           </p>
-          <p
-            className={`mt-0.5 text-xs ${
-              zeroStockCount > 0 ? "text-red-600" : "text-green-600"
-            }`}
-          >
+          <p className={`mt-0.5 text-xs ${zeroStockCount > 0 ? "text-red-600" : "text-green-600"}`}>
             {zeroStockCount > 0 ? "productos sin existencias" : "todos con existencias"}
           </p>
         </div>
@@ -102,17 +98,29 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
+            <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left">SKU</th>
-                <th scope="col" className="px-4 py-3 text-left">Producto</th>
-                <th scope="col" className="px-4 py-3 text-left">Unidad</th>
-                <th scope="col" className="px-4 py-3 text-right">Stock</th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  SKU
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Producto
+                </th>
+                <th scope="col" className="px-4 py-3 text-left">
+                  Unidad
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Stock
+                </th>
                 <th scope="col" className="px-4 py-3 text-right">
                   CPP{rateNum ? " (Bs. / USD)" : " (Bs.)"}
                 </th>
-                <th scope="col" className="px-4 py-3 text-right">Valor (Bs.)</th>
-                <th scope="col" className="px-4 py-3 text-right">% del total</th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Valor (Bs.)
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  % del total
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -132,7 +140,7 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
                       <div className="flex items-center gap-1.5">
                         {item.name}
                         {item.trackingType && item.trackingType !== "NONE" && (
-                          <span className="rounded bg-purple-100 px-1.5 py-0.5 text-10 font-semibold text-purple-700">
+                          <span className="text-10 rounded bg-purple-100 px-1.5 py-0.5 font-semibold text-purple-700">
                             {item.trackingType === "LOT" ? "Lote" : "Serie"}
                           </span>
                         )}
@@ -142,9 +150,7 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
                     <td className="px-4 py-3 text-right font-mono">
                       <span
                         className={
-                          item.stock === 0
-                            ? "font-semibold text-red-600"
-                            : "text-gray-700"
+                          item.stock === 0 ? "font-semibold text-red-600" : "text-gray-700"
                         }
                       >
                         {item.stock.toLocaleString("es-VE", { maximumFractionDigits: 2 })}
@@ -160,7 +166,8 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
                         </div>
                         {rateNum && rateNum > 0 && (
                           <div className="text-11 text-zinc-400">
-                            ≈ ${(item.cpp / rateNum).toLocaleString("en-US", {
+                            ≈ $
+                            {(item.cpp / rateNum).toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
@@ -183,7 +190,11 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
                           />
                         </div>
                         <span className="w-10 text-right text-xs text-gray-500">
-                          {item.pct.toLocaleString("es-VE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                          {item.pct.toLocaleString("es-VE", {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 1,
+                          })}
+                          %
                         </span>
                       </div>
                     </td>
@@ -192,7 +203,10 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
             </tbody>
             <tfoot className="bg-gray-50">
               <tr>
-                <td colSpan={5} className="px-4 py-3 text-right text-sm font-semibold text-gray-700">
+                <td
+                  colSpan={5}
+                  className="px-4 py-3 text-right text-sm font-semibold text-gray-700"
+                >
                   Total:
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-base font-bold text-gray-900">
@@ -202,7 +216,8 @@ export function InventoryValuation({ items, totalValue, usdRate }: Props) {
                   })}
                   {rateNum && rateNum > 0 && (
                     <div className="text-xs font-normal text-zinc-400">
-                      ≈ USD ${(total / rateNum).toLocaleString("en-US", {
+                      ≈ USD $
+                      {(total / rateNum).toLocaleString("en-US", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}

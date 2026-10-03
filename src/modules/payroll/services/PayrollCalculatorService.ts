@@ -12,7 +12,11 @@
 
 import Decimal from "decimal.js";
 import type {
-  ConceptType, IvssRiskClass, JornadaType, PayrollFrequency, PayrollPaymentCurrency,
+  ConceptType,
+  IvssRiskClass,
+  JornadaType,
+  PayrollFrequency,
+  PayrollPaymentCurrency,
   SalaryNature,
 } from "@prisma/client";
 // Los mensajes de moneda viven en payroll-currency: había dos parejas con textos
@@ -41,7 +45,7 @@ import {
 export const DEFAULT_IVSS_WORKER_RATE = new Decimal("0.04");
 export const IVSS_PAT_RATE_BY_RISK: Record<IvssRiskClass, Decimal> = {
   MINIMO: new Decimal("0.09"),
-  MEDIO:  new Decimal("0.10"),
+  MEDIO: new Decimal("0.10"),
   MAXIMO: new Decimal("0.11"),
 };
 export const IVSS_CAP_MULTIPLES = new Decimal("5");
@@ -50,7 +54,7 @@ export const IVSS_CAP_MULTIPLES = new Decimal("5");
 //     trimestre, y sólo para entidades con cinco o más trabajadores.
 //   Art. 50 — trabajador 0,5% de las UTILIDADES ANUALES, aguinaldos o
 //     bonificaciones de fin de año. NO es una deducción mensual sobre el sueldo.
-export const DEFAULT_INCES_PAT_RATE    = new Decimal("0.02");
+export const DEFAULT_INCES_PAT_RATE = new Decimal("0.02");
 // Art. 49: el aporte patronal lo deben "las personas naturales y juridicas ...
 // que den ocupacion a CINCO (5) O MAS trabajadores". Por debajo de ese numero no
 // hay obligacion, y cobrarlo igual le carga a la empresa un 2% que no debe.
@@ -67,14 +71,14 @@ export const INCES_MIN_EMPLOYEES = 5;
 // 1997) y el INCES ("Art. 30", de la ley de 2008 derogada en 2014): la constante
 // se tomó de la ley anterior y la cita se actualizó sola.
 export const DEFAULT_FAOV_WORKER_RATE = new Decimal("0.01");
-export const DEFAULT_FAOV_PAT_RATE    = new Decimal("0.02");
+export const DEFAULT_FAOV_PAT_RATE = new Decimal("0.02");
 
 // Mínimos legales de las alícuotas del salario integral. Se acotan los valores
 // configurados: PayrollConfig traía 15 días de utilidades y 7 de bono vacacional
 // —los mínimos de la LOT de 1997, derogada— y ningún número guardado puede
 // autorizar cotizar o provisionar por debajo de la ley vigente.
-export const LEGAL_MIN_PROFIT_DAYS = 30;       // LOTTT Art. 131
-export const LEGAL_MIN_VAC_BONUS_DAYS = 15;    // LOTTT Art. 192
+export const LEGAL_MIN_PROFIT_DAYS = 30; // LOTTT Art. 131
+export const LEGAL_MIN_VAC_BONUS_DAYS = 15; // LOTTT Art. 192
 
 // Ningún período de nómina causa más de cinco cotizaciones semanales: el
 // Art. 100 habla de períodos "de cuatro (4) o cinco (5) semanas".
@@ -105,11 +109,13 @@ export function weeklyWageFrom(monthlyWage: Decimal): Decimal {
 export function contributableWeeks(periodStart: Date, periodEnd: Date): number {
   if (periodEnd < periodStart) return 0;
   let weeks = 0;
-  const cursor = new Date(Date.UTC(
-    periodStart.getUTCFullYear(), periodStart.getUTCMonth(), periodStart.getUTCDate(),
-  ));
+  const cursor = new Date(
+    Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth(), periodStart.getUTCDate())
+  );
   const last = Date.UTC(
-    periodEnd.getUTCFullYear(), periodEnd.getUTCMonth(), periodEnd.getUTCDate(),
+    periodEnd.getUTCFullYear(),
+    periodEnd.getUTCMonth(),
+    periodEnd.getUTCDate()
   );
   // Avanzar hasta el primer lunes del período (getUTCDay: 1 = lunes).
   cursor.setUTCDate(cursor.getUTCDate() + ((8 - cursor.getUTCDay()) % 7));
@@ -136,7 +142,7 @@ export function contributableWeeks(periodStart: Date, periodEnd: Date): number {
  */
 export function overtimeLimitWarnings(
   employees: EmployeeCalculationInput[],
-  config: PayrollCalculatorConfig,
+  config: PayrollCalculatorConfig
 ): OvertimeLimitWarning[] {
   const warnings: OvertimeLimitWarning[] = [];
   const weeks = Math.max(1, contributableWeeks(config.periodStart, config.periodEnd));
@@ -191,12 +197,12 @@ export function overtimeLimitWarnings(
 export function integralDailyWageFrom(
   dailyNormalWage: Decimal,
   profitDays: number,
-  vacationBonusDays: number,
+  vacationBonusDays: number
 ): Decimal {
-  const profitAliquot = dailyNormalWage
-    .mul(Math.max(LEGAL_MIN_PROFIT_DAYS, profitDays)).div(360);
+  const profitAliquot = dailyNormalWage.mul(Math.max(LEGAL_MIN_PROFIT_DAYS, profitDays)).div(360);
   const vacationBonusAliquot = dailyNormalWage
-    .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, vacationBonusDays)).div(360);
+    .mul(Math.max(LEGAL_MIN_VAC_BONUS_DAYS, vacationBonusDays))
+    .div(360);
   return dailyNormalWage.add(profitAliquot).add(vacationBonusAliquot);
 }
 // Ley del Régimen Prestacional de Empleo (G.O. 38.281 del 27-09-2005), Art. 46:
@@ -204,7 +210,7 @@ export function integralDailyWageFrom(
 //   trabajador (0,5%) — con la base contributiva acotada entre UN salario mínimo
 //   urbano (límite inferior) y DIEZ (límite superior).
 export const DEFAULT_RPE_WORKER_RATE = new Decimal("0.005");
-export const DEFAULT_RPE_PAT_RATE    = new Decimal("0.02");
+export const DEFAULT_RPE_PAT_RATE = new Decimal("0.02");
 // Ley de Protección de las Pensiones de Seguridad Social Frente al Bloqueo
 // Imperialista (G.O. 6.806 Extraordinario, 08-05-2024) — Decreto 4.952
 // (G.O. 42.880) fija la tasa en 9%. Patronal, sin componente obrero, sin
@@ -217,7 +223,7 @@ export const DEFAULT_PENSIONES_PAT_RATE = new Decimal("0.09");
 // fueran negativas.
 const OVERTIME_WEEKLY_LIMIT = new Decimal("10");
 const OVERTIME_ANNUAL_LIMIT = new Decimal("100");
-const RPE_CAP_MULTIPLES   = new Decimal("10");
+const RPE_CAP_MULTIPLES = new Decimal("10");
 const RPE_FLOOR_MULTIPLES = new Decimal("1");
 // LOTTT Art. 118: HE diurna 50% recargo (multiplicador 1.5×)
 export const HE_DAY_MULTIPLIER = new Decimal("1.5");
@@ -240,7 +246,7 @@ export const HE_NIGHT_MULTIPLIER = new Decimal("1.95");
 // Se duplica el RECARGO, no la hora: el de hora extra es 50% (Art. 118), asi que
 // pasa a 100% -> multiplicador 2,00. El 30% nocturno del Art. 117 es OTRO recargo
 // y no se duplica: 1,30 x 2,00 = 2,60.
-export const HE_DAY_MULTIPLIER_UNAUTHORIZED   = new Decimal("2");
+export const HE_DAY_MULTIPLIER_UNAUTHORIZED = new Decimal("2");
 export const HE_NIGHT_MULTIPLIER_UNAUTHORIZED = new Decimal("2.6");
 // Días base de cálculo mensual (convención LOTTT)
 const DAYS_MONTH = new Decimal("30");
@@ -250,9 +256,9 @@ const DAYS_MONTH = new Decimal("30");
 // CASO", asi que una sola constante de 8 pagaba de menos la hora extra de quien
 // tiene jornada nocturna (7 h) o mixta (7,5 h).
 const HOURS_BY_SHIFT: Record<JornadaType, Decimal> = {
-  DIURNA:   new Decimal("8"),
+  DIURNA: new Decimal("8"),
   NOCTURNA: new Decimal("7"),
-  MIXTA:    new Decimal("7.5"),
+  MIXTA: new Decimal("7.5"),
 };
 
 // ─── Interfaces públicas ──────────────────────────────────────────────────────
@@ -289,7 +295,7 @@ export interface EmployeeCalculationInput {
   // se pagan a otra tarifa, no porque sean otra cosa.
   overtimeHoursDayUnauthorized?: Decimal;
   overtimeHoursNightUnauthorized?: Decimal;
-  absenceDays: Decimal;        // Días de ausencia injustificada (descuento proporcional)
+  absenceDays: Decimal; // Días de ausencia injustificada (descuento proporcional)
   // Salario normal devengado en el MES INMEDIATAMENTE ANTERIOR (ADR-045 D-5).
   // LOTTT Art. 107: "toda contribución, tasa o impuesto se calculará
   // considerando el salario normal correspondiente al mes inmediatamente
@@ -409,10 +415,10 @@ export interface CalculatorLineOutput {
   conceptId: string;
   employeeId: string;
   conceptType: ConceptType;
-  amount: Decimal;       // siempre positivo — el conceptType determina si es cargo o abono
-  basis?: Decimal;       // base de cálculo (para auditoría)
-  hours?: Decimal;       // solo HE_DIURNA / HE_NOCTURNA
-  rate?: Decimal;        // porcentaje aplicado (fracción, ej: 0.04)
+  amount: Decimal; // siempre positivo — el conceptType determina si es cargo o abono
+  basis?: Decimal; // base de cálculo (para auditoría)
+  hours?: Decimal; // solo HE_DIURNA / HE_NOCTURNA
+  rate?: Decimal; // porcentaje aplicado (fracción, ej: 0.04)
   salaryHistoryId: string;
   salarySnapshotAmount: Decimal;
   salarySnapshotCurrency: PayrollPaymentCurrency;
@@ -444,8 +450,8 @@ export interface PayrollCalculatorResult {
 export interface OvertimeLimitWarning {
   employeeId: string;
   kind: "SEMANAL" | "ANUAL";
-  hours: Decimal;   // horas contabilizadas (del período, o del año acumulado)
-  limit: Decimal;   // tope legal aplicable
+  hours: Decimal; // horas contabilizadas (del período, o del año acumulado)
+  limit: Decimal; // tope legal aplicable
   message: string;
 }
 
@@ -465,11 +471,13 @@ function cappedBasis(salary: Decimal, salaryMin: Decimal, multiples: Decimal): D
 // El RPE es el único aporte con límite INFERIOR: quien gana menos del mínimo
 // cotiza igual sobre un salario mínimo (LRPE Art. 46).
 function clampedBasis(
-  salary: Decimal, salaryMin: Decimal, floorMultiples: Decimal, ceilingMultiples: Decimal,
+  salary: Decimal,
+  salaryMin: Decimal,
+  floorMultiples: Decimal,
+  ceilingMultiples: Decimal
 ): Decimal {
   if (salaryMin.lte(0)) return salary;
-  return salary
-    .clampedTo(salaryMin.mul(floorMultiples), salaryMin.mul(ceilingMultiples));
+  return salary.clampedTo(salaryMin.mul(floorMultiples), salaryMin.mul(ceilingMultiples));
 }
 
 // Re-exports del módulo que centraliza la conversión de moneda. El nombre local
@@ -486,7 +494,7 @@ export const MIXED_SALARY_MESSAGE = MIXED_SALARY_MESSAGE_SHARED;
 function salaryMinimumInCurrency(
   salaryMinVes: Decimal,
   currency: PayrollPaymentCurrency,
-  usdToVesRate: Decimal | null | undefined,
+  usdToVesRate: Decimal | null | undefined
 ): Decimal {
   // Sin tope configurado no hay nada que convertir — ni tasa que exigir.
   if (salaryMinVes.lte(0)) return salaryMinVes;
@@ -504,7 +512,7 @@ function salaryMinimumInCurrency(
 function ingresoMinimoIntegralInCurrency(
   ingresoMinimoIntegralUsd: Decimal,
   currency: PayrollPaymentCurrency,
-  usdToVesRateAtPrevMonthEnd: Decimal | null | undefined,
+  usdToVesRateAtPrevMonthEnd: Decimal | null | undefined
 ): Decimal {
   if (currency === "USD") return ingresoMinimoIntegralUsd;
   if (currency === "MIXED") throw new Error(MIXED_SALARY_MESSAGE);
@@ -531,7 +539,7 @@ export const PayrollCalculatorService = {
     if (currencies.size > 1) {
       throw new Error(
         `Nómina con monedas mixtas (${[...currencies].join(" y ")}). ` +
-        "Procese por separado los empleados con sueldo en VES y en USD."
+          "Procese por separado los empleados con sueldo en VES y en USD."
       );
     }
 
@@ -546,9 +554,13 @@ export const PayrollCalculatorService = {
       // Los conceptos manuales se pasan al calculo del empleado en vez de
       // anadirse despues: uno con incidencia salarial forma parte de la base de
       // cotizaciones, y colgarlo al final lo dejaba fuera (ADR-045 D-4).
-      allLines.push(...this.calculateEmployeeLines(
-        emp, config, manualConcepts.filter((m) => m.employeeId === emp.employeeId),
-      ));
+      allLines.push(
+        ...this.calculateEmployeeLines(
+          emp,
+          config,
+          manualConcepts.filter((m) => m.employeeId === emp.employeeId)
+        )
+      );
     }
 
     // Validación post-cálculo (NOM-C-10)
@@ -584,8 +596,12 @@ export const PayrollCalculatorService = {
     const overtimeWarnings = overtimeLimitWarnings(employees, config);
 
     return {
-      lines: allLines, totalEarnings, totalDeductions, totalNet,
-      totalEmployerCosts, overtimeWarnings,
+      lines: allLines,
+      totalEarnings,
+      totalDeductions,
+      totalNet,
+      totalEmployerCosts,
+      overtimeWarnings,
     };
   },
 
@@ -601,24 +617,33 @@ export const PayrollCalculatorService = {
     // Sin `salaryNature`: se adjunta de una vez al salir, para no tener que
     // recordarla en los quince `push` de esta función.
     const lines: Omit<CalculatorLineOutput, "salaryNature">[] = [];
-    const { systemConcepts, ivssEnabled, incesEnabled, banavihEnabled, rpeEnabled, salaryMinimumVes } = config;
+    const {
+      systemConcepts,
+      ivssEnabled,
+      incesEnabled,
+      banavihEnabled,
+      rpeEnabled,
+      salaryMinimumVes,
+    } = config;
     // Tasas efectivas: usa las configuradas por el admin (LegalThreshold) si existen,
     // o los defaults legales hardcodeados como fallback.
     // Reglamento LSS Arts. 99/100/102: el IVSS se cotiza por semana, no por mes.
     const ivssWeeks = contributableWeeks(config.periodStart, config.periodEnd);
-    const ivssWorkerRate  = config.ivssObrRate  ?? DEFAULT_IVSS_WORKER_RATE;
-    const ivssPatRate     =
+    const ivssWorkerRate = config.ivssObrRate ?? DEFAULT_IVSS_WORKER_RATE;
+    const ivssPatRate =
       config.ivssPatRate ?? IVSS_PAT_RATE_BY_RISK[config.ivssRiskClass ?? "MEDIO"];
-    const incesPatRate    = config.incesPatRate ?? DEFAULT_INCES_PAT_RATE;
-    const faovWorkerRate  = config.faovObrRate  ?? DEFAULT_FAOV_WORKER_RATE;
-    const faovPatRate     = config.faovPatRate  ?? DEFAULT_FAOV_PAT_RATE;
-    const rpeWorkerRate   = config.rpeObrRate   ?? DEFAULT_RPE_WORKER_RATE;
-    const rpePatRate      = config.rpePatRate   ?? DEFAULT_RPE_PAT_RATE;
+    const incesPatRate = config.incesPatRate ?? DEFAULT_INCES_PAT_RATE;
+    const faovWorkerRate = config.faovObrRate ?? DEFAULT_FAOV_WORKER_RATE;
+    const faovPatRate = config.faovPatRate ?? DEFAULT_FAOV_PAT_RATE;
+    const rpeWorkerRate = config.rpeObrRate ?? DEFAULT_RPE_WORKER_RATE;
+    const rpePatRate = config.rpePatRate ?? DEFAULT_RPE_PAT_RATE;
     const pensionesPatRate = config.pensionesPatRate ?? DEFAULT_PENSIONES_PAT_RATE;
     const salary = emp.salaryAmount;
     // Tope legal llevado a la moneda del sueldo (H-4).
     const salaryMinInCurrency = salaryMinimumInCurrency(
-      salaryMinimumVes, emp.salaryCurrency, config.usdToVesRate,
+      salaryMinimumVes,
+      emp.salaryCurrency,
+      config.usdToVesRate
     );
     // Piso de PENSIONES_PAT (Art. 7) llevado a la moneda del sueldo. Sólo se
     // resuelve si el organismo está activo: exigir la tasa BCV de fin de mes
@@ -629,13 +654,15 @@ export const PayrollCalculatorService = {
           if (!config.ingresoMinimoIntegralUsd) {
             throw new Error(
               "Falta registrar el 'Ingreso mínimo integral' (Art. 7, Ley Protección " +
-              "de las Pensiones) en Topes Legales. Sin él, la base de esta " +
-              "contribución no puede calcularse — asumir Bs. 0 subestimaría lo que " +
-              "se declara ante el SENIAT."
+                "de las Pensiones) en Topes Legales. Sin él, la base de esta " +
+                "contribución no puede calcularse — asumir Bs. 0 subestimaría lo que " +
+                "se declara ante el SENIAT."
             );
           }
           return ingresoMinimoIntegralInCurrency(
-            config.ingresoMinimoIntegralUsd, emp.salaryCurrency, config.prevMonthEndUsdToVesRate,
+            config.ingresoMinimoIntegralUsd,
+            emp.salaryCurrency,
+            config.prevMonthEndUsdToVesRate
           );
         })()
       : new Decimal(0);
@@ -648,7 +675,8 @@ export const PayrollCalculatorService = {
 
     // Validación de horas (NOM-C-05)
     if (
-      emp.overtimeHoursDay.lessThan(0) || emp.overtimeHoursNight.lessThan(0) ||
+      emp.overtimeHoursDay.lessThan(0) ||
+      emp.overtimeHoursNight.lessThan(0) ||
       (emp.overtimeHoursDayUnauthorized?.lessThan(0) ?? false) ||
       (emp.overtimeHoursNightUnauthorized?.lessThan(0) ?? false)
     ) {
@@ -690,7 +718,7 @@ export const PayrollCalculatorService = {
       conceptId: string | undefined,
       conceptCode: string,
       hours: Decimal | undefined,
-      multiplier: Decimal,
+      multiplier: Decimal
     ) {
       if (!conceptId || !hours || hours.lte(0)) return;
       lines.push({
@@ -708,16 +736,20 @@ export const PayrollCalculatorService = {
 
     pushOvertime(heDiurnaId, "HE_DIURNA", emp.overtimeHoursDay, HE_DAY_MULTIPLIER);
     pushOvertime(
-      heDiurnaId, "HE_DIURNA", emp.overtimeHoursDayUnauthorized,
-      HE_DAY_MULTIPLIER_UNAUTHORIZED,
+      heDiurnaId,
+      "HE_DIURNA",
+      emp.overtimeHoursDayUnauthorized,
+      HE_DAY_MULTIPLIER_UNAUTHORIZED
     );
 
     // ── HE_NOCTURNA ──────────────────────────────────────────────────────────
     const heNocturnaId = findConcept(systemConcepts, "HE_NOCTURNA");
     pushOvertime(heNocturnaId, "HE_NOCTURNA", emp.overtimeHoursNight, HE_NIGHT_MULTIPLIER);
     pushOvertime(
-      heNocturnaId, "HE_NOCTURNA", emp.overtimeHoursNightUnauthorized,
-      HE_NIGHT_MULTIPLIER_UNAUTHORIZED,
+      heNocturnaId,
+      "HE_NOCTURNA",
+      emp.overtimeHoursNightUnauthorized,
+      HE_NIGHT_MULTIPLIER_UNAUTHORIZED
     );
 
     // ── Conceptos manuales del empleado ───────────────────────────────────────
@@ -747,9 +779,9 @@ export const PayrollCalculatorService = {
     for (const m of manualConcepts) natureById.set(m.conceptId, m.salaryNature);
 
     const salarioNormalDelMes = lines
-      .filter((l) =>
-        l.conceptType === "EARNING" &&
-        natureById.get(l.conceptId) === "SALARIO_NORMAL")
+      .filter(
+        (l) => l.conceptType === "EARNING" && natureById.get(l.conceptId) === "SALARIO_NORMAL"
+      )
       .reduce((sum, l) => sum.plus(l.amount), new Decimal(0));
 
     // Base de PENSIONES_PAT: TODAS las líneas EARNING, SIN filtrar por
@@ -785,7 +817,7 @@ export const PayrollCalculatorService = {
     const salarioIntegral = integralDailyWageFrom(
       salarioNormal.div(30),
       config.profitDays ?? LEGAL_MIN_PROFIT_DAYS,
-      config.vacationBonusDays ?? LEGAL_MIN_VAC_BONUS_DAYS,
+      config.vacationBonusDays ?? LEGAL_MIN_VAC_BONUS_DAYS
     ).mul(30);
 
     // ── IVSS_OBR (4%, semanal, tope mensual 5xsalMin) ─────────────────────────
@@ -838,7 +870,10 @@ export const PayrollCalculatorService = {
     const rpeObrId = findConcept(systemConcepts, "RPE_OBR");
     if (rpeEnabled && rpeObrId) {
       const basis = clampedBasis(
-        salarioNormal, salaryMinInCurrency, RPE_FLOOR_MULTIPLES, RPE_CAP_MULTIPLES,
+        salarioNormal,
+        salaryMinInCurrency,
+        RPE_FLOOR_MULTIPLES,
+        RPE_CAP_MULTIPLES
       );
       const amount = basis.times(rpeWorkerRate).toDecimalPlaces(2);
       lines.push({
@@ -915,7 +950,10 @@ export const PayrollCalculatorService = {
     const rpePatId = findConcept(systemConcepts, "RPE_PAT");
     if (rpeEnabled && rpePatId) {
       const basis = clampedBasis(
-        salarioNormal, salaryMinInCurrency, RPE_FLOOR_MULTIPLES, RPE_CAP_MULTIPLES,
+        salarioNormal,
+        salaryMinInCurrency,
+        RPE_FLOOR_MULTIPLES,
+        RPE_CAP_MULTIPLES
       );
       const amount = basis.times(rpePatRate).toDecimalPlaces(2);
       lines.push({

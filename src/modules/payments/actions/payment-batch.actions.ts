@@ -235,7 +235,10 @@ export async function listUnpaidPurchaseInvoicesAction(
   companyId: string
 ): Promise<ActionResult<UnpaidPurchaseInvoice[]>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.read });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.read,
+    });
     if (!ctx.ok) return ctx.error;
 
     const invoices = await prisma.invoice.findMany({
@@ -263,7 +266,9 @@ export async function listUnpaidPurchaseInvoicesAction(
         id: inv.id,
         invoiceNumber: inv.invoiceNumber ?? "",
         counterpartName: inv.counterpartName ?? "",
-        pendingAmount: inv.pendingAmount ? inv.pendingAmount.toString() : (inv.totalAmountVes?.toString() ?? "0"),
+        pendingAmount: inv.pendingAmount
+          ? inv.pendingAmount.toString()
+          : (inv.totalAmountVes?.toString() ?? "0"),
         totalAmountVes: inv.totalAmountVes?.toString() ?? "0",
         date: inv.date.toISOString().slice(0, 10),
       })),

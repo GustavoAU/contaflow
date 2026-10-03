@@ -54,10 +54,7 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
         {/* Balances row */}
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label
-              htmlFor="stmt-opening"
-              className="mb-1 block text-sm font-medium text-zinc-700"
-            >
+            <label htmlFor="stmt-opening" className="mb-1 block text-sm font-medium text-zinc-700">
               Saldo inicial
             </label>
             <input
@@ -68,15 +65,12 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
               placeholder="Ej. 1500.00"
               required
               inputMode="decimal"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-15 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="text-15 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               style={{ fontVariantNumeric: "tabular-nums" }}
             />
           </div>
           <div>
-            <label
-              htmlFor="stmt-closing"
-              className="mb-1 block text-sm font-medium text-zinc-700"
-            >
+            <label htmlFor="stmt-closing" className="mb-1 block text-sm font-medium text-zinc-700">
               Saldo final
             </label>
             <input
@@ -87,7 +81,7 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
               placeholder="Ej. 3200.00"
               required
               inputMode="decimal"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-15 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="text-15 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               style={{ fontVariantNumeric: "tabular-nums" }}
             />
           </div>
@@ -99,7 +93,10 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
             Contenido del extracto CSV
           </label>
           <p className="mb-1.5 text-xs text-zinc-400">
-            Formato esperado: <code className="rounded bg-zinc-100 px-1 py-0.5">fecha|descripcion|debito|credito|saldo</code>
+            Formato esperado:{" "}
+            <code className="rounded bg-zinc-100 px-1 py-0.5">
+              fecha|descripcion|debito|credito|saldo
+            </code>
           </p>
           <textarea
             id="stmt-csv"
@@ -108,7 +105,7 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
             placeholder={`Pega el contenido del extracto CSV aquí...\n\nEjemplo:\nfecha|descripcion|debito|credito|saldo\n01/01/2026|Depósito inicial|0|1000,00|1000,00\n05/01/2026|Pago proveedor|500,00|0|500,00`}
             required
             rows={8}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
@@ -127,10 +124,11 @@ export function BankStatementUpload({ bankAccountId, companyId }: Props) {
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-60"
         >
           <UploadIcon className="h-4 w-4" aria-hidden="true" />
-          {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}{isPending ? "Importando..." : "Importar extracto"}
+          {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
+          {isPending ? "Importando..." : "Importar extracto"}
         </button>
       </form>
     </div>

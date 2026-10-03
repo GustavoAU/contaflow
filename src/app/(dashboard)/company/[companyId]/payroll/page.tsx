@@ -36,9 +36,7 @@ export default async function PayrollPage({ params }: Props) {
   const canReadConfig = canAccess(member.role, ROLES.ACCOUNTING);
 
   // Solo leer config si el rol tiene acceso
-  const config = canReadConfig
-    ? await PayrollConfigService.getConfig(companyId)
-    : null;
+  const config = canReadConfig ? await PayrollConfigService.getConfig(companyId) : null;
 
   const canReadEmployees = canAccess(member.role, ROLES.WRITERS);
   const canReadAccounting = canAccess(member.role, ROLES.ACCOUNTING);
@@ -65,17 +63,26 @@ export default async function PayrollPage({ params }: Props) {
       : Promise.resolve(null),
     config && canReadAccounting
       ? prisma.benefitAccrualLine.count({
-          where: { companyId, type: "QUARTERLY_ACCRUAL", year: currentYear, quarter: currentQuarter },
+          where: {
+            companyId,
+            type: "QUARTERLY_ACCRUAL",
+            year: currentYear,
+            quarter: currentQuarter,
+          },
         })
       : Promise.resolve(null),
     config && canReadAccounting
       ? prisma.benefitBalance.count({ where: { companyId, isLiquidated: false } })
       : Promise.resolve(null),
     config && canReadAccounting
-      ? prisma.vacationRecord.count({ where: { companyId, periodYear: currentYear, isFractional: false } })
+      ? prisma.vacationRecord.count({
+          where: { companyId, periodYear: currentYear, isFractional: false },
+        })
       : Promise.resolve(null),
     config && canReadAccounting
-      ? prisma.profitSharingRecord.count({ where: { companyId, fiscalYear: currentYear, isFractional: false } })
+      ? prisma.profitSharingRecord.count({
+          where: { companyId, fiscalYear: currentYear, isFractional: false },
+        })
       : Promise.resolve(null),
   ]);
 
@@ -85,17 +92,25 @@ export default async function PayrollPage({ params }: Props) {
       : null;
 
   // U-05: datos para panel de cumplimiento
-  const [latestBcvBenefitRate, latestThreshold, latestExchangeRate] = config && canReadAccounting
-    ? await Promise.all([
-        prisma.bcvBenefitRate.findFirst({ where: { companyId, year: currentYear }, select: { id: true } }),
-        prisma.legalThreshold.findFirst({
-          where: { companyId, type: "SALARY_MIN_VES" },
-          orderBy: { effectiveFrom: "desc" },
-          select: { effectiveFrom: true, value: true, verifiedAt: true },
-        }),
-        prisma.exchangeRate.findFirst({ where: { companyId, currency: "USD" }, orderBy: { date: "desc" }, select: { date: true } }),
-      ])
-    : [null, null, null];
+  const [latestBcvBenefitRate, latestThreshold, latestExchangeRate] =
+    config && canReadAccounting
+      ? await Promise.all([
+          prisma.bcvBenefitRate.findFirst({
+            where: { companyId, year: currentYear },
+            select: { id: true },
+          }),
+          prisma.legalThreshold.findFirst({
+            where: { companyId, type: "SALARY_MIN_VES" },
+            orderBy: { effectiveFrom: "desc" },
+            select: { effectiveFrom: true, value: true, verifiedAt: true },
+          }),
+          prisma.exchangeRate.findFirst({
+            where: { companyId, currency: "USD" },
+            orderBy: { date: "desc" },
+            select: { date: true },
+          }),
+        ])
+      : [null, null, null];
 
   // Bug encontrado en vivo (2026-09-05): esto medía SOLO antigüedad de
   // effectiveFrom, nunca `verifiedAt` ni el valor contra la referencia — un
@@ -103,10 +118,12 @@ export default async function PayrollPage({ params }: Props) {
   // Bs. 130) quedaba en ámbar para siempre. Ver utils/sal-min-alert.ts.
   const salMinAlert = computeSalMinAlert(
     latestThreshold?.value?.toString() ?? null,
-    (latestThreshold?.verifiedAt ?? latestThreshold?.effectiveFrom)?.toISOString() ?? null,
+    (latestThreshold?.verifiedAt ?? latestThreshold?.effectiveFrom)?.toISOString() ?? null
   );
   const thresholdAgeDias = latestThreshold
-    ? Math.floor((Date.now() - new Date(latestThreshold.effectiveFrom).getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor(
+        (Date.now() - new Date(latestThreshold.effectiveFrom).getTime()) / (1000 * 60 * 60 * 24)
+      )
     : null;
   const exchangeRateAge = latestExchangeRate
     ? Math.floor((Date.now() - new Date(latestExchangeRate.date).getTime()) / (1000 * 60 * 60 * 24))
@@ -135,7 +152,9 @@ export default async function PayrollPage({ params }: Props) {
                   : "amber",
               detail: latestThreshold
                 ? `Bs. ${Number(latestThreshold.value).toLocaleString("es-VE", { minimumFractionDigits: 2 })}` +
-                  (thresholdAgeDias !== null ? ` (desde ${latestThreshold.effectiveFrom.toISOString().slice(0, 10)}, hace ${thresholdAgeDias} días)` : "") +
+                  (thresholdAgeDias !== null
+                    ? ` (desde ${latestThreshold.effectiveFrom.toISOString().slice(0, 10)}, hace ${thresholdAgeDias} días)`
+                    : "") +
                   (salMinAlert.tieneAviso ? ` — ${salMinAlert.mensaje}` : " — vigente.")
                 : salMinAlert.mensaje,
               href: "/payroll/legal-thresholds",
@@ -152,12 +171,7 @@ export default async function PayrollPage({ params }: Props) {
             },
             {
               label: `Prestaciones sociales — Q${currentQuarter}/${currentYear}`,
-              status:
-                benefitsGap === null
-                  ? "gray"
-                  : benefitsGap > 0
-                    ? "amber"
-                    : "green",
+              status: benefitsGap === null ? "gray" : benefitsGap > 0 ? "amber" : "green",
               detail:
                 benefitsGap === null
                   ? "Sin datos."
@@ -169,12 +183,11 @@ export default async function PayrollPage({ params }: Props) {
             },
             {
               label: "Tasa de cambio USD/VES",
-              status:
-                !latestExchangeRate
-                  ? "gray"
-                  : exchangeRateAge !== null && exchangeRateAge > 30
-                    ? "amber"
-                    : "green",
+              status: !latestExchangeRate
+                ? "gray"
+                : exchangeRateAge !== null && exchangeRateAge > 30
+                  ? "amber"
+                  : "green",
               detail: !latestExchangeRate
                 ? "Sin tasa USD registrada — necesaria para nómina en dólares."
                 : exchangeRateAge !== null && exchangeRateAge > 30
@@ -216,12 +229,7 @@ export default async function PayrollPage({ params }: Props) {
         </div>
 
         {/* Admin sin config: muestra wizard */}
-        {isAdmin && !config && (
-          <PayrollWizard
-            companyId={companyId}
-            initial={null}
-          />
-        )}
+        {isAdmin && !config && <PayrollWizard companyId={companyId} initial={null} />}
 
         {/* Admin con config: muestra resumen + enlace para editar */}
         {isAdmin && config && (
@@ -244,9 +252,7 @@ export default async function PayrollPage({ params }: Props) {
         )}
 
         {/* No-admin con acceso de lectura: muestra resumen */}
-        {!isAdmin && canReadConfig && config && (
-          <PayrollConfigSummary cfg={config} />
-        )}
+        {!isAdmin && canReadConfig && config && <PayrollConfigSummary cfg={config} />}
 
         {/* No-admin con acceso de lectura: config aún no existe */}
         {!isAdmin && canReadConfig && !config && (
@@ -272,7 +278,7 @@ export default async function PayrollPage({ params }: Props) {
             {canReadEmployees ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/employees`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <p className="font-medium text-gray-800">Empleados</p>
                 <p className="mt-0.5 text-xs text-gray-500">
@@ -292,7 +298,7 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/overtime`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <p className="font-medium text-gray-800">Horas extraordinarias</p>
                 <p className="mt-0.5 text-xs text-gray-500">
@@ -310,7 +316,7 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/concepts`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <p className="font-medium text-gray-800">Conceptos</p>
                 <p className="mt-0.5 text-xs text-gray-500">
@@ -328,7 +334,7 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/runs`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-gray-800">Cálculo de Nómina</p>
@@ -343,9 +349,7 @@ export default async function PayrollPage({ params }: Props) {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Motor quincenal/mensual + recibo PDF
-                </p>
+                <p className="mt-0.5 text-xs text-gray-500">Motor quincenal/mensual + recibo PDF</p>
               </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
@@ -358,7 +362,7 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/benefits`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-gray-800">Prestaciones Sociales</p>
@@ -373,9 +377,7 @@ export default async function PayrollPage({ params }: Props) {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Garantía trimestral + intereses BCV
-                </p>
+                <p className="mt-0.5 text-xs text-gray-500">Garantía trimestral + intereses BCV</p>
               </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
@@ -388,7 +390,7 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/vacations`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-gray-800">Vacaciones</p>
@@ -413,7 +415,7 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/profit-sharing`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-gray-800">Utilidades</p>
@@ -421,7 +423,9 @@ export default async function PayrollPage({ params }: Props) {
                     <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
                       {profitSharingThisYear} calculadas
                     </span>
-                  ) : profitSharingThisYear === 0 && currentYear === now.getFullYear() && now.getMonth() >= 9 ? (
+                  ) : profitSharingThisYear === 0 &&
+                    currentYear === now.getFullYear() &&
+                    now.getMonth() >= 9 ? (
                     <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
                       Pendiente {currentYear}
                     </span>
@@ -442,12 +446,10 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/terminations`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <p className="font-medium text-gray-800">Liquidaciones Finales</p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Cálculo de egreso LOTTT
-                </p>
+                <p className="mt-0.5 text-xs text-gray-500">Cálculo de egreso LOTTT</p>
               </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
@@ -459,12 +461,10 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/reports`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <p className="font-medium text-gray-800">Reportes Legales</p>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  IVSS, INCES, Banavih, ARC/ISLR
-                </p>
+                <p className="mt-0.5 text-xs text-gray-500">IVSS, INCES, Banavih, ARC/ISLR</p>
               </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
@@ -477,7 +477,7 @@ export default async function PayrollPage({ params }: Props) {
             {canAccess(member.role, ROLES.ACCOUNTING) ? (
               <NavigationCard
                 href={`/company/${companyId}/payroll/loans`}
-                className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium text-gray-800">Préstamos</p>
@@ -491,9 +491,7 @@ export default async function PayrollPage({ params }: Props) {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Descuento automático en nómina
-                </p>
+                <p className="mt-0.5 text-xs text-gray-500">Descuento automático en nómina</p>
               </NavigationCard>
             ) : (
               <div className="rounded-lg border border-dashed bg-gray-50 p-4 opacity-60">
@@ -505,7 +503,7 @@ export default async function PayrollPage({ params }: Props) {
             {/* Topes Legales — Ítem 72 */}
             <NavigationCard
               href={`/company/${companyId}/payroll/legal-thresholds`}
-              className="rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border p-4 transition-colors hover:bg-gray-50"
             >
               <p className="font-medium text-gray-800">Topes Legales</p>
               <p className="mt-0.5 text-xs text-gray-500">

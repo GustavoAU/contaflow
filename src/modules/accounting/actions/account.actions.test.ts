@@ -34,9 +34,11 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 
 vi.mock("@/lib/ratelimit", () => ({
@@ -76,10 +78,8 @@ describe("createAccountAction", () => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ account: prisma.account, auditLog: prisma.auditLog })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ account: prisma.account, auditLog: prisma.auditLog })) as never);
   });
 
   it("crea una cuenta correctamente en el happy path", async () => {
@@ -217,7 +217,7 @@ describe("createAccountAction", () => {
         code,
         type: "ASSET",
         isMonetary: false,
-      isCurrent: false,
+        isCurrent: false,
       });
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -242,7 +242,7 @@ describe("createAccountAction", () => {
         code,
         type: "ASSET",
         isMonetary: false,
-      isCurrent: false,
+        isCurrent: false,
       });
       expect(result.success, `código "${code}" debe ser válido`).toBe(true);
     }
@@ -298,10 +298,8 @@ describe("updateAccountAction", () => {
     vi.clearAllMocks();
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({ account: prisma.account, auditLog: prisma.auditLog })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ account: prisma.account, auditLog: prisma.auditLog })) as never);
   });
 
   it("actualiza una cuenta correctamente en el happy path", async () => {

@@ -25,12 +25,12 @@ vi.mock("@/lib/document-share-jwt", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   default: {
-    companyMember:  { findFirst: vi.fn() },
-    invoice:        { findFirst: vi.fn() },
-    retencion:      { findFirst: vi.fn() },
-    docShareToken:  { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
-    auditLog:       { create: vi.fn() },
-    $transaction:   vi.fn(),
+    companyMember: { findFirst: vi.fn() },
+    invoice: { findFirst: vi.fn() },
+    retencion: { findFirst: vi.fn() },
+    docShareToken: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    auditLog: { create: vi.fn() },
+    $transaction: vi.fn(),
   },
 }));
 vi.mock("../services/DocumentService", () => ({
@@ -48,12 +48,12 @@ import { MissingPortalSecretError } from "@/lib/portal-secret";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 const COMPANY_ID = "company-abc";
-const USER_ID    = "user-xyz";
-const DOC_ID     = "doc-001";
-const TEST_JTI   = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const USER_ID = "user-xyz";
+const DOC_ID = "doc-001";
+const TEST_JTI = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
 const MEMBER_ACCOUNTING = { role: "ACCOUNTANT" };
-const MEMBER_VIEWER     = { role: "VIEWER" };
+const MEMBER_VIEWER = { role: "VIEWER" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -251,7 +251,7 @@ describe("generateDocShareTokenAction", () => {
     const res = await generateDocShareTokenAction(
       COMPANY_ID,
       "INVALID_TYPE" as "INVOICE" | "RETENTION",
-      DOC_ID,
+      DOC_ID
     );
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toBe("Tipo de documento inválido");

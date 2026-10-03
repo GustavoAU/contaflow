@@ -44,7 +44,12 @@ import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { type ExtractedInvoice } from "@/modules/ocr/schemas/invoice.schema";
 import { OCR_SESSION_KEY } from "@/components/ocr/InvoiceUploader";
 import type { TaxLine, TaxLineType, InvoiceDraft } from "./invoice-form/types";
-import { calcAmount, sumTaxLines, updateTaxLineState, validateTaxLinesBeforeSubmit } from "./invoice-form/helpers";
+import {
+  calcAmount,
+  sumTaxLines,
+  updateTaxLineState,
+  validateTaxLinesBeforeSubmit,
+} from "./invoice-form/helpers";
 import { InvoiceOcrBanners } from "./invoice-form/InvoiceOcrBanners";
 import { InvoiceHeaderFields } from "./invoice-form/InvoiceHeaderFields";
 import { InvoiceTaxLinesSection } from "./invoice-form/InvoiceTaxLinesSection";
@@ -141,7 +146,8 @@ export function InvoiceForm({
   const setIgtfBase = (v: string) => setValue("igtfBase", v);
   const setCounterpartName = (v: string) => setValue("counterpartName", v);
   const setCounterpartAddress = (v: string) => setValue("counterpartAddress", v);
-  const setCounterpartIsSpecialContributor = (v: boolean) => setValue("counterpartIsSpecialContributor", v);
+  const setCounterpartIsSpecialContributor = (v: boolean) =>
+    setValue("counterpartIsSpecialContributor", v);
   const setRelatedInvoiceId = (v: string) => setValue("relatedInvoiceId", v);
 
   const prevCategoryRef = useRef<string>("GRAVADA");
@@ -170,7 +176,7 @@ export function InvoiceForm({
   // Detectar borrador al montar (solo si no hay datos OCR)
   useEffect(() => {
     if (draft) setShowDraftAlert(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // solo en montaje
 
   // Autosave cada 30s cuando cambian los campos clave
@@ -183,7 +189,9 @@ export function InvoiceForm({
 
   useEffect(() => {
     triggerAutoSave();
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, [triggerAutoSave]);
 
   function restoreDraft() {
@@ -220,8 +228,7 @@ export function InvoiceForm({
         invoiceNumberRef.current.value = ocr.numeroFactura;
       if (ocr.numeroControl && controlNumberRef.current)
         controlNumberRef.current.value = ocr.numeroControl;
-      if (ocr.fechaEmision && dateRef.current)
-        dateRef.current.value = ocr.fechaEmision;
+      if (ocr.fechaEmision && dateRef.current) dateRef.current.value = ocr.fechaEmision;
 
       // State-controlled fields
       if (ocr.razonSocial) setCounterpartName(ocr.razonSocial);
@@ -248,7 +255,7 @@ export function InvoiceForm({
       }
 
       // ALERTA 13/14/15: señalar si campos fiscales críticos tienen posibles errores
-      const hasCritical = (ocr._fieldRisks ?? []).some(r => r.severity === "critical");
+      const hasCritical = (ocr._fieldRisks ?? []).some((r) => r.severity === "critical");
       setOcrHasCriticalRisks(hasCritical);
       setOcrLoaded(true);
     } catch {
@@ -286,7 +293,7 @@ export function InvoiceForm({
             rate: tl.rate,
             amount: tl.amount,
             luxuryGroupId: null,
-          })),
+          }))
         );
       }
     } catch {
@@ -302,7 +309,13 @@ export function InvoiceForm({
       try {
         const res = await getLatestRateAction(companyId, currency as "USD" | "EUR");
         if (res.success && res.data) {
-          setBcvRate({ rate: res.data.rate, date: res.data.date instanceof Date ? res.data.date.toISOString().split("T")[0] : String(res.data.date).split("T")[0] });
+          setBcvRate({
+            rate: res.data.rate,
+            date:
+              res.data.date instanceof Date
+                ? res.data.date.toISOString().split("T")[0]
+                : String(res.data.date).split("T")[0],
+          });
         } else {
           setBcvRate(null);
         }
@@ -316,8 +329,7 @@ export function InvoiceForm({
 
   // ─── IGTF automático ─────────────────────────────────────────────────────────
   // H-003: aplica en SALE y PURCHASE — contribuyente especial pagando en VES también
-  const igtfApplies =
-    IGTFService.applies(paidInForeign ? "USD" : "VES", isSpecialContributor);
+  const igtfApplies = IGTFService.applies(paidInForeign ? "USD" : "VES", isSpecialContributor);
   const igtfCalculation =
     igtfApplies && igtfBase && !new Decimal(igtfBase || "0").isZero()
       ? IGTFService.calculate(igtfBase, IGTF_RATE)
@@ -366,7 +378,11 @@ export function InvoiceForm({
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    const validationError = validateTaxLinesBeforeSubmit(taxLines, taxCategory, { type, docType, currency });
+    const validationError = validateTaxLinesBeforeSubmit(taxLines, taxCategory, {
+      type,
+      docType,
+      currency,
+    });
     if (validationError) {
       toast.error(validationError);
       return;
@@ -411,7 +427,22 @@ export function InvoiceForm({
         currency,
       };
 
-      let result: { success: boolean; error?: string; stockWarnings?: Array<{ itemId: string; name: string; available: string; requested: string }>; insufficient?: Array<{ itemId: string; name: string; available: string; requested: string }> };
+      let result: {
+        success: boolean;
+        error?: string;
+        stockWarnings?: Array<{
+          itemId: string;
+          name: string;
+          available: string;
+          requested: string;
+        }>;
+        insufficient?: Array<{
+          itemId: string;
+          name: string;
+          available: string;
+          requested: string;
+        }>;
+      };
       if (docType === "NOTA_CREDITO") {
         result = await createCreditNoteAction({ ...basePayload, relatedInvoiceId });
       } else if (docType === "NOTA_DEBITO") {
@@ -424,7 +455,9 @@ export function InvoiceForm({
         clearDraft(); // borrador ya no necesario tras envío exitoso
         if (result.stockWarnings && result.stockWarnings.length > 0) {
           const names = result.stockWarnings.map((w) => w.name).join(", ");
-          toast.warning(`Factura registrada. Stock insuficiente para: ${names}. El inventario quedará en negativo.`);
+          toast.warning(
+            `Factura registrada. Stock insuficiente para: ${names}. El inventario quedará en negativo.`
+          );
         } else {
           toast.success("Factura registrada correctamente");
         }
@@ -473,7 +506,7 @@ export function InvoiceForm({
       } catch {
         return []; // línea a medio escribir: no cuenta
       }
-    }),
+    })
   ).base.toFixed(2);
 
   // ─── Auto-actualizar Base IGTF cuando cambian las líneas de impuesto ─────────
@@ -481,7 +514,9 @@ export function InvoiceForm({
     if (!paidInForeign) return;
     try {
       setIgtfBase(new Decimal(subtotal).plus(new Decimal(totalIva)).toFixed(2));
-    } catch { /* taxLines vacíos — ignorar */ }
+    } catch {
+      /* taxLines vacíos — ignorar */
+    }
   }, [paidInForeign, subtotal, totalIva]);
 
   const totalAmount = new Decimal(subtotal)

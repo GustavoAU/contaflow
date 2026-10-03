@@ -81,7 +81,9 @@ export function FiscalConfigForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="retainedEarningsAccount">Cuenta Utilidades Retenidas / Pérdidas Acumuladas</Label>
+        <Label htmlFor="retainedEarningsAccount">
+          Cuenta Utilidades Retenidas / Pérdidas Acumuladas
+        </Label>
         <Select value={retainedEarningsAccountId} onValueChange={setRetainedEarningsAccountId}>
           <SelectTrigger id="retainedEarningsAccount" className="w-full">
             <SelectValue placeholder="Seleccionar cuenta EQUITY..." />
@@ -95,12 +97,14 @@ export function FiscalConfigForm({
           </SelectContent>
         </Select>
         <p className="text-muted-foreground text-xs">
-          Cuenta de Patrimonio donde se transfiere el resultado en el asiento de apropiación (post-AGO).
+          Cuenta de Patrimonio donde se transfiere el resultado en el asiento de apropiación
+          (post-AGO).
         </p>
       </div>
 
       <Button type="submit" disabled={isPending}>
-        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar configuración"}
+        {isPending && <Loader2Icon className="animate-spin" />}
+        {isPending ? "Guardando..." : "Guardar configuración"}
       </Button>
     </form>
   );

@@ -1,5 +1,5 @@
 // src/app/(dashboard)/company/[companyId]/layout.tsx
-import { Sidebar }     from "@/components/layout/Sidebar";
+import { Sidebar } from "@/components/layout/Sidebar";
 import { TopbarInner } from "@/components/layout/TopbarInner";
 import { getUserCompaniesAction } from "@/modules/auth/actions/user.actions";
 import { redirect } from "next/navigation";
@@ -44,7 +44,7 @@ export default async function CompanyLayout({ children, params }: Props) {
   // ADR-042 D-3: config fiscal del país de la empresa, serializada para el árbol
   // cliente vía FiscalUIProvider. Mismo fallback VEN que el guard (D-2).
   const fiscalConfig = toClientFiscalConfig(
-    getFiscalConfig(isSupportedCountry(company.country) ? company.country : "VEN"),
+    getFiscalConfig(isSupportedCountry(company.country) ? company.country : "VEN")
   );
 
   // getCompanyGrants usa unstable_cache pero la query interna puede lanzar (cold start).
@@ -71,103 +71,101 @@ export default async function CompanyLayout({ children, params }: Props) {
   // ADR-055: el "período abierto hace >30 días" ya no tiene sentido — un ejercicio
   // fiscal se espera que dure ~15 meses abierto (12 meses en curso + ventana de
   // cierre). Ahora solo se muestra la etiqueta del ejercicio activo en el topbar.
-  const activeFiscalYear = periodResult.success && periodResult.data
-    ? { year: periodResult.data.fiscalYear }
-    : null;
+  const activeFiscalYear =
+    periodResult.success && periodResult.data ? { year: periodResult.data.fiscalYear } : null;
 
   return (
     <FiscalUIProvider config={fiscalConfig}>
-    <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      {/* Skip-to-content — WCAG 2.4.1: bypass blocks */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-9999 focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none"
-      >
-        Saltar al contenido
-      </a>
+      <div className="flex min-h-screen bg-zinc-50 dark:bg-zinc-950">
+        {/* Skip-to-content — WCAG 2.4.1: bypass blocks */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-9999 focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none"
+        >
+          Saltar al contenido
+        </a>
 
-      {/* Sidebar vertical */}
-      <Sidebar
-        companyId={companyId}
-        userRole={company.role}
-        grantedModules={grantedModules}
-        companies={companies.map((c) => ({ id: c.id, name: c.name, role: c.role }))}
-        viewMode={viewMode}
-        scopeProfile={company.scopeProfile ?? null}
-      />
-
-      {/* Columna principal */}
-      <div className="flex flex-col flex-1 min-w-0">
-        {/* Topbar lean */}
-        <TopbarInner
+        {/* Sidebar vertical */}
+        <Sidebar
           companyId={companyId}
-          companyName={company.name}
-          userRole={company.role as UserRole}
+          userRole={company.role}
           grantedModules={grantedModules}
-          activeFiscalYear={activeFiscalYear}
-          initialRates={initialRates}
-          notificationSlot={
-            showNotifications ? <NotificationBell companyId={companyId} /> : null
-          }
+          companies={companies.map((c) => ({ id: c.id, name: c.name, role: c.role }))}
+          viewMode={viewMode}
+          scopeProfile={company.scopeProfile ?? null}
         />
 
-        {/* Banner: versión en uso ≠ versión homologada SENIAT (equivalente al aviso de Gálac Adm. 30.0) */}
-        {CERTIFIED_VERSION !== null && APP_VERSION !== CERTIFIED_VERSION && (
-          <div
-            role="alert"
-            className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm"
-          >
-            <AlertTriangleIcon className="h-4 w-4 shrink-0" aria-hidden />
-            <span>
-              <strong>Versión no homologada en uso.</strong> La versión certificada ante el SENIAT es{" "}
-              <strong>v{CERTIFIED_VERSION}</strong>. Versión actual:{" "}
-              <strong>v{APP_VERSION}</strong>. Actualiza o contacta al administrador.
-            </span>
-          </div>
-        )}
+        {/* Columna principal */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Topbar lean */}
+          <TopbarInner
+            companyId={companyId}
+            companyName={company.name}
+            userRole={company.role as UserRole}
+            grantedModules={grantedModules}
+            activeFiscalYear={activeFiscalYear}
+            initialRates={initialRates}
+            notificationSlot={showNotifications ? <NotificationBell companyId={companyId} /> : null}
+          />
 
-        {/* Banner: perfil de alcance no declarado — solo para OWNER/ADMIN (ADR-033) */}
-        {company.scopeProfile == null && canAccess(company.role, ROLES.ADMIN_ONLY) && (
-          <div
-            role="status"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 text-sm"
-          >
-            <SlidersHorizontalIcon className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="flex-1">
-              <strong>Personaliza tu experiencia.</strong> Dinos cómo opera tu empresa para adaptar los módulos disponibles.
-            </span>
-            <Link
-              href={`/company/${companyId}/activate-modules`}
-              className="shrink-0 text-sm font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity"
+          {/* Banner: versión en uso ≠ versión homologada SENIAT (equivalente al aviso de Gálac Adm. 30.0) */}
+          {CERTIFIED_VERSION !== null && APP_VERSION !== CERTIFIED_VERSION && (
+            <div
+              role="alert"
+              className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400"
             >
-              Configurar →
-            </Link>
-          </div>
+              <AlertTriangleIcon className="h-4 w-4 shrink-0" aria-hidden />
+              <span>
+                <strong>Versión no homologada en uso.</strong> La versión certificada ante el SENIAT
+                es <strong>v{CERTIFIED_VERSION}</strong>. Versión actual:{" "}
+                <strong>v{APP_VERSION}</strong>. Actualiza o contacta al administrador.
+              </span>
+            </div>
+          )}
+
+          {/* Banner: perfil de alcance no declarado — solo para OWNER/ADMIN (ADR-033) */}
+          {company.scopeProfile == null && canAccess(company.role, ROLES.ADMIN_ONLY) && (
+            <div
+              role="status"
+              className="flex items-center gap-2 border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400"
+            >
+              <SlidersHorizontalIcon className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="flex-1">
+                <strong>Personaliza tu experiencia.</strong> Dinos cómo opera tu empresa para
+                adaptar los módulos disponibles.
+              </span>
+              <Link
+                href={`/company/${companyId}/activate-modules`}
+                className="shrink-0 text-sm font-semibold underline underline-offset-2 transition-opacity hover:opacity-80"
+              >
+                Configurar →
+              </Link>
+            </div>
+          )}
+
+          {/* Contenido de página — scroll global (body) */}
+          <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 outline-none">
+            {children}
+          </main>
+        </div>
+
+        <Toaster richColors position="top-right" />
+
+        {/* Asistente IA flotante — solo para roles Contador o superior */}
+        {showAIAssistant && (
+          <FloatingAIAssistant
+            companyId={companyId}
+            companyName={company.name}
+            initialAnomaly={initialAnomaly}
+          />
         )}
 
-        {/* Contenido de página — scroll global (body) */}
-        <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 outline-none">
-          {children}
-        </main>
-      </div>
-
-      <Toaster richColors position="top-right" />
-
-      {/* Asistente IA flotante — solo para roles Contador o superior */}
-      {showAIAssistant && (
-        <FloatingAIAssistant
-          companyId={companyId}
-          companyName={company.name}
-          initialAnomaly={initialAnomaly}
-        />
-      )}
-
-      {/* Guía de primera visita a Nómina — montada aquí (no en la página) para que
+        {/* Guía de primera visita a Nómina — montada aquí (no en la página) para que
           sobreviva la navegación entre Nómina/Tasas de Cambio/Topes Legales/Prestaciones. */}
-      {canAccess(company.role, ROLES.ADMIN_ONLY) && (
-        <PayrollFirstVisitGuide companyId={companyId} />
-      )}
-    </div>
+        {canAccess(company.role, ROLES.ADMIN_ONLY) && (
+          <PayrollFirstVisitGuide companyId={companyId} />
+        )}
+      </div>
     </FiscalUIProvider>
   );
 }

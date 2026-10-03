@@ -42,10 +42,12 @@ const reject = (error: string, status: number) =>
 // ─── POST /api/payments/attachments/upload ────────────────────────────────────
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  if (!isPrivateBlobConfigured()) return reject("Adjuntos no disponibles en esta configuración", 503);
+  if (!isPrivateBlobConfigured())
+    return reject("Adjuntos no disponibles en esta configuración", 503);
 
   // Defensa en profundidad además de SameSite: el navegador marca las peticiones que vienen de otro sitio.
-  if (request.headers.get("sec-fetch-site") === "cross-site") return reject("Solicitud no permitida", 403);
+  if (request.headers.get("sec-fetch-site") === "cross-site")
+    return reject("Solicitud no permitida", 403);
 
   // Sin sesión no se lee el cuerpo.
   const { userId } = await auth();
@@ -54,12 +56,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Límite por USUARIO y ANTES de leer el cuerpo: companyId sale del formulario y aún no está autorizado, así que un
   // límite por (empresa x usuario) se elude rotando ids, y cada intento parsearía hasta 4,5 MB.
   const rl = await checkRateLimit(`user:${userId}`, limiters.fiscal);
-  if (!rl.allowed) return reject(rl.error ?? "Demasiadas solicitudes. Intenta de nuevo más tarde.", 429);
+  if (!rl.allowed)
+    return reject(rl.error ?? "Demasiadas solicitudes. Intenta de nuevo más tarde.", 429);
 
   const rawLength = request.headers.get("content-length");
   if (rawLength !== null) {
     const declaredLength = Number(rawLength);
-    if (!Number.isFinite(declaredLength) || declaredLength < 0) return reject("Solicitud inválida", 400);
+    if (!Number.isFinite(declaredLength) || declaredLength < 0)
+      return reject("Solicitud inválida", 400);
     if (declaredLength > MAX_SIZE_BYTES + MULTIPART_OVERHEAD_BYTES) {
       return reject(`El archivo supera el límite de ${MAX_SIZE_MB} MB.`, 413);
     }
@@ -78,7 +82,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const file = form.get("file");
   if (!fields.success || !(file instanceof File)) return reject("Solicitud inválida", 400);
   if (file.size < 1) return reject("El archivo está vacío.", 400);
-  if (file.size > MAX_SIZE_BYTES) return reject(`El archivo supera el límite de ${MAX_SIZE_MB} MB.`, 413);
+  if (file.size > MAX_SIZE_BYTES)
+    return reject(`El archivo supera el límite de ${MAX_SIZE_MB} MB.`, 413);
   const { companyId, paymentRecordId } = fields.data;
 
   // Membresía + rol + IP/UA (ADR-004, ADR-041, R-6). companyId sale del formulario: aquí se autoriza.
@@ -91,7 +96,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     select: { deletedAt: true },
   });
   if (!record) return reject("Pago no encontrado o no pertenece a esta empresa", 404);
-  if (record.deletedAt !== null) return reject("No se puede adjuntar un comprobante a un pago anulado", 409);
+  if (record.deletedAt !== null)
+    return reject("No se puede adjuntar un comprobante a un pago anulado", 409);
 
   // Máximo 1 adjunto activo por pago (ADR-029 D-5); el servicio lo vuelve a comprobar bajo bloqueo de fila.
   const existing = await prisma.paymentAttachment.findFirst({
@@ -99,7 +105,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     select: { id: true },
   });
   if (existing) {
-    return reject("Este pago ya tiene un comprobante adjunto. Elimine el actual antes de subir uno nuevo.", 409);
+    return reject(
+      "Este pago ya tiene un comprobante adjunto. Elimine el actual antes de subir uno nuevo.",
+      409
+    );
   }
 
   // El tipo se decide por los bytes, no por lo que declare el navegador.
@@ -135,7 +144,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: true, attachmentId: attachment.id });
   } catch (error) {
     // Sin fila en BD el blob quedaría huérfano y sin dueño.
-    await deletePrivateBlob(blob.url).catch((cleanupError) => Sentry.captureException(cleanupError));
+    await deletePrivateBlob(blob.url).catch((cleanupError) =>
+      Sentry.captureException(cleanupError)
+    );
     Sentry.captureException(error);
     const failure = toActionError(error);
     return reject(failure.success ? "No se pudo registrar el comprobante" : failure.error, 409);

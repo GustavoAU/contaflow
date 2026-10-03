@@ -7,7 +7,9 @@ import { VEN_RIF_REGEX } from "@/lib/fiscal-validators";
 import { zEmptyAsNull, zOptionalText } from "@/lib/zod-helpers";
 
 // "" → null: limpia la columna en updates y evita P2002 por "" en @@unique([companyId, rif])
-const rifField = zEmptyAsNull(z.string().trim().regex(VEN_RIF_REGEX, "RIF inválido (ej: J-12345678-9)"));
+const rifField = zEmptyAsNull(
+  z.string().trim().regex(VEN_RIF_REGEX, "RIF inválido (ej: J-12345678-9)")
+);
 
 export const CreatePartnerSchema = z.object({
   name: z.string().trim().min(2, "Nombre requerido (mínimo 2 caracteres)").max(200),

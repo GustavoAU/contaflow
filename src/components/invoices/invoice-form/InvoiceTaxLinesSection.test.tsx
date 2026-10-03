@@ -77,7 +77,11 @@ describe("InvoiceTaxLinesSection — Monto IVA editable según type/docType (ADR
 
   it("RED: PURCHASE + FACTURA → Monto IVA es editable (sin readOnly) y dispara updateTaxLine", () => {
     const updateTaxLine = vi.fn();
-    render(<InvoiceTaxLinesSection {...baseProps({ type: "PURCHASE", docType: "FACTURA", updateTaxLine })} />);
+    render(
+      <InvoiceTaxLinesSection
+        {...baseProps({ type: "PURCHASE", docType: "FACTURA", updateTaxLine })}
+      />
+    );
 
     const input = montoIvaInput();
     expect(input).toHaveProperty("readOnly", false);
@@ -88,7 +92,11 @@ describe("InvoiceTaxLinesSection — Monto IVA editable según type/docType (ADR
 
   it("RED: SALE + REPORTE_Z → Monto IVA es editable (sin readOnly) y dispara updateTaxLine", () => {
     const updateTaxLine = vi.fn();
-    render(<InvoiceTaxLinesSection {...baseProps({ type: "SALE", docType: "REPORTE_Z", updateTaxLine })} />);
+    render(
+      <InvoiceTaxLinesSection
+        {...baseProps({ type: "SALE", docType: "REPORTE_Z", updateTaxLine })}
+      />
+    );
 
     const input = montoIvaInput();
     expect(input).toHaveProperty("readOnly", false);
@@ -99,7 +107,9 @@ describe("InvoiceTaxLinesSection — Monto IVA editable según type/docType (ADR
 
   it("SALE + FACTURA → Monto IVA sigue readOnly y no se puede editar (guarda: sin cambios)", () => {
     const updateTaxLine = vi.fn();
-    render(<InvoiceTaxLinesSection {...baseProps({ type: "SALE", docType: "FACTURA", updateTaxLine })} />);
+    render(
+      <InvoiceTaxLinesSection {...baseProps({ type: "SALE", docType: "FACTURA", updateTaxLine })} />
+    );
 
     const input = montoIvaInput();
     expect(input).toHaveProperty("readOnly", true);
@@ -110,7 +120,11 @@ describe("InvoiceTaxLinesSection — Monto IVA editable según type/docType (ADR
 
   it("SALE + NOTA_CREDITO → Monto IVA sigue readOnly y no se puede editar (guarda: sin cambios)", () => {
     const updateTaxLine = vi.fn();
-    render(<InvoiceTaxLinesSection {...baseProps({ type: "SALE", docType: "NOTA_CREDITO", updateTaxLine })} />);
+    render(
+      <InvoiceTaxLinesSection
+        {...baseProps({ type: "SALE", docType: "NOTA_CREDITO", updateTaxLine })}
+      />
+    );
 
     const input = montoIvaInput();
     expect(input).toHaveProperty("readOnly", true);
@@ -124,10 +138,13 @@ describe("InvoiceTaxLinesSection — Monto IVA editable según type/docType (ADR
     ["SALE", "REPORTE_Z"],
     ["SALE", "FACTURA"],
     ["SALE", "NOTA_CREDITO"],
-  ] as const)("la Tasa de IVA sigue siempre readOnly (type=%s, docType=%s) — no cambia", (type, docType) => {
-    render(<InvoiceTaxLinesSection {...baseProps({ type, docType })} />);
-    expect(tasaInput()).toHaveProperty("readOnly", true);
-  });
+  ] as const)(
+    "la Tasa de IVA sigue siempre readOnly (type=%s, docType=%s) — no cambia",
+    (type, docType) => {
+      render(<InvoiceTaxLinesSection {...baseProps({ type, docType })} />);
+      expect(tasaInput()).toHaveProperty("readOnly", true);
+    }
+  );
 });
 
 // ─── H2: la línea EXENTO nunca es editable, sin importar type/docType ─────────────────────────
@@ -142,10 +159,21 @@ describe("InvoiceTaxLinesSection — H2: la línea EXENTO nunca es editable, sin
 
   it('RED: PURCHASE + FACTURA + línea EXENTO → Monto IVA sigue readOnly (el IVA de una línea exenta nunca es "impreso")', () => {
     const updateTaxLine = vi.fn();
-    const exentoLine: TaxLine = { ...LINE, id: "line-exento", taxType: "EXENTO", rate: "0", amount: "0.00" };
+    const exentoLine: TaxLine = {
+      ...LINE,
+      id: "line-exento",
+      taxType: "EXENTO",
+      rate: "0",
+      amount: "0.00",
+    };
     render(
       <InvoiceTaxLinesSection
-        {...baseProps({ type: "PURCHASE", docType: "FACTURA", updateTaxLine, taxLines: [exentoLine] })}
+        {...baseProps({
+          type: "PURCHASE",
+          docType: "FACTURA",
+          updateTaxLine,
+          taxLines: [exentoLine],
+        })}
       />
     );
 
@@ -159,7 +187,13 @@ describe("InvoiceTaxLinesSection — H2: la línea EXENTO nunca es editable, sin
   it("RED: PURCHASE + FACTURA con líneas mixtas (IVA_GENERAL editable + EXENTO no editable) → la editabilidad es POR LÍNEA, no global para todo el documento", () => {
     const updateTaxLine = vi.fn();
     const generalLine: TaxLine = { ...LINE, id: "line-general" };
-    const exentoLine: TaxLine = { ...LINE, id: "line-exento", taxType: "EXENTO", rate: "0", amount: "0.00" };
+    const exentoLine: TaxLine = {
+      ...LINE,
+      id: "line-exento",
+      taxType: "EXENTO",
+      rate: "0",
+      amount: "0.00",
+    };
     render(
       <InvoiceTaxLinesSection
         {...baseProps({

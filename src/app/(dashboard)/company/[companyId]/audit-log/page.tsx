@@ -35,11 +35,7 @@ export default async function AuditLogPage({ params }: Props) {
         </p>
       </div>
 
-      <AuditLogTable
-        companyId={companyId}
-        entityNames={entityNames}
-        initialData={initialData}
-      />
+      <AuditLogTable companyId={companyId} entityNames={entityNames} initialData={initialData} />
     </div>
   );
 }

@@ -89,7 +89,8 @@ export function ArchiveCompany({ companyId, companyName, userId: _userId }: Prop
               Cancelar
             </Button>
             <Button variant="destructive" onClick={handleArchive} disabled={isPending}>
-              {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Archivando..." : "Archivar Empresa"}
+              {isPending && <Loader2Icon className="animate-spin" />}
+              {isPending ? "Archivando..." : "Archivar Empresa"}
             </Button>
           </DialogFooter>
         </DialogContent>

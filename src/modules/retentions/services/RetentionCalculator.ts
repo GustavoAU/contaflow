@@ -54,7 +54,10 @@ export class RetentionCalculator {
   }
 
   // ─── Calcular retención INCES (2%) ────────────────────────────────────────
-  static calculateIncesRetention(taxBase: string): { incesAmount: string; incesRetentionPct: number } {
+  static calculateIncesRetention(taxBase: string): {
+    incesAmount: string;
+    incesRetentionPct: number;
+  } {
     const base = new Decimal(taxBase);
     const retention = base.mul(INCES_RATE.pct).div(100);
     return {

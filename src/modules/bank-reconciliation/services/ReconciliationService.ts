@@ -5,8 +5,8 @@ import { prisma } from "@/lib/prisma";
 export type ReconciliationCandidate = {
   paymentId: string;
   score: number;
-  amountDiff: string;     // diferencia de monto (Decimal string, 4 decimales)
-  dateDeltaDays: number;  // diferencia de días entre banco y pago
+  amountDiff: string; // diferencia de monto (Decimal string, 4 decimales)
+  dateDeltaDays: number; // diferencia de días entre banco y pago
   amount: string;
   currency: string;
   method: string;
@@ -16,7 +16,7 @@ export type ReconciliationCandidate = {
 
 type FindMatchOptions = {
   amountTolerance?: string; // default "0.01" VES
-  dateDeltaDays?: number;   // default 3 días
+  dateDeltaDays?: number; // default 3 días
 };
 
 export const ReconciliationService = {
@@ -101,9 +101,7 @@ export const ReconciliationService = {
       const amountPenalty = amountTolerance.isZero()
         ? 0
         : amountDiff.div(amountTolerance).toNumber() * 40;
-      const datePenalty = dateDeltaDays === 0
-        ? 0
-        : (actualDeltaDays / dateDeltaDays) * 30;
+      const datePenalty = dateDeltaDays === 0 ? 0 : (actualDeltaDays / dateDeltaDays) * 30;
 
       const score = Math.round(100 - amountPenalty - datePenalty);
 

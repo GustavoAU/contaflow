@@ -115,10 +115,7 @@ export class PaymentService {
   /**
    * Crea un registro de pago dentro de una transacción Prisma.
    */
-  static async create(
-    tx: typeof prisma,
-    input: CreatePaymentData,
-  ): Promise<PaymentRecordSummary> {
+  static async create(tx: typeof prisma, input: CreatePaymentData): Promise<PaymentRecordSummary> {
     // Hallazgo MEDIUM del security-agent (2026-09-05): la cuenta bancaria del
     // pago no verificaba pertenecer a esta empresa antes de guardarse. Cubre
     // a la vez `payment.actions.ts` y `receivable.actions.ts` (mismo sumidero).
@@ -174,7 +171,7 @@ export class PaymentService {
     tx: typeof prisma,
     paymentId: string,
     companyId: string,
-    voidReason: string,
+    voidReason: string
   ): Promise<PaymentRecordSummary> {
     const now = new Date();
     const record = await tx.paymentRecord.update({
@@ -197,7 +194,7 @@ export class PaymentService {
     tx: Prisma.TransactionClient,
     companyId: string,
     invoiceId: string,
-    amountVes: Decimal,
+    amountVes: Decimal
   ): Promise<{ newPending: Decimal; newStatus: "PAID" | "PARTIAL" }> {
     // Row lock primero — toda lectura de saldo posterior ve el valor serializado
     await tx.$executeRaw`SELECT id FROM "Invoice" WHERE id = ${invoiceId} AND "companyId" = ${companyId} FOR UPDATE`;
@@ -209,7 +206,8 @@ export class PaymentService {
     });
     if (!invoice) throw new Error("Factura no encontrada o no pertenece a esta empresa");
     if (invoice.paymentStatus === "VOIDED") throw new Error("La factura está anulada");
-    if (invoice.paymentStatus === "PAID") throw new Error("La factura ya está completamente pagada");
+    if (invoice.paymentStatus === "PAID")
+      throw new Error("La factura ya está completamente pagada");
 
     // Guard: año fiscal cerrado (paridad con ReceivableService.recordPayment)
     // Fecha de NEGOCIO: getters UTC (R-3).
@@ -217,7 +215,7 @@ export class PaymentService {
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, invoiceYear);
     if (yearClosed) {
       throw new Error(
-        `El ejercicio económico ${invoiceYear} está cerrado. No se pueden registrar pagos en facturas de ese año`,
+        `El ejercicio económico ${invoiceYear} está cerrado. No se pueden registrar pagos en facturas de ese año`
       );
     }
 
@@ -253,7 +251,7 @@ export class PaymentService {
     companyId: string,
     invoiceId: string,
     paymentRecordId: string,
-    amountVes: Decimal,
+    amountVes: Decimal
   ): Promise<void> {
     await tx.$executeRaw`SELECT id FROM "Invoice" WHERE id = ${invoiceId} AND "companyId" = ${companyId} FOR UPDATE`;
 
@@ -269,7 +267,7 @@ export class PaymentService {
     const yearClosed = await FiscalYearCloseService.isFiscalYearClosed(companyId, invoiceYear);
     if (yearClosed) {
       throw new Error(
-        `El ejercicio económico ${invoiceYear} está cerrado. No se pueden anular pagos de facturas de ese año`,
+        `El ejercicio económico ${invoiceYear} está cerrado. No se pueden anular pagos de facturas de ese año`
       );
     }
 
@@ -280,7 +278,13 @@ export class PaymentService {
 
     // Status: PARTIAL si quedan otros pagos activos (canónicos o legacy), UNPAID si no
     const remainingCanonical = await tx.paymentRecord.count({
-      where: { invoiceId, companyId, deletedAt: null, appliedToInvoice: true, id: { not: paymentRecordId } },
+      where: {
+        invoiceId,
+        companyId,
+        deletedAt: null,
+        appliedToInvoice: true,
+        id: { not: paymentRecordId },
+      },
     });
     const remainingLegacy = await tx.invoicePayment.count({
       where: { invoiceId, companyId, deletedAt: null },

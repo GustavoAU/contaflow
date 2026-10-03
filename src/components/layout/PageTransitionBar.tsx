@@ -28,14 +28,8 @@ export function PageTransitionBar() {
     // Navegación completa: completar la barra y desvanecerla
     setPhase((prev) => (prev === null ? null : "completing"));
 
-    const t1 = setTimeout(
-      () => setPhase((p) => (p === "completing" ? "fading" : p)),
-      250
-    );
-    const t2 = setTimeout(
-      () => setPhase((p) => (p === "fading" ? null : p)),
-      550
-    );
+    const t1 = setTimeout(() => setPhase((p) => (p === "completing" ? "fading" : p)), 250);
+    const t2 = setTimeout(() => setPhase((p) => (p === "fading" ? null : p)), 550);
 
     return () => {
       clearTimeout(t1);
@@ -52,7 +46,7 @@ export function PageTransitionBar() {
       aria-label="Cargando página"
       className={[
         // Base
-        "pointer-events-none fixed left-0 top-0 z-9999 h-0.5 bg-blue-500",
+        "pointer-events-none fixed top-0 left-0 z-9999 h-0.5 bg-blue-500",
         "shadow-progress-glow",
         // Fase growing: animación CSS de 0 % a 85 %
         phase === "growing" && "animate-[progress-grow_5s_cubic-bezier(0.05,0.8,0.5,1)_forwards]",

@@ -76,7 +76,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await closeFiscalYearAction(CLOSE_INPUT);
 
-    if ('clerk_error' in result) throw new Error('unexpected step-up');
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
@@ -90,7 +90,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await appropriateFiscalYearResultAction(APPROPRIATE_INPUT);
 
-    if ('clerk_error' in result) throw new Error('unexpected step-up');
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain("Demasiadas solicitudes");
     expect(prisma.companyMember.findFirst).not.toHaveBeenCalled();
@@ -114,7 +114,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await closeFiscalYearAction(CLOSE_INPUT);
 
-    if ('clerk_error' in result) throw new Error('unexpected step-up');
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe("No autorizado");
   });
@@ -124,7 +124,7 @@ describe("fiscal-close actions — rate limiting (HIGH)", () => {
 
     const result = await closeFiscalYearAction(CLOSE_INPUT);
 
-    if ('clerk_error' in result) throw new Error('unexpected step-up');
+    if ("clerk_error" in result) throw new Error("unexpected step-up");
     expect(result.success).toBe(false);
   });
 });
@@ -160,14 +160,18 @@ describe("getFiscalYearCloseHistoryAction", () => {
 
   it("retorna historial en camino feliz", async () => {
     const fakeHistory = [{ id: "close-1", year: 2025 }];
-    vi.mocked(FiscalYearCloseService.getFiscalYearCloseHistory).mockResolvedValue(fakeHistory as never);
+    vi.mocked(FiscalYearCloseService.getFiscalYearCloseHistory).mockResolvedValue(
+      fakeHistory as never
+    );
     const result = await getFiscalYearCloseHistoryAction(COMPANY_ID);
     expect(result.success).toBe(true);
     if (result.success) expect(result.data).toEqual(fakeHistory);
   });
 
   it("propaga error de base de datos estructurado", async () => {
-    vi.mocked(FiscalYearCloseService.getFiscalYearCloseHistory).mockRejectedValue(new Error("DB fail"));
+    vi.mocked(FiscalYearCloseService.getFiscalYearCloseHistory).mockRejectedValue(
+      new Error("DB fail")
+    );
     const result = await getFiscalYearCloseHistoryAction(COMPANY_ID);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBeTruthy();

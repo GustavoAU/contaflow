@@ -79,9 +79,7 @@ export async function postMovement(
         } else {
           // SALIDA o AJUSTE — verifica stock suficiente (HIGH-4 race condition guard)
           if (currentStock.lt(qty)) {
-            throw new Error(
-              `Stock insuficiente: disponible ${currentStock}, solicitado ${qty}`
-            );
+            throw new Error(`Stock insuficiente: disponible ${currentStock}, solicitado ${qty}`);
           }
           newStock = currentStock.minus(qty);
           newAvgCost = currentAvgCost; // CPP no cambia en salidas
@@ -120,18 +118,38 @@ export async function postMovement(
             ? movement.counterpartAccountId
               ? [
                   // Partida doble completa: Dr Inventario / Cr Contrapartida
-                  { accountId: item.accountId, amount: totalCost, description: `${baseDesc} — inventario` },
-                  { accountId: movement.counterpartAccountId, amount: totalCost.negated(), description: `${baseDesc} — contrapartida` },
+                  {
+                    accountId: item.accountId,
+                    amount: totalCost,
+                    description: `${baseDesc} — inventario`,
+                  },
+                  {
+                    accountId: movement.counterpartAccountId,
+                    amount: totalCost.negated(),
+                    description: `${baseDesc} — contrapartida`,
+                  },
                 ]
               : [
                   // Entrada standalone (ej. stock inicial): solo Dr Inventario
                   // El Cr se genera vía InvoiceGLPostingService si hay factura asociada.
-                  { accountId: item.accountId, amount: totalCost, description: `${baseDesc} — inventario` },
+                  {
+                    accountId: item.accountId,
+                    amount: totalCost,
+                    description: `${baseDesc} — inventario`,
+                  },
                 ]
             : [
                 // SALIDA / AJUSTE: Dr COGS / Cr Inventario (siempre balanceado)
-                { accountId: item.cogsAccountId!, amount: totalCost, description: `COGS — Costo ${movement.type.toLowerCase()} ${item.name} × ${qty}` },
-                { accountId: item.accountId, amount: totalCost.negated(), description: `${baseDesc}` },
+                {
+                  accountId: item.cogsAccountId!,
+                  amount: totalCost,
+                  description: `COGS — Costo ${movement.type.toLowerCase()} ${item.name} × ${qty}`,
+                },
+                {
+                  accountId: item.accountId,
+                  amount: totalCost.negated(),
+                  description: `${baseDesc}`,
+                },
               ];
 
         // N4: solo asientos completos (2+ entradas). Standalone ENTRADA omite el Cr
@@ -174,7 +192,9 @@ export async function postMovement(
                 lotNumber: input.lotData.lotNumber,
                 expiresAt: input.lotData.expiresAt ? new Date(input.lotData.expiresAt) : null,
                 notes: input.lotData.notes ?? null,
-                receivedAt: input.lotData.receivedAt ? new Date(input.lotData.receivedAt) : undefined,
+                receivedAt: input.lotData.receivedAt
+                  ? new Date(input.lotData.receivedAt)
+                  : undefined,
               }
             );
             fefoOverridden = false;
@@ -188,7 +208,16 @@ export async function postMovement(
               input.lotAllocations
             );
             await validateLotAllocation(tx, movement.companyId, item.id, qty, allocations);
-            await applyLotMovement(tx, movement.companyId, item.id, movementId, movType, qty, allocations, userId);
+            await applyLotMovement(
+              tx,
+              movement.companyId,
+              item.id,
+              movementId,
+              movType,
+              qty,
+              allocations,
+              userId
+            );
             fefoOverridden = overridden;
           }
         } else if (item.trackingType === "SERIAL") {
@@ -219,20 +248,8 @@ export async function postMovement(
                 "Se requiere serialIds para movimientos de SALIDA con seguimiento por número de serie"
               );
             }
-            await validateSerialAvailability(
-              tx,
-              movement.companyId,
-              item.id,
-              input.serialIds,
-              qty
-            );
-            await applySerialMovement(
-              tx,
-              movement.companyId,
-              item.id,
-              movementId,
-              input.serialIds
-            );
+            await validateSerialAvailability(tx, movement.companyId, item.id, input.serialIds, qty);
+            await applySerialMovement(tx, movement.companyId, item.id, movementId, input.serialIds);
           }
         }
 
@@ -286,11 +303,7 @@ export async function postMovement(
     );
   } catch (err: unknown) {
     // P2034: write-write conflict bajo Serializable SSI
-    if (
-      err instanceof Error &&
-      "code" in err &&
-      (err as { code: string }).code === "P2034"
-    ) {
+    if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
       throw new Error("Conflicto de concurrencia — reintente la operación");
     }
     throw err;
@@ -350,9 +363,7 @@ export async function voidPostedMovement(
 
         const counterEntries =
           movement.type === "ENTRADA"
-            ? [
-                { accountId: item.accountId!, amount: totalCost.negated() },
-              ]
+            ? [{ accountId: item.accountId!, amount: totalCost.negated() }]
             : [
                 { accountId: item.cogsAccountId!, amount: totalCost.negated() },
                 { accountId: item.accountId!, amount: totalCost },
@@ -419,11 +430,7 @@ export async function voidPostedMovement(
       { isolationLevel: "Serializable" }
     );
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      "code" in err &&
-      (err as { code: string }).code === "P2034"
-    ) {
+    if (err instanceof Error && "code" in err && (err as { code: string }).code === "P2034") {
       throw new Error("Conflicto de concurrencia — reintente la operación");
     }
     throw err;
@@ -433,7 +440,8 @@ export async function voidPostedMovement(
 // ─── Consultas ────────────────────────────────────────────────────────────────
 
 export async function getInventoryValuation(companyId: string) {
-  const items = await prisma.inventoryItem.findMany({ // ADR-004: companyId en where
+  const items = await prisma.inventoryItem.findMany({
+    // ADR-004: companyId en where
     where: { companyId, deletedAt: null },
     select: {
       id: true,
@@ -448,8 +456,7 @@ export async function getInventoryValuation(companyId: string) {
   });
 
   const totalValue = items.reduce(
-    (sum, item) =>
-      sum.plus(new Decimal(item.stockQuantity).mul(new Decimal(item.averageCost))),
+    (sum, item) => sum.plus(new Decimal(item.stockQuantity).mul(new Decimal(item.averageCost))),
     new Decimal(0)
   );
 
@@ -457,7 +464,8 @@ export async function getInventoryValuation(companyId: string) {
 }
 
 export async function getPendingMovements(companyId: string) {
-  return prisma.inventoryMovement.findMany({ // ADR-004: companyId en where
+  return prisma.inventoryMovement.findMany({
+    // ADR-004: companyId en where
     where: { companyId, status: "DRAFT" },
     include: { item: true },
     orderBy: { createdAt: "asc" },
@@ -482,7 +490,7 @@ export async function autoPostMovementInTx(
   movementId: string,
   companyId: string,
   userId: string,
-  invoiceGLTransactionId: string | null  // para ENTRADA: transactionId del asiento de la factura
+  invoiceGLTransactionId: string | null // para ENTRADA: transactionId del asiento de la factura
 ): Promise<void> {
   const movement = await tx.inventoryMovement.findFirst({
     where: { id: movementId, companyId, status: "DRAFT" },
@@ -529,7 +537,6 @@ export async function autoPostMovementInTx(
     // Si no hay transactionId de factura, no podemos contabilizar → dejar en DRAFT
     if (!invoiceGLTransactionId || !item.accountId) return;
     glTransactionId = invoiceGLTransactionId;
-
   } else {
     // SALIDA / AJUSTE: stock baja (puede quedar negativo si WARN); CPP sin cambio
     newStock = currentStock.minus(qty);
@@ -543,8 +550,16 @@ export async function autoPostMovementInTx(
     const txNumber = `INV-${String(txCount + 1).padStart(6, "0")}`;
 
     const cogsEntries = [
-      { accountId: item.cogsAccountId, amount: totalCost, description: `COGS venta — ${item.name}` },
-      { accountId: item.accountId, amount: totalCost.negated(), description: `Inventario salida — ${item.name} × ${qty.toFixed(4)} u.` },
+      {
+        accountId: item.cogsAccountId,
+        amount: totalCost,
+        description: `COGS venta — ${item.name}`,
+      },
+      {
+        accountId: item.accountId,
+        amount: totalCost.negated(),
+        description: `Inventario salida — ${item.name} × ${qty.toFixed(4)} u.`,
+      },
     ];
     // N4: invariante de partida doble
     assertBalancedGLEntries(cogsEntries);
@@ -576,7 +591,7 @@ export async function autoPostMovementInTx(
       transactionId: glTransactionId,
       postedAt: new Date(),
       postedBy: userId,
-      unitCost,   // snapshot al momento de post
+      unitCost, // snapshot al momento de post
       totalCost,
     },
   });

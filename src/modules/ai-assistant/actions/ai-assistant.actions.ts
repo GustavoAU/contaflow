@@ -36,7 +36,7 @@ async function callGemini(
   apiKey: string,
   systemPrompt: string,
   userMessage: string,
-  imageBase64?: string,
+  imageBase64?: string
 ): Promise<string | null> {
   // El sistema y la pregunta van en partes SEPARADAS — (26-02)
   const userParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
@@ -84,13 +84,14 @@ async function guardAIAccess(companyId: string): Promise<AIGuardResult> {
 // ─── Modo auditoría — fallback con PendingTasksService ────────────────────────
 
 function buildAuditFallbackMessage(
-  pendingTasks: { type: string; severity: string; count: number }[],
+  pendingTasks: { type: string; severity: string; count: number }[]
 ): string {
   if (pendingTasks.length === 0) {
     return "No se detectaron tareas pendientes de compliance. El período parece estar al día.";
   }
   const lines = pendingTasks.map(
-    (t) => `• [${t.severity.toUpperCase()}] ${t.type}: ${t.count} pendiente${t.count > 1 ? "s" : ""}`,
+    (t) =>
+      `• [${t.severity.toUpperCase()}] ${t.type}: ${t.count} pendiente${t.count > 1 ? "s" : ""}`
   );
   return `Auditoría de tareas pendientes (modo básico):\n\n${lines.join("\n")}\n\n⚠️ El módulo de auditoría avanzada (FiscalAnomalyDetectorService) se habilitará en la próxima actualización.`;
 }
@@ -99,7 +100,7 @@ function buildAuditFallbackMessage(
 // Si hay un reporte de anomalías usa ese; de lo contrario usa el fallback de tareas pendientes.
 function buildAuditModeReply(
   anomalyReport: FiscalAnomalyReport | null,
-  pendingTasks: { type: string; severity: string; count: number }[],
+  pendingTasks: { type: string; severity: string; count: number }[]
 ): SendMessageResult {
   const reply = anomalyReport
     ? FiscalAnomalyDetectorService.formatForPrompt(anomalyReport)
@@ -112,54 +113,67 @@ function buildAuditModeReply(
 export async function sendMessageAction(
   companyId: string,
   userMessage: string,
-  imageBase64?: string,
+  imageBase64?: string
 ): Promise<SendMessageResult> {
   try {
-  // Auth + IDOR + Role (26-01 CRITICAL / 26-05 MEDIUM)
-  const guard = await guardAIAccess(companyId);
-  if ("error" in guard) return guard;
-  const { userId } = guard;
+    // Auth + IDOR + Role (26-01 CRITICAL / 26-05 MEDIUM)
+    const guard = await guardAIAccess(companyId);
+    if ("error" in guard) return guard;
+    const { userId } = guard;
 
-  // Rate limit (26-03 HIGH)
-  const rl = await checkRateLimit(userId, limiters.ocr);
-  if (!rl.allowed) {
-    return { success: false, error: "Límite de consultas alcanzado. Intenta en un momento." };
-  }
+    // Rate limit (26-03 HIGH)
+    const rl = await checkRateLimit(userId, limiters.ocr);
+    if (!rl.allowed) {
+      return { success: false, error: "Límite de consultas alcanzado. Intenta en un momento." };
+    }
 
-  // Detectar modo auditoría
-  const isAuditMode = /audit|auditar|auditor[ií]a|errores.*(período|mes|contab)/i.test(userMessage);
+    // Detectar modo auditoría
+    const isAuditMode = /audit|auditar|auditor[ií]a|errores.*(período|mes|contab)/i.test(
+      userMessage
+    );
 
-  // Construir contexto financiero (y anomalías en paralelo si modo auditoría)
-  const [ctx, anomalyReport] = await Promise.all([
-    AIContextBuilderService.buildContext(companyId),
-    isAuditMode ? FiscalAnomalyDetectorService.detect(companyId) : Promise.resolve(null),
-  ]);
+    // Construir contexto financiero (y anomalías en paralelo si modo auditoría)
+    const [ctx, anomalyReport] = await Promise.all([
+      AIContextBuilderService.buildContext(companyId),
+      isAuditMode ? FiscalAnomalyDetectorService.detect(companyId) : Promise.resolve(null),
+    ]);
 
-  // Prompt base + sección de auditoría inyectada si corresponde
-  const basePrompt = AIContextBuilderService.buildSystemPrompt(ctx);
-  const systemPrompt = anomalyReport
-    ? `${basePrompt}\n\n═══════════════════════════════════════════════\n${FiscalAnomalyDetectorService.formatForPrompt(anomalyReport)}\n═══════════════════════════════════════════════`
-    : basePrompt;
+    // Prompt base + sección de auditoría inyectada si corresponde
+    const basePrompt = AIContextBuilderService.buildSystemPrompt(ctx);
+    const systemPrompt = anomalyReport
+      ? `${basePrompt}\n\n═══════════════════════════════════════════════\n${FiscalAnomalyDetectorService.formatForPrompt(anomalyReport)}\n═══════════════════════════════════════════════`
+      : basePrompt;
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    // Fallback sin IA: modo auditoría devuelve reporte local, resto devuelve aviso al usuario
-    if (isAuditMode) return buildAuditModeReply(anomalyReport, ctx.pendingTasks);
-    return { success: true, reply: "El asistente IA no está configurado. Contacta al administrador.", isAuditMode: false };
-  }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      // Fallback sin IA: modo auditoría devuelve reporte local, resto devuelve aviso al usuario
+      if (isAuditMode) return buildAuditModeReply(anomalyReport, ctx.pendingTasks);
+      return {
+        success: true,
+        reply: "El asistente IA no está configurado. Contacta al administrador.",
+        isAuditMode: false,
+      };
+    }
 
-  // Llamar a Gemini
-  const reply = await callGemini(apiKey, systemPrompt, userMessage, imageBase64);
+    // Llamar a Gemini
+    const reply = await callGemini(apiKey, systemPrompt, userMessage, imageBase64);
 
-  if (!reply) {
-    // Graceful fallback cuando Gemini no responde
-    if (isAuditMode) return buildAuditModeReply(anomalyReport, ctx.pendingTasks);
-    return { success: true, reply: "No pude obtener respuesta del asistente en este momento. Intenta de nuevo.", isAuditMode: false };
-  }
+    if (!reply) {
+      // Graceful fallback cuando Gemini no responde
+      if (isAuditMode) return buildAuditModeReply(anomalyReport, ctx.pendingTasks);
+      return {
+        success: true,
+        reply: "No pude obtener respuesta del asistente en este momento. Intenta de nuevo.",
+        isAuditMode: false,
+      };
+    }
 
-  return { success: true, reply, isAuditMode };
+    return { success: true, reply, isAuditMode };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Error inesperado en el asistente" };
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Error inesperado en el asistente",
+    };
   }
 }
 

@@ -24,7 +24,7 @@ export class ExchangeRateService {
     date: Date,
     rate: Decimal,
     source: string,
-    createdBy: string,
+    createdBy: string
   ): Promise<ExchangeRateSummary> {
     const record = await tx.exchangeRate.upsert({
       where: { companyId_currency_date: { companyId, currency, date } },
@@ -41,7 +41,7 @@ export class ExchangeRateService {
   static async getRateForDate(
     companyId: string,
     currency: Currency,
-    date: Date,
+    date: Date
   ): Promise<ExchangeRateSummary> {
     const record = await prisma.exchangeRate.findFirst({
       where: { companyId, currency, date: { lte: date } },
@@ -50,7 +50,7 @@ export class ExchangeRateService {
     if (!record) {
       const dateStr = date.toISOString().split("T")[0];
       throw new Error(
-        `No hay tasa BCV registrada para ${currency} el ${dateStr}. Ingrese la tasa antes de registrar la transacción.`,
+        `No hay tasa BCV registrada para ${currency} el ${dateStr}. Ingrese la tasa antes de registrar la transacción.`
       );
     }
     return { ...record, rate: record.rate.toString() };
@@ -62,7 +62,7 @@ export class ExchangeRateService {
    */
   static async getLatestRate(
     companyId: string,
-    currency: Currency,
+    currency: Currency
   ): Promise<ExchangeRateSummary | null> {
     const record = await prisma.exchangeRate.findFirst({
       where: { companyId, currency },
@@ -78,7 +78,7 @@ export class ExchangeRateService {
   static async list(
     companyId: string,
     currency?: Currency,
-    limit = 30,
+    limit = 30
   ): Promise<ExchangeRateSummary[]> {
     const records = await prisma.exchangeRate.findMany({
       where: { companyId, ...(currency ? { currency } : {}) },

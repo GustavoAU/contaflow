@@ -87,31 +87,30 @@ function serializeAdvance(a: {
 
 // ─── Guards reutilizables ─────────────────────────────────────────────────────
 
-async function loadAndValidateForAdvance(
-  companyId: string,
-  employeeId: string,
-  amount: Decimal
-) {
+async function loadAndValidateForAdvance(companyId: string, employeeId: string, amount: Decimal) {
   const employee = await prisma.employee.findFirst({
     where: { id: employeeId, companyId },
   });
   if (!employee) throw new Error("Empleado no encontrado en esta empresa");
-  if (employee.status !== "ACTIVE") throw new Error("Solo se pueden registrar anticipos para empleados activos");
+  if (employee.status !== "ACTIVE")
+    throw new Error("Solo se pueden registrar anticipos para empleados activos");
 
   const balance = await prisma.benefitBalance.findUnique({
     where: { employeeId },
   });
   if (!balance) throw new Error("El empleado no tiene saldo de prestaciones acumulado");
-  if (balance.isLiquidated) throw new Error("Las prestaciones de este empleado ya fueron liquidadas");
+  if (balance.isLiquidated)
+    throw new Error("Las prestaciones de este empleado ya fueron liquidadas");
 
-  const totalBalance = new Decimal(balance.currentBalance.toString())
-    .add(new Decimal(balance.interestBalance.toString()));
+  const totalBalance = new Decimal(balance.currentBalance.toString()).add(
+    new Decimal(balance.interestBalance.toString())
+  );
   const maxAllowed = totalBalance.mul(MAX_ADVANCE_RATIO);
 
   if (amount.gt(maxAllowed)) {
     throw new Error(
       `El anticipo (${amount.toFixed(2)}) supera el 75% del saldo disponible (${maxAllowed.toFixed(2)}). ` +
-      `Saldo total: ${totalBalance.toFixed(2)}`
+        `Saldo total: ${totalBalance.toFixed(2)}`
     );
   }
 
@@ -152,7 +151,11 @@ export const BenefitAdvanceService = {
     const amount = new Decimal(input.amount);
     if (amount.lte(0)) throw new Error("El monto del anticipo debe ser mayor a cero");
 
-    const { employee: _employee, balance } = await loadAndValidateForAdvance(companyId, input.employeeId, amount);
+    const { employee: _employee, balance } = await loadAndValidateForAdvance(
+      companyId,
+      input.employeeId,
+      amount
+    );
 
     // Crear solicitud PENDING — sin GL, sin descuento de saldo
     return prisma.$transaction(async (tx) => {
@@ -214,11 +217,17 @@ export const BenefitAdvanceService = {
     }
 
     const amount = new Decimal(existing.amount.toString());
-    const { employee, balance } = await loadAndValidateForAdvance(companyId, existing.employeeId, amount);
+    const { employee, balance } = await loadAndValidateForAdvance(
+      companyId,
+      existing.employeeId,
+      amount
+    );
 
     const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
     if (!config?.benefitsExpenseAccountId || !config?.benefitsPayableAccountId) {
-      throw new Error("Configure las cuentas contables de prestaciones en la configuración de nómina");
+      throw new Error(
+        "Configure las cuentas contables de prestaciones en la configuración de nómina"
+      );
     }
 
     const today = new Date();
@@ -228,7 +237,7 @@ export const BenefitAdvanceService = {
     if (!period) {
       throw new Error(
         `No hay período contable abierto para ${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}. ` +
-        "Abra el período antes de aprobar el anticipo."
+          "Abra el período antes de aprobar el anticipo."
       );
     }
 
@@ -364,11 +373,17 @@ export const BenefitAdvanceService = {
     const amount = new Decimal(input.amount);
     if (amount.lte(0)) throw new Error("El monto del anticipo debe ser mayor a cero");
 
-    const { employee, balance } = await loadAndValidateForAdvance(companyId, input.employeeId, amount);
+    const { employee, balance } = await loadAndValidateForAdvance(
+      companyId,
+      input.employeeId,
+      amount
+    );
 
     const config = await prisma.payrollConfig.findUnique({ where: { companyId } });
     if (!config?.benefitsExpenseAccountId || !config?.benefitsPayableAccountId) {
-      throw new Error("Configure las cuentas contables de prestaciones en la configuración de nómina");
+      throw new Error(
+        "Configure las cuentas contables de prestaciones en la configuración de nómina"
+      );
     }
 
     const today = new Date();
@@ -378,7 +393,7 @@ export const BenefitAdvanceService = {
     if (!period) {
       throw new Error(
         `No hay período contable abierto para ${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}. ` +
-        "Abra el período antes de registrar el anticipo."
+          "Abra el período antes de registrar el anticipo."
       );
     }
 

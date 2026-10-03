@@ -1,42 +1,42 @@
 // src/modules/invoices/services/InvoiceVoucherPDFService.ts
-import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer"
-import React from "react"
-import { Decimal } from "decimal.js"
-import { invoiceBaseAndIva } from "@/lib/invoice-amounts"
-import { fmtDate } from "@/lib/format"
+import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import React from "react";
+import { Decimal } from "decimal.js";
+import { invoiceBaseAndIva } from "@/lib/invoice-amounts";
+import { fmtDate } from "@/lib/format";
 
 // ─── Tipos de entrada ──────────────────────────────────────────────────────────
 export type InvoiceVoucherPDFParams = {
   // Empresa emisora
-  companyName: string
-  companyRif: string
-  companyAddress?: string | null
+  companyName: string;
+  companyRif: string;
+  companyAddress?: string | null;
   // Cabecera de la factura
-  invoiceNumber: string
-  controlNumber?: string | null
-  invoiceType: "SALE" | "PURCHASE"
-  docType: string
-  date: Date
+  invoiceNumber: string;
+  controlNumber?: string | null;
+  invoiceType: "SALE" | "PURCHASE";
+  docType: string;
+  date: Date;
   // Contraparte
-  counterpartName: string
-  counterpartRif: string
+  counterpartName: string;
+  counterpartRif: string;
   // Líneas de impuesto
   taxLines: Array<{
-    taxType: string
-    base: string
-    rate: string
-    amount: string
-  }>
+    taxType: string;
+    base: string;
+    rate: string;
+    amount: string;
+  }>;
   // Retenciones (opcionales)
-  ivaRetentionAmount?: string
-  ivaRetentionVoucher?: string | null
-  islrRetentionAmount?: string
+  ivaRetentionAmount?: string;
+  ivaRetentionVoucher?: string | null;
+  islrRetentionAmount?: string;
   // IGTF (opcional)
-  igtfBase?: string
-  igtfAmount?: string
+  igtfBase?: string;
+  igtfAmount?: string;
   // QR code (Fase 20 — opcional, data URL base64)
-  qrCodeDataUrl?: string
-}
+  qrCodeDataUrl?: string;
+};
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const TAX_LINE_LABELS: Record<string, string> = {
@@ -44,7 +44,7 @@ const TAX_LINE_LABELS: Record<string, string> = {
   IVA_REDUCIDO: "IVA Reducido (8%)",
   IVA_ADICIONAL: "IVA Adicional (15%)",
   EXENTO: "Exento / Exonerado",
-}
+};
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   FACTURA: "Factura",
@@ -54,10 +54,10 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   RESUMEN_VENTAS: "Resumen de Ventas",
   PLANILLA_IMPORTACION: "Planilla de Importación",
   OTRO: "Documento",
-}
+};
 
 function isPositive(val?: string): boolean {
-  return !!val && new Decimal(val).greaterThan(0)
+  return !!val && new Decimal(val).greaterThan(0);
 }
 
 // ─── Estilos ───────────────────────────────────────────────────────────────────
@@ -102,8 +102,20 @@ const styles = StyleSheet.create({
   totalsSection: { marginTop: 10, borderTop: "1pt solid #374151" },
   totalsRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 3 },
   totalsLabel: { fontSize: 9, fontWeight: "bold", width: 160, textAlign: "right", paddingRight: 8 },
-  totalsValue: { fontSize: 9, fontWeight: "bold", width: 80, textAlign: "right", fontFamily: "Helvetica" },
-  totalFinalLabel: { fontSize: 11, fontWeight: "bold", width: 160, textAlign: "right", paddingRight: 8 },
+  totalsValue: {
+    fontSize: 9,
+    fontWeight: "bold",
+    width: 80,
+    textAlign: "right",
+    fontFamily: "Helvetica",
+  },
+  totalFinalLabel: {
+    fontSize: 11,
+    fontWeight: "bold",
+    width: 160,
+    textAlign: "right",
+    paddingRight: 8,
+  },
   totalFinalValue: { fontSize: 11, fontWeight: "bold", width: 80, textAlign: "right" },
   // Sección retenciones / IGTF
   retentionSection: {
@@ -130,7 +142,7 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: "#9ca3af",
   },
-})
+});
 
 // ─── Componentes ───────────────────────────────────────────────────────────────
 
@@ -142,13 +154,13 @@ function CompanyHeader({ p }: { p: InvoiceVoucherPDFParams }) {
     React.createElement(Text, { style: styles.companyRif }, `RIF: ${p.companyRif}`),
     p.companyAddress
       ? React.createElement(Text, { style: styles.companyAddress }, p.companyAddress)
-      : null,
-  )
+      : null
+  );
 }
 
 function DocTitle({ p }: { p: InvoiceVoucherPDFParams }) {
-  const docLabel = DOC_TYPE_LABELS[p.docType] ?? p.docType
-  const typeLabel = p.invoiceType === "SALE" ? "Emisión" : "Recepción"
+  const docLabel = DOC_TYPE_LABELS[p.docType] ?? p.docType;
+  const typeLabel = p.invoiceType === "SALE" ? "Emisión" : "Recepción";
 
   return React.createElement(
     View,
@@ -157,26 +169,18 @@ function DocTitle({ p }: { p: InvoiceVoucherPDFParams }) {
     React.createElement(
       View,
       null,
-      React.createElement(
-        Text,
-        { style: styles.docMeta },
-        `N° ${p.invoiceNumber}`,
-      ),
+      React.createElement(Text, { style: styles.docMeta }, `N° ${p.invoiceNumber}`),
       p.controlNumber
-        ? React.createElement(
-            Text,
-            { style: styles.docMeta },
-            `Control: ${p.controlNumber}`,
-          )
+        ? React.createElement(Text, { style: styles.docMeta }, `Control: ${p.controlNumber}`)
         : null,
       React.createElement(Text, { style: styles.docMeta }, `Fecha: ${fmtDate(p.date)}`),
-      React.createElement(Text, { style: styles.docMetaLabel }, typeLabel),
-    ),
-  )
+      React.createElement(Text, { style: styles.docMetaLabel }, typeLabel)
+    )
+  );
 }
 
 function CounterpartSection({ p }: { p: InvoiceVoucherPDFParams }) {
-  const label = p.invoiceType === "PURCHASE" ? "Proveedor" : "Cliente"
+  const label = p.invoiceType === "PURCHASE" ? "Proveedor" : "Cliente";
   return React.createElement(
     View,
     null,
@@ -185,15 +189,15 @@ function CounterpartSection({ p }: { p: InvoiceVoucherPDFParams }) {
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "Nombre:"),
-      React.createElement(Text, { style: styles.infoValue }, p.counterpartName),
+      React.createElement(Text, { style: styles.infoValue }, p.counterpartName)
     ),
     React.createElement(
       View,
       { style: styles.infoRow },
       React.createElement(Text, { style: styles.infoLabel }, "RIF:"),
-      React.createElement(Text, { style: styles.infoValue }, p.counterpartRif),
-    ),
-  )
+      React.createElement(Text, { style: styles.infoValue }, p.counterpartRif)
+    )
+  );
 }
 
 function TaxLinesTable({ p }: { p: InvoiceVoucherPDFParams }) {
@@ -208,7 +212,7 @@ function TaxLinesTable({ p }: { p: InvoiceVoucherPDFParams }) {
       React.createElement(Text, { style: styles.cellType }, "Tipo de Impuesto"),
       React.createElement(Text, { style: styles.cellRight }, "Base Imponible"),
       React.createElement(Text, { style: styles.cellNarrow }, "Alícuota"),
-      React.createElement(Text, { style: styles.cellRight }, "Monto IVA"),
+      React.createElement(Text, { style: styles.cellRight }, "Monto IVA")
     ),
     // Filas
     ...p.taxLines.map((line, idx) =>
@@ -218,21 +222,21 @@ function TaxLinesTable({ p }: { p: InvoiceVoucherPDFParams }) {
         React.createElement(
           Text,
           { style: styles.cellType },
-          TAX_LINE_LABELS[line.taxType] ?? line.taxType,
+          TAX_LINE_LABELS[line.taxType] ?? line.taxType
         ),
         React.createElement(Text, { style: styles.cellRight }, line.base),
         React.createElement(Text, { style: styles.cellNarrow }, `${line.rate}%`),
-        React.createElement(Text, { style: styles.cellRight }, line.amount),
-      ),
-    ),
-  )
+        React.createElement(Text, { style: styles.cellRight }, line.amount)
+      )
+    )
+  );
 }
 
 function TotalsSection({ p }: { p: InvoiceVoucherPDFParams }) {
-  const amounts = invoiceBaseAndIva(p.taxLines)
-  const totalBase = amounts.base.toFixed(2)
-  const totalIva = amounts.iva.toFixed(2)
-  const totalInvoice = new Decimal(totalBase).plus(totalIva).toFixed(2)
+  const amounts = invoiceBaseAndIva(p.taxLines);
+  const totalBase = amounts.base.toFixed(2);
+  const totalIva = amounts.iva.toFixed(2);
+  const totalInvoice = new Decimal(totalBase).plus(totalIva).toFixed(2);
 
   return React.createElement(
     View,
@@ -241,29 +245,29 @@ function TotalsSection({ p }: { p: InvoiceVoucherPDFParams }) {
       View,
       { style: styles.totalsRow },
       React.createElement(Text, { style: styles.totalsLabel }, "Base Imponible Total:"),
-      React.createElement(Text, { style: styles.totalsValue }, totalBase),
+      React.createElement(Text, { style: styles.totalsValue }, totalBase)
     ),
     React.createElement(
       View,
       { style: styles.totalsRow },
       React.createElement(Text, { style: styles.totalsLabel }, "Total IVA:"),
-      React.createElement(Text, { style: styles.totalsValue }, totalIva),
+      React.createElement(Text, { style: styles.totalsValue }, totalIva)
     ),
     React.createElement(
       View,
       { style: styles.totalsRow },
       React.createElement(Text, { style: styles.totalFinalLabel }, "TOTAL FACTURA:"),
-      React.createElement(Text, { style: styles.totalFinalValue }, totalInvoice),
-    ),
-  )
+      React.createElement(Text, { style: styles.totalFinalValue }, totalInvoice)
+    )
+  );
 }
 
 function RetentionIgtfSection({ p }: { p: InvoiceVoucherPDFParams }) {
-  const hasIva = isPositive(p.ivaRetentionAmount)
-  const hasIslr = isPositive(p.islrRetentionAmount)
-  const hasIgtf = isPositive(p.igtfAmount)
+  const hasIva = isPositive(p.ivaRetentionAmount);
+  const hasIslr = isPositive(p.islrRetentionAmount);
+  const hasIgtf = isPositive(p.igtfAmount);
 
-  if (!hasIva && !hasIslr && !hasIgtf) return null
+  if (!hasIva && !hasIslr && !hasIgtf) return null;
 
   return React.createElement(
     View,
@@ -277,8 +281,8 @@ function RetentionIgtfSection({ p }: { p: InvoiceVoucherPDFParams }) {
           React.createElement(
             Text,
             { style: styles.infoValue },
-            `${p.ivaRetentionAmount}${p.ivaRetentionVoucher ? `  Comprobante: ${p.ivaRetentionVoucher}` : ""}`,
-          ),
+            `${p.ivaRetentionAmount}${p.ivaRetentionVoucher ? `  Comprobante: ${p.ivaRetentionVoucher}` : ""}`
+          )
         )
       : null,
     hasIslr
@@ -286,7 +290,7 @@ function RetentionIgtfSection({ p }: { p: InvoiceVoucherPDFParams }) {
           View,
           { style: styles.infoRow },
           React.createElement(Text, { style: styles.infoLabel }, "ISLR Retenido:"),
-          React.createElement(Text, { style: styles.infoValue }, p.islrRetentionAmount),
+          React.createElement(Text, { style: styles.infoValue }, p.islrRetentionAmount)
         )
       : null,
     hasIgtf
@@ -297,15 +301,15 @@ function RetentionIgtfSection({ p }: { p: InvoiceVoucherPDFParams }) {
           React.createElement(
             Text,
             { style: styles.infoValue },
-            `Base: ${p.igtfBase}  Monto: ${p.igtfAmount}`,
-          ),
+            `Base: ${p.igtfBase}  Monto: ${p.igtfAmount}`
+          )
         )
-      : null,
-  )
+      : null
+  );
 }
 
 function QRSection({ p }: { p: InvoiceVoucherPDFParams }) {
-  if (!p.qrCodeDataUrl) return null
+  if (!p.qrCodeDataUrl) return null;
   return React.createElement(
     View,
     { style: styles.qrSection },
@@ -314,9 +318,9 @@ function QRSection({ p }: { p: InvoiceVoucherPDFParams }) {
       View,
       null,
       React.createElement(Text, { style: styles.qrLabel }, "Verificación rápida"),
-      React.createElement(Text, { style: styles.qrLabel }, `Factura N° ${p.invoiceNumber}`),
-    ),
-  )
+      React.createElement(Text, { style: styles.qrLabel }, `Factura N° ${p.invoiceNumber}`)
+    )
+  );
 }
 
 // ─── Documento completo ───────────────────────────────────────────────────────
@@ -341,7 +345,7 @@ function InvoiceVoucherDocument({ params }: { params: InvoiceVoucherPDFParams })
         React.createElement(
           Text,
           null,
-          `${params.companyName} — ${DOC_TYPE_LABELS[params.docType] ?? params.docType} N° ${params.invoiceNumber}`,
+          `${params.companyName} — ${DOC_TYPE_LABELS[params.docType] ?? params.docType} N° ${params.invoiceNumber}`
         ),
         React.createElement(
           Text,
@@ -349,11 +353,11 @@ function InvoiceVoucherDocument({ params }: { params: InvoiceVoucherPDFParams })
             render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
               `Pág. ${pageNumber} / ${totalPages}`,
           },
-          null,
-        ),
-      ),
-    ),
-  )
+          null
+        )
+      )
+    )
+  );
 }
 
 // ─── Función exportada ─────────────────────────────────────────────────────────
@@ -365,9 +369,7 @@ function InvoiceVoucherDocument({ params }: { params: InvoiceVoucherPDFParams })
  * Notas: llamar solo desde Server Action o Route Handler.
  * Usa renderToBuffer() de @react-pdf/renderer (sin DOM).
  */
-export async function generateInvoiceVoucherPDF(
-  params: InvoiceVoucherPDFParams,
-): Promise<Buffer> {
-  const element = React.createElement(InvoiceVoucherDocument, { params })
-  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0])
+export async function generateInvoiceVoucherPDF(params: InvoiceVoucherPDFParams): Promise<Buffer> {
+  const element = React.createElement(InvoiceVoucherDocument, { params });
+  return renderToBuffer(element as Parameters<typeof renderToBuffer>[0]);
 }

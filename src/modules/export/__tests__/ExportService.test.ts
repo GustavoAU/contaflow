@@ -151,7 +151,9 @@ describe("generateExportZip", () => {
   });
 
   it("incluye libro-compras.csv cuando hay facturas de PURCHASE", async () => {
-    vi.mocked(prisma.invoice.findMany).mockResolvedValue([makeInvoice({ type: "PURCHASE" })] as never);
+    vi.mocked(prisma.invoice.findMany).mockResolvedValue([
+      makeInvoice({ type: "PURCHASE" }),
+    ] as never);
     const JSZip = await import("jszip");
     const result = await generateExportZip(PARAMS);
     const zip = await JSZip.default.loadAsync(result.data);
@@ -167,23 +169,25 @@ describe("generateExportZip", () => {
   });
 
   it("incluye retenciones.csv cuando hay retenciones", async () => {
-    vi.mocked(prisma.retencion.findMany).mockResolvedValue([{
-      voucherNumber: "RET-001",
-      providerName: "Proveedor A",
-      providerRif: "J-11111111-1",
-      invoiceNumber: "0000001",
-      invoiceDate: new Date("2026-01-10"),
-      invoiceAmount: new Decimal("1000"),
-      taxBase: new Decimal("862.07"),
-      ivaAmount: new Decimal("137.93"),
-      ivaRetention: new Decimal("103.45"),
-      ivaRetentionPct: new Decimal("75"),
-      islrAmount: null,
-      islrRetentionPct: null,
-      totalRetention: new Decimal("103.45"),
-      type: "IVA",
-      status: "ISSUED",
-    }] as never);
+    vi.mocked(prisma.retencion.findMany).mockResolvedValue([
+      {
+        voucherNumber: "RET-001",
+        providerName: "Proveedor A",
+        providerRif: "J-11111111-1",
+        invoiceNumber: "0000001",
+        invoiceDate: new Date("2026-01-10"),
+        invoiceAmount: new Decimal("1000"),
+        taxBase: new Decimal("862.07"),
+        ivaAmount: new Decimal("137.93"),
+        ivaRetention: new Decimal("103.45"),
+        ivaRetentionPct: new Decimal("75"),
+        islrAmount: null,
+        islrRetentionPct: null,
+        totalRetention: new Decimal("103.45"),
+        type: "IVA",
+        status: "ISSUED",
+      },
+    ] as never);
     const JSZip = await import("jszip");
     const result = await generateExportZip(PARAMS);
     const zip = await JSZip.default.loadAsync(result.data);
@@ -200,9 +204,7 @@ describe("generateExportZip", () => {
   });
 
   it("incluye mes vacío en forma30 si DeclaracionIVAService.calculate lanza error", async () => {
-    vi.mocked(DeclaracionIVAService.calculate).mockRejectedValue(
-      new Error("Período no existe")
-    );
+    vi.mocked(DeclaracionIVAService.calculate).mockRejectedValue(new Error("Período no existe"));
     const JSZip = await import("jszip");
     const result = await generateExportZip(PARAMS);
     const zip = await JSZip.default.loadAsync(result.data);

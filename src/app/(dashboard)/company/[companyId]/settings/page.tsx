@@ -53,18 +53,15 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   if (!user) redirect("/sign-in");
 
   // Siempre necesarios — lookup de empresa y locale
-  const [locale, companies] = await Promise.all([
-    getLocaleAction(),
-    getUserCompaniesAction(),
-  ]);
+  const [locale, companies] = await Promise.all([getLocaleAction(), getUserCompaniesAction()]);
 
   const company = companies.find((c) => c.id === companyId);
   if (!company) redirect("/dashboard");
 
   function resolveTab(req: string | undefined): TabId {
     if (req === "contabilidad") return "contabilidad";
-    if (req === "firmas")       return "firmas";
-    if (req === "equipo")       return "equipo";
+    if (req === "firmas") return "firmas";
+    if (req === "equipo") return "equipo";
     return "empresa";
   }
   const currentTab = resolveTab(tabParam);
@@ -105,10 +102,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   const [membersResult, grantsResult] =
     currentTab === "equipo"
-      ? await Promise.all([
-          getMembersAction(companyId),
-          getGrantsAction(companyId),
-        ])
+      ? await Promise.all([getMembersAction(companyId), getGrantsAction(companyId)])
       : ([null, null] as const);
 
   // ── Serialización ────────────────────────────────────────────────────────────
@@ -131,17 +125,17 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   const accountantConfig = accountantConfigResult?.success
     ? accountantConfigResult.data
     : { accountantName: null, accountantTitle: null, accountantCpcNumber: null };
-  const members      = membersResult?.success  ? membersResult.data  : [];
-  const grants       = grantsResult?.success   ? grantsResult.data   : [];
+  const members = membersResult?.success ? membersResult.data : [];
+  const grants = grantsResult?.success ? grantsResult.data : [];
   const seniatMember = members.find((m) => m.role === "SENIAT") ?? null;
 
   // ── Tabs ─────────────────────────────────────────────────────────────────────
 
   const tabs = [
-    { value: "empresa",       label: "Empresa",       show: true },
-    { value: "contabilidad",  label: "Contabilidad",  show: true },
-    { value: "firmas",        label: "Firmas",        show: true },
-    { value: "equipo",        label: "Equipo",        show: true },
+    { value: "empresa", label: "Empresa", show: true },
+    { value: "contabilidad", label: "Contabilidad", show: true },
+    { value: "firmas", label: "Firmas", show: true },
+    { value: "equipo", label: "Equipo", show: true },
   ];
 
   return (
@@ -164,32 +158,32 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           <LanguageSelector currentLocale={locale} />
 
           {/* Datos Fiscales SENIAT */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Datos Fiscales (SENIAT)</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Información requerida en los encabezados de la Forma 30, Libro Mayor
-                y reportes PA-121 del SENIAT.
+                Información requerida en los encabezados de la Forma 30, Libro Mayor y reportes
+                PA-121 del SENIAT.
               </p>
             </div>
             <CompanySeniatDataForm
               companyId={companyId}
               initialData={{
-                name:                  company.name,
-                rif:                   company.rif ?? null,
-                address:               company.address ?? null,
-                telefono:              company.telefono ?? null,
-                email:                 company.email ?? null,
-                ciiu:                  company.ciiu ?? null,
-                actividad:             company.actividad ?? null,
-                isSpecialContributor:  company.isSpecialContributor,
+                name: company.name,
+                rif: company.rif ?? null,
+                address: company.address ?? null,
+                telefono: company.telefono ?? null,
+                email: company.email ?? null,
+                ciiu: company.ciiu ?? null,
+                actividad: company.actividad ?? null,
+                isSpecialContributor: company.isSpecialContributor,
               }}
             />
           </div>
 
           {/* Tier Despacho — solo visible para perfil DESPACHO (ADR-034) */}
           {company.scopeProfile === "DESPACHO" && despachoStatusResult?.success && (
-            <div className="rounded-lg border p-6 space-y-4">
+            <div className="space-y-4 rounded-lg border p-6">
               <div>
                 <h2 className="text-lg font-semibold">Plan Despacho</h2>
                 <p className="text-muted-foreground mt-1 text-sm">
@@ -211,18 +205,18 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       {currentTab === "contabilidad" && (
         <div className="space-y-6">
           {/* Configuración Contable — Cierre de Ejercicio */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Configuración Contable</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Define las cuentas de patrimonio utilizadas para el Cierre de Ejercicio
-                Económico (VEN-NIF). Ambas cuentas deben ser de tipo Patrimonio (EQUITY).
+                Define las cuentas de patrimonio utilizadas para el Cierre de Ejercicio Económico
+                (VEN-NIF). Ambas cuentas deben ser de tipo Patrimonio (EQUITY).
               </p>
             </div>
             {equityAccounts.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                No hay cuentas de tipo Patrimonio (EQUITY) en tu plan de cuentas. Crea al
-                menos dos cuentas EQUITY antes de configurar el cierre.
+                No hay cuentas de tipo Patrimonio (EQUITY) en tu plan de cuentas. Crea al menos dos
+                cuentas EQUITY antes de configurar el cierre.
               </p>
             ) : (
               <FiscalConfigForm
@@ -235,7 +229,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
             {/* Plazo de pago CxC/CxP */}
             <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-3">Cartera CxC/CxP — Plazo de Pago</h3>
+              <h3 className="mb-3 text-sm font-semibold">Cartera CxC/CxP — Plazo de Pago</h3>
               <PaymentTermsForm
                 companyId={companyId}
                 currentPaymentTermDays={company.paymentTermDays}
@@ -244,19 +238,18 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           </div>
 
           {/* Integración Libro Mayor (GL) */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Integración con Libro Mayor</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Define las cuentas contables para la causación automática de facturas.
-                Al guardar esta configuración, cada nueva factura generará su asiento en
-                el Libro Diario.
+                Define las cuentas contables para la causación automática de facturas. Al guardar
+                esta configuración, cada nueva factura generará su asiento en el Libro Diario.
               </p>
             </div>
             {allAccounts.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                No hay cuentas en el plan de cuentas. Crea cuentas contables antes de
-                configurar la integración.
+                No hay cuentas en el plan de cuentas. Crea cuentas contables antes de configurar la
+                integración.
               </p>
             ) : (
               <GLAccountsForm
@@ -264,18 +257,19 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                 allAccounts={allAccounts}
                 isSpecialContributor={company.isSpecialContributor}
                 initialConfig={{
-                  arAccountId:                       glConfig?.arAccountId ?? null,
-                  apAccountId:                       glConfig?.apAccountId ?? null,
-                  salesAccountId:                    glConfig?.salesAccountId ?? null,
-                  purchaseExpenseAccountId:          glConfig?.purchaseExpenseAccountId ?? null,
-                  inventoryAccountId:                glConfig?.inventoryAccountId ?? null,
-                  ivaDFAccountId:                    glConfig?.ivaDFAccountId ?? null,
-                  ivaCFAccountId:                    glConfig?.ivaCFAccountId ?? null,
-                  ivaRetentionPayableAccountId:      glConfig?.ivaRetentionPayableAccountId ?? null,    // GAP-03
-                  ivaRetentionReceivableAccountId:   glConfig?.ivaRetentionReceivableAccountId ?? null, // Riesgo-6
-                  fxGainAccountId:                   glConfig?.fxGainAccountId ?? null,
-                  fxLossAccountId:                   glConfig?.fxLossAccountId ?? null,
-                  igtfPayableAccountId:              glConfig?.igtfPayableAccountId ?? null, // ADR-030
+                  arAccountId: glConfig?.arAccountId ?? null,
+                  apAccountId: glConfig?.apAccountId ?? null,
+                  salesAccountId: glConfig?.salesAccountId ?? null,
+                  purchaseExpenseAccountId: glConfig?.purchaseExpenseAccountId ?? null,
+                  inventoryAccountId: glConfig?.inventoryAccountId ?? null,
+                  ivaDFAccountId: glConfig?.ivaDFAccountId ?? null,
+                  ivaCFAccountId: glConfig?.ivaCFAccountId ?? null,
+                  ivaRetentionPayableAccountId: glConfig?.ivaRetentionPayableAccountId ?? null, // GAP-03
+                  ivaRetentionReceivableAccountId:
+                    glConfig?.ivaRetentionReceivableAccountId ?? null, // Riesgo-6
+                  fxGainAccountId: glConfig?.fxGainAccountId ?? null,
+                  fxLossAccountId: glConfig?.fxLossAccountId ?? null,
+                  igtfPayableAccountId: glConfig?.igtfPayableAccountId ?? null, // ADR-030
                 }}
                 initialUnbookedCount={glConfig?.unbookedCount ?? 0}
               />
@@ -283,29 +277,26 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           </div>
 
           {/* Control de Stock — H-005 */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Control de Stock en Facturación</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Define qué sucede al emitir una factura con stock insuficiente para ítems
-                de tipo Mercancía. El nivel <strong>Bloqueo total</strong> es el recomendado
-                para cumplir con el Art. 186 COT ante fiscalizaciones SENIAT.
+                Define qué sucede al emitir una factura con stock insuficiente para ítems de tipo
+                Mercancía. El nivel <strong>Bloqueo total</strong> es el recomendado para cumplir
+                con el Art. 186 COT ante fiscalizaciones SENIAT.
               </p>
             </div>
-            <StockControlLevelForm
-              companyId={companyId}
-              currentLevel={stockControlLevel}
-            />
+            <StockControlLevelForm companyId={companyId} currentLevel={stockControlLevel} />
           </div>
 
           {/* Step-up 2FA Caja Chica — ADR-039 nota #3 */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Seguridad de Caja Chica (2FA)</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Define el monto (VES) a partir del cual cerrar o reabrir una caja chica
-                exigirá verificación con un segundo factor (step-up 2FA). Subir este umbral
-                debilita el control: solo propietarios y administradores pueden cambiarlo.
+                Define el monto (VES) a partir del cual cerrar o reabrir una caja chica exigirá
+                verificación con un segundo factor (step-up 2FA). Subir este umbral debilita el
+                control: solo propietarios y administradores pueden cambiarlo.
               </p>
             </div>
             {cajaChicaStepUp ? (
@@ -327,27 +318,23 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       {currentTab === "firmas" && (
         <div className="space-y-6">
           {/* Firma del Contador Público (CPC) */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Firma del Contador Público (CPC)</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Datos del Contador Público Colegiado que aparecerán en el bloque de firma
-                de los reportes financieros (VEN-NIF — requerido por SENIAT).
+                Datos del Contador Público Colegiado que aparecerán en el bloque de firma de los
+                reportes financieros (VEN-NIF — requerido por SENIAT).
               </p>
             </div>
-            <AccountantSignatureForm
-              companyId={companyId}
-              initialConfig={accountantConfig}
-            />
+            <AccountantSignatureForm companyId={companyId} initialConfig={accountantConfig} />
           </div>
 
           {/* Firma Digital — Fase 35I */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Firma Digital</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Certificado X.509 para firma electrónica de documentos fiscales
-                (PA 121 · ADR-020).
+                Certificado X.509 para firma electrónica de documentos fiscales (PA 121 · ADR-020).
               </p>
             </div>
             <CertificatePanel companyId={companyId} initialStatus={certStatus} />
@@ -376,12 +363,12 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           />
 
           {/* Permisos por Rol */}
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="space-y-4 rounded-lg border p-6">
             <div>
               <h2 className="text-lg font-semibold">Permisos por Rol</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Define qué módulos puede ver y usar cada rol en esta empresa.
-                Los permisos base son fijos; los checkboxes editables amplían el acceso.
+                Define qué módulos puede ver y usar cada rol en esta empresa. Los permisos base son
+                fijos; los checkboxes editables amplían el acceso.
               </p>
             </div>
             <PermissionsMatrix

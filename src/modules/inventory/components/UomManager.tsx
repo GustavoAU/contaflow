@@ -59,8 +59,21 @@ function UnitForm({
 
     startTransition(async () => {
       const r = existing
-        ? await updateUomAction({ unitId: existing.id, companyId, name, abbreviation, conversionFactor })
-        : await createUomAction({ companyId, itemId, name, abbreviation, conversionFactor, isBase });
+        ? await updateUomAction({
+            unitId: existing.id,
+            companyId,
+            name,
+            abbreviation,
+            conversionFactor,
+          })
+        : await createUomAction({
+            companyId,
+            itemId,
+            name,
+            abbreviation,
+            conversionFactor,
+            isBase,
+          });
 
       if (r.success) {
         onDone();
@@ -73,13 +86,18 @@ function UnitForm({
   const factorDisabled = !!existing; // factor se bloquea en edición si hay movimientos; el service retorna error
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+    <form
+      onSubmit={handleSubmit}
+      className="mt-3 space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4"
+    >
       <p className="text-xs font-semibold text-blue-800">
         {existing ? `Editar unidad: ${existing.name}` : "Nueva unidad de medida"}
       </p>
 
       {error && (
-        <p className="rounded bg-red-50 border border-red-200 px-3 py-1.5 text-xs text-red-700">{error}</p>
+        <p className="rounded border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700">
+          {error}
+        </p>
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -114,7 +132,11 @@ function UnitForm({
             className={fieldClass}
             placeholder="Ej: 12"
             disabled={factorDisabled}
-            title={factorDisabled ? "El factor no se puede cambiar aquí; use Actualizar para intentarlo." : undefined}
+            title={
+              factorDisabled
+                ? "El factor no se puede cambiar aquí; use Actualizar para intentarlo."
+                : undefined
+            }
           />
           {factorDisabled && (
             <p className="mt-0.5 text-xs text-amber-600">Inmutable si existen movimientos.</p>
@@ -123,18 +145,21 @@ function UnitForm({
         {!existing && (
           <div className="flex items-center gap-2 pt-5">
             <input type="checkbox" name="isBase" id="isBase-cb" className="h-4 w-4" />
-            <label htmlFor="isBase-cb" className="text-xs text-gray-700">Unidad base</label>
+            <label htmlFor="isBase-cb" className="text-xs text-gray-700">
+              Unidad base
+            </label>
           </div>
         )}
       </div>
 
       {!existing && (
         <p className="text-xs text-gray-500">
-          Factor = cuántas unidades base equivale 1 de esta unidad. Ej: 1 Caja = 12 unidades → factor 12.
+          Factor = cuántas unidades base equivale 1 de esta unidad. Ej: 1 Caja = 12 unidades →
+          factor 12.
         </p>
       )}
 
-      <div className="flex gap-2 justify-end">
+      <div className="flex justify-end gap-2">
         <button
           type="button"
           onClick={onCancel}
@@ -189,7 +214,11 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
   }, [itemId]);
 
   function handleDelete(unit: UnitRow) {
-    if (!confirm(`¿Eliminar la unidad "${unit.name}"? Esta acción no se puede deshacer si existen movimientos.`))
+    if (
+      !confirm(
+        `¿Eliminar la unidad "${unit.name}"? Esta acción no se puede deshacer si existen movimientos.`
+      )
+    )
       return;
     setDeleteError(null);
     startDelete(async () => {
@@ -211,12 +240,13 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-gray-700">
-          Unidades de medida — {itemName}
-        </p>
+        <p className="text-xs font-semibold text-gray-700">Unidades de medida — {itemName}</p>
         {canManage && formMode === null && (
           <button
-            onClick={() => { setFormMode("create"); setEditTarget(null); }}
+            onClick={() => {
+              setFormMode("create");
+              setEditTarget(null);
+            }}
             className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
           >
             + Agregar unidad
@@ -224,12 +254,8 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
         )}
       </div>
 
-      {loadError && (
-        <p className="text-xs text-red-600">{loadError}</p>
-      )}
-      {deleteError && (
-        <p className="text-xs text-red-600">{deleteError}</p>
-      )}
+      {loadError && <p className="text-xs text-red-600">{loadError}</p>}
+      {deleteError && <p className="text-xs text-red-600">{deleteError}</p>}
 
       {isLoading ? (
         <p className="text-xs text-gray-400">Cargando unidades...</p>
@@ -240,14 +266,24 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
       ) : (
         <div className="overflow-x-auto rounded border border-gray-200 bg-white">
           <table className="w-full text-xs">
-            <thead className="bg-gray-50 text-gray-500 uppercase font-semibold">
+            <thead className="bg-gray-50 font-semibold text-gray-500 uppercase">
               <tr>
-                <th scope="col" className="px-3 py-2 text-left">Nombre</th>
-                <th scope="col" className="px-3 py-2 text-left">Abrev.</th>
-                <th scope="col" className="px-3 py-2 text-right">Factor</th>
-                <th scope="col" className="px-3 py-2 text-center">Tipo</th>
+                <th scope="col" className="px-3 py-2 text-left">
+                  Nombre
+                </th>
+                <th scope="col" className="px-3 py-2 text-left">
+                  Abrev.
+                </th>
+                <th scope="col" className="px-3 py-2 text-right">
+                  Factor
+                </th>
+                <th scope="col" className="px-3 py-2 text-center">
+                  Tipo
+                </th>
                 {(canManage || canDelete) && (
-                  <th scope="col" className="px-3 py-2 text-center">Acciones</th>
+                  <th scope="col" className="px-3 py-2 text-center">
+                    Acciones
+                  </th>
                 )}
               </tr>
             </thead>
@@ -255,13 +291,19 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
               {units.map((u) => (
                 <tr key={u.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium text-gray-800">{u.name}</td>
-                  <td className="px-3 py-2 text-gray-500 font-mono">{u.abbreviation}</td>
-                  <td className="px-3 py-2 text-right font-mono text-gray-700">{u.conversionFactor}</td>
+                  <td className="px-3 py-2 font-mono text-gray-500">{u.abbreviation}</td>
+                  <td className="px-3 py-2 text-right font-mono text-gray-700">
+                    {u.conversionFactor}
+                  </td>
                   <td className="px-3 py-2 text-center">
                     {u.isBase ? (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-700 font-semibold">Base</span>
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-700">
+                        Base
+                      </span>
                     ) : (
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-500">Alt.</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-500">
+                        Alt.
+                      </span>
                     )}
                   </td>
                   {(canManage || canDelete) && (
@@ -269,7 +311,10 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
                       <div className="flex items-center justify-center gap-3">
                         {canManage && formMode === null && (
                           <button
-                            onClick={() => { setEditTarget(u); setFormMode("edit"); }}
+                            onClick={() => {
+                              setEditTarget(u);
+                              setFormMode("edit");
+                            }}
                             className="text-blue-600 hover:underline"
                           >
                             Editar
@@ -309,7 +354,10 @@ export function UomManager({ companyId, itemId, itemName, canManage, canDelete }
           itemId={itemId}
           existing={editTarget}
           onDone={handleFormDone}
-          onCancel={() => { setFormMode(null); setEditTarget(null); }}
+          onCancel={() => {
+            setFormMode(null);
+            setEditTarget(null);
+          }}
         />
       )}
     </div>

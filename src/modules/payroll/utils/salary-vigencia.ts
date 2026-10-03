@@ -36,7 +36,7 @@ export interface SalaryVigencia {
  */
 export function salaryCurrencyAt(
   vigencias: readonly SalaryVigencia[],
-  dateISO: string,
+  dateISO: string
 ): PayrollPaymentCurrency | null {
   return vigencias.find((v) => v.from <= dateISO)?.currency ?? null;
 }

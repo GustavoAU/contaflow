@@ -86,7 +86,9 @@ export class FixedAssetService {
     // Hallazgo MEDIUM del security-agent (2026-09-05): estas 4 cuentas GL no
     // verificaban pertenecer a esta empresa antes de guardarse.
     await assertAccountsBelongToCompany(tx, input.companyId, [
-      input.assetAccountId, input.depreciationAccountId, input.accDepreciationAccountId,
+      input.assetAccountId,
+      input.depreciationAccountId,
+      input.accDepreciationAccountId,
       input.acquisitionCounterpartAccountId,
     ]);
 
@@ -114,7 +116,9 @@ export class FixedAssetService {
         internalCode: input.internalCode ?? null,
         // N2: moneda de adquisición y tasa BCV histórica
         acquisitionCurrency: input.acquisitionCurrency ?? "VES",
-        bcvRateAtAcquisition: input.bcvRateAtAcquisition ? new Decimal(input.bcvRateAtAcquisition) : null,
+        bcvRateAtAcquisition: input.bcvRateAtAcquisition
+          ? new Decimal(input.bcvRateAtAcquisition)
+          : null,
         createdBy: userId,
       },
     });
@@ -128,12 +132,12 @@ export class FixedAssetService {
       const acqEntries = [
         {
           accountId: input.assetAccountId,
-          amount:     acqCost,
+          amount: acqCost,
           description: `Activo fijo adquirido — ${input.name}`,
         },
         {
           accountId: input.acquisitionCounterpartAccountId,
-          amount:     acqCost.negated(),
+          amount: acqCost.negated(),
           description: `Origen adquisición — ${input.name}`,
         },
       ];
@@ -242,7 +246,7 @@ export class FixedAssetService {
       _sum: { amount: true },
     });
     const accByAsset = new Map(
-      sums.map((s) => [s.fixedAssetId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+      sums.map((s) => [s.fixedAssetId, new Decimal(s._sum.amount?.toString() ?? "0")])
     );
 
     return assets.map((a) => {
@@ -331,7 +335,7 @@ export class FixedAssetService {
       _sum: { amount: true },
     });
     const accByAsset = new Map(
-      sums.map((s) => [s.fixedAssetId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+      sums.map((s) => [s.fixedAssetId, new Decimal(s._sum.amount?.toString() ?? "0")])
     );
 
     // 2. Agrupar por cuenta — suma depreciación acumulada del módulo
@@ -483,8 +487,8 @@ export class FixedAssetService {
       }
 
       const previousBookValue = new Decimal(asset.acquisitionCost.toString());
-      const newRestatedValue  = previousBookValue.plus(adjustment);
-      const factor            = new Decimal(restatement.factor);
+      const newRestatedValue = previousBookValue.plus(adjustment);
+      const factor = new Decimal(restatement.factor);
 
       // DEBE: Activo (ajuste al costo histórico)
       glEntries.push({
@@ -499,7 +503,13 @@ export class FixedAssetService {
         description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
       });
 
-      restatementRecords.push({ assetId: asset.id, factor, adjustmentAmount: adjustment, previousBookValue, newRestatedValue });
+      restatementRecords.push({
+        assetId: asset.id,
+        factor,
+        adjustmentAmount: adjustment,
+        previousBookValue,
+        newRestatedValue,
+      });
       totalAdjust = totalAdjust.plus(adjustment);
       processed++;
     }
@@ -527,17 +537,17 @@ export class FixedAssetService {
     // N3: crear registros históricos de reajuste INPC por activo
     await tx.fixedAssetINPCRestatement.createMany({
       data: restatementRecords.map((r) => ({
-        id:                `${r.assetId}-${periodYear}-${periodMonth}-${Date.now()}`,
+        id: `${r.assetId}-${periodYear}-${periodMonth}-${Date.now()}`,
         companyId,
-        assetId:           r.assetId,
-        inpcPeriodYear:    periodYear,
-        inpcPeriodMonth:   periodMonth,
-        factor:            r.factor,
-        adjustmentAmount:  r.adjustmentAmount,
+        assetId: r.assetId,
+        inpcPeriodYear: periodYear,
+        inpcPeriodMonth: periodMonth,
+        factor: r.factor,
+        adjustmentAmount: r.adjustmentAmount,
         previousBookValue: r.previousBookValue,
-        newRestatedValue:  r.newRestatedValue,
-        equityAccountId:   patrimonioAccountId,
-        transactionId:     `${createdTx.id}-${r.assetId}`,
+        newRestatedValue: r.newRestatedValue,
+        equityAccountId: patrimonioAccountId,
+        transactionId: `${createdTx.id}-${r.assetId}`,
         userId,
       })),
       skipDuplicates: true,
@@ -567,10 +577,7 @@ export class FixedAssetService {
   /**
    * N3: Historial de reajustes INPC para un activo (o toda la empresa).
    */
-  static async getINPCRestatementHistory(
-    companyId: string,
-    assetId?: string,
-  ) {
+  static async getINPCRestatementHistory(companyId: string, assetId?: string) {
     const prismaClient = (await import("@/lib/prisma")).default;
     const records = await prismaClient.fixedAssetINPCRestatement.findMany({
       where: { companyId, ...(assetId ? { assetId } : {}) },
@@ -578,18 +585,18 @@ export class FixedAssetService {
       orderBy: [{ inpcPeriodYear: "desc" }, { inpcPeriodMonth: "desc" }],
     });
     return records.map((r) => ({
-      id:                r.id,
-      assetId:           r.assetId,
-      assetName:         r.asset.name,
-      inpcPeriodYear:    r.inpcPeriodYear,
-      inpcPeriodMonth:   r.inpcPeriodMonth,
-      factor:            new Decimal(r.factor.toString()),
-      adjustmentAmount:  new Decimal(r.adjustmentAmount.toString()),
+      id: r.id,
+      assetId: r.assetId,
+      assetName: r.asset.name,
+      inpcPeriodYear: r.inpcPeriodYear,
+      inpcPeriodMonth: r.inpcPeriodMonth,
+      factor: new Decimal(r.factor.toString()),
+      adjustmentAmount: new Decimal(r.adjustmentAmount.toString()),
       previousBookValue: new Decimal(r.previousBookValue.toString()),
-      newRestatedValue:  new Decimal(r.newRestatedValue.toString()),
-      equityAccountId:   r.equityAccountId,
-      transactionId:     r.transactionId,
-      createdAt:         r.createdAt,
+      newRestatedValue: new Decimal(r.newRestatedValue.toString()),
+      equityAccountId: r.equityAccountId,
+      transactionId: r.transactionId,
+      createdAt: r.createdAt,
     }));
   }
 }

@@ -28,7 +28,7 @@ function blobPathnameOf(blobUrl: string): string | null {
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ companyId: string; reportId: string }> },
+  { params }: { params: Promise<{ companyId: string; reportId: string }> }
 ): Promise<Response> {
   const { companyId, reportId } = await params;
 
@@ -57,7 +57,10 @@ export async function GET(
       level: "error",
       tags: { companyId, reportId },
     });
-    return NextResponse.json({ error: "El archivo del reporte no está disponible" }, { status: 404 });
+    return NextResponse.json(
+      { error: "El archivo del reporte no está disponible" },
+      { status: 404 }
+    );
   }
 
   let result: Awaited<ReturnType<typeof getPrivateBlob>>;
@@ -68,7 +71,10 @@ export async function GET(
     return NextResponse.json({ error: "No se pudo obtener el archivo" }, { status: 502 });
   }
   if (!result || result.statusCode !== 200) {
-    return NextResponse.json({ error: "El archivo del reporte no está disponible" }, { status: 404 });
+    return NextResponse.json(
+      { error: "El archivo del reporte no está disponible" },
+      { status: 404 }
+    );
   }
 
   const slug = BOOK_SLUG[report.reportType] ?? "fiscal";

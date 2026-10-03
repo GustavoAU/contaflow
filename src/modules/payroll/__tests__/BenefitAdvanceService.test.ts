@@ -27,9 +27,8 @@ const EMP_ID = "emp-1";
 const BAL_ID = "bal-1";
 
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 const ACTIVE_EMPLOYEE = {
@@ -381,7 +380,8 @@ describe("BenefitAdvanceService.approveAdvance (F-04)", () => {
 
   it("throws when advance already approved", async () => {
     vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue({
-      ...PENDING_ADVANCE, status: "APPROVED",
+      ...PENDING_ADVANCE,
+      status: "APPROVED",
     } as never);
 
     await expect(
@@ -413,7 +413,10 @@ describe("BenefitAdvanceService.rejectAdvance (F-04)", () => {
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     const result = await BenefitAdvanceService.rejectAdvance(
-      COMPANY, USER, "adv-pending", "Presupuesto insuficiente"
+      COMPANY,
+      USER,
+      "adv-pending",
+      "Presupuesto insuficiente"
     );
 
     expect(result.status).toBe("REJECTED");
@@ -437,7 +440,8 @@ describe("BenefitAdvanceService.rejectAdvance (F-04)", () => {
 
   it("throws when advance not PENDING", async () => {
     vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue({
-      ...PENDING_ADVANCE, status: "APPROVED",
+      ...PENDING_ADVANCE,
+      status: "APPROVED",
     } as never);
 
     await expect(
@@ -463,5 +467,3 @@ describe("BenefitAdvanceService.listPendingAdvances (F-04)", () => {
     );
   });
 });
-
-

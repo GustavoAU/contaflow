@@ -6,8 +6,8 @@ import { SUPPORTED_CURRENCIES } from "@/lib/tax-config";
 import { strictDecimal, zBusinessDate } from "@/lib/zod-helpers";
 
 export const RecordPaymentSchema = z.object({
-  companyId:      z.string().min(1, { error: "companyId requerido" }),
-  invoiceId:      z.string().min(1, { error: "invoiceId requerido" }),
+  companyId: z.string().min(1, { error: "companyId requerido" }),
+  invoiceId: z.string().min(1, { error: "invoiceId requerido" }),
   amount: z
     .string()
     .min(1, { error: "Monto requerido" })
@@ -22,7 +22,7 @@ export const RecordPaymentSchema = z.object({
       },
       { error: "Monto inválido o fuera del rango permitido" }
     ),
-  currency:       z.enum(SUPPORTED_CURRENCIES).default("VES"),
+  currency: z.enum(SUPPORTED_CURRENCIES).default("VES"),
   amountOriginal: z
     .string()
     .refine(
@@ -39,37 +39,37 @@ export const RecordPaymentSchema = z.object({
     )
     .optional(),
   exchangeRateId: z.string().optional(),
-  method:         z.enum(["EFECTIVO", "TRANSFERENCIA", "PAGOMOVIL", "ZELLE", "CASHEA"]),
+  method: z.enum(["EFECTIVO", "TRANSFERENCIA", "PAGOMOVIL", "ZELLE", "CASHEA"]),
   referenceNumber: z.string().optional(),
-  originBank:     z.string().optional(),
-  destBank:       z.string().optional(),
-  commissionPct:  z.string().optional(),
-  igtfAmount:     z.string().optional(),
-  date:           zBusinessDate(),
-  notes:          z.string().optional(),
-  createdBy:      z.string().optional(), // ignorado: el action usa el userId de auth() — nunca el del cliente
+  originBank: z.string().optional(),
+  destBank: z.string().optional(),
+  commissionPct: z.string().optional(),
+  igtfAmount: z.string().optional(),
+  date: zBusinessDate(),
+  notes: z.string().optional(),
+  createdBy: z.string().optional(), // ignorado: el action usa el userId de auth() — nunca el del cliente
   idempotencyKey: z.string().uuid({ error: "Clave de idempotencia inválida" }),
   // ADR-032 F2: cuenta bancaria opcional para GL auto-posting (sin ella → sin asiento)
-  bankAccountId:  z.string().optional(),
+  bankAccountId: z.string().optional(),
 });
 
 export const CancelPaymentSchema = z.object({
-  paymentId:   z.string().min(1),
-  companyId:   z.string().min(1),
+  paymentId: z.string().min(1),
+  companyId: z.string().min(1),
 });
 
 export const AgingReportFilterSchema = z.object({
   companyId: z.string().min(1),
-  type:      z.enum(["CXC", "CXP"]),
-  asOf:      zBusinessDate().optional(),
+  type: z.enum(["CXC", "CXP"]),
+  asOf: zBusinessDate().optional(),
 });
 
 export const UpdatePaymentTermsSchema = z.object({
-  companyId:       z.string().min(1),
+  companyId: z.string().min(1),
   paymentTermDays: z.number().int().min(1).max(365),
 });
 
-export type RecordPaymentInput   = z.infer<typeof RecordPaymentSchema>;
-export type CancelPaymentInput   = z.infer<typeof CancelPaymentSchema>;
-export type AgingReportFilter    = z.infer<typeof AgingReportFilterSchema>;
-export type UpdatePaymentTerms   = z.infer<typeof UpdatePaymentTermsSchema>;
+export type RecordPaymentInput = z.infer<typeof RecordPaymentSchema>;
+export type CancelPaymentInput = z.infer<typeof CancelPaymentSchema>;
+export type AgingReportFilter = z.infer<typeof AgingReportFilterSchema>;
+export type UpdatePaymentTerms = z.infer<typeof UpdatePaymentTermsSchema>;

@@ -130,7 +130,9 @@ export function PeriodManager({ companyId, fiscalYears }: Props) {
               <Button
                 onClick={handleOpenNext}
                 disabled={isPending || !canOpenNext}
-                title={!canOpenNext ? "Ya hay 2 ejercicios abiertos — cierra uno primero" : undefined}
+                title={
+                  !canOpenNext ? "Ya hay 2 ejercicios abiertos — cierra uno primero" : undefined
+                }
                 className="gap-2"
               >
                 {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
@@ -151,11 +153,16 @@ export function PeriodManager({ companyId, fiscalYears }: Props) {
               <div>
                 <h2 className="font-semibold text-amber-800">Ejercicio en Cierre</h2>
                 <p className="text-sm text-amber-700">
-                  {closingFiscalYear.year} — todavía abierto, pendiente de cerrar (declaración ISLR).
+                  {closingFiscalYear.year} — todavía abierto, pendiente de cerrar (declaración
+                  ISLR).
                 </p>
               </div>
             </div>
-            <Button asChild variant="outline" className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-100">
+            <Button
+              asChild
+              variant="outline"
+              className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-100"
+            >
               <Link href={`/company/${companyId}/fiscal-close`}>Ir a cerrar ejercicio</Link>
             </Button>
           </div>

@@ -57,9 +57,8 @@ const USER = "user-1";
 const EMP_ID = "emp-1";
 
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 const BASE_CONFIG = {
@@ -184,25 +183,25 @@ describe("BenefitAccrualService.accrueQuarter", () => {
   });
 
   it("throws if quarter out of range", async () => {
-    await expect(
-      BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 5)
-    ).rejects.toThrow("El trimestre debe ser entre 1 y 4");
+    await expect(BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 5)).rejects.toThrow(
+      "El trimestre debe ser entre 1 y 4"
+    );
   });
 
   it("throws if accounting period closed", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
 
-    await expect(
-      BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)
-    ).rejects.toThrow("No hay período contable abierto para");
+    await expect(BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)).rejects.toThrow(
+      "No hay período contable abierto para"
+    );
   });
 
   it("throws if payroll config missing", async () => {
     vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(null);
 
-    await expect(
-      BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)
-    ).rejects.toThrow("Configure la nómina");
+    await expect(BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)).rejects.toThrow(
+      "Configure la nómina"
+    );
   });
 
   it("throws if benefit accounts not configured", async () => {
@@ -211,17 +210,17 @@ describe("BenefitAccrualService.accrueQuarter", () => {
       benefitsExpenseAccountId: null,
     } as never);
 
-    await expect(
-      BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)
-    ).rejects.toThrow("Configure las cuentas contables");
+    await expect(BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)).rejects.toThrow(
+      "Configure las cuentas contables"
+    );
   });
 
   it("throws if no active employees", async () => {
     vi.mocked(prisma.employee.findMany).mockResolvedValue([]);
 
-    await expect(
-      BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)
-    ).rejects.toThrow("No hay empleados activos");
+    await expect(BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)).rejects.toThrow(
+      "No hay empleados activos"
+    );
   });
 
   it("calculates accrual correctly (15 días base Art. 142 + 0.5 adicionales por antigüedad × salario integral)", async () => {
@@ -269,19 +268,17 @@ describe("BenefitAccrualService.accrueQuarter", () => {
 
     // First employee throws P2002 (already accrued), second succeeds
     let callCount = 0;
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: typeof prisma) => unknown) => {
-        callCount++;
-        if (callCount === 1) {
-          const err = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
-            code: "P2002",
-            clientVersion: "5.0",
-          });
-          throw err;
-        }
-        return fn(prisma);
-      }) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) => {
+      callCount++;
+      if (callCount === 1) {
+        const err = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
+          code: "P2002",
+          clientVersion: "5.0",
+        });
+        throw err;
+      }
+      return fn(prisma);
+    }) as never);
 
     const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
     expect(result.employeesProcessed).toBe(1); // only second employee processed
@@ -298,9 +295,9 @@ describe("BenefitAccrualService.accrueQuarter", () => {
       throw err;
     });
 
-    await expect(
-      BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)
-    ).rejects.toThrow("Ya existe una acumulación");
+    await expect(BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1)).rejects.toThrow(
+      "Ya existe una acumulación"
+    );
   });
 
   it("incluye conceptos salariales (affectsSalaryIntegral=true) en el salario integral — regresión ítem 56", async () => {
@@ -385,9 +382,9 @@ describe("BenefitAccrualService.postBenefitInterest", () => {
   it("throws if no BCV rate registered — CRITICAL-3: rate never from client", async () => {
     vi.mocked(prisma.bcvBenefitRate.findUnique).mockResolvedValue(null);
 
-    await expect(
-      BenefitAccrualService.postBenefitInterest(COMPANY, USER, 2026, 3)
-    ).rejects.toThrow("No existe tasa BCV registrada");
+    await expect(BenefitAccrualService.postBenefitInterest(COMPANY, USER, 2026, 3)).rejects.toThrow(
+      "No existe tasa BCV registrada"
+    );
   });
 
   it("calculates monthly interest correctly (24% anual / 12)", async () => {
@@ -428,9 +425,9 @@ describe("BenefitAccrualService.backfillAllQuarters", () => {
   it("throws if no open period", async () => {
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
-    await expect(
-      BenefitAccrualService.backfillAllQuarters(COMPANY, USER)
-    ).rejects.toThrow("No hay período contable abierto");
+    await expect(BenefitAccrualService.backfillAllQuarters(COMPANY, USER)).rejects.toThrow(
+      "No hay período contable abierto"
+    );
   });
 
   it("throws if benefit accounts not configured", async () => {
@@ -439,9 +436,9 @@ describe("BenefitAccrualService.backfillAllQuarters", () => {
       benefitsExpenseAccountId: null,
     } as never);
     vi.mocked(prisma.employee.findMany).mockResolvedValue([] as never);
-    await expect(
-      BenefitAccrualService.backfillAllQuarters(COMPANY, USER)
-    ).rejects.toThrow("Configure las cuentas contables");
+    await expect(BenefitAccrualService.backfillAllQuarters(COMPANY, USER)).rejects.toThrow(
+      "Configure las cuentas contables"
+    );
   });
 
   it("skips employees without salary history", async () => {
@@ -501,10 +498,14 @@ describe("BenefitAccrualService.backfillAllQuarters", () => {
       id: "emp-usd",
       hireDate: new Date(`${currentYear}-01-01`),
       benefitBalance: null,
-      salaryHistory: [{
-        id: "sal-usd", effectiveFrom: new Date(`${currentYear}-01-01`),
-        amount: new Decimal("500"), currency: "USD" as const,
-      }],
+      salaryHistory: [
+        {
+          id: "sal-usd",
+          effectiveFrom: new Date(`${currentYear}-01-01`),
+          amount: new Decimal("500"),
+          currency: "USD" as const,
+        },
+      ],
     };
     const empSinProblema = {
       ...BASE_EMPLOYEE,
@@ -512,7 +513,10 @@ describe("BenefitAccrualService.backfillAllQuarters", () => {
       hireDate: new Date(`${currentYear}-01-01`),
       benefitBalance: null,
     };
-    vi.mocked(prisma.employee.findMany).mockResolvedValue([empConProblema, empSinProblema] as never);
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      empConProblema,
+      empSinProblema,
+    ] as never);
     vi.mocked(prisma.exchangeRate.findMany).mockResolvedValue([] as never); // sin tasas USD registradas
 
     const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);

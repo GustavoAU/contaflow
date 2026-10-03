@@ -19,9 +19,7 @@ const ToggleSchema = z.object({
   module: z.enum(MODULE_KEYS),
 });
 
-type PermGuardResult =
-  | { actor: GuardContext }
-  | { success: false; error: string };
+type PermGuardResult = { actor: GuardContext } | { success: false; error: string };
 
 async function guardAdminPermission(companyId: string): Promise<PermGuardResult> {
   const ctx = await requireCompanyAction(companyId, {

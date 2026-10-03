@@ -72,11 +72,7 @@ export const MODULE_CONFIG: Record<AppModule, ModuleConfig> = {
  * Roles que pueden recibir grants (OWNER y ADMIN ya tienen todo;
  * SENIAT tiene acceso de auditoría fijo por ADR-019).
  */
-export const GRANTABLE_ROLES: UserRole[] = [
-  "ACCOUNTANT",
-  "ADMINISTRATIVE",
-  "VIEWER",
-];
+export const GRANTABLE_ROLES: UserRole[] = ["ACCOUNTANT", "ADMINISTRATIVE", "VIEWER"];
 
 /** Verifica si un rol tiene acceso base a un módulo (sin considerar grants). */
 export function hasBaseAccess(role: UserRole, module: AppModule): boolean {
@@ -87,19 +83,13 @@ export function hasBaseAccess(role: UserRole, module: AppModule): boolean {
  * Verifica acceso considerando base + grants.
  * @param grants - Set de strings "ROLE:module" para la empresa actual
  */
-export function canAccessModule(
-  role: UserRole,
-  module: AppModule,
-  grants: Set<string>
-): boolean {
+export function canAccessModule(role: UserRole, module: AppModule, grants: Set<string>): boolean {
   // OWNER y ADMIN siempre tienen acceso total
   if (role === "OWNER" || role === "ADMIN") return true;
   return hasBaseAccess(role, module) || grants.has(`${role}:${module}`);
 }
 
 /** Convierte el array de RolePermission de la BD a un Set rápido. */
-export function toGrantSet(
-  permissions: { role: string; module: string }[]
-): Set<string> {
+export function toGrantSet(permissions: { role: string; module: string }[]): Set<string> {
   return new Set(permissions.map((p) => `${p.role}:${p.module}`));
 }

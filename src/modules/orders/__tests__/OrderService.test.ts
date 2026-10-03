@@ -44,7 +44,10 @@ vi.mock("@/modules/inventory/services/InventoryAccountingService", () => ({
 }));
 
 import { OrderService } from "../services/OrderService";
-import { computeLineTotals, createInvoiceLinesInTx } from "@/modules/invoices/services/InvoiceLineService";
+import {
+  computeLineTotals,
+  createInvoiceLinesInTx,
+} from "@/modules/invoices/services/InvoiceLineService";
 import { InvoiceGLPostingService } from "@/modules/invoices/services/InvoiceGLPostingService";
 import { autoPostMovementInTx } from "@/modules/inventory/services/InventoryAccountingService";
 
@@ -103,8 +106,7 @@ describe("OrderService.createOrder", () => {
         order: prisma.order,
         quotation: prisma.quotation,
         auditLog: prisma.auditLog,
-      })) as never
-    );
+      })) as never);
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
     vi.mocked(prisma.order.create).mockResolvedValue(makeOrderDb() as never);
     vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null);
@@ -169,8 +171,7 @@ describe("OrderService.approveOrder", () => {
     vi.clearAllMocks();
     // AUD-01: approveOrder envuelve update + auditLog en $transaction
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ order: prisma.order, auditLog: prisma.auditLog })) as never
-    );
+      fn({ order: prisma.order, auditLog: prisma.auditLog })) as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
   });
 
@@ -218,10 +219,15 @@ describe("OrderService.convertOrderToInvoice", () => {
     vi.mocked(InvoiceGLPostingService.canPost).mockReturnValue(false);
     vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({
       stockControlLevel: "WARN",
-      arAccountId: null, apAccountId: null, salesAccountId: null,
-      purchaseExpenseAccountId: null, inventoryAccountId: null,
-      ivaDFAccountId: null, ivaCFAccountId: null,
-      ivaRetentionPayableAccountId: null, igtfPayableAccountId: null,
+      arAccountId: null,
+      apAccountId: null,
+      salesAccountId: null,
+      purchaseExpenseAccountId: null,
+      inventoryAccountId: null,
+      ivaDFAccountId: null,
+      ivaCFAccountId: null,
+      ivaRetentionPayableAccountId: null,
+      igtfPayableAccountId: null,
     } as never);
     // E-14: por defecto no hay período para la fecha (no CLOSED) → conversión permitida
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(null);
@@ -235,8 +241,7 @@ describe("OrderService.convertOrderToInvoice", () => {
         companySettings: prisma.companySettings,
         accountingPeriod: prisma.accountingPeriod, // E-14
         inventoryMovement: { findMany: vi.fn().mockResolvedValue([]) }, // hallazgo #2
-      })) as never
-    );
+      })) as never);
   });
 
   const INVOICE_DATA = {
@@ -248,9 +253,12 @@ describe("OrderService.convertOrderToInvoice", () => {
     vi.mocked(prisma.order.findFirst).mockResolvedValue(
       makeOrderDb({ status: "APPROVED" }) as never
     );
-    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(
-      { id: "per-closed", status: "CLOSED", year: 2026, month: 4 } as never
-    );
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "per-closed",
+      status: "CLOSED",
+      year: 2026,
+      month: 4,
+    } as never);
 
     await expect(
       OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA)
@@ -292,7 +300,10 @@ describe("OrderService.convertOrderToInvoice", () => {
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     const result = await OrderService.convertOrderToInvoice(
-      COMPANY_ID, "order-1", USER_ID, INVOICE_DATA
+      COMPANY_ID,
+      "order-1",
+      USER_ID,
+      INVOICE_DATA
     );
     expect(result.invoiceId).toBe("inv-np");
   });
@@ -328,9 +339,7 @@ describe("OrderService.convertOrderToInvoice", () => {
   });
 
   it("CRITICAL-2: lanza error si orden no está APPROVED", async () => {
-    vi.mocked(prisma.order.findFirst).mockResolvedValue(
-      makeOrderDb({ status: "DRAFT" }) as never
-    );
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb({ status: "DRAFT" }) as never);
 
     await expect(
       OrderService.convertOrderToInvoice(COMPANY_ID, "order-1", USER_ID, INVOICE_DATA)
@@ -404,7 +413,7 @@ describe("OrderService.convertOrderToInvoice", () => {
       USER_ID,
       "WARN",
       expect.any(Object),
-      expect.stringMatching(/PURCHASE|SALE/)  // OM-01: invoiceType
+      expect.stringMatching(/PURCHASE|SALE/) // OM-01: invoiceType
     );
   });
 
@@ -450,9 +459,21 @@ describe("OrderService.convertOrderToInvoice", () => {
 
     expect(computeLineTotals).toHaveBeenCalledWith(
       expect.arrayContaining([
-        expect.objectContaining({ ivaRate: "GENERAL_16", nameSnapshot: "Producto GENERAL", lineNumber: 1 }),
-        expect.objectContaining({ ivaRate: "EXENTO",     nameSnapshot: "Producto EXENTO",  lineNumber: 2 }),
-        expect.objectContaining({ ivaRate: "REDUCIDO_8", nameSnapshot: "Producto REDUCIDO", lineNumber: 3 }),
+        expect.objectContaining({
+          ivaRate: "GENERAL_16",
+          nameSnapshot: "Producto GENERAL",
+          lineNumber: 1,
+        }),
+        expect.objectContaining({
+          ivaRate: "EXENTO",
+          nameSnapshot: "Producto EXENTO",
+          lineNumber: 2,
+        }),
+        expect.objectContaining({
+          ivaRate: "REDUCIDO_8",
+          nameSnapshot: "Producto REDUCIDO",
+          lineNumber: 3,
+        }),
       ])
     );
   });
@@ -478,9 +499,12 @@ describe("OrderService.convertOrderToInvoice", () => {
       accountingPeriod: prisma.accountingPeriod, // E-14
       inventoryMovement: { findMany: vi.fn().mockResolvedValue([mockDraftMovement]) },
     };
-    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) => fn(mockTx)) as never);
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn(mockTx)) as never);
 
-    vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb({ status: "APPROVED" }) as never);
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED" }) as never
+    );
     vi.mocked(prisma.invoice.create).mockResolvedValue({ id: "inv-gl" } as never);
     vi.mocked(prisma.order.update).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -505,7 +529,9 @@ describe("OrderService.convertOrderToInvoice", () => {
 
   it("hallazgo #2: no llama postInvoice si GL no está configurado (graceful degradation)", async () => {
     vi.mocked(InvoiceGLPostingService.canPost).mockReturnValue(false);
-    vi.mocked(prisma.order.findFirst).mockResolvedValue(makeOrderDb({ status: "APPROVED" }) as never);
+    vi.mocked(prisma.order.findFirst).mockResolvedValue(
+      makeOrderDb({ status: "APPROVED" }) as never
+    );
     vi.mocked(prisma.invoice.create).mockResolvedValue({ id: "inv-nogl" } as never);
     vi.mocked(prisma.order.update).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
@@ -526,8 +552,7 @@ describe("OrderService — OM-08: inventoryItemId validation en createOrder", ()
         order: prisma.order,
         quotation: prisma.quotation,
         auditLog: prisma.auditLog,
-      })) as never
-    );
+      })) as never);
     vi.mocked(prisma.orderNumberSequence.upsert).mockResolvedValue({ lastNumber: 1 } as never);
     vi.mocked(prisma.order.create).mockResolvedValue(makeOrderDb() as never);
     vi.mocked(prisma.quotation.findFirst).mockResolvedValue(null);
@@ -557,9 +582,7 @@ describe("OrderService — OM-08: inventoryItemId validation en createOrder", ()
   });
 
   it("permite crear orden con inventoryItemId válido de la empresa", async () => {
-    vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue(
-      [{ id: "item-valid" }] as never
-    );
+    vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([{ id: "item-valid" }] as never);
 
     const result = await OrderService.createOrder(COMPANY_ID, USER_ID, {
       type: "PURCHASE",

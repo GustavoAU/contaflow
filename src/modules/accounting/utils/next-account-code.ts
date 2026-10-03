@@ -61,7 +61,11 @@ export function deducirPaso(codes: readonly number[]): number {
  *    alto), se busca el primer hueco de la serie, y si no hay, se sigue hacia
  *    arriba desde el máximo.
  */
-export function nextAccountCode({ existing, rangeStart, rangeEnd }: NextCodeOptions): string | null {
+export function nextAccountCode({
+  existing,
+  rangeStart,
+  rangeEnd,
+}: NextCodeOptions): string | null {
   const codes = existing
     .map((c) => Number(c))
     .filter((n) => Number.isInteger(n) && n >= rangeStart && n <= rangeEnd)

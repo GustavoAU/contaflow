@@ -21,8 +21,16 @@ vi.mock("@/lib/prisma", () => ({
 
 const NOW = new Date("2026-01-01");
 const base = {
-  id: "v1", companyId: "c1", name: "Acme", rif: null, email: null, phone: null, address: null,
-  deletedAt: null, createdAt: NOW, updatedAt: NOW,
+  id: "v1",
+  companyId: "c1",
+  name: "Acme",
+  rif: null,
+  email: null,
+  phone: null,
+  address: null,
+  deletedAt: null,
+  createdAt: NOW,
+  updatedAt: NOW,
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -32,7 +40,7 @@ describe("VendorService.list", () => {
     vi.mocked(prisma.vendor.findMany).mockResolvedValue([base] as never);
     const result = await VendorService.list("c1");
     expect(prisma.vendor.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { companyId: "c1", deletedAt: null } }),
+      expect.objectContaining({ where: { companyId: "c1", deletedAt: null } })
     );
     expect(result).toHaveLength(1);
   });
@@ -63,7 +71,7 @@ describe("VendorService.create", () => {
     vi.mocked(prisma.vendor.create).mockResolvedValue({ ...base, name: "Nuevo" } as never);
     const result = await VendorService.create("c1", { name: "Nuevo" });
     expect(prisma.vendor.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ companyId: "c1", name: "Nuevo" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ companyId: "c1", name: "Nuevo" }) })
     );
     expect(result.name).toBe("Nuevo");
   });
@@ -126,7 +134,10 @@ describe("VendorService.linkToInvoice — IDOR guards (CRITICAL-1, HIGH-1)", () 
   });
 
   it("rechaza si invoice pertenece a otro tenant (CRITICAL-1)", async () => {
-    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({ id: "inv1", companyId: "otroTenant" } as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      companyId: "otroTenant",
+    } as never);
     vi.mocked(prisma.vendor.findUnique).mockResolvedValue(base as never);
     const ok = await VendorService.linkToInvoice("c1", "inv1", "v1");
     expect(ok).toBe(false);
@@ -135,7 +146,10 @@ describe("VendorService.linkToInvoice — IDOR guards (CRITICAL-1, HIGH-1)", () 
 
   it("rechaza si vendor pertenece a otro tenant (CRITICAL-1)", async () => {
     vi.mocked(prisma.invoice.findUnique).mockResolvedValue(invoice as never);
-    vi.mocked(prisma.vendor.findUnique).mockResolvedValue({ ...base, companyId: "otroTenant" } as never);
+    vi.mocked(prisma.vendor.findUnique).mockResolvedValue({
+      ...base,
+      companyId: "otroTenant",
+    } as never);
     const ok = await VendorService.linkToInvoice("c1", "inv1", "v1");
     expect(ok).toBe(false);
   });

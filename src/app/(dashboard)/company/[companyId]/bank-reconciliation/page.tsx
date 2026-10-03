@@ -37,7 +37,7 @@ export default async function BankReconciliationPage({ params, searchParams }: P
   ]);
 
   // If an accountId is selected, load its statements
-  const selectedAccount = accountId ? accounts.find((a) => a.id === accountId) ?? null : null;
+  const selectedAccount = accountId ? (accounts.find((a) => a.id === accountId) ?? null) : null;
   const statements = selectedAccount
     ? await BankStatementService.listByAccount(selectedAccount.id, companyId)
     : [];
@@ -65,7 +65,12 @@ export default async function BankReconciliationPage({ params, searchParams }: P
       </div>
 
       {/* Account list */}
-      <BankAccountList accounts={accounts} chartAccounts={chartAccounts} companyId={companyId} userId={user.id} />
+      <BankAccountList
+        accounts={accounts}
+        chartAccounts={chartAccounts}
+        companyId={companyId}
+        userId={user.id}
+      />
 
       {/* Statement section for selected account */}
       {selectedAccount && (
@@ -89,11 +94,10 @@ export default async function BankReconciliationPage({ params, searchParams }: P
           <div className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
             <span className="mt-0.5 shrink-0 font-semibold">Flujo:</span>
             <span>
-              <strong>Paso 1</strong> — Importa el extracto PDF; la IA concilia
-              automáticamente los movimientos que coincidan con pagos registrados.{" "}
-              <strong>Paso 2</strong> — Para los movimientos sin coincidencia, abre
-              el <em>Libro de trabajo</em> del extracto (botón azul en la tabla) y
-              empareja banco ↔ sistema manualmente.
+              <strong>Paso 1</strong> — Importa el extracto PDF; la IA concilia automáticamente los
+              movimientos que coincidan con pagos registrados. <strong>Paso 2</strong> — Para los
+              movimientos sin coincidencia, abre el <em>Libro de trabajo</em> del extracto (botón
+              azul en la tabla) y empareja banco ↔ sistema manualmente.
             </span>
           </div>
 
@@ -111,7 +115,7 @@ export default async function BankReconciliationPage({ params, searchParams }: P
                 <h3 className="text-sm font-semibold text-zinc-700">Extractos importados</h3>
               </div>
               <table className="w-full text-sm">
-                <thead className="border-b bg-zinc-50 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                <thead className="border-b bg-zinc-50 text-xs font-medium tracking-wide text-zinc-500 uppercase">
                   <tr>
                     <th className="px-4 py-3 text-left">Período</th>
                     <th className="px-4 py-3 text-right">Saldo inicial</th>
@@ -125,7 +129,9 @@ export default async function BankReconciliationPage({ params, searchParams }: P
                   {statements.map((stmt) => (
                     <tr key={stmt.id} className="hover:bg-zinc-50">
                       <td className="px-4 py-3 font-mono text-xs text-zinc-600">
-                        {new Date(stmt.periodStart).toLocaleDateString("es-VE", { timeZone: "UTC" })}
+                        {new Date(stmt.periodStart).toLocaleDateString("es-VE", {
+                          timeZone: "UTC",
+                        })}
                         {" — "}
                         {new Date(stmt.periodEnd).toLocaleDateString("es-VE", { timeZone: "UTC" })}
                       </td>
@@ -141,7 +147,7 @@ export default async function BankReconciliationPage({ params, searchParams }: P
                       >
                         {fmtAmount(new Decimal(stmt.closingBalance).toFixed(2))}
                       </td>
-                      <td className="px-4 py-3 text-center tabular-nums text-zinc-600">
+                      <td className="px-4 py-3 text-center text-zinc-600 tabular-nums">
                         {stmt._count.transactions}
                       </td>
                       <td className="px-4 py-3">

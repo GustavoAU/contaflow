@@ -28,13 +28,13 @@ export default async function LegalThresholdsPage({ params }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Topes Legales</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm">
             Histórico de salario mínimo y Unidad Tributaria vigentes por decreto
           </p>
         </div>
         <Link
           href={`/company/${companyId}/payroll`}
-          className="text-sm text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground text-sm"
         >
           ← Nómina
         </Link>

@@ -9,7 +9,11 @@
 import { useState, useTransition } from "react";
 import { Loader2Icon, PlusIcon, MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
-import { cancelLoanAction, approveLoanAction, rejectLoanAction } from "../actions/employee-loan.actions";
+import {
+  cancelLoanAction,
+  approveLoanAction,
+  rejectLoanAction,
+} from "../actions/employee-loan.actions";
 import CreateLoanForm from "./CreateLoanForm";
 import type { EmployeeLoanRow } from "../services/EmployeeLoanService";
 import { Button } from "@/components/ui/button";
@@ -19,15 +23,27 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MoneyBadge, type ExchangeRateInfo } from "@/components/ui/MoneyBadge";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuSeparator,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface EmployeeOption { id: string; name: string }
+interface EmployeeOption {
+  id: string;
+  name: string;
+}
 
 interface Props {
   companyId: string;
@@ -49,12 +65,15 @@ interface Props {
 type MoneyField = "total" | "installment" | "remaining";
 
 const FIELDS: Record<MoneyField, { ves: keyof EmployeeLoanRow; usd: keyof EmployeeLoanRow }> = {
-  total:       { ves: "totalAmount",       usd: "amountUsd" },
+  total: { ves: "totalAmount", usd: "amountUsd" },
   installment: { ves: "installmentAmount", usd: "installmentAmountUsd" },
-  remaining:   { ves: "remainingBalance",  usd: "remainingBalanceUsd" },
+  remaining: { ves: "remainingBalance", usd: "remainingBalanceUsd" },
 };
 
-function moneyParts(loan: EmployeeLoanRow, field: MoneyField): Array<{ amount: string; currency: string }> {
+function moneyParts(
+  loan: EmployeeLoanRow,
+  field: MoneyField
+): Array<{ amount: string; currency: string }> {
   const { ves, usd } = FIELDS[field];
   const vesVal = loan[ves] as string | null;
   const usdVal = loan[usd] as string | null;
@@ -76,10 +95,17 @@ function moneyParts(loan: EmployeeLoanRow, field: MoneyField): Array<{ amount: s
 }
 
 function Money({
-  loan, field, rate, showEquivalent = true, className,
+  loan,
+  field,
+  rate,
+  showEquivalent = true,
+  className,
 }: {
-  loan: EmployeeLoanRow; field: MoneyField; rate?: ExchangeRateInfo;
-  showEquivalent?: boolean; className?: string;
+  loan: EmployeeLoanRow;
+  field: MoneyField;
+  rate?: ExchangeRateInfo;
+  showEquivalent?: boolean;
+  className?: string;
 }) {
   return (
     <div className={className}>
@@ -108,8 +134,13 @@ function formatDate(value: string) {
 }
 
 export default function LoanTable({
-  companyId, initialLoans, employees, isAdmin,
-  scope = "company", exchangeRate, headerSlot,
+  companyId,
+  initialLoans,
+  employees,
+  isAdmin,
+  scope = "company",
+  exchangeRate,
+  headerSlot,
 }: Props) {
   const [loans, setLoans] = useState(initialLoans);
   const [showForm, setShowForm] = useState(false);
@@ -132,7 +163,7 @@ export default function LoanTable({
       const result = await approveLoanAction(companyId, loanId);
       if (result.success) {
         toast.success("Préstamo aprobado. Se descontará en la próxima nómina.");
-        setLoans((prev) => prev.map((l) => l.id === loanId ? { ...l, ...result.data } : l));
+        setLoans((prev) => prev.map((l) => (l.id === loanId ? { ...l, ...result.data } : l)));
       } else {
         toast.error(result.error);
       }
@@ -141,13 +172,16 @@ export default function LoanTable({
   }
 
   function handleRejectSubmit(loanId: string) {
-    if (!rejectionReason.trim()) { toast.error("Ingrese el motivo de rechazo."); return; }
+    if (!rejectionReason.trim()) {
+      toast.error("Ingrese el motivo de rechazo.");
+      return;
+    }
     setActionId(loanId);
     startTransition(async () => {
       const result = await rejectLoanAction(companyId, loanId, { rejectionReason });
       if (result.success) {
         toast.success("Préstamo rechazado.");
-        setLoans((prev) => prev.map((l) => l.id === loanId ? { ...l, ...result.data } : l));
+        setLoans((prev) => prev.map((l) => (l.id === loanId ? { ...l, ...result.data } : l)));
         setRejectingId(null);
         setRejectionReason("");
       } else {
@@ -165,7 +199,9 @@ export default function LoanTable({
       const result = await cancelLoanAction(companyId, loan.id);
       if (result.success) {
         toast.success("Préstamo cancelado.");
-        setLoans((prev) => prev.map((l) => l.id === loan.id ? { ...l, status: "CANCELLED" as const } : l));
+        setLoans((prev) =>
+          prev.map((l) => (l.id === loan.id ? { ...l, status: "CANCELLED" as const } : l))
+        );
       } else {
         toast.error(result.error);
       }
@@ -188,14 +224,18 @@ export default function LoanTable({
       {showForm && (
         <Card className="p-4">
           <h3 className="mb-3 text-sm font-semibold text-zinc-700">Nuevo préstamo</h3>
-          <CreateLoanForm companyId={companyId} employees={employees}
-            onCreated={handleCreated} onCancel={() => setShowForm(false)} />
+          <CreateLoanForm
+            companyId={companyId}
+            employees={employees}
+            onCreated={handleCreated}
+            onCancel={() => setShowForm(false)}
+          />
         </Card>
       )}
 
       {/* Motivo de rechazo — requiere texto, por eso no cabe en un AlertDialog */}
       {rejectingId && (
-        <Card className="border-red-200 bg-red-50 p-4 gap-3">
+        <Card className="gap-3 border-red-200 bg-red-50 p-4">
           <p className="text-sm font-semibold text-red-800">Motivo de rechazo</p>
           <textarea
             value={rejectionReason}
@@ -203,17 +243,26 @@ export default function LoanTable({
             maxLength={500}
             rows={3}
             placeholder="Describa el motivo…"
-            className="w-full rounded-md border border-red-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+            className="w-full rounded-md border border-red-300 px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 focus:outline-none"
           />
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" size="sm"
-              onClick={() => { setRejectingId(null); setRejectionReason(""); }}>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setRejectingId(null);
+                setRejectionReason("");
+              }}
+            >
               Cancelar
             </Button>
-            <Button variant="destructive" size="sm"
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={() => handleRejectSubmit(rejectingId)}
               disabled={actionId === rejectingId}
-              aria-busy={actionId === rejectingId}>
+              aria-busy={actionId === rejectingId}
+            >
               {actionId === rejectingId && <Loader2Icon className="animate-spin" />}
               Confirmar rechazo
             </Button>
@@ -227,7 +276,11 @@ export default function LoanTable({
             illustration="list"
             title="Sin préstamos registrados"
             description="Los préstamos aprobados se descuentan automáticamente en cada proceso de nómina."
-            action={{ label: "Solicitar préstamo", onClick: () => setShowForm(true), Icon: PlusIcon }}
+            action={{
+              label: "Solicitar préstamo",
+              onClick: () => setShowForm(true),
+              Icon: PlusIcon,
+            }}
           />
         </Card>
       ) : (
@@ -252,11 +305,21 @@ export default function LoanTable({
                   <th scope="col" className="px-4 py-3 text-left">
                     {isEmployeeScope ? "Concepto" : "Empleado"}
                   </th>
-                  <th scope="col" className="px-4 py-3 text-right">Monto</th>
-                  <th scope="col" className="px-4 py-3 text-center">Cuotas</th>
-                  <th scope="col" className="px-4 py-3 text-right">Cuota</th>
-                  <th scope="col" className="px-4 py-3 text-right">Saldo</th>
-                  <th scope="col" className="px-4 py-3 text-left">Estado</th>
+                  <th scope="col" className="px-4 py-3 text-right">
+                    Monto
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-center">
+                    Cuotas
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right">
+                    Cuota
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right">
+                    Saldo
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left">
+                    Estado
+                  </th>
                   {/* La columna de acciones necesita su th aunque el label vaya
                       oculto: sin él el menú flota sin ancho reservado. */}
                   <th scope="col" className="px-4 py-3 text-right">
@@ -267,26 +330,29 @@ export default function LoanTable({
               <tbody>
                 {loans.map((loan) => {
                   const busy = actionId === loan.id;
-                  const progress = loan.installments > 0
-                    ? Math.min(100, Math.round((loan.paidInstallments / loan.installments) * 100))
-                    : 0;
+                  const progress =
+                    loan.installments > 0
+                      ? Math.min(100, Math.round((loan.paidInstallments / loan.installments) * 100))
+                      : 0;
 
                   return (
                     <tr key={loan.id} className="border-t hover:bg-zinc-50">
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-zinc-900">
                           {isEmployeeScope
-                            ? (loan.description || "Préstamo personal")
+                            ? loan.description || "Préstamo personal"
                             : loan.employeeName}
                         </p>
-                        <p className="mt-0.5 text-11 text-zinc-400">
+                        <p className="text-11 mt-0.5 text-zinc-400">
                           {[
                             currencyLabel(loan.currency),
                             `otorgado ${formatDate(loan.createdAt)}`,
                             loan.interestRate
                               ? `${(parseFloat(loan.interestRate) * 100).toFixed(1)}% anual`
                               : "sin intereses",
-                          ].filter(Boolean).join(" · ")}
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </p>
                       </td>
 
@@ -295,7 +361,7 @@ export default function LoanTable({
                       </td>
 
                       <td className="px-4 py-2.5 text-center">
-                        <span className="tabular-nums text-xs text-zinc-600">
+                        <span className="text-xs text-zinc-600 tabular-nums">
                           {loan.paidInstallments} / {loan.installments}
                         </span>
                         <span
@@ -306,7 +372,10 @@ export default function LoanTable({
                           aria-valuemax={100}
                           aria-label={`${loan.paidInstallments} de ${loan.installments} cuotas pagadas`}
                         >
-                          <span className="block h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                          <span
+                            className="bg-primary block h-full rounded-full"
+                            style={{ width: `${progress}%` }}
+                          />
                         </span>
                       </td>
 
@@ -316,13 +385,20 @@ export default function LoanTable({
                       </td>
 
                       <td className="px-4 py-2.5 text-right">
-                        <Money loan={loan} field="remaining" rate={exchangeRate} className="font-semibold" />
+                        <Money
+                          loan={loan}
+                          field="remaining"
+                          rate={exchangeRate}
+                          className="font-semibold"
+                        />
                       </td>
 
                       <td className="px-4 py-2.5">
                         <StatusBadge status={loan.status} />
                         {loan.status === "REJECTED" && loan.rejectionReason && (
-                          <p className="mt-0.5 max-w-28 truncate text-11 text-red-500">{loan.rejectionReason}</p>
+                          <p className="text-11 mt-0.5 max-w-28 truncate text-red-500">
+                            {loan.rejectionReason}
+                          </p>
                         )}
                       </td>
 
@@ -330,9 +406,13 @@ export default function LoanTable({
                         {isAdmin && (
                           <div className="flex items-center justify-end gap-1">
                             {loan.status === "PENDING" && (
-                              <Button variant="ghost" size="sm"
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => handleApprove(loan.id)}
-                                disabled={busy} aria-busy={busy}>
+                                disabled={busy}
+                                aria-busy={busy}
+                              >
                                 {busy && <Loader2Icon className="animate-spin" />}
                                 Aprobar
                               </Button>
@@ -382,15 +462,18 @@ export default function LoanTable({
           <AlertDialogHeader>
             <AlertDialogTitle>¿Cancelar este préstamo?</AlertDialogTitle>
             <AlertDialogDescription>
-              El saldo restante deja de cobrarse en nómina. La operación queda en la
-              auditoría y no se puede deshacer.
+              El saldo restante deja de cobrarse en nómina. La operación queda en la auditoría y no
+              se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Volver</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={(e) => { e.preventDefault(); handleCancelConfirm(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                handleCancelConfirm();
+              }}
               disabled={!!actionId}
               aria-busy={!!actionId}
             >
@@ -407,7 +490,13 @@ export default function LoanTable({
 // ─── KPIs (solo scope="employee") ─────────────────────────────────────────────
 // Responden la pregunta con la que el usuario abre el tab: cuánto debe, cuánto
 // se le descuenta este mes, y cuántos préstamos tiene vivos.
-function LoanKpis({ loans, exchangeRate }: { loans: EmployeeLoanRow[]; exchangeRate?: ExchangeRateInfo }) {
+function LoanKpis({
+  loans,
+  exchangeRate,
+}: {
+  loans: EmployeeLoanRow[];
+  exchangeRate?: ExchangeRateInfo;
+}) {
   const active = loans.filter((l) => l.status === "ACTIVE");
 
   // Se suman por moneda, nunca entre monedas: mezclar Bs. y USD en un total es
@@ -419,11 +508,13 @@ function LoanKpis({ loans, exchangeRate }: { loans: EmployeeLoanRow[]; exchangeR
   // el fallback para filas con la moneda en la columna que no toca (asi las
   // escribe seed-demo-tesa.ts).
   const sum = (rows: EmployeeLoanRow[], field: MoneyField) => {
-    let ves = 0, usd = 0;
+    let ves = 0,
+      usd = 0;
     for (const r of rows) {
       for (const part of moneyParts(r, field)) {
         const n = Number(part.amount) || 0;
-        if (part.currency === "USD") usd += n; else ves += n;
+        if (part.currency === "USD") usd += n;
+        else ves += n;
       }
     }
     return { ves, usd };
@@ -438,9 +529,7 @@ function LoanKpis({ loans, exchangeRate }: { loans: EmployeeLoanRow[]; exchangeR
     <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
       <Kpi
         label="Saldo total pendiente"
-        value={
-          <MoneyStack ves={balance.ves} usd={balance.usd} exchangeRate={exchangeRate} />
-        }
+        value={<MoneyStack ves={balance.ves} usd={balance.usd} exchangeRate={exchangeRate} />}
         note={active.length === 0 ? "Sin préstamos activos" : undefined}
       />
       <Kpi
@@ -452,23 +541,33 @@ function LoanKpis({ loans, exchangeRate }: { loans: EmployeeLoanRow[]; exchangeR
         label="Préstamos activos"
         value={<span className="text-2xl font-semibold tracking-tight">{active.length}</span>}
         note={
-          nextDue
-            ? `Cuota ${nextDue.paidInstallments + 1} de ${nextDue.installments}`
-            : undefined
+          nextDue ? `Cuota ${nextDue.paidInstallments + 1} de ${nextDue.installments}` : undefined
         }
       />
     </div>
   );
 }
 
-function MoneyStack({ ves, usd, exchangeRate }: { ves: number; usd: number; exchangeRate?: ExchangeRateInfo }) {
+function MoneyStack({
+  ves,
+  usd,
+  exchangeRate,
+}: {
+  ves: number;
+  usd: number;
+  exchangeRate?: ExchangeRateInfo;
+}) {
   if (ves === 0 && usd === 0) {
     return <span className="text-2xl font-semibold tracking-tight text-zinc-300">—</span>;
   }
   return (
     <div className="flex flex-col gap-0.5 text-2xl font-semibold tracking-tight">
-      {usd > 0 && <MoneyBadge amount={usd} currency="USD" exchangeRate={exchangeRate} align="left" />}
-      {ves > 0 && <MoneyBadge amount={ves} currency="VES" exchangeRate={exchangeRate} align="left" />}
+      {usd > 0 && (
+        <MoneyBadge amount={usd} currency="USD" exchangeRate={exchangeRate} align="left" />
+      )}
+      {ves > 0 && (
+        <MoneyBadge amount={ves} currency="VES" exchangeRate={exchangeRate} align="left" />
+      )}
     </div>
   );
 }

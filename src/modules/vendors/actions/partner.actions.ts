@@ -29,7 +29,10 @@ export async function listPartnersAction(companyId: string): Promise<ActionResul
 }
 
 // ── Get (read-only, ACCOUNTING+) ───────────────────────────────────────────
-export async function getPartnerAction(companyId: string, partnerId: string): Promise<ActionResult<PartnerRow>> {
+export async function getPartnerAction(
+  companyId: string,
+  partnerId: string
+): Promise<ActionResult<PartnerRow>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
     if (!ctx.ok) return ctx.error;
@@ -44,14 +47,18 @@ export async function getPartnerAction(companyId: string, partnerId: string): Pr
 // ── Create (WRITERS+, rate-limited) ────────────────────────────────────────
 export async function createPartnerAction(
   companyId: string,
-  input: CreatePartnerInput,
+  input: CreatePartnerInput
 ): Promise<ActionResult<PartnerRow>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const parsed = CreatePartnerSchema.safeParse(input);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const data = await PartnerService.create(companyId, parsed.data);
     return { success: true, data };
@@ -64,14 +71,18 @@ export async function createPartnerAction(
 export async function updatePartnerAction(
   companyId: string,
   partnerId: string,
-  input: UpdatePartnerInput,
+  input: UpdatePartnerInput
 ): Promise<ActionResult<PartnerRow>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const parsed = UpdatePartnerSchema.safeParse(input);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const data = await PartnerService.update(companyId, partnerId, parsed.data);
     if (!data) return { success: false, error: "Socio no encontrado o sin acceso" };
@@ -84,10 +95,13 @@ export async function updatePartnerAction(
 // ── Delete/soft-delete (ADMIN_ONLY, rate-limited) ──────────────────────────
 export async function deletePartnerAction(
   companyId: string,
-  partnerId: string,
+  partnerId: string
 ): Promise<ActionResult<true>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const result = await PartnerService.softDelete(companyId, partnerId);

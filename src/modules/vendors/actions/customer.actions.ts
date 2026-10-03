@@ -29,7 +29,10 @@ export async function listCustomersAction(companyId: string): Promise<ActionResu
 }
 
 // ── Get (read-only, ACCOUNTING+) ───────────────────────────────────────────
-export async function getCustomerAction(companyId: string, customerId: string): Promise<ActionResult<CustomerRow>> {
+export async function getCustomerAction(
+  companyId: string,
+  customerId: string
+): Promise<ActionResult<CustomerRow>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
     if (!ctx.ok) return ctx.error;
@@ -44,14 +47,18 @@ export async function getCustomerAction(companyId: string, customerId: string): 
 // ── Create (WRITERS+, rate-limited) ────────────────────────────────────────
 export async function createCustomerAction(
   companyId: string,
-  input: CreateCustomerInput,
+  input: CreateCustomerInput
 ): Promise<ActionResult<CustomerRow>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const parsed = CreateCustomerSchema.safeParse(input);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const data = await CustomerService.create(companyId, parsed.data);
     return { success: true, data };
@@ -64,14 +71,18 @@ export async function createCustomerAction(
 export async function updateCustomerAction(
   companyId: string,
   customerId: string,
-  input: UpdateCustomerInput,
+  input: UpdateCustomerInput
 ): Promise<ActionResult<CustomerRow>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const parsed = UpdateCustomerSchema.safeParse(input);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     const data = await CustomerService.update(companyId, customerId, parsed.data);
     if (!data) return { success: false, error: "Cliente no encontrado o sin acceso" };
@@ -84,10 +95,13 @@ export async function updateCustomerAction(
 // ── Delete/soft-delete (ADMIN_ONLY, rate-limited) ──────────────────────────
 export async function deleteCustomerAction(
   companyId: string,
-  customerId: string,
+  customerId: string
 ): Promise<ActionResult<{ linkedCount: number }>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.ADMIN_ONLY,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const result = await CustomerService.softDelete(companyId, customerId);
@@ -102,7 +116,7 @@ export async function deleteCustomerAction(
 
 export async function listContactNotesAction(
   companyId: string,
-  customerId: string,
+  customerId: string
 ): Promise<ActionResult<ContactNoteRow[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
@@ -117,20 +131,30 @@ export async function listContactNotesAction(
 export async function addContactNoteAction(
   companyId: string,
   customerId: string,
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<ContactNoteRow>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const parsed = ContactNoteSchema.safeParse(input);
-    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    if (!parsed.success)
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
     // Verificar que el cliente pertenece a esta empresa (ADR-004)
     const customer = await CustomerService.get(companyId, customerId);
     if (!customer) return { success: false, error: "Cliente no encontrado" };
 
-    const data = await ContactNoteService.create(companyId, "CUSTOMER", customerId, parsed.data.content, ctx.userId);
+    const data = await ContactNoteService.create(
+      companyId,
+      "CUSTOMER",
+      customerId,
+      parsed.data.content,
+      ctx.userId
+    );
     return { success: true, data };
   } catch (e) {
     return toActionError(e);
@@ -139,10 +163,13 @@ export async function addContactNoteAction(
 
 export async function deleteContactNoteAction(
   companyId: string,
-  noteId: string,
+  noteId: string
 ): Promise<ActionResult<true>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const deleted = await ContactNoteService.delete(companyId, noteId);
@@ -157,10 +184,13 @@ export async function deleteContactNoteAction(
 export async function linkCustomerToInvoiceAction(
   companyId: string,
   invoiceId: string,
-  customerId: string,
+  customerId: string
 ): Promise<ActionResult<true>> {
   try {
-    const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+    const ctx = await requireCompanyAction(companyId, {
+      roles: ROLES.WRITERS,
+      limiter: limiters.fiscal,
+    });
     if (!ctx.ok) return ctx.error;
 
     const ok = await CustomerService.linkToInvoice(companyId, invoiceId, customerId);

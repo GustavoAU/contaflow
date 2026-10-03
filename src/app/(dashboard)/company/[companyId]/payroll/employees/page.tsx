@@ -27,9 +27,7 @@ export default async function EmployeesPage({ params }: Props) {
   // VIEWER no accede
   if (!canAccess(member.role, ROLES.WRITERS)) {
     return (
-      <div className="p-6 text-sm text-gray-500">
-        No tienes acceso al módulo de empleados.
-      </div>
+      <div className="p-6 text-sm text-gray-500">No tienes acceso al módulo de empleados.</div>
     );
   }
 
@@ -77,7 +75,14 @@ export default async function EmployeesPage({ params }: Props) {
         companyId={companyId}
         employees={employees}
         canWrite={canWrite}
-        usdToVesRate={latestUsdRate ? { rate: latestUsdRate.rate.toString(), date: latestUsdRate.date.toISOString().split("T")[0] } : undefined}
+        usdToVesRate={
+          latestUsdRate
+            ? {
+                rate: latestUsdRate.rate.toString(),
+                date: latestUsdRate.date.toISOString().split("T")[0],
+              }
+            : undefined
+        }
       />
     </div>
   );

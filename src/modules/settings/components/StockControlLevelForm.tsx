@@ -4,7 +4,10 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { updateStockControlLevelAction, type StockControlLevel } from "../actions/stock-config.actions";
+import {
+  updateStockControlLevelAction,
+  type StockControlLevel,
+} from "../actions/stock-config.actions";
 
 const LEVELS: {
   value: StockControlLevel;
@@ -15,19 +18,22 @@ const LEVELS: {
   {
     value: "WARN",
     label: "Advertencia",
-    description: "Permite facturar aunque el stock sea insuficiente. Muestra un aviso en la factura.",
+    description:
+      "Permite facturar aunque el stock sea insuficiente. Muestra un aviso en la factura.",
     color: "text-amber-700 border-amber-200 bg-amber-50",
   },
   {
     value: "CONFIRM",
     label: "Confirmación requerida",
-    description: "Muestra un diálogo de confirmación antes de emitir una factura con stock negativo.",
+    description:
+      "Muestra un diálogo de confirmación antes de emitir una factura con stock negativo.",
     color: "text-blue-700 border-blue-200 bg-blue-50",
   },
   {
     value: "BLOCK",
     label: "Bloqueo total",
-    description: "Impide emitir facturas cuando el stock disponible es insuficiente. Recomendado para auditorías SENIAT (Art. 186 COT).",
+    description:
+      "Impide emitir facturas cuando el stock disponible es insuficiente. Recomendado para auditorías SENIAT (Art. 186 COT).",
     color: "text-red-700 border-red-200 bg-red-50",
   },
 ];
@@ -71,7 +77,7 @@ export function StockControlLevelForm({ companyId, currentLevel }: Props) {
           />
           <div>
             <p className="text-sm font-semibold">{lvl.label}</p>
-            <p className="text-xs text-zinc-500 mt-0.5">{lvl.description}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">{lvl.description}</p>
           </div>
         </label>
       ))}

@@ -7,14 +7,23 @@ import type { LucideIcon } from "lucide-react";
 
 function IllustrationEmpty() {
   return (
-    <svg viewBox="0 0 200 160" fill="none" aria-hidden className="w-40 h-32">
+    <svg viewBox="0 0 200 160" fill="none" aria-hidden className="h-32 w-40">
       {/* desk */}
       <rect x="20" y="120" width="160" height="6" rx="3" fill="#e4e4e7" />
       {/* monitor base */}
       <rect x="92" y="110" width="16" height="12" rx="2" fill="#d4d4d8" />
       <rect x="80" y="118" width="40" height="4" rx="2" fill="#d4d4d8" />
       {/* monitor */}
-      <rect x="50" y="50" width="100" height="64" rx="8" fill="#f4f4f5" stroke="#d4d4d8" strokeWidth="2" />
+      <rect
+        x="50"
+        y="50"
+        width="100"
+        height="64"
+        rx="8"
+        fill="#f4f4f5"
+        stroke="#d4d4d8"
+        strokeWidth="2"
+      />
       <rect x="58" y="58" width="84" height="48" rx="4" fill="#fafafa" />
       {/* empty lines on screen */}
       <rect x="68" y="68" width="48" height="4" rx="2" fill="#e4e4e7" />
@@ -28,36 +37,82 @@ function IllustrationEmpty() {
       <rect x="146" y="84" width="24" height="30" rx="6" fill="#bbf7d0" />
       {/* magnifier */}
       <circle cx="158" cy="68" r="7" stroke="#86efac" strokeWidth="2" fill="none" />
-      <line x1="163" y1="73" x2="168" y2="78" stroke="#86efac" strokeWidth="2" strokeLinecap="round" />
+      <line
+        x1="163"
+        y1="73"
+        x2="168"
+        y2="78"
+        stroke="#86efac"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 function IllustrationInvoices() {
   return (
-    <svg viewBox="0 0 200 160" fill="none" aria-hidden className="w-40 h-32">
-      <rect x="55" y="30" width="90" height="110" rx="8" fill="#f4f4f5" stroke="#e4e4e7" strokeWidth="2" />
+    <svg viewBox="0 0 200 160" fill="none" aria-hidden className="h-32 w-40">
+      <rect
+        x="55"
+        y="30"
+        width="90"
+        height="110"
+        rx="8"
+        fill="#f4f4f5"
+        stroke="#e4e4e7"
+        strokeWidth="2"
+      />
       <rect x="65" y="48" width="70" height="5" rx="2.5" fill="#e4e4e7" />
       <rect x="65" y="60" width="50" height="4" rx="2" fill="#e4e4e7" />
       <rect x="65" y="70" width="60" height="4" rx="2" fill="#e4e4e7" />
       <rect x="65" y="80" width="40" height="4" rx="2" fill="#e4e4e7" />
       <rect x="65" y="100" width="70" height="12" rx="3" fill="#dbeafe" />
-      <rect x="40" y="20" width="90" height="110" rx="8" fill="#fafafa" stroke="#e4e4e7" strokeWidth="2" />
+      <rect
+        x="40"
+        y="20"
+        width="90"
+        height="110"
+        rx="8"
+        fill="#fafafa"
+        stroke="#e4e4e7"
+        strokeWidth="2"
+      />
       <rect x="50" y="38" width="70" height="5" rx="2.5" fill="#d4d4d8" />
       <rect x="50" y="50" width="50" height="4" rx="2" fill="#e4e4e7" />
       <rect x="50" y="60" width="60" height="4" rx="2" fill="#e4e4e7" />
       <rect x="50" y="70" width="40" height="4" rx="2" fill="#e4e4e7" />
-      <rect x="50" y="90" width="70" height="12" rx="3" fill="#f0fdf4" stroke="#86efac" strokeWidth="1.5" />
-      <text x="85" y="100" fill="#16a34a" fontSize="8" fontWeight="600" textAnchor="middle">vacío</text>
+      <rect
+        x="50"
+        y="90"
+        width="70"
+        height="12"
+        rx="3"
+        fill="#f0fdf4"
+        stroke="#86efac"
+        strokeWidth="1.5"
+      />
+      <text x="85" y="100" fill="#16a34a" fontSize="8" fontWeight="600" textAnchor="middle">
+        vacío
+      </text>
     </svg>
   );
 }
 
 function IllustrationList() {
   return (
-    <svg viewBox="0 0 200 160" fill="none" aria-hidden className="w-40 h-32">
-      <rect x="30" y="30" width="140" height="100" rx="8" fill="#fafafa" stroke="#e4e4e7" strokeWidth="2" />
-      {[0, 1, 2].map(i => (
+    <svg viewBox="0 0 200 160" fill="none" aria-hidden className="h-32 w-40">
+      <rect
+        x="30"
+        y="30"
+        width="140"
+        height="100"
+        rx="8"
+        fill="#fafafa"
+        stroke="#e4e4e7"
+        strokeWidth="2"
+      />
+      {[0, 1, 2].map((i) => (
         <g key={i}>
           <circle cx="52" cy={56 + i * 28} r="10" fill="#e4e4e7" />
           <rect x="68" y={50 + i * 28} width="60" height="5" rx="2.5" fill="#e4e4e7" />
@@ -109,7 +164,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-4 py-14 px-6 text-center",
+        "flex flex-col items-center justify-center gap-4 px-6 py-14 text-center",
         className
       )}
     >
@@ -118,7 +173,7 @@ export function EmptyState({
       <div className="space-y-1">
         <p className="text-sm font-medium text-zinc-700">{title}</p>
         {description && (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 max-w-xs">{description}</p>
+          <p className="max-w-xs text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
         )}
       </div>
 

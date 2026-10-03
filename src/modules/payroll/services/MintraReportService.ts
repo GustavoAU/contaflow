@@ -85,7 +85,9 @@ export const MintraReportService = {
 
     const rows = employees.map((emp) => {
       const lastSalary = emp.salaryHistory[0];
-      const salaryMensual = lastSalary ? parseFloat(lastSalary.amount.toString()).toFixed(2) : "0.00";
+      const salaryMensual = lastSalary
+        ? parseFloat(lastSalary.amount.toString()).toFixed(2)
+        : "0.00";
 
       let diasTrabajados = totalDaysInQuarter;
       let fechaEgreso = "";

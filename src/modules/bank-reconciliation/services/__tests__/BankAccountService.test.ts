@@ -19,10 +19,8 @@ import { BankAccountService } from "../BankAccountService";
 
 // LOW follow-up (2026-09-05): guard y create ahora comparten `tx`.
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({ bankAccount: prisma.bankAccount, account: prisma.account })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({ bankAccount: prisma.bankAccount, account: prisma.account })) as never);
 }
 
 const BASE_INPUT = {
@@ -43,7 +41,9 @@ describe("BankAccountService.create — guard de cuenta ajena", () => {
 
   it("RECHAZA si la cuenta contable no pertenece a esta empresa", async () => {
     vi.mocked(prisma.account.findMany).mockResolvedValue([] as never); // acc-1 no es de company-1
-    await expect(BankAccountService.create(BASE_INPUT as never)).rejects.toThrow(/no existe o no pertenece/);
+    await expect(BankAccountService.create(BASE_INPUT as never)).rejects.toThrow(
+      /no existe o no pertenece/
+    );
     expect(prisma.bankAccount.create).not.toHaveBeenCalled();
   });
 

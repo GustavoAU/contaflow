@@ -7,7 +7,13 @@
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
-import { BudgetService, type BudgetRow, type BudgetLineRow, type BudgetVsActualLine, type CashFlowProjection } from "../services/BudgetService";
+import {
+  BudgetService,
+  type BudgetRow,
+  type BudgetLineRow,
+  type BudgetVsActualLine,
+  type CashFlowProjection,
+} from "../services/BudgetService";
 import { CashFlowProjectionService } from "../services/CashFlowProjectionService";
 import {
   CreateBudgetSchema,
@@ -36,7 +42,7 @@ export async function listBudgetsAction(companyId: string): Promise<ActionResult
 
 export async function getBudgetAction(
   companyId: string,
-  budgetId: string,
+  budgetId: string
 ): Promise<ActionResult<BudgetRow>> {
   try {
     // Read-only: ROLES.ALL
@@ -52,20 +58,29 @@ export async function getBudgetAction(
 
 export async function createBudgetAction(
   companyId: string,
-  input: CreateBudgetInput,
+  input: CreateBudgetInput
 ): Promise<ActionResult<BudgetRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.WRITERS,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
   const userId = ctx.userId;
 
   const parsed = CreateBudgetSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
     const data = await BudgetService.create(companyId, parsed.data, userId);
     return { success: true, data };
   } catch (e) {
-    if (typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002") {
+    if (
+      typeof e === "object" &&
+      e !== null &&
+      "code" in e &&
+      (e as { code: string }).code === "P2002"
+    ) {
       return { success: false, error: "Ya existe un presupuesto con ese nombre para ese año." };
     }
     return toActionError(e);
@@ -75,13 +90,17 @@ export async function createBudgetAction(
 export async function updateBudgetAction(
   companyId: string,
   budgetId: string,
-  input: UpdateBudgetInput,
+  input: UpdateBudgetInput
 ): Promise<ActionResult<BudgetRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.WRITERS,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   const parsed = UpdateBudgetSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
     const data = await BudgetService.update(companyId, budgetId, parsed.data);
@@ -94,9 +113,12 @@ export async function updateBudgetAction(
 
 export async function deleteBudgetAction(
   companyId: string,
-  budgetId: string,
+  budgetId: string
 ): Promise<ActionResult<true>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ADMIN_ONLY,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -113,17 +135,22 @@ export async function deleteBudgetAction(
 export async function upsertBudgetLineAction(
   companyId: string,
   budgetId: string,
-  input: UpsertBudgetLineInput,
+  input: UpsertBudgetLineInput
 ): Promise<ActionResult<BudgetLineRow>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.WRITERS,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   const parsed = UpsertBudgetLineSchema.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   try {
     const data = await BudgetService.upsertLine(companyId, budgetId, parsed.data);
-    if (!data) return { success: false, error: "Presupuesto o cuenta no válidos para esta empresa" };
+    if (!data)
+      return { success: false, error: "Presupuesto o cuenta no válidos para esta empresa" };
     return { success: true, data };
   } catch (e) {
     return toActionError(e);
@@ -133,9 +160,12 @@ export async function upsertBudgetLineAction(
 export async function deleteBudgetLineAction(
   companyId: string,
   budgetId: string,
-  accountId: string,
+  accountId: string
 ): Promise<ActionResult<true>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.WRITERS, limiter: limiters.fiscal });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.WRITERS,
+    limiter: limiters.fiscal,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {
@@ -151,7 +181,7 @@ export async function deleteBudgetLineAction(
 
 export async function getBudgetVsActualAction(
   companyId: string,
-  budgetId: string,
+  budgetId: string
 ): Promise<ActionResult<BudgetVsActualLine[]>> {
   // Read-only report: ROLES.ACCOUNTING (requiere comprensión contable)
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
@@ -167,7 +197,7 @@ export async function getBudgetVsActualAction(
 }
 
 export async function getCashFlowProjectionAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<CashFlowProjection>> {
   // Read-only report: ROLES.ACCOUNTING
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });

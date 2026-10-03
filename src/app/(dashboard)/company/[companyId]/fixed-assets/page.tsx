@@ -5,7 +5,10 @@ import prisma from "@/lib/prisma";
 import { FixedAssetService } from "@/modules/fixed-assets/services/FixedAssetService";
 import { FixedAssetList } from "@/modules/fixed-assets/components/FixedAssetList";
 import { FixedAssetFormPanel } from "@/modules/fixed-assets/components/FixedAssetFormPanel";
-import { buildInpcMap, computeAssetRestatement } from "@/modules/fixed-assets/services/FixedAssetINPCService";
+import {
+  buildInpcMap,
+  computeAssetRestatement,
+} from "@/modules/fixed-assets/services/FixedAssetINPCService";
 
 type Props = { params: Promise<{ companyId: string }> };
 
@@ -23,7 +26,11 @@ export default async function FixedAssetsPage({ params }: Props) {
   const [assets, accounts, inpcRatesRaw, settings] = await Promise.all([
     FixedAssetService.getSummary(companyId),
     prisma.account.findMany({
-      where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE", "EQUITY"] } },
+      where: {
+        companyId,
+        deletedAt: null,
+        type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE", "EQUITY"] },
+      },
       select: { id: true, code: true, name: true, type: true },
       orderBy: [{ type: "asc" }, { code: "asc" }],
     }),
@@ -39,37 +46,37 @@ export default async function FixedAssetsPage({ params }: Props) {
 
   // FC-01: construir mapa INPC y calcular reexpresión server-side
   const inpcRates = inpcRatesRaw.map((r) => ({
-    year:       r.year,
-    month:      r.month,
+    year: r.year,
+    month: r.month,
     indexValue: r.indexValue.toString(),
   }));
   const latestRate = inpcRates[0] ?? null;
-  const inpcMap    = buildInpcMap(inpcRates);
+  const inpcMap = buildInpcMap(inpcRates);
 
   const serializedAssets = assets.map((a) => {
     const restatement = computeAssetRestatement(
       a.acquisitionDate,
       a.acquisitionCost.toFixed(2),
       inpcMap,
-      latestRate,
+      latestRate
     );
     return {
       ...a,
-      acquisitionCost:          a.acquisitionCost.toFixed(2),
-      residualValue:            a.residualValue.toFixed(2),
-      bookValue:                a.bookValue.toFixed(2),
-      accumulatedDepreciation:  a.accumulatedDepreciation.toFixed(2),
+      acquisitionCost: a.acquisitionCost.toFixed(2),
+      residualValue: a.residualValue.toFixed(2),
+      bookValue: a.bookValue.toFixed(2),
+      accumulatedDepreciation: a.accumulatedDepreciation.toFixed(2),
       // FC-02 campos legales
-      serialNumber:  a.serialNumber,
-      internalCode:  a.internalCode,
+      serialNumber: a.serialNumber,
+      internalCode: a.internalCode,
       invoiceNumber: a.invoiceNumber,
-      providerRif:   a.providerRif,
+      providerRif: a.providerRif,
       // FC-01 INPC reexpresión (calculado server-side)
-      inpcFactor:           restatement?.factor           ?? null,
+      inpcFactor: restatement?.factor ?? null,
       inpcReexpressedValue: restatement?.reexpressedValue ?? null,
-      inpcAdjustment:       restatement?.adjustment       ?? null,
-      inpcCurrentPeriod:    restatement?.currentPeriod    ?? null,
-      inpcAcqRateMissing:   restatement?.acqRateMissing   ?? false,
+      inpcAdjustment: restatement?.adjustment ?? null,
+      inpcCurrentPeriod: restatement?.currentPeriod ?? null,
+      inpcAcqRateMissing: restatement?.acqRateMissing ?? false,
       // N2: serializar Decimal → string
       bcvRateAtAcquisition: a.bcvRateAtAcquisition?.toFixed(4) ?? null,
     };

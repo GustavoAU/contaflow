@@ -150,7 +150,10 @@ export async function checkRateLimit(
     // B5: limiters.fiscal falla cerrado — Redis caído bloquea mutaciones fiscales
     // para prevenir que una caída de Redis elimine la protección contra spam fiscal.
     if (limiter === limiters.fiscal) {
-      return { allowed: false, error: "Servicio temporalmente no disponible. Intenta de nuevo en unos segundos." };
+      return {
+        allowed: false,
+        error: "Servicio temporalmente no disponible. Intenta de nuevo en unos segundos.",
+      };
     }
     // Para otros limiters (ocr, export, etc.) → fail-open: no bloquear al usuario por infra
     return { allowed: true };

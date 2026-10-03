@@ -82,9 +82,12 @@ export async function getJournalAction(
   companyId: string,
   dateFrom?: Date,
   dateTo?: Date,
-  search?: string,
+  search?: string
 ): Promise<ActionResult<{ transactions: JournalTransaction[]; hasMore: boolean }>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.read,
+  });
   if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(dateFrom, dateTo);
@@ -186,9 +189,12 @@ export async function getJournalAction(
 export async function getLedgerAction(
   companyId: string,
   dateFrom?: Date,
-  dateTo?: Date,
+  dateTo?: Date
 ): Promise<ActionResult<LedgerAccount[]>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.read,
+  });
   if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(dateFrom, dateTo);
@@ -231,10 +237,7 @@ export async function getLedgerAction(
         _sum: { amount: true },
       });
       for (const row of priorEntries) {
-        openingBalanceMap.set(
-          row.accountId,
-          new Decimal(row._sum.amount?.toString() ?? "0"),
-        );
+        openingBalanceMap.set(row.accountId, new Decimal(row._sum.amount?.toString() ?? "0"));
       }
     }
 
@@ -255,10 +258,7 @@ export async function getLedgerAction(
           // Error 5 SENIAT-dictamen: desempate por número de transacción dentro del mismo día
           // para que el saldo rodante no muestre valores intermedios negativos ilógicos.
           // Los formatos "T-2026-NNN" y "YYYY-MM-NNNNNN" son lexicográficamente ordenables.
-          orderBy: [
-            { transaction: { date: "asc" } },
-            { transaction: { number: "asc" } },
-          ],
+          orderBy: [{ transaction: { date: "asc" } }, { transaction: { number: "asc" } }],
         },
       },
     });
@@ -319,9 +319,12 @@ export async function getLedgerAction(
 export async function getTrialBalanceAction(
   companyId: string,
   dateFrom?: Date,
-  dateTo?: Date,
+  dateTo?: Date
 ): Promise<ActionResult<TrialBalanceRow[]>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.read,
+  });
   if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(dateFrom, dateTo);
@@ -352,10 +355,10 @@ export async function getTrialBalanceAction(
     ]);
 
     const debitMap = new Map(
-      debitSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+      debitSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
     );
     const creditMap = new Map(
-      creditSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")]),
+      creditSums.map((s) => [s.accountId, new Decimal(s._sum.amount?.toString() ?? "0")])
     );
 
     const rows = accountMeta
@@ -393,9 +396,12 @@ export async function getIncomeStatementAction(
   dateFrom?: Date,
   dateTo?: Date,
   compareDateFrom?: Date,
-  compareDateTo?: Date,
+  compareDateTo?: Date
 ): Promise<ActionResult<IncomeStatementResult>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.read,
+  });
   if (!ctx.ok) return ctx.error;
 
   // R-01: validar ambos rangos antes de pasar a los servicios
@@ -434,9 +440,12 @@ export async function getIncomeStatementAction(
 // El cómputo está delegado a BalanceSheetService para mantener esta capa delgada.
 export async function getBalanceSheetAction(
   companyId: string,
-  dateTo?: Date,
+  dateTo?: Date
 ): Promise<ActionResult<BalanceSheet>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.read,
+  });
   if (!ctx.ok) return ctx.error;
 
   const dateError = validateDateRange(undefined, dateTo);
@@ -457,9 +466,12 @@ export async function getBalanceSheetAction(
 
 // Retorna el nombre y RIF de la empresa para incluirlos en los encabezados de reporte.
 export async function getCompanyHeaderAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<{ name: string; rif: string | null }>> {
-  const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING, limiter: limiters.read });
+  const ctx = await requireCompanyAction(companyId, {
+    roles: ROLES.ACCOUNTING,
+    limiter: limiters.read,
+  });
   if (!ctx.ok) return ctx.error;
 
   try {

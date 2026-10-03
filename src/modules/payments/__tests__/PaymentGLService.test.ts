@@ -41,11 +41,13 @@ const BASE_CONTEXT = {
 };
 
 // Prisma tx mock — reutilizable
-function makeTxMock(overrides: Partial<typeof import("@/lib/prisma")["default"]> = {}) {
+function makeTxMock(overrides: Partial<(typeof import("@/lib/prisma"))["default"]> = {}) {
   return {
     bankAccount: { findFirst: vi.fn().mockResolvedValue({ accountId: GL_ACCOUNT_ID }) },
     accountingPeriod: {
-      findUnique: vi.fn().mockResolvedValue({ id: PERIOD_ID, status: "OPEN", fiscalYear: { status: "OPEN" } }),
+      findUnique: vi
+        .fn()
+        .mockResolvedValue({ id: PERIOD_ID, status: "OPEN", fiscalYear: { status: "OPEN" } }),
     },
     transaction: {
       findFirst: vi.fn().mockResolvedValue({ id: TX_ID, number: "2026-05-000001" }),
@@ -63,8 +65,8 @@ function makeTxMock(overrides: Partial<typeof import("@/lib/prisma")["default"]>
     // Fix 2: postPaymentRecordGL consulta invoice para diferencial cambiario NIC 21
     // Fix 4: postPaymentBatchGL consulta invoices para descripción enriquecida
     invoice: {
-      findFirst: vi.fn().mockResolvedValue(null),   // sin tasa de factura por defecto
-      findMany: vi.fn().mockResolvedValue([]),       // batch: sin datos de factura por defecto
+      findFirst: vi.fn().mockResolvedValue(null), // sin tasa de factura por defecto
+      findMany: vi.fn().mockResolvedValue([]), // batch: sin datos de factura por defecto
     },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
     ...overrides,
@@ -87,7 +89,13 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     expect(result.journalEntriesCount).toBe(2);
@@ -95,7 +103,8 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
 
     // Verificar que create fue llamado con 2 entries
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries.create;
+    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries
+      .create;
     expect(entries).toHaveLength(2);
 
     // Dr. Banco + Cr. CxC — partida doble: suma total = 0 (Débito + Crédito negativo = 0)
@@ -121,13 +130,20 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: igtf,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: IGTF_PAYABLE_ID,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     expect(result.journalEntriesCount).toBe(4);
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries.create;
+    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries
+      .create;
     expect(entries).toHaveLength(4);
 
     // Verificar partida doble: suma total débitos = suma total créditos
@@ -155,7 +171,13 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: igtf,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     // Solo 2 líneas (sin IGTF)
@@ -184,8 +206,14 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
           igtfAmount: null,
           context: BASE_CONTEXT,
         },
-        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
-      ),
+        {
+          arAccountId: AR_ACCOUNT_ID,
+          igtfPayableAccountId: null,
+          fxGainAccountId: null,
+          fxLossAccountId: null,
+          ivaRetentionReceivableAccountId: null,
+        }
+      )
     ).rejects.toThrow("La cuenta bancaria no pertenece a esta empresa");
   });
 
@@ -204,8 +232,14 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
           igtfAmount: null,
           context: BASE_CONTEXT,
         },
-        { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
-      ),
+        {
+          arAccountId: AR_ACCOUNT_ID,
+          igtfPayableAccountId: null,
+          fxGainAccountId: null,
+          fxLossAccountId: null,
+          ivaRetentionReceivableAccountId: null,
+        }
+      )
     ).rejects.toThrow("No existe un período contable abierto");
   });
 
@@ -221,14 +255,20 @@ describe("PaymentGLService.postPaymentRecordGL", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     expect(vi.mocked(tx.paymentRecord.update)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: PAYMENT_RECORD_ID },
         data: expect.objectContaining({ glTransactionId: TX_ID }),
-      }),
+      })
     );
   });
 });
@@ -252,14 +292,15 @@ describe("PaymentGLService.postPaymentBatchGL", () => {
         lines: BATCH_LINES,
         context: { ...BASE_CONTEXT, description: "Pago lote batch-1 — TRANSFERENCIA" },
       },
-      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null }
     );
 
     // 2 líneas × 2 entries = 4 entries
     expect(result.journalEntriesCount).toBe(4);
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries.create;
+    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries
+      .create;
 
     // Verificar partida doble global
     const debits = (entries as { amount: Decimal }[])
@@ -287,7 +328,7 @@ describe("PaymentGLService.postPaymentBatchGL", () => {
         lines: linesWithIgtf,
         context: BASE_CONTEXT,
       },
-      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID }
     );
 
     // 2 líneas × 4 entries = 8 entries
@@ -305,14 +346,14 @@ describe("PaymentGLService.postPaymentBatchGL", () => {
         lines: BATCH_LINES,
         context: BASE_CONTEXT,
       },
-      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null }
     );
 
     expect(vi.mocked(tx.paymentBatch.update)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: PAYMENT_BATCH_ID },
         data: expect.objectContaining({ glTransactionId: TX_ID }),
-      }),
+      })
     );
   });
 });
@@ -323,7 +364,11 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
   it("postPaymentRecordGL: usa customerId ya vinculado en la factura sin buscar por RIF", async () => {
     const tx = makeTxMock({
       invoice: {
-        findFirst: vi.fn().mockResolvedValue({ customerId: "cust-linked", vendorId: null, counterpartRif: "J-11111111-1" }),
+        findFirst: vi.fn().mockResolvedValue({
+          customerId: "cust-linked",
+          vendorId: null,
+          counterpartRif: "J-11111111-1",
+        }),
         findMany: vi.fn().mockResolvedValue([]),
       } as never,
       customer: { findFirst: vi.fn() } as never,
@@ -331,20 +376,41 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
 
     await PaymentGLService.postPaymentRecordGL(
       tx,
-      { paymentRecordId: PAYMENT_RECORD_ID, bankAccountId: BANK_ACCOUNT_ID, amountVes: new Decimal("1000.00"), igtfAmount: null, invoiceId: "inv-1", context: BASE_CONTEXT },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("1000.00"),
+        igtfAmount: null,
+        invoiceId: "inv-1",
+        context: BASE_CONTEXT,
+      },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
-    expect(vi.mocked((tx as unknown as { customer: { findFirst: ReturnType<typeof vi.fn> } }).customer.findFirst)).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(
+        (tx as unknown as { customer: { findFirst: ReturnType<typeof vi.fn> } }).customer.findFirst
+      )
+    ).not.toHaveBeenCalled();
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }).data.entries.create;
+    const entries = (
+      createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }
+    ).data.entries.create;
     expect(entries.find((e) => e.accountId === AR_ACCOUNT_ID)?.customerId).toBe("cust-linked");
   });
 
   it("postPaymentRecordGL: sin vínculo, busca customer por RIF y lo asigna a la línea CxC", async () => {
     const tx = makeTxMock({
       invoice: {
-        findFirst: vi.fn().mockResolvedValue({ customerId: null, vendorId: null, counterpartRif: "J-22222222-2" }),
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ customerId: null, vendorId: null, counterpartRif: "J-22222222-2" }),
         findMany: vi.fn().mockResolvedValue([]),
       } as never,
       customer: { findFirst: vi.fn().mockResolvedValue({ id: "cust-por-rif" }) } as never,
@@ -352,12 +418,27 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
 
     await PaymentGLService.postPaymentRecordGL(
       tx,
-      { paymentRecordId: PAYMENT_RECORD_ID, bankAccountId: BANK_ACCOUNT_ID, amountVes: new Decimal("1000.00"), igtfAmount: null, invoiceId: "inv-1", context: BASE_CONTEXT },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("1000.00"),
+        igtfAmount: null,
+        invoiceId: "inv-1",
+        context: BASE_CONTEXT,
+      },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }).data.entries.create;
+    const entries = (
+      createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }
+    ).data.entries.create;
     expect(entries.find((e) => e.accountId === AR_ACCOUNT_ID)?.customerId).toBe("cust-por-rif");
   });
 
@@ -366,8 +447,20 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
 
     await PaymentGLService.postPaymentRecordGL(
       tx,
-      { paymentRecordId: PAYMENT_RECORD_ID, bankAccountId: BANK_ACCOUNT_ID, amountVes: new Decimal("1000.00"), igtfAmount: null, context: BASE_CONTEXT },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("1000.00"),
+        igtfAmount: null,
+        context: BASE_CONTEXT,
+      },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     expect(vi.mocked(tx.invoice.findFirst)).not.toHaveBeenCalled();
@@ -376,19 +469,32 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
   it("postVendorPaymentRecordGL: usa vendorId ya vinculado en la factura, lo asigna a la línea CxP", async () => {
     const tx = makeTxMock({
       invoice: {
-        findFirst: vi.fn().mockResolvedValue({ customerId: null, vendorId: "vend-linked", counterpartRif: "J-33333333-3" }),
+        findFirst: vi.fn().mockResolvedValue({
+          customerId: null,
+          vendorId: "vend-linked",
+          counterpartRif: "J-33333333-3",
+        }),
         findMany: vi.fn().mockResolvedValue([]),
       } as never,
     } as never);
 
     await PaymentGLService.postVendorPaymentRecordGL(
       tx,
-      { paymentRecordId: PAYMENT_RECORD_ID, bankAccountId: BANK_ACCOUNT_ID, amountVes: new Decimal("500.00"), igtfAmount: null, invoiceId: "inv-1", context: BASE_CONTEXT },
-      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null },
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("500.00"),
+        igtfAmount: null,
+        invoiceId: "inv-1",
+        context: BASE_CONTEXT,
+      },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; vendorId?: string }[] } } }).data.entries.create;
+    const entries = (
+      createCall as { data: { entries: { create: { accountId: string; vendorId?: string }[] } } }
+    ).data.entries.create;
     expect(entries.find((e) => e.accountId === AP_ACCOUNT_ID)?.vendorId).toBe("vend-linked");
   });
 
@@ -397,11 +503,25 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
       invoice: {
         findFirst: vi.fn(),
         findMany: vi.fn().mockResolvedValue([
-          { id: "inv-1", invoiceNumber: "F-001", counterpartName: "Prov A", vendorId: null, counterpartRif: "J-11111111-1" },
-          { id: "inv-2", invoiceNumber: "F-002", counterpartName: "Prov B", vendorId: "vend-linked-2", counterpartRif: "J-22222222-2" },
+          {
+            id: "inv-1",
+            invoiceNumber: "F-001",
+            counterpartName: "Prov A",
+            vendorId: null,
+            counterpartRif: "J-11111111-1",
+          },
+          {
+            id: "inv-2",
+            invoiceNumber: "F-002",
+            counterpartName: "Prov B",
+            vendorId: "vend-linked-2",
+            counterpartRif: "J-22222222-2",
+          },
         ]),
       } as never,
-      vendor: { findMany: vi.fn().mockResolvedValue([{ id: "vend-por-rif-1", rif: "J-11111111-1" }]) } as never,
+      vendor: {
+        findMany: vi.fn().mockResolvedValue([{ id: "vend-por-rif-1", rif: "J-11111111-1" }]),
+      } as never,
     } as never);
 
     await PaymentGLService.postPaymentBatchGL(
@@ -415,18 +535,28 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
         ],
         context: BASE_CONTEXT,
       },
-      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null }
     );
 
-    expect(vi.mocked((tx as unknown as { vendor: { findMany: ReturnType<typeof vi.fn> } }).vendor.findMany)).toHaveBeenCalledWith({
+    expect(
+      vi.mocked(
+        (tx as unknown as { vendor: { findMany: ReturnType<typeof vi.fn> } }).vendor.findMany
+      )
+    ).toHaveBeenCalledWith({
       where: { companyId: COMPANY_ID, rif: { in: ["J-11111111-1"] }, deletedAt: null },
       select: { id: true, rif: true },
     });
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; amount: Decimal; vendorId?: string }[] } } }).data.entries.create;
+    const entries = (
+      createCall as {
+        data: { entries: { create: { accountId: string; amount: Decimal; vendorId?: string }[] } };
+      }
+    ).data.entries.create;
     const apEntries = entries.filter((e) => e.accountId === AP_ACCOUNT_ID);
-    expect(apEntries.find((e) => e.amount.toFixed(2) === "500.00")?.vendorId).toBe("vend-por-rif-1");
+    expect(apEntries.find((e) => e.amount.toFixed(2) === "500.00")?.vendorId).toBe(
+      "vend-por-rif-1"
+    );
     expect(apEntries.find((e) => e.amount.toFixed(2) === "300.00")?.vendorId).toBe("vend-linked-2");
   });
 
@@ -438,11 +568,20 @@ describe("PaymentGLService — ADR-054 tercero en CxC/CxP", () => {
 
     await PaymentGLService.postPaymentBatchGL(
       tx,
-      { paymentBatchId: PAYMENT_BATCH_ID, bankAccountId: BANK_ACCOUNT_ID, lines: [{ invoiceId: "inv-1", amountVes: new Decimal("500.00"), igtfAmount: null }], context: BASE_CONTEXT },
-      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null },
+      {
+        paymentBatchId: PAYMENT_BATCH_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        lines: [{ invoiceId: "inv-1", amountVes: new Decimal("500.00"), igtfAmount: null }],
+        context: BASE_CONTEXT,
+      },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null }
     );
 
-    expect(vi.mocked((tx as unknown as { vendor: { findMany: ReturnType<typeof vi.fn> } }).vendor.findMany)).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(
+        (tx as unknown as { vendor: { findMany: ReturnType<typeof vi.fn> } }).vendor.findMany
+      )
+    ).not.toHaveBeenCalled();
   });
 });
 
@@ -463,7 +602,11 @@ describe("PaymentGLService.reversePaymentRecordGL", () => {
     } as never);
 
     await PaymentGLService.reversePaymentRecordGL(
-      tx, PAYMENT_RECORD_ID, COMPANY_ID, USER_ID, BASE_CONTEXT,
+      tx,
+      PAYMENT_RECORD_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
     );
 
     expect(vi.mocked(tx.transaction.create)).not.toHaveBeenCalled();
@@ -473,8 +616,15 @@ describe("PaymentGLService.reversePaymentRecordGL", () => {
     // tx.transaction.findFirst es llamado dos veces:
     //   1. Para buscar la TX original (by id + companyId)
     //   2. Para generateTxNumber (by number startsWith prefix) → null → sequence=1
-    const txFindFirst = vi.fn()
-      .mockResolvedValueOnce({ id: TX_ID, status: "POSTED", description: "Cobro FAC-001", entries: ORIGINAL_ENTRIES, number: "2026-05-000001" })
+    const txFindFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: TX_ID,
+        status: "POSTED",
+        description: "Cobro FAC-001",
+        entries: ORIGINAL_ENTRIES,
+        number: "2026-05-000001",
+      })
       .mockResolvedValueOnce(null); // generateTxNumber: no hay asientos previos
 
     const tx = makeTxMock({
@@ -489,17 +639,18 @@ describe("PaymentGLService.reversePaymentRecordGL", () => {
       } as never,
     } as never);
 
-    await PaymentGLService.reversePaymentRecordGL(
-      tx, PAYMENT_RECORD_ID, COMPANY_ID, USER_ID,
-      { ...BASE_CONTEXT, description: "Anulación pago" },
-    );
+    await PaymentGLService.reversePaymentRecordGL(tx, PAYMENT_RECORD_ID, COMPANY_ID, USER_ID, {
+      ...BASE_CONTEXT,
+      description: "Anulación pago",
+    });
 
     // Debe crear asiento de reverso
     expect(vi.mocked(tx.transaction.create)).toHaveBeenCalledTimes(1);
 
     // Verificar que las entradas del reverso tienen signos invertidos
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const reverseEntries = (createCall as { data: { entries: { create: { amount: Decimal }[] } } }).data.entries.create;
+    const reverseEntries = (createCall as { data: { entries: { create: { amount: Decimal }[] } } })
+      .data.entries.create;
     expect(reverseEntries).toHaveLength(2);
 
     // El reverso de +1000 debe ser -1000 y viceversa
@@ -512,29 +663,62 @@ describe("PaymentGLService.reversePaymentRecordGL", () => {
       expect.objectContaining({
         where: { id: TX_ID },
         data: expect.objectContaining({ status: "VOIDED" }),
-      }),
+      })
     );
   });
 
   it("ADR-054: preserva el tercero (customerId) de la línea original en el asiento de reverso", async () => {
     const entriesWithParty = [
-      { id: "je-1", accountId: GL_ACCOUNT_ID, amount: new Decimal("1000.00"), description: "Cobro" },
-      { id: "je-2", accountId: AR_ACCOUNT_ID, amount: new Decimal("-1000.00"), description: "Cobro", customerId: "cust-1" },
+      {
+        id: "je-1",
+        accountId: GL_ACCOUNT_ID,
+        amount: new Decimal("1000.00"),
+        description: "Cobro",
+      },
+      {
+        id: "je-2",
+        accountId: AR_ACCOUNT_ID,
+        amount: new Decimal("-1000.00"),
+        description: "Cobro",
+        customerId: "cust-1",
+      },
     ];
-    const txFindFirst = vi.fn()
-      .mockResolvedValueOnce({ id: TX_ID, status: "POSTED", description: "Cobro FAC-001", entries: entriesWithParty, number: "2026-05-000001" })
+    const txFindFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: TX_ID,
+        status: "POSTED",
+        description: "Cobro FAC-001",
+        entries: entriesWithParty,
+        number: "2026-05-000001",
+      })
       .mockResolvedValueOnce(null);
 
     const createSpy = vi.fn().mockResolvedValue({ id: "tx-reverse-1" });
     const tx = makeTxMock({
-      paymentRecord: { findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }), update: vi.fn() } as never,
-      transaction: { findFirst: txFindFirst, create: createSpy, update: vi.fn().mockResolvedValue({}) } as never,
+      paymentRecord: {
+        findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }),
+        update: vi.fn(),
+      } as never,
+      transaction: {
+        findFirst: txFindFirst,
+        create: createSpy,
+        update: vi.fn().mockResolvedValue({}),
+      } as never,
     } as never);
 
-    await PaymentGLService.reversePaymentRecordGL(tx, PAYMENT_RECORD_ID, COMPANY_ID, USER_ID, BASE_CONTEXT);
+    await PaymentGLService.reversePaymentRecordGL(
+      tx,
+      PAYMENT_RECORD_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
+    );
 
     const createCall = createSpy.mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }).data.entries.create;
+    const entries = (
+      createCall as { data: { entries: { create: { accountId: string; customerId?: string }[] } } }
+    ).data.entries.create;
     expect(entries.find((e) => e.accountId === AR_ACCOUNT_ID)?.customerId).toBe("cust-1");
   });
 
@@ -558,7 +742,11 @@ describe("PaymentGLService.reversePaymentRecordGL", () => {
     } as never);
 
     await PaymentGLService.reversePaymentRecordGL(
-      tx, PAYMENT_RECORD_ID, COMPANY_ID, USER_ID, BASE_CONTEXT,
+      tx,
+      PAYMENT_RECORD_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
     );
 
     expect(vi.mocked(tx.transaction.create)).not.toHaveBeenCalled();
@@ -570,74 +758,153 @@ describe("PaymentGLService.reversePaymentRecordGL", () => {
 describe("PaymentGLService.reversePaymentBatchGL", () => {
   it("no hace nada si PaymentBatch.glTransactionId es null", async () => {
     const tx = makeTxMock({
-      paymentBatch: { findFirst: vi.fn().mockResolvedValue({ glTransactionId: null }), update: vi.fn() } as never,
+      paymentBatch: {
+        findFirst: vi.fn().mockResolvedValue({ glTransactionId: null }),
+        update: vi.fn(),
+      } as never,
     } as never);
 
-    await PaymentGLService.reversePaymentBatchGL(tx, PAYMENT_BATCH_ID, COMPANY_ID, USER_ID, BASE_CONTEXT);
+    await PaymentGLService.reversePaymentBatchGL(
+      tx,
+      PAYMENT_BATCH_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
+    );
 
     expect(vi.mocked(tx.transaction.create)).not.toHaveBeenCalled();
   });
 
   it("crea asiento de reverso con líneas invertidas y marca la Transaction original VOIDED", async () => {
-    const txFindFirst = vi.fn()
+    const txFindFirst = vi
+      .fn()
       .mockResolvedValueOnce({
-        id: TX_ID, status: "POSTED", description: "Pago lote batch-1",
+        id: TX_ID,
+        status: "POSTED",
+        description: "Pago lote batch-1",
         entries: [
-          { id: "je-1", accountId: AP_ACCOUNT_ID, amount: new Decimal("500.00"), description: "Pago" },
-          { id: "je-2", accountId: GL_ACCOUNT_ID, amount: new Decimal("-500.00"), description: "Pago" },
+          {
+            id: "je-1",
+            accountId: AP_ACCOUNT_ID,
+            amount: new Decimal("500.00"),
+            description: "Pago",
+          },
+          {
+            id: "je-2",
+            accountId: GL_ACCOUNT_ID,
+            amount: new Decimal("-500.00"),
+            description: "Pago",
+          },
         ],
         number: "2026-05-000001",
       })
       .mockResolvedValueOnce(null);
 
     const tx = makeTxMock({
-      paymentBatch: { findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }), update: vi.fn() } as never,
-      transaction: { findFirst: txFindFirst, create: vi.fn().mockResolvedValue({ id: "tx-reverse-1" }), update: vi.fn().mockResolvedValue({}) } as never,
+      paymentBatch: {
+        findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }),
+        update: vi.fn(),
+      } as never,
+      transaction: {
+        findFirst: txFindFirst,
+        create: vi.fn().mockResolvedValue({ id: "tx-reverse-1" }),
+        update: vi.fn().mockResolvedValue({}),
+      } as never,
     } as never);
 
-    await PaymentGLService.reversePaymentBatchGL(tx, PAYMENT_BATCH_ID, COMPANY_ID, USER_ID, BASE_CONTEXT);
+    await PaymentGLService.reversePaymentBatchGL(
+      tx,
+      PAYMENT_BATCH_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
+    );
 
     expect(vi.mocked(tx.transaction.create)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(tx.transaction.update)).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: TX_ID }, data: expect.objectContaining({ status: "VOIDED" }) }),
+      expect.objectContaining({
+        where: { id: TX_ID },
+        data: expect.objectContaining({ status: "VOIDED" }),
+      })
     );
   });
 
   it("ADR-054: preserva el tercero (vendorId) de la línea original en el asiento de reverso", async () => {
     const entriesWithParty = [
-      { id: "je-1", accountId: AP_ACCOUNT_ID, amount: new Decimal("500.00"), description: "Pago", vendorId: "vend-1" },
+      {
+        id: "je-1",
+        accountId: AP_ACCOUNT_ID,
+        amount: new Decimal("500.00"),
+        description: "Pago",
+        vendorId: "vend-1",
+      },
       { id: "je-2", accountId: GL_ACCOUNT_ID, amount: new Decimal("-500.00"), description: "Pago" },
     ];
-    const txFindFirst = vi.fn()
-      .mockResolvedValueOnce({ id: TX_ID, status: "POSTED", description: "Pago lote batch-1", entries: entriesWithParty, number: "2026-05-000001" })
+    const txFindFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: TX_ID,
+        status: "POSTED",
+        description: "Pago lote batch-1",
+        entries: entriesWithParty,
+        number: "2026-05-000001",
+      })
       .mockResolvedValueOnce(null);
 
     const createSpy = vi.fn().mockResolvedValue({ id: "tx-reverse-1" });
     const tx = makeTxMock({
-      paymentBatch: { findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }), update: vi.fn() } as never,
-      transaction: { findFirst: txFindFirst, create: createSpy, update: vi.fn().mockResolvedValue({}) } as never,
+      paymentBatch: {
+        findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }),
+        update: vi.fn(),
+      } as never,
+      transaction: {
+        findFirst: txFindFirst,
+        create: createSpy,
+        update: vi.fn().mockResolvedValue({}),
+      } as never,
     } as never);
 
-    await PaymentGLService.reversePaymentBatchGL(tx, PAYMENT_BATCH_ID, COMPANY_ID, USER_ID, BASE_CONTEXT);
+    await PaymentGLService.reversePaymentBatchGL(
+      tx,
+      PAYMENT_BATCH_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
+    );
 
     const createCall = createSpy.mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; vendorId?: string }[] } } }).data.entries.create;
+    const entries = (
+      createCall as { data: { entries: { create: { accountId: string; vendorId?: string }[] } } }
+    ).data.entries.create;
     expect(entries.find((e) => e.accountId === AP_ACCOUNT_ID)?.vendorId).toBe("vend-1");
   });
 
   it("no hace nada si la Transaction original ya está VOIDED (idempotencia)", async () => {
     const tx = makeTxMock({
-      paymentBatch: { findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }), update: vi.fn() } as never,
+      paymentBatch: {
+        findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }),
+        update: vi.fn(),
+      } as never,
       transaction: {
         findFirst: vi.fn().mockResolvedValue({
-          id: TX_ID, status: "VOIDED", description: "Pago", entries: [], number: "2026-05-000001",
+          id: TX_ID,
+          status: "VOIDED",
+          description: "Pago",
+          entries: [],
+          number: "2026-05-000001",
         }),
         create: vi.fn(),
         update: vi.fn(),
       } as never,
     } as never);
 
-    await PaymentGLService.reversePaymentBatchGL(tx, PAYMENT_BATCH_ID, COMPANY_ID, USER_ID, BASE_CONTEXT);
+    await PaymentGLService.reversePaymentBatchGL(
+      tx,
+      PAYMENT_BATCH_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
+    );
 
     expect(vi.mocked(tx.transaction.create)).not.toHaveBeenCalled();
   });
@@ -658,11 +925,18 @@ describe("R-5: PaymentGLService — Decimal.js en todos los cálculos", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { amount: unknown }[] } } }).data.entries.create;
+    const entries = (createCall as { data: { entries: { create: { amount: unknown }[] } } }).data
+      .entries.create;
 
     for (const entry of entries) {
       // amount debe ser instancia de Decimal, no number
@@ -687,7 +961,13 @@ describe("Riesgo-9 — type COBRO en cobros y PAGO en pagos", () => {
         igtfAmount: null,
         context: BASE_CONTEXT,
       },
-      { arAccountId: AR_ACCOUNT_ID, igtfPayableAccountId: null, fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null },
+      {
+        arAccountId: AR_ACCOUNT_ID,
+        igtfPayableAccountId: null,
+        fxGainAccountId: null,
+        fxLossAccountId: null,
+        ivaRetentionReceivableAccountId: null,
+      }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
@@ -706,7 +986,7 @@ describe("Riesgo-9 — type COBRO en cobros y PAGO en pagos", () => {
         lines: [{ invoiceId: "inv-1", amountVes: new Decimal("500.00"), igtfAmount: null }],
         context: BASE_CONTEXT,
       },
-      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: null }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
@@ -722,8 +1002,8 @@ const IVA_RET_RECEIVABLE_ID = "iva-ret-recv-1";
 describe("Riesgo-6 — IVA retenido por cliente CE en cobros", () => {
   it("con ivaRetentionAmount y cuenta configurada — crea 3 líneas: Dr.Banco + Dr.IVARet = Cr.CxC", async () => {
     const tx = makeTxMock();
-    const amountVes = new Decimal("850.00");   // neto recibido
-    const ivaRet = new Decimal("150.00");       // IVA retenido (75% del 16%)
+    const amountVes = new Decimal("850.00"); // neto recibido
+    const ivaRet = new Decimal("150.00"); // IVA retenido (75% del 16%)
     // Total factura = 850 + 150 = 1000
 
     await PaymentGLService.postPaymentRecordGL(
@@ -742,11 +1022,13 @@ describe("Riesgo-6 — IVA retenido por cliente CE en cobros", () => {
         fxGainAccountId: null,
         fxLossAccountId: null,
         ivaRetentionReceivableAccountId: IVA_RET_RECEIVABLE_ID,
-      },
+      }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: { accountId: string; amount: Decimal }[] } } }).data.entries.create;
+    const entries = (
+      createCall as { data: { entries: { create: { accountId: string; amount: Decimal }[] } } }
+    ).data.entries.create;
 
     // 3 líneas: Dr. Banco + Dr. IVA Ret. x Cobrar + Cr. CxC
     expect(entries).toHaveLength(3);
@@ -789,11 +1071,12 @@ describe("Riesgo-6 — IVA retenido por cliente CE en cobros", () => {
         fxGainAccountId: null,
         fxLossAccountId: null,
         ivaRetentionReceivableAccountId: IVA_RET_RECEIVABLE_ID, // configurada pero sin retención
-      },
+      }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries.create;
+    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries
+      .create;
 
     // Sin retención → 2 líneas estándar
     expect(entries).toHaveLength(2);
@@ -818,11 +1101,12 @@ describe("Riesgo-6 — IVA retenido por cliente CE en cobros", () => {
         fxGainAccountId: null,
         fxLossAccountId: null,
         ivaRetentionReceivableAccountId: null, // no configurada
-      },
+      }
     );
 
     const createCall = vi.mocked(tx.transaction.create).mock.calls[0][0];
-    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries.create;
+    const entries = (createCall as { data: { entries: { create: unknown[] } } }).data.entries
+      .create;
 
     // Sin cuenta → 2 líneas (Dr. Banco 850 + Cr. CxC 850)
     expect(entries).toHaveLength(2);

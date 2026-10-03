@@ -10,10 +10,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Trash2 } from "lucide-react";
-import {
-  createOvertimeAction,
-  deleteOvertimeAction,
-} from "../actions/overtime.actions";
+import { createOvertimeAction, deleteOvertimeAction } from "../actions/overtime.actions";
 import type { OvertimeEntryRow } from "../services/OvertimeService";
 import { todayLocalISO } from "@/lib/today";
 
@@ -93,11 +90,10 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
       <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>
-          <strong>El registro es obligatorio.</strong> Si no existe o no se lleva
-          conforme a la Ley, el Art. 183 presume ciertos —hasta prueba en
-          contrario— los alegatos del trabajador sobre las horas extraordinarias
-          laboradas y sobre lo que se le pagó por ellas. Estas horas se cargan
-          solas al procesar la nómina del período.
+          <strong>El registro es obligatorio.</strong> Si no existe o no se lleva conforme a la Ley,
+          el Art. 183 presume ciertos —hasta prueba en contrario— los alegatos del trabajador sobre
+          las horas extraordinarias laboradas y sobre lo que se le pagó por ellas. Estas horas se
+          cargan solas al procesar la nómina del período.
         </span>
       </div>
 
@@ -116,7 +112,9 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
             >
               <option value="">Selecciona…</option>
               {employees.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
               ))}
             </select>
             {selected && selected.workShift && selected.workShift !== "DIURNA" && (
@@ -210,8 +208,8 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
             {!form.authorized && (
               // Art. 182: sin permiso, el recargo se DUPLICA.
               <p className="mt-1 text-xs text-amber-700">
-                Sin permiso, el Art. 182 obliga a pagarlas con el <strong>doble del
-                recargo</strong>: 100% en lugar de 50%. Se calculará así.
+                Sin permiso, el Art. 182 obliga a pagarlas con el <strong>doble del recargo</strong>
+                : 100% en lugar de 50%. Se calculará así.
               </p>
             )}
           </div>
@@ -219,9 +217,11 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
           <div>
             <label htmlFor="ot-ref" className="mb-1 block text-sm font-medium text-gray-700">
               N° de permiso o de notificación{" "}
-              {form.authorized
-                ? <span className="text-red-600">(obligatorio)</span>
-                : <span className="text-gray-400">(opcional)</span>}
+              {form.authorized ? (
+                <span className="text-red-600">(obligatorio)</span>
+              ) : (
+                <span className="text-gray-400">(opcional)</span>
+              )}
             </label>
             <input
               id="ot-ref"
@@ -236,8 +236,8 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
             />
             {form.authorized && (
               <p className="mt-1 text-xs text-gray-500">
-                El del permiso de la Inspectoría, o el de la notificación si fue
-                un caso imprevisto y urgente (Art. 182).
+                El del permiso de la Inspectoría, o el de la notificación si fue un caso imprevisto
+                y urgente (Art. 182).
               </p>
             )}
           </div>
@@ -263,13 +263,27 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500">
                 <tr>
-                  <th scope="col" className="px-3 py-2 text-left">Fecha</th>
-                  <th scope="col" className="px-3 py-2 text-left">Trabajador</th>
-                  <th scope="col" className="px-3 py-2 text-right">Horas</th>
-                  <th scope="col" className="px-3 py-2 text-left">Tipo</th>
-                  <th scope="col" className="px-3 py-2 text-left">Trabajo efectuado</th>
-                  <th scope="col" className="px-3 py-2 text-left">Permiso</th>
-                  <th scope="col" className="px-3 py-2 text-right">Pagado</th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Fecha
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Trabajador
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Horas
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Tipo
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Trabajo efectuado
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Permiso
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Pagado
+                  </th>
                   <th scope="col" className="px-3 py-2" />
                 </tr>
               </thead>
@@ -313,7 +327,7 @@ export default function OvertimeRegistry({ companyId, initial, employees }: Prop
                           onClick={() => handleDelete(r.id)}
                           disabled={isPending}
                           aria-label={`Eliminar registro del ${r.workedOn}`}
-                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 focus-visible:ring-1 focus-visible:ring-red-500"
+                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-1 focus-visible:ring-red-500 disabled:opacity-50"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden />
                         </button>

@@ -19,7 +19,7 @@ export class PeriodService {
   static async assertDateInOpenPeriod(
     companyId: string,
     date: Date,
-    tx?: Prisma.TransactionClient,
+    tx?: Prisma.TransactionClient
   ): Promise<{ id: string; year: number; month: number }> {
     const db = tx ?? prisma;
     const year = date.getUTCFullYear();
@@ -27,19 +27,25 @@ export class PeriodService {
 
     const period = await db.accountingPeriod.findUnique({
       where: { companyId_year_month: { companyId, year, month } },
-      select: { id: true, year: true, month: true, status: true, fiscalYear: { select: { status: true } } },
+      select: {
+        id: true,
+        year: true,
+        month: true,
+        status: true,
+        fiscalYear: { select: { status: true } },
+      },
     });
 
     const mm = String(month).padStart(2, "0");
 
     if (!period) {
       throw new Error(
-        `No existe un período contable abierto para ${mm}/${year}. Verifica el ejercicio fiscal en Contabilidad → Ejercicios.`,
+        `No existe un período contable abierto para ${mm}/${year}. Verifica el ejercicio fiscal en Contabilidad → Ejercicios.`
       );
     }
     if (period.status !== "OPEN" || period.fiscalYear?.status !== "OPEN") {
       throw new Error(
-        `El período ${mm}/${year} está cerrado. Solo se pueden registrar operaciones en un período abierto.`,
+        `El período ${mm}/${year} está cerrado. Solo se pueden registrar operaciones en un período abierto.`
       );
     }
     return { id: period.id, year: period.year, month: period.month };
@@ -63,7 +69,7 @@ export class PeriodService {
     db: Prisma.TransactionClient,
     companyId: string,
     date: Date,
-    docLabel = "el documento",
+    docLabel = "el documento"
   ): Promise<string | null> {
     const year = date.getUTCFullYear();
     const month = date.getUTCMonth() + 1;
@@ -73,9 +79,12 @@ export class PeriodService {
       where: { companyId, year, month },
       select: { id: true, status: true, fiscalYear: { select: { status: true } } },
     });
-    if (periodForDate && (periodForDate.status === "CLOSED" || periodForDate.fiscalYear?.status === "CLOSED")) {
+    if (
+      periodForDate &&
+      (periodForDate.status === "CLOSED" || periodForDate.fiscalYear?.status === "CLOSED")
+    ) {
       throw new Error(
-        `No se puede registrar ${docLabel} en el período ${mm}/${year} porque está CERRADO. Use una fecha en el período activo.`,
+        `No se puede registrar ${docLabel} en el período ${mm}/${year} porque está CERRADO. Use una fecha en el período activo.`
       );
     }
     if (!periodForDate) {
@@ -85,7 +94,7 @@ export class PeriodService {
       });
       if (anyPeriod) {
         throw new Error(
-          `No existe un período contable para ${mm}/${year}. Ábralo en Contabilidad → Ejercicios o use una fecha del ejercicio activo.`,
+          `No existe un período contable para ${mm}/${year}. Ábralo en Contabilidad → Ejercicios o use una fecha del ejercicio activo.`
         );
       }
       return null;

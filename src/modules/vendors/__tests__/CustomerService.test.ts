@@ -22,8 +22,16 @@ vi.mock("@/lib/prisma", () => ({
 
 const NOW = new Date("2026-01-01");
 const base = {
-  id: "cu1", companyId: "c1", name: "Cliente SA", rif: null, email: null, phone: null, address: null,
-  deletedAt: null, createdAt: NOW, updatedAt: NOW,
+  id: "cu1",
+  companyId: "c1",
+  name: "Cliente SA",
+  rif: null,
+  email: null,
+  phone: null,
+  address: null,
+  deletedAt: null,
+  createdAt: NOW,
+  updatedAt: NOW,
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -35,7 +43,7 @@ describe("CustomerService.list", () => {
     vi.mocked(prisma.invoice.groupBy).mockResolvedValue([] as never);
     await CustomerService.list("c1");
     expect(prisma.customer.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { companyId: "c1", deletedAt: null } }),
+      expect.objectContaining({ where: { companyId: "c1", deletedAt: null } })
     );
   });
 });
@@ -52,7 +60,10 @@ describe("CustomerService.linkToInvoice — IDOR guards (CRITICAL-1, HIGH-1)", (
   const invoice = { id: "inv1", companyId: "c1" };
 
   it("rechaza si invoice pertenece a otro tenant", async () => {
-    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({ id: "inv1", companyId: "otroTenant" } as never);
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue({
+      id: "inv1",
+      companyId: "otroTenant",
+    } as never);
     vi.mocked(prisma.customer.findUnique).mockResolvedValue(base as never);
     const ok = await CustomerService.linkToInvoice("c1", "inv1", "cu1");
     expect(ok).toBe(false);

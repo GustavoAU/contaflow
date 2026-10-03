@@ -44,8 +44,8 @@ describe("InventoryReportService.getStockSummary", () => {
     const result = await InventoryReportService.getStockSummary(COMPANY_ID);
 
     expect(result.items).toHaveLength(2);
-    expect(result.items[0]!.totalValue).toBe("550.00");   // 100 × 5.50
-    expect(result.items[1]!.totalValue).toBe("400.00");   // 50 × 8.00
+    expect(result.items[0]!.totalValue).toBe("550.00"); // 100 × 5.50
+    expect(result.items[1]!.totalValue).toBe("400.00"); // 50 × 8.00
     expect(result.totalInventoryValue).toBe("950.00");
     expect(result.lowStockCount).toBe(0);
   });

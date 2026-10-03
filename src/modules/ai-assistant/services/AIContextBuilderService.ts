@@ -249,7 +249,7 @@ export const AIContextBuilderService = {
     const activeAccounts: AccountBalanceLine[] = activeAccountRows.map((acc) => {
       const balance = (acc.journalEntries as { amount: Decimal }[]).reduce(
         (sum, e) => sum.plus(e.amount),
-        new Decimal(0),
+        new Decimal(0)
       );
       return { code: acc.code, name: acc.name, type: acc.type, balance: fmt(balance.abs()) };
     });
@@ -267,7 +267,7 @@ export const AIContextBuilderService = {
     for (const acc of activeAccountRows) {
       const bal = (acc.journalEntries as { amount: Decimal }[]).reduce(
         (s, e) => s.plus(e.amount),
-        new Decimal(0),
+        new Decimal(0)
       );
       const key = acc.type as keyof typeof totales;
       if (key in totales) totales[key] = totales[key].plus(bal.abs());
@@ -290,7 +290,12 @@ export const AIContextBuilderService = {
     // ── CxC / CxP vencidas ────────────────────────────────────────────────────
 
     function mapOverdue(
-      rows: { controlNumber: string | null; counterpartName: string; pendingAmount: Decimal | null; dueDate: Date | null }[],
+      rows: {
+        controlNumber: string | null;
+        counterpartName: string;
+        pendingAmount: Decimal | null;
+        dueDate: Date | null;
+      }[]
     ): OverdueInvoiceLine[] {
       return rows.map((r) => ({
         number: r.controlNumber ?? "S/N",
@@ -311,7 +316,7 @@ export const AIContextBuilderService = {
 
     const invValue = inventoryAgg.reduce(
       (sum, item) => sum.plus(new Decimal(item.averageCost).times(item.stockQuantity)),
-      new Decimal(0),
+      new Decimal(0)
     );
 
     // ── Bancos ────────────────────────────────────────────────────────────────
@@ -340,7 +345,10 @@ export const AIContextBuilderService = {
       cxcVencidas: mapOverdue(overdueReceivables),
       cxpVencidas: mapOverdue(overduePayables),
       payrollMonth: latestPayroll
-        ? { totalDevengado: fmt(latestPayroll.totalEarnings), empleados: latestPayroll.employeeCount }
+        ? {
+            totalDevengado: fmt(latestPayroll.totalEarnings),
+            empleados: latestPayroll.employeeCount,
+          }
         : null,
       fixedAssets: { count: fixedAssetRows.length, totalNetValue: fmt(fixedAssetNetValue) },
       inventoryValue: fmt(invValue),
@@ -368,19 +376,27 @@ export const AIContextBuilderService = {
       : "  Sin cuentas bancarias registradas";
 
     const cxcLines = ctx.cxcVencidas.length
-      ? ctx.cxcVencidas.map((c) => `  ${c.counterparty} — Bs. ${c.amount} (${c.daysOverdue}d vencida)`).join("\n")
+      ? ctx.cxcVencidas
+          .map((c) => `  ${c.counterparty} — Bs. ${c.amount} (${c.daysOverdue}d vencida)`)
+          .join("\n")
       : "  Ninguna";
 
     const cxpLines = ctx.cxpVencidas.length
-      ? ctx.cxpVencidas.map((c) => `  ${c.counterparty} — Bs. ${c.amount} (${c.daysOverdue}d vencida)`).join("\n")
+      ? ctx.cxpVencidas
+          .map((c) => `  ${c.counterparty} — Bs. ${c.amount} (${c.daysOverdue}d vencida)`)
+          .join("\n")
       : "  Ninguna";
 
     const taskLines = ctx.pendingTasks.length
-      ? ctx.pendingTasks.map((t) => `  [${t.severity.toUpperCase()}] ${t.type}: ${t.count}`).join("\n")
+      ? ctx.pendingTasks
+          .map((t) => `  [${t.severity.toUpperCase()}] ${t.type}: ${t.count}`)
+          .join("\n")
       : "  Sin tareas pendientes";
 
     const accountLines = ctx.activeAccounts.length
-      ? ctx.activeAccounts.map((a) => `  ${a.code} ${a.name} [${a.type}]: Bs. ${a.balance}`).join("\n")
+      ? ctx.activeAccounts
+          .map((a) => `  ${a.code} ${a.name} [${a.type}]: Bs. ${a.balance}`)
+          .join("\n")
       : "  Sin cuentas con movimiento reciente";
 
     return `Eres ContaFlow IA, un contador venezolano experto integrado en el sistema contable ContaFlow.

@@ -21,7 +21,7 @@ export type MovementRow = {
 };
 
 type Props = {
-  companyId: string;   // para construir el link al asiento contable (R-12)
+  companyId: string; // para construir el link al asiento contable (R-12)
   itemName: string;
   sku: string;
   stockQuantity: string;
@@ -45,10 +45,12 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 function fmt(value: unknown, decimals = 2) {
   const n = parseFloat(String(value));
-  return isNaN(n) ? "—" : n.toLocaleString("es-VE", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  return isNaN(n)
+    ? "—"
+    : n.toLocaleString("es-VE", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      });
 }
 
 export function ItemMovementHistory({
@@ -70,45 +72,47 @@ export function ItemMovementHistory({
       {/* CPP Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-md border border-indigo-200 bg-white px-3 py-2">
-          <p className="text-xs font-medium text-indigo-500 uppercase tracking-wide">Stock actual</p>
+          <p className="text-xs font-medium tracking-wide text-indigo-500 uppercase">
+            Stock actual
+          </p>
           <p className="mt-0.5 text-lg font-bold text-gray-900">
             {fmt(stockQuantity, 2)}{" "}
             <span className="text-xs font-normal text-gray-400">{unit}</span>
           </p>
         </div>
         <div className="rounded-md border border-indigo-200 bg-white px-3 py-2">
-          <p className="text-xs font-medium text-indigo-500 uppercase tracking-wide">CPP vigente</p>
+          <p className="text-xs font-medium tracking-wide text-indigo-500 uppercase">CPP vigente</p>
           <p className="mt-0.5 text-lg font-bold text-indigo-900">{fmt(averageCost, 4)}</p>
           <p className="text-xs text-indigo-400">Bs./u</p>
         </div>
         <div className="rounded-md border border-indigo-200 bg-white px-3 py-2">
-          <p className="text-xs font-medium text-indigo-500 uppercase tracking-wide">Valor en libros</p>
+          <p className="text-xs font-medium tracking-wide text-indigo-500 uppercase">
+            Valor en libros
+          </p>
           <p className="mt-0.5 text-lg font-bold text-gray-900">{fmt(bookValue, 2)}</p>
           <p className="text-xs text-gray-400">Bs. (stock × CPP)</p>
         </div>
         <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">SKU</p>
+          <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">SKU</p>
           <p className="mt-0.5 font-mono text-sm font-semibold text-gray-700">{sku}</p>
-          <p className="text-xs text-gray-400 truncate">{itemName}</p>
+          <p className="truncate text-xs text-gray-400">{itemName}</p>
         </div>
       </div>
 
       {/* Historial */}
       <div>
-        <p className="mb-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+        <p className="mb-2 text-xs font-semibold tracking-wide text-indigo-700 uppercase">
           Historial de movimientos
         </p>
 
-        {error && (
-          <p className="text-xs text-red-600 bg-red-50 rounded px-3 py-2">{error}</p>
-        )}
+        {error && <p className="rounded bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
 
         {movements === null && !error && (
-          <p className="text-xs text-gray-400 py-4 text-center">Cargando historial...</p>
+          <p className="py-4 text-center text-xs text-gray-400">Cargando historial...</p>
         )}
 
         {movements !== null && movements.length === 0 && (
-          <p className="text-xs text-gray-400 py-4 text-center">
+          <p className="py-4 text-center text-xs text-gray-400">
             Sin movimientos registrados para este producto.
           </p>
         )}
@@ -116,43 +120,70 @@ export function ItemMovementHistory({
         {movements !== null && movements.length > 0 && (
           <div className="overflow-x-auto rounded-lg border border-indigo-100 bg-white">
             <table className="w-full text-xs">
-              <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500">
+              <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
                 <tr>
-                  <th scope="col" className="px-3 py-2 text-left">Fecha</th>
-                  <th scope="col" className="px-3 py-2 text-left">Tipo</th>
-                  <th scope="col" className="px-3 py-2 text-left">Estado</th>
-                  <th scope="col" className="px-3 py-2 text-right">Cantidad</th>
-                  <th scope="col" className="px-3 py-2 text-right">Costo unit.</th>
-                  <th scope="col" className="px-3 py-2 text-right">Total</th>
-                  <th scope="col" className="px-3 py-2 text-left">Referencia</th>
-                  <th scope="col" className="px-3 py-2 text-center">Asiento</th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Fecha
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Tipo
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Estado
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Cantidad
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Costo unit.
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right">
+                    Total
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left">
+                    Referencia
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-center">
+                    Asiento
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {movements.map((mov) => {
-                  const typeInfo = TYPE_LABELS[mov.type] ?? { label: mov.type, color: "bg-gray-100 text-gray-600" };
-                  const statusInfo = STATUS_LABELS[mov.status] ?? { label: mov.status, color: "bg-gray-100 text-gray-500" };
+                  const typeInfo = TYPE_LABELS[mov.type] ?? {
+                    label: mov.type,
+                    color: "bg-gray-100 text-gray-600",
+                  };
+                  const statusInfo = STATUS_LABELS[mov.status] ?? {
+                    label: mov.status,
+                    color: "bg-gray-100 text-gray-500",
+                  };
                   return (
                     <tr
                       key={mov.id}
                       className={`hover:bg-gray-50 ${mov.status === "VOIDED" ? "opacity-50" : ""}`}
                     >
                       <td className="px-3 py-2 whitespace-nowrap text-gray-500">
-                        {new Date(String(mov.date)).toLocaleDateString("es-VE", { timeZone: "America/Caracas" })}
+                        {new Date(String(mov.date)).toLocaleDateString("es-VE", {
+                          timeZone: "America/Caracas",
+                        })}
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${typeInfo.color}`}>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-xs font-medium ${typeInfo.color}`}
+                        >
                           {typeInfo.label}
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${statusInfo.color}`}>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-xs font-medium ${statusInfo.color}`}
+                        >
                           {statusInfo.label}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-right font-mono">
-                        {fmt(mov.quantity, 2)}{" "}
-                        <span className="text-gray-400">{unit}</span>
+                        {fmt(mov.quantity, 2)} <span className="text-gray-400">{unit}</span>
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-gray-600">
                         {fmt(mov.unitCost, 4)}
@@ -160,7 +191,7 @@ export function ItemMovementHistory({
                       <td className="px-3 py-2 text-right font-mono font-semibold text-gray-800">
                         {fmt(mov.totalCost, 2)}
                       </td>
-                      <td className="px-3 py-2 text-gray-400 max-w-35 truncate">
+                      <td className="max-w-35 truncate px-3 py-2 text-gray-400">
                         {mov.reference ?? "—"}
                       </td>
                       {/* R-12: link al asiento contable — solo visible en POSTED */}
@@ -168,7 +199,7 @@ export function ItemMovementHistory({
                         {mov.status === "POSTED" && mov.transactionId ? (
                           <Link
                             href={`/company/${companyId}/transactions/${mov.transactionId}`}
-                            className="text-blue-600 hover:underline text-xs font-medium"
+                            className="text-xs font-medium text-blue-600 hover:underline"
                             title="Ver asiento contable"
                           >
                             Ver asiento →

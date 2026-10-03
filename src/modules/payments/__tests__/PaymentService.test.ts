@@ -14,7 +14,8 @@ vi.mock("@/lib/prisma", () => ({
     // bancarias pedidas existen y son de esta empresa.
     bankAccount: {
       findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
-        where.id.in.map((id) => ({ id }))),
+        where.id.in.map((id) => ({ id }))
+      ),
     },
   },
 }));
@@ -100,7 +101,7 @@ describe("PaymentService.create", () => {
           referenceNumber: "REF-12345678",
           currency: "VES",
         }),
-      }),
+      })
     );
     expect(result.amountVes).toBe("500");
     expect(result.method).toBe("PAGOMOVIL");
@@ -157,7 +158,7 @@ describe("PaymentService.create", () => {
         bankAccountId: "bank-ajena",
         date: DATE,
         createdBy: "user-1",
-      }),
+      })
     ).rejects.toThrow(/no pertenece/);
 
     expect(prisma.paymentRecord.create).not.toHaveBeenCalled();
@@ -217,7 +218,10 @@ describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
     const tx = makeTx(OPEN_INVOICE);
 
     const result = await PaymentService.applyPaymentToInvoice(
-      tx as never, "company-1", "inv-1", new Decimal("400"),
+      tx as never,
+      "company-1",
+      "inv-1",
+      new Decimal("400")
     );
 
     // Row lock primero — serializa pagos concurrentes
@@ -235,7 +239,10 @@ describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
     const tx = makeTx(OPEN_INVOICE);
 
     const result = await PaymentService.applyPaymentToInvoice(
-      tx as never, "company-1", "inv-1", new Decimal("1000"),
+      tx as never,
+      "company-1",
+      "inv-1",
+      new Decimal("1000")
     );
 
     expect(result.newStatus).toBe("PAID");
@@ -246,7 +253,12 @@ describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
     const tx = makeTx(OPEN_INVOICE);
 
     await expect(
-      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("1000.01")),
+      PaymentService.applyPaymentToInvoice(
+        tx as never,
+        "company-1",
+        "inv-1",
+        new Decimal("1000.01")
+      )
     ).rejects.toThrow("excede el saldo pendiente");
     expect(tx.invoice.update).not.toHaveBeenCalled();
   });
@@ -255,7 +267,7 @@ describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
     const tx = makeTx({ ...OPEN_INVOICE, paymentStatus: "PAID" });
 
     await expect(
-      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100")),
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100"))
     ).rejects.toThrow("ya está completamente pagada");
   });
 
@@ -263,7 +275,7 @@ describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
     const tx = makeTx({ ...OPEN_INVOICE, paymentStatus: "VOIDED" });
 
     await expect(
-      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100")),
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100"))
     ).rejects.toThrow("anulada");
   });
 
@@ -271,7 +283,7 @@ describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
     const tx = makeTx(null);
 
     await expect(
-      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-x", new Decimal("100")),
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-x", new Decimal("100"))
     ).rejects.toThrow("no encontrada o no pertenece");
   });
 
@@ -280,7 +292,7 @@ describe("PaymentService.applyPaymentToInvoice (ADR-032 F1)", () => {
     const tx = makeTx(OPEN_INVOICE);
 
     await expect(
-      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100")),
+      PaymentService.applyPaymentToInvoice(tx as never, "company-1", "inv-1", new Decimal("100"))
     ).rejects.toThrow("está cerrado");
     expect(tx.invoice.update).not.toHaveBeenCalled();
   });
@@ -296,7 +308,11 @@ describe("PaymentService.revertPaymentFromInvoice (ADR-032 F1 D-4)", () => {
     const tx = makeTx({ date: new Date("2026-03-01"), pendingAmount: new Decimal("600") });
 
     await PaymentService.revertPaymentFromInvoice(
-      tx as never, "company-1", "inv-1", "pay-1", new Decimal("400"),
+      tx as never,
+      "company-1",
+      "inv-1",
+      "pay-1",
+      new Decimal("400")
     );
 
     const updateArg = tx.invoice.update.mock.calls[0][0] as {
@@ -311,7 +327,11 @@ describe("PaymentService.revertPaymentFromInvoice (ADR-032 F1 D-4)", () => {
     tx.paymentRecord.count.mockResolvedValue(1);
 
     await PaymentService.revertPaymentFromInvoice(
-      tx as never, "company-1", "inv-1", "pay-1", new Decimal("400"),
+      tx as never,
+      "company-1",
+      "inv-1",
+      "pay-1",
+      new Decimal("400")
     );
 
     const updateArg = tx.invoice.update.mock.calls[0][0] as {
@@ -325,7 +345,13 @@ describe("PaymentService.revertPaymentFromInvoice (ADR-032 F1 D-4)", () => {
     const tx = makeTx({ date: new Date("2025-12-01"), pendingAmount: new Decimal("600") });
 
     await expect(
-      PaymentService.revertPaymentFromInvoice(tx as never, "company-1", "inv-1", "pay-1", new Decimal("400")),
+      PaymentService.revertPaymentFromInvoice(
+        tx as never,
+        "company-1",
+        "inv-1",
+        "pay-1",
+        new Decimal("400")
+      )
     ).rejects.toThrow("está cerrado");
     expect(tx.invoice.update).not.toHaveBeenCalled();
   });

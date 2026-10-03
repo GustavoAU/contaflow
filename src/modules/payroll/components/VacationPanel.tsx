@@ -26,7 +26,16 @@ interface Props {
 
 const currentYear = new Date().getFullYear();
 
-export default function VacationPanel({ companyId, employeeId, initialRecords, canAdmin, vacationEntitlement, vacationUsedThisYear, yearsOfService, workSchedule }: Props) {
+export default function VacationPanel({
+  companyId,
+  employeeId,
+  initialRecords,
+  canAdmin,
+  vacationEntitlement,
+  vacationUsedThisYear,
+  yearsOfService,
+  workSchedule,
+}: Props) {
   const [records, setRecords] = useState<VacationRecordRow[]>(initialRecords);
 
   // Art. 190 LOTTT — alerta si hay vacaciones del año anterior sin registrar disfrute
@@ -61,7 +70,14 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
       }
       setRecords((prev) => [result.data, ...prev]);
       setShowForm(false);
-      setForm({ periodYear: currentYear, vacationDays: 15, bonusDays: 7, startDate: "", endDate: "", isFractional: false });
+      setForm({
+        periodYear: currentYear,
+        vacationDays: 15,
+        bonusDays: 7,
+        startDate: "",
+        endDate: "",
+        isFractional: false,
+      });
     });
   }
 
@@ -71,7 +87,10 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
       {vacationEntitlement !== undefined && vacationUsedThisYear !== undefined && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-gray-50 px-4 py-2.5 text-xs">
           <span className="text-gray-500">
-            Antigüedad: <strong>{yearsOfService ?? 0} año{yearsOfService !== 1 ? "s" : ""}</strong>
+            Antigüedad:{" "}
+            <strong>
+              {yearsOfService ?? 0} año{yearsOfService !== 1 ? "s" : ""}
+            </strong>
           </span>
           <span className="text-gray-300">|</span>
           <span className="text-gray-500">
@@ -85,7 +104,9 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
           {(() => {
             const remaining = vacationEntitlement - vacationUsedThisYear;
             return (
-              <span className={`font-semibold ${remaining < 0 ? "text-red-600" : remaining === 0 ? "text-amber-600" : "text-green-700"}`}>
+              <span
+                className={`font-semibold ${remaining < 0 ? "text-red-600" : remaining === 0 ? "text-amber-600" : "text-green-700"}`}
+              >
                 Restantes: {remaining} días
               </span>
             );
@@ -96,15 +117,28 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
       {/* F-05: advertencia 0 registros con antigüedad > 1 año */}
       {yearsOfService !== undefined && yearsOfService >= 1 && records.length === 0 && (
         <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <svg
+            className="mt-0.5 h-4 w-4 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
           </svg>
           <div>
-            <p className="font-medium">Sin registros de vacaciones — pasivo laboral no reconocido</p>
+            <p className="font-medium">
+              Sin registros de vacaciones — pasivo laboral no reconocido
+            </p>
             <p className="mt-0.5 text-xs text-amber-700">
-              {yearsOfService} año{yearsOfService !== 1 ? "s" : ""} de antigüedad sin ningún registro de vacaciones disfrutadas ni bono vacacional (Art. 192 LOTTT).
-              La LOTTT exige el pago del bono vacacional como concepto separado de los días de descanso.
-              Registra el historial para reflejar correctamente el pasivo laboral en libros.
+              {yearsOfService} año{yearsOfService !== 1 ? "s" : ""} de antigüedad sin ningún
+              registro de vacaciones disfrutadas ni bono vacacional (Art. 192 LOTTT). La LOTTT exige
+              el pago del bono vacacional como concepto separado de los días de descanso. Registra
+              el historial para reflejar correctamente el pasivo laboral en libros.
             </p>
           </div>
         </div>
@@ -113,13 +147,24 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
       {/* Art. 190 — alerta vacaciones de años anteriores sin disfrute registrado */}
       {priorYearUnused.length > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <svg
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
           </svg>
           <span>
-            <strong>Art. 190 LOTTT:</strong>{" "}
-            {priorYearUnused.map((r) => r.periodYear).join(", ")} — vacaciones causadas sin fecha de disfrute registrada.
-            Las vacaciones no pueden acumularse indefinidamente. Registra el período de disfrute efectivo para evitar observaciones del Inspector del Trabajo.
+            <strong>Art. 190 LOTTT:</strong> {priorYearUnused.map((r) => r.periodYear).join(", ")} —
+            vacaciones causadas sin fecha de disfrute registrada. Las vacaciones no pueden
+            acumularse indefinidamente. Registra el período de disfrute efectivo para evitar
+            observaciones del Inspector del Trabajo.
           </span>
         </div>
       )}
@@ -130,13 +175,27 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
           <table className="min-w-full divide-y divide-gray-200 text-xs">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Año</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Días vac.</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Días bono</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto vac.</th>
-                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">Monto bono</th>
-                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Período de disfrute</th>
-                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">Tipo</th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">
+                  Año
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">
+                  Días vac.
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">
+                  Días bono
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">
+                  Monto vac.
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-600">
+                  Monto bono
+                </th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">
+                  Período de disfrute
+                </th>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">
+                  Tipo
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
@@ -145,14 +204,24 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
                   <td className="px-3 py-2 font-medium">{r.periodYear}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(r.vacationDays)}</td>
                   <td className="px-3 py-2 text-right font-mono">{fmt(r.bonusDays)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-green-700">{fmt(r.vacationAmount)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-green-700">{fmt(r.bonusAmount)}</td>
-                  <td className="px-3 py-2 text-gray-500">{r.startDate} → {r.endDate}</td>
+                  <td className="px-3 py-2 text-right font-mono text-green-700">
+                    {fmt(r.vacationAmount)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-green-700">
+                    {fmt(r.bonusAmount)}
+                  </td>
+                  <td className="px-3 py-2 text-gray-500">
+                    {r.startDate} → {r.endDate}
+                  </td>
                   <td className="px-3 py-2">
                     {r.isFractional ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">Fraccionada</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+                        Fraccionada
+                      </span>
                     ) : (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">Completa</span>
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                        Completa
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -169,7 +238,7 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
         <button
           type="button"
           onClick={() => setShowForm(true)}
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200"
+          className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -179,23 +248,23 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
       )}
 
       {canAdmin && showForm && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">
+        <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="text-xs font-semibold tracking-wide text-blue-800 uppercase">
             Registrar vacaciones (Art. 190–192 LOTTT)
           </p>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Año período</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Año período</label>
               <input
                 type="number"
                 value={form.periodYear}
                 onChange={(e) => setForm((f) => ({ ...f, periodYear: Number(e.target.value) }))}
-                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>
             <div className="flex items-end">
-              <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-700">
                 <input
                   type="checkbox"
                   checked={form.isFractional}
@@ -209,64 +278,73 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Días de vacaciones</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Días de vacaciones
+              </label>
               <input
                 type="number"
                 min={1}
                 max={90}
                 value={form.vacationDays}
                 onChange={(e) => setForm((f) => ({ ...f, vacationDays: Number(e.target.value) }))}
-                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Días bono vacacional</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Días bono vacacional
+              </label>
               <input
                 type="number"
                 min={0}
                 max={90}
                 value={form.bonusDays}
                 onChange={(e) => setForm((f) => ({ ...f, bonusDays: Number(e.target.value) }))}
-                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Fecha inicio</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Fecha inicio</label>
               <input
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Fecha fin</label>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Fecha fin</label>
               <input
                 type="date"
                 value={form.endDate}
                 onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>
           </div>
 
           {workingDays !== null && (
-            <p className="text-xs text-blue-700 font-medium">
+            <p className="text-xs font-medium text-blue-700">
               Días hábiles en el período: <strong>{workingDays}</strong>
             </p>
           )}
 
           {error && (
-            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>
+            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {error}
+            </p>
           )}
 
           <div className="flex justify-end gap-2">
             <button
               type="button"
-              onClick={() => { setShowForm(false); setError(null); }}
+              onClick={() => {
+                setShowForm(false);
+                setError(null);
+              }}
               className="rounded border px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
             >
               Cancelar
@@ -277,7 +355,8 @@ export default function VacationPanel({ companyId, employeeId, initialRecords, c
               disabled={isPending || !form.startDate || !form.endDate}
               className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {isPending && <Loader2Icon className="size-3.5 animate-spin" />}{isPending ? "Registrando..." : "Confirmar"}
+              {isPending && <Loader2Icon className="size-3.5 animate-spin" />}
+              {isPending ? "Registrando..." : "Confirmar"}
             </button>
           </div>
         </div>

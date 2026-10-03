@@ -19,7 +19,7 @@ import { toActionError } from "../utils/action-errors";
 
 // ─── Leer umbral actual ─────────────────────────────────────────────────────────
 export async function getCajaChicaStepUpThresholdAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<{ threshold: string | null; defaultThreshold: string }>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
@@ -50,7 +50,7 @@ const UpdateSchema = z.object({
 });
 
 export async function updateCajaChicaStepUpThresholdAction(
-  input: unknown,
+  input: unknown
 ): Promise<{ success: true } | { success: false; error: string }> {
   const parsed = UpdateSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message };

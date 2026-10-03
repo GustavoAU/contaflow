@@ -19,10 +19,17 @@ import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { limiters } from "@/lib/ratelimit";
 import Decimal from "decimal.js";
-import { BenefitAccrualService, type BenefitBalanceRow, type BcvRateRow } from "../services/BenefitAccrualService";
+import {
+  BenefitAccrualService,
+  type BenefitBalanceRow,
+  type BcvRateRow,
+} from "../services/BenefitAccrualService";
 import { BenefitAdvanceService, type BenefitAdvanceRow } from "../services/BenefitAdvanceService";
 import { VacationService, type VacationRecordRow } from "../services/VacationService";
-import { ProfitSharingService, type ProfitSharingRecordRow } from "../services/ProfitSharingService";
+import {
+  ProfitSharingService,
+  type ProfitSharingRecordRow,
+} from "../services/ProfitSharingService";
 import { TerminationService, type TerminationRow } from "../services/TerminationService";
 import {
   CreateBcvRateSchema,
@@ -48,7 +55,6 @@ function revalidateNomD(companyId: string) {
   // U-04: actualiza la ficha del empleado (tabs prestaciones/vacaciones)
   revalidatePath(`/company/${companyId}/payroll/employees`, "layout");
 }
-
 
 // ─── BCV Rate ─────────────────────────────────────────────────────────────────
 
@@ -83,10 +89,7 @@ export async function createBcvRateAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return {
         success: false,
         error: `Ya existe una tasa BCV registrada para ${parsed.data.year}-${String(parsed.data.month).padStart(2, "0")}`,
@@ -96,9 +99,7 @@ export async function createBcvRateAction(
   }
 }
 
-export async function listBcvRatesAction(
-  companyId: string
-): Promise<ActionResult<BcvRateRow[]>> {
+export async function listBcvRatesAction(companyId: string): Promise<ActionResult<BcvRateRow[]>> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ACCOUNTING });
   if (!ctx.ok) return ctx.error;
 
@@ -219,14 +220,18 @@ export async function createVacationAction(
   }
 
   try {
-    const data = await VacationService.create(companyId, userId, employeeId, parsed.data, ipAddress, userAgent);
+    const data = await VacationService.create(
+      companyId,
+      userId,
+      employeeId,
+      parsed.data,
+      ipAddress,
+      userAgent
+    );
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return {
         success: false,
         error: `Ya existe un registro de vacaciones para el período ${parsed.data.periodYear} de este empleado`,
@@ -283,10 +288,7 @@ export async function calculateProfitSharingAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return {
         success: false,
         error: `Ya existe un registro de utilidades para el año fiscal ${parsed.data.fiscalYear} de este empleado`,
@@ -343,10 +345,7 @@ export async function createTerminationAction(
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return {
         success: false,
         error: "Ya existe una liquidación en proceso (clave de idempotencia duplicada)",
@@ -403,7 +402,13 @@ export async function finalizeTerminationAction(
   const { userId, ipAddress, userAgent } = ctx;
 
   try {
-    const data = await TerminationService.finalize(companyId, userId, terminationId, ipAddress, userAgent);
+    const data = await TerminationService.finalize(
+      companyId,
+      userId,
+      terminationId,
+      ipAddress,
+      userAgent
+    );
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
@@ -460,12 +465,18 @@ export async function registerBenefitAdvanceAction(
   }
 
   try {
-    const data = await BenefitAdvanceService.registerAdvance(companyId, userId, {
-      employeeId: parsed.data.employeeId,
-      amount: parsed.data.amount,
-      reason: parsed.data.reason,
-      notes: parsed.data.notes,
-    }, ipAddress, userAgent);
+    const data = await BenefitAdvanceService.registerAdvance(
+      companyId,
+      userId,
+      {
+        employeeId: parsed.data.employeeId,
+        amount: parsed.data.amount,
+        reason: parsed.data.reason,
+        notes: parsed.data.notes,
+      },
+      ipAddress,
+      userAgent
+    );
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
@@ -492,14 +503,14 @@ export async function listBenefitAdvancesAction(
 // ADR-015: postea trimestres faltantes al período activo actual.
 // Solo ADMIN — operación destructiva (crea múltiples asientos contables).
 
-export async function backfillBenefitsAction(
-  companyId: string
-): Promise<ActionResult<{
-  employeesProcessed: number;
-  quartersProcessed: number;
-  totalAccrued: string;
-  errors: Array<{ employeeName: string; year: number; quarter: number; message: string }>;
-}>> {
+export async function backfillBenefitsAction(companyId: string): Promise<
+  ActionResult<{
+    employeesProcessed: number;
+    quartersProcessed: number;
+    totalAccrued: string;
+    errors: Array<{ employeeName: string; year: number; quarter: number; message: string }>;
+  }>
+> {
   const ctx = await requireCompanyAction(companyId, {
     roles: ROLES.ADMIN_ONLY,
     limiter: limiters.fiscal,
@@ -509,7 +520,12 @@ export async function backfillBenefitsAction(
   const { userId, ipAddress, userAgent } = ctx;
 
   try {
-    const data = await BenefitAccrualService.backfillAllQuarters(companyId, userId, ipAddress, userAgent);
+    const data = await BenefitAccrualService.backfillAllQuarters(
+      companyId,
+      userId,
+      ipAddress,
+      userAgent
+    );
     revalidateNomD(companyId);
     return { success: true, data };
   } catch (err) {
@@ -519,7 +535,9 @@ export async function backfillBenefitsAction(
 
 export async function getVacationAlertsAction(
   companyId: string
-): Promise<ActionResult<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]>> {
+): Promise<
+  ActionResult<{ employeeId: string; fullName: string; remaining: number; entitlement: number }[]>
+> {
   const ctx = await requireCompanyAction(companyId, { roles: ROLES.ADMIN_ONLY });
   if (!ctx.ok) return ctx.error;
   try {
@@ -546,15 +564,27 @@ export async function setInitialBenefitBalanceAction(
   const schema = z.object({
     employeeId: z.string().min(1),
     initialBalance: z.string().refine((v) => {
-      try { return new Decimal(v).gte(0); } catch { return false; }
+      try {
+        return new Decimal(v).gte(0);
+      } catch {
+        return false;
+      }
     }, "Saldo debe ser un número no negativo"),
-    initialInterestBalance: z.string().refine((v) => {
-      try { return new Decimal(v).gte(0); } catch { return false; }
-    }, "Saldo de intereses debe ser un número no negativo").optional(),
+    initialInterestBalance: z
+      .string()
+      .refine((v) => {
+        try {
+          return new Decimal(v).gte(0);
+        } catch {
+          return false;
+        }
+      }, "Saldo de intereses debe ser un número no negativo")
+      .optional(),
   });
 
   const parsed = schema.safeParse(rawInput);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const { employeeId, initialBalance, initialInterestBalance } = parsed.data;
   try {
@@ -593,4 +623,3 @@ export async function setInitialBenefitBalanceAction(
     return toActionError(err);
   }
 }
-

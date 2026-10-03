@@ -223,10 +223,12 @@ ${retencionesXml}${retencionesXml ? "\n" : ""}${igtfXml}${igtfXml ? "\n" : ""}</
    * Genera el contenido del QR code para una factura.
    * ADR-008 D-4: formato CONTAFLOW:RIF=...;FACTURA=...;CONTROL=...;...
    */
-  static qrContent(p: Pick<
-    SeniatXMLParams,
-    "companyRif" | "invoiceNumber" | "controlNumber" | "date" | "currency"
-  > & { montoTotal: string }): string {
+  static qrContent(
+    p: Pick<
+      SeniatXMLParams,
+      "companyRif" | "invoiceNumber" | "controlNumber" | "date" | "currency"
+    > & { montoTotal: string }
+  ): string {
     const parts = [
       `RIF=${p.companyRif}`,
       `FACTURA=${p.invoiceNumber}`,

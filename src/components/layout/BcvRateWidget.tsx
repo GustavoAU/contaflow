@@ -32,7 +32,10 @@ function fmtDelta(delta: string | null | undefined) {
   if (!delta) return null;
   const n = parseFloat(delta);
   if (n === 0) return null;
-  const abs = Math.abs(n).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const abs = Math.abs(n).toLocaleString("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   return { text: `${n > 0 ? "+" : "−"}${abs}`, up: n > 0 };
 }
 
@@ -53,7 +56,12 @@ function formatDate(d: Date | string): string {
 // ─── BcvRateWidget ─────────────────────────────────────────────────────────────
 // Pill compacto (solo USD) con hover/focus tooltip que muestra USD + EUR + refresh.
 
-export function BcvRateWidget({ companyId, variant = "light", initialUsd = null, initialEur = null }: Props) {
+export function BcvRateWidget({
+  companyId,
+  variant = "light",
+  initialUsd = null,
+  initialEur = null,
+}: Props) {
   const [usd, setUsd] = useState<RateWithDelta | null>(initialUsd);
   const [eur, setEur] = useState<RateWithDelta | null>(initialEur);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -137,22 +145,34 @@ export function BcvRateWidget({ companyId, variant = "light", initialUsd = null,
         </span>
 
         {/* USD rate */}
-        <span className={cn("font-mono font-semibold tabular-nums text-xs", isDark ? "text-slate-100" : "text-zinc-800")}>
+        <span
+          className={cn(
+            "font-mono text-xs font-semibold tabular-nums",
+            isDark ? "text-slate-100" : "text-zinc-800"
+          )}
+        >
           {fmtRate(usd.rate)}
         </span>
 
         {/* Delta arrow (solo si hay variación) */}
         {usdDelta && (
-          <span className={cn(
-            "flex items-center text-10 tabular-nums font-mono",
-            usdDelta.up
-              ? (isDark ? "text-emerald-400" : "text-emerald-600")
-              : (isDark ? "text-red-400" : "text-red-500")
-          )}>
-            {usdDelta.up
-              ? <TrendingUp className="h-2.5 w-2.5" aria-hidden />
-              : <TrendingDown className="h-2.5 w-2.5" aria-hidden />
-            }
+          <span
+            className={cn(
+              "text-10 flex items-center font-mono tabular-nums",
+              usdDelta.up
+                ? isDark
+                  ? "text-emerald-400"
+                  : "text-emerald-600"
+                : isDark
+                  ? "text-red-400"
+                  : "text-red-500"
+            )}
+          >
+            {usdDelta.up ? (
+              <TrendingUp className="h-2.5 w-2.5" aria-hidden />
+            ) : (
+              <TrendingDown className="h-2.5 w-2.5" aria-hidden />
+            )}
           </span>
         )}
       </button>
@@ -162,14 +182,14 @@ export function BcvRateWidget({ companyId, variant = "light", initialUsd = null,
         <div
           role="tooltip"
           className={cn(
-            "absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border shadow-xl",
+            "absolute top-full right-0 z-50 mt-2 w-52 rounded-xl border shadow-xl",
             "animate-in fade-in slide-in-from-top-1 duration-150",
             isDark
               ? "border-slate-600 bg-slate-800 text-slate-200"
               : "border-zinc-200 bg-white text-zinc-800"
           )}
         >
-          <div className="px-3 py-2.5 space-y-2">
+          <div className="space-y-2 px-3 py-2.5">
             {/* Fecha */}
             <p className={cn("text-10 font-medium", isDark ? "text-slate-500" : "text-zinc-400")}>
               Tasas BCV al {formatDate(usd.date)}
@@ -182,16 +202,21 @@ export function BcvRateWidget({ companyId, variant = "light", initialUsd = null,
             {eur && <TooltipRateRow label="EUR" rate={eur} dark={isDark} />}
 
             {/* Divider + refresh */}
-            <div className={cn("border-t pt-2 flex items-center justify-end", isDark ? "border-slate-700" : "border-zinc-100")}>
+            <div
+              className={cn(
+                "flex items-center justify-end border-t pt-2",
+                isDark ? "border-slate-700" : "border-zinc-100"
+              )}
+            >
               <button
                 type="button"
                 onClick={handleRefresh}
                 disabled={isPending}
                 className={cn(
-                  "flex items-center gap-1 rounded px-2 py-1 text-10 font-medium transition-colors disabled:cursor-wait",
+                  "text-10 flex items-center gap-1 rounded px-2 py-1 font-medium transition-colors disabled:cursor-wait",
                   isDark
-                    ? "text-slate-400 hover:text-blue-400 hover:bg-slate-700"
-                    : "text-zinc-400 hover:text-blue-600 hover:bg-zinc-50"
+                    ? "text-slate-400 hover:bg-slate-700 hover:text-blue-400"
+                    : "text-zinc-400 hover:bg-zinc-50 hover:text-blue-600"
                 )}
               >
                 <RefreshCw className={cn("h-3 w-3", isPending && "animate-spin")} />
@@ -207,7 +232,15 @@ export function BcvRateWidget({ companyId, variant = "light", initialUsd = null,
 
 // ─── Fila de tasa en el tooltip ────────────────────────────────────────────────
 
-function TooltipRateRow({ label, rate, dark }: { label: string; rate: RateWithDelta; dark: boolean }) {
+function TooltipRateRow({
+  label,
+  rate,
+  dark,
+}: {
+  label: string;
+  rate: RateWithDelta;
+  dark: boolean;
+}) {
   const delta = fmtDelta(rate.delta);
   return (
     <div className="flex items-center justify-between gap-2">
@@ -215,16 +248,27 @@ function TooltipRateRow({ label, rate, dark }: { label: string; rate: RateWithDe
         {label}/VES
       </span>
       <div className="flex items-center gap-1.5">
-        <span className={cn("font-mono font-bold tabular-nums text-sm", dark ? "text-white" : "text-zinc-900")}>
+        <span
+          className={cn(
+            "font-mono text-sm font-bold tabular-nums",
+            dark ? "text-white" : "text-zinc-900"
+          )}
+        >
           Bs. {fmtRate(rate.rate)}
         </span>
         {delta && (
-          <span className={cn(
-            "font-mono text-10 tabular-nums",
-            delta.up
-              ? (dark ? "text-emerald-400" : "text-emerald-600")
-              : (dark ? "text-red-400" : "text-red-500")
-          )}>
+          <span
+            className={cn(
+              "text-10 font-mono tabular-nums",
+              delta.up
+                ? dark
+                  ? "text-emerald-400"
+                  : "text-emerald-600"
+                : dark
+                  ? "text-red-400"
+                  : "text-red-500"
+            )}
+          >
             {delta.text}
           </span>
         )}

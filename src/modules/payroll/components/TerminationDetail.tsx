@@ -45,7 +45,12 @@ interface Props {
   canAdmin: boolean;
 }
 
-export default function TerminationDetail({ companyId, termination: initial, employeeName, canAdmin }: Props) {
+export default function TerminationDetail({
+  companyId,
+  termination: initial,
+  employeeName,
+  canAdmin,
+}: Props) {
   const router = useRouter();
   const [t, setT] = useState(initial);
   const [isPending, startTransition] = useTransition();
@@ -74,9 +79,12 @@ export default function TerminationDetail({ companyId, termination: initial, emp
   }
 
   function handleFinalize() {
-    if (!window.confirm(
-      `¿Finalizar la liquidación de ${employeeName}?\n\nEsta acción es IRREVERSIBLE. Se creará el asiento contable y el empleado quedará marcado como EGRESADO.`
-    )) return;
+    if (
+      !window.confirm(
+        `¿Finalizar la liquidación de ${employeeName}?\n\nEsta acción es IRREVERSIBLE. Se creará el asiento contable y el empleado quedará marcado como EGRESADO.`
+      )
+    )
+      return;
     startFinalizing(async () => {
       const result = await finalizeTerminationAction(companyId, t.id);
       if (result.success) {
@@ -108,13 +116,19 @@ export default function TerminationDetail({ companyId, termination: initial, emp
       </div>
 
       {/* Tabla de componentes */}
-      <div className="rounded-lg border overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">Concepto</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">Días</th>
-              <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">Monto</th>
+              <th scope="col" className="px-4 py-3 text-left font-medium text-gray-600">
+                Concepto
+              </th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">
+                Días
+              </th>
+              <th scope="col" className="px-4 py-3 text-right font-medium text-gray-600">
+                Monto
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
@@ -132,26 +146,38 @@ export default function TerminationDetail({ companyId, termination: initial, emp
               <td className="px-4 py-3">
                 Vacaciones fraccionadas
                 {Number(t.vacationFractionalDays) > 0 && (
-                  <span className="ml-1 text-xs text-gray-400">({fmtDays(t.vacationFractionalDays)} días)</span>
+                  <span className="ml-1 text-xs text-gray-400">
+                    ({fmtDays(t.vacationFractionalDays)} días)
+                  </span>
                 )}
               </td>
-              <td className="px-4 py-3 text-right font-mono text-gray-500 text-xs">{fmtDays(t.vacationFractionalDays)}</td>
+              <td className="px-4 py-3 text-right font-mono text-xs text-gray-500">
+                {fmtDays(t.vacationFractionalDays)}
+              </td>
               <td className="px-4 py-3 text-right font-mono">{fmt(t.vacationFractionalAmount)}</td>
             </tr>
             <tr>
               <td className="px-4 py-3">Bono vacacional fraccionado</td>
               <td className="px-4 py-3 text-right text-gray-400">—</td>
-              <td className="px-4 py-3 text-right font-mono">{fmt(t.vacationBonusFractionalAmount)}</td>
+              <td className="px-4 py-3 text-right font-mono">
+                {fmt(t.vacationBonusFractionalAmount)}
+              </td>
             </tr>
             <tr>
               <td className="px-4 py-3">
                 Utilidades fraccionadas
                 {Number(t.profitSharingFractionalDays) > 0 && (
-                  <span className="ml-1 text-xs text-gray-400">({fmtDays(t.profitSharingFractionalDays)} días)</span>
+                  <span className="ml-1 text-xs text-gray-400">
+                    ({fmtDays(t.profitSharingFractionalDays)} días)
+                  </span>
                 )}
               </td>
-              <td className="px-4 py-3 text-right font-mono text-gray-500 text-xs">{fmtDays(t.profitSharingFractionalDays)}</td>
-              <td className="px-4 py-3 text-right font-mono">{fmt(t.profitSharingFractionalAmount)}</td>
+              <td className="px-4 py-3 text-right font-mono text-xs text-gray-500">
+                {fmtDays(t.profitSharingFractionalDays)}
+              </td>
+              <td className="px-4 py-3 text-right font-mono">
+                {fmt(t.profitSharingFractionalAmount)}
+              </td>
             </tr>
             {Number(t.indemnificationAmount) > 0 && (
               <tr className="bg-amber-50">
@@ -169,10 +195,14 @@ export default function TerminationDetail({ companyId, termination: initial, emp
                 <td className="px-4 py-3 font-medium text-amber-800">
                   Preaviso (Art. 86 LOTTT)
                   {Number(t.noticePeriodDays) > 0 && (
-                    <span className="ml-1 text-xs font-normal">({fmtDays(t.noticePeriodDays)} días)</span>
+                    <span className="ml-1 text-xs font-normal">
+                      ({fmtDays(t.noticePeriodDays)} días)
+                    </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right font-mono text-amber-700 text-xs">{fmtDays(t.noticePeriodDays)}</td>
+                <td className="px-4 py-3 text-right font-mono text-xs text-amber-700">
+                  {fmtDays(t.noticePeriodDays)}
+                </td>
                 <td className="px-4 py-3 text-right font-mono font-semibold text-amber-800">
                   {fmt(t.noticePeriodAmount)}
                 </td>
@@ -193,7 +223,9 @@ export default function TerminationDetail({ companyId, termination: initial, emp
             <tr className="bg-gray-50 font-semibold">
               <td className="px-4 py-3">Total bruto</td>
               <td className="px-4 py-3" />
-              <td className="px-4 py-3 text-right font-mono text-gray-900">{fmt(t.totalGrossAmount)}</td>
+              <td className="px-4 py-3 text-right font-mono text-gray-900">
+                {fmt(t.totalGrossAmount)}
+              </td>
             </tr>
             {Number(t.deductionsAmount) > 0 && (
               <tr className="text-red-600">
@@ -230,7 +262,7 @@ export default function TerminationDetail({ companyId, termination: initial, emp
             <form onSubmit={handleSave} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
                     Conceptos pendientes
                   </label>
                   <input
@@ -239,11 +271,11 @@ export default function TerminationDetail({ companyId, termination: initial, emp
                     onChange={(e) => setPendingConceptsAmount(e.target.value)}
                     min={0}
                     step={0.01}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
                     Deducciones
                   </label>
                   <input
@@ -252,12 +284,12 @@ export default function TerminationDetail({ companyId, termination: initial, emp
                     onChange={(e) => setDeductionsAmount(e.target.value)}
                     min={0}
                     step={0.01}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-xs font-medium text-gray-700">
                   Notas (opcional)
                 </label>
                 <input
@@ -265,7 +297,7 @@ export default function TerminationDetail({ companyId, termination: initial, emp
                   value={pendingConceptsNotes}
                   onChange={(e) => setPendingConceptsNotes(e.target.value)}
                   maxLength={500}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="Descripción de conceptos pendientes…"
                 />
               </div>
@@ -307,14 +339,20 @@ export default function TerminationDetail({ companyId, termination: initial, emp
       )}
 
       {/* Metadatos */}
-      <div className="text-xs text-gray-400 space-y-1 pt-2 border-t">
-        <p>ID: <span className="font-mono">{t.id}</span></p>
-        <p>Clave idempotencia: <span className="font-mono">{t.idempotencyKey}</span></p>
+      <div className="space-y-1 border-t pt-2 text-xs text-gray-400">
+        <p>
+          ID: <span className="font-mono">{t.id}</span>
+        </p>
+        <p>
+          Clave idempotencia: <span className="font-mono">{t.idempotencyKey}</span>
+        </p>
         {t.finalizedAt && (
           <p>Finalizada el: {new Date(t.finalizedAt).toLocaleDateString("es-VE")}</p>
         )}
         {t.transactionId && (
-          <p>Asiento contable: <span className="font-mono">{t.transactionId}</span></p>
+          <p>
+            Asiento contable: <span className="font-mono">{t.transactionId}</span>
+          </p>
         )}
       </div>
     </div>

@@ -8,24 +8,37 @@ import { CompanyAvatar } from "./CompanyAvatar";
 import type { UserRole } from "@/lib/nav-items";
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  OWNER:          "Propietario",
-  ADMIN:          "Administrador",
-  ACCOUNTANT:     "Contador",
+  OWNER: "Propietario",
+  ADMIN: "Administrador",
+  ACCOUNTANT: "Contador",
   ADMINISTRATIVE: "Administrativo",
-  VIEWER:         "Lector",
-  SENIAT:         "Auditor SENIAT",
+  VIEWER: "Lector",
+  SENIAT: "Auditor SENIAT",
 };
 
 const ROLE_BADGE: Record<UserRole, string> = {
-  OWNER:          "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
-  ADMIN:          "bg-blue-50   text-blue-700   ring-1 ring-blue-200",
-  ACCOUNTANT:     "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+  OWNER: "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
+  ADMIN: "bg-blue-50   text-blue-700   ring-1 ring-blue-200",
+  ACCOUNTANT: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
   ADMINISTRATIVE: "bg-amber-50  text-amber-700  ring-1 ring-amber-200",
-  VIEWER:         "bg-zinc-100  text-zinc-600   ring-1 ring-zinc-200",
-  SENIAT:         "bg-red-50    text-red-700    ring-1 ring-red-200",
+  VIEWER: "bg-zinc-100  text-zinc-600   ring-1 ring-zinc-200",
+  SENIAT: "bg-red-50    text-red-700    ring-1 ring-red-200",
 };
 
-const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"] as const;
+const MONTHS = [
+  "Ene",
+  "Feb",
+  "Mar",
+  "Abr",
+  "May",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dic",
+] as const;
 
 export type CompanyWithPeriod = {
   id: string;
@@ -52,17 +65,17 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
       {/* Search — visible once there are more than 3 companies */}
       {companies.length > 3 && (
         <div className="relative mb-5">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por nombre o RIF…"
-            className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-9 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-zinc-200 bg-white py-2 pr-9 pl-9 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 focus:outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700"
+              className="absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400 hover:text-zinc-700"
               aria-label="Limpiar búsqueda"
             >
               <XIcon className="h-3.5 w-3.5" />
@@ -91,7 +104,7 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
                     <CompanyAvatar id={company.id} name={company.name} size="md" />
                     <div className="min-w-0 flex-1 pt-0.5">
                       <h2
-                        className="line-clamp-2 font-semibold leading-tight text-zinc-900"
+                        className="line-clamp-2 leading-tight font-semibold text-zinc-900"
                         title={company.name}
                       >
                         {company.name}
@@ -104,18 +117,24 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
 
                   {/* Role badge + período activo */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-11 font-semibold ${ROLE_BADGE[role]}`}>
+                    <span
+                      className={`text-11 rounded-full px-2 py-0.5 font-semibold ${ROLE_BADGE[role]}`}
+                    >
                       {ROLE_LABELS[role]}
                     </span>
 
                     {period ? (
                       <span
-                        className={`rounded-full px-2 py-0.5 text-11 font-medium ${
+                        className={`text-11 rounded-full px-2 py-0.5 font-medium ${
                           period.status === "OPEN"
                             ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                             : "bg-zinc-100 text-zinc-500 ring-1 ring-zinc-200"
                         }`}
-                        title={period.status === "OPEN" ? "Período contable abierto" : "Período contable cerrado"}
+                        title={
+                          period.status === "OPEN"
+                            ? "Período contable abierto"
+                            : "Período contable cerrado"
+                        }
                       >
                         {MONTHS[period.month - 1]} {period.year}
                         {period.status !== "OPEN" && (
@@ -131,7 +150,7 @@ export function CompanyGrid({ companies }: { companies: CompanyWithPeriod[] }) {
                           e.stopPropagation();
                           router.push(`/company/${company.id}/periods`);
                         }}
-                        className="inline-flex items-center gap-1 text-11 font-medium text-amber-600 hover:text-amber-700 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400 rounded"
+                        className="text-11 inline-flex items-center gap-1 rounded font-medium text-amber-600 hover:text-amber-700 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400"
                       >
                         <AlertCircleIcon className="h-3 w-3 shrink-0" aria-hidden />
                         Sin período · Crear →

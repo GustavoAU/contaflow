@@ -220,13 +220,23 @@ export const PayrollConfigService = {
       // en Account, no que sea DE ESTA empresa. Hallazgo MEDIUM del
       // security-agent (2026-09-05), corregido de una vez en todo el sistema.
       await assertAccountsBelongToCompany(tx, companyId, [
-        input.expenseAccountId, input.payableAccountId,
-        input.ivssPayableAccountId, input.faovPayableAccountId, input.incesPayableAccountId, input.rpePayableAccountId,
-        input.ivssPatronalAccountId, input.incesPatronalAccountId, input.faovPatronalAccountId, input.rpePatronalAccountId,
+        input.expenseAccountId,
+        input.payableAccountId,
+        input.ivssPayableAccountId,
+        input.faovPayableAccountId,
+        input.incesPayableAccountId,
+        input.rpePayableAccountId,
+        input.ivssPatronalAccountId,
+        input.incesPatronalAccountId,
+        input.faovPatronalAccountId,
+        input.rpePatronalAccountId,
         input.pensionesPatronalAccountId,
-        input.benefitsExpenseAccountId, input.benefitsPayableAccountId,
-        input.vacationPayableAccountId, input.profitSharingPayableAccountId,
-        input.loanReceivableAccountId, input.disbursementBankAccountId,
+        input.benefitsExpenseAccountId,
+        input.benefitsPayableAccountId,
+        input.vacationPayableAccountId,
+        input.profitSharingPayableAccountId,
+        input.loanReceivableAccountId,
+        input.disbursementBankAccountId,
       ]);
 
       // Leer config previa para AuditLog (oldValue)

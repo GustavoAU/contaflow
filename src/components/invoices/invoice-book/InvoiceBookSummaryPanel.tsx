@@ -10,19 +10,29 @@ type Props = {
   type: "SALE" | "PURCHASE";
 };
 
-function Row({ label, base, iva, baseLabel = "Base", ivaLabel = "IVA" }: {
-  label: string; base: string; iva: string; baseLabel?: string; ivaLabel?: string;
+function Row({
+  label,
+  base,
+  iva,
+  baseLabel = "Base",
+  ivaLabel = "IVA",
+}: {
+  label: string;
+  base: string;
+  iva: string;
+  baseLabel?: string;
+  ivaLabel?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 last:border-0">
-      <span className="text-zinc-600 whitespace-nowrap">{label}</span>
+    <div className="flex items-center justify-between gap-4 border-b border-zinc-100 py-1.5 text-sm last:border-0">
+      <span className="whitespace-nowrap text-zinc-600">{label}</span>
       <div className="flex items-center gap-6">
         <div className="text-right">
-          <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{baseLabel}</p>
+          <p className="text-10 font-medium tracking-wide text-zinc-400 uppercase">{baseLabel}</p>
           <MoneyBadge amount={base} currency="VES" />
         </div>
-        <div className="text-right min-w-22.5">
-          <p className="text-10 font-medium text-zinc-400 uppercase tracking-wide">{ivaLabel}</p>
+        <div className="min-w-22.5 text-right">
+          <p className="text-10 font-medium tracking-wide text-zinc-400 uppercase">{ivaLabel}</p>
           <MoneyBadge amount={iva} currency="VES" />
         </div>
       </div>
@@ -34,41 +44,57 @@ export function InvoiceBookSummaryPanel({ result, type }: Props) {
   const s = result.summary;
   // Los subtotales son netos (las NC restan): un neto negativo también debe mostrarse, solo el cero se oculta.
   const nonZero = (v: string) => parseFloat(v) !== 0;
-  const hasReduced    = nonZero(s.totalBaseReduced);
+  const hasReduced = nonZero(s.totalBaseReduced);
   const hasAdditional = nonZero(s.totalBaseAdditional);
-  const hasExempt     = nonZero(s.totalExempt);
-  const hasIslr       = type === "PURCHASE" && nonZero(s.totalIslrRetention);
-  const hasIgtf       = type === "SALE"     && nonZero(s.totalIgtf);
+  const hasExempt = nonZero(s.totalExempt);
+  const hasIslr = type === "PURCHASE" && nonZero(s.totalIslrRetention);
+  const hasIgtf = type === "SALE" && nonZero(s.totalIgtf);
 
   return (
     <div className="rounded-lg border bg-white p-5 shadow-sm">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-zinc-500">
+      <h3 className="mb-3 text-xs font-bold tracking-wide text-zinc-500 uppercase">
         Resumen del Período — Subtotales por Alícuota
       </h3>
       <div className="divide-y divide-zinc-100">
-        <Row label="Operaciones gravadas al 16%" base={s.totalBaseGeneral} iva={s.totalIvaGeneral} />
-        {hasReduced    && <Row label="Operaciones gravadas al 8% (Reducido)" base={s.totalBaseReduced} iva={s.totalIvaReduced} />}
-        {hasAdditional && <Row label="Operaciones gravadas al 31% (Lujo)" base={s.totalBaseAdditional} iva={s.totalIvaAdditional} />}
+        <Row
+          label="Operaciones gravadas al 16%"
+          base={s.totalBaseGeneral}
+          iva={s.totalIvaGeneral}
+        />
+        {hasReduced && (
+          <Row
+            label="Operaciones gravadas al 8% (Reducido)"
+            base={s.totalBaseReduced}
+            iva={s.totalIvaReduced}
+          />
+        )}
+        {hasAdditional && (
+          <Row
+            label="Operaciones gravadas al 31% (Lujo)"
+            base={s.totalBaseAdditional}
+            iva={s.totalIvaAdditional}
+          />
+        )}
         {hasExempt && (
-          <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100">
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-100 py-1.5 text-sm">
             <span className="text-zinc-600">Operaciones exentas / no sujetas</span>
             <MoneyBadge amount={s.totalExempt} currency="VES" />
           </div>
         )}
         {nonZero(s.totalIvaRetention) && (
-          <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-orange-700">
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-100 py-1.5 text-sm text-orange-700">
             <span>IVA Retenido (comprobantes)</span>
             <MoneyBadge amount={s.totalIvaRetention} currency="VES" />
           </div>
         )}
         {hasIslr && (
-          <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-orange-700">
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-100 py-1.5 text-sm text-orange-700">
             <span>ISLR Retenido</span>
             <MoneyBadge amount={s.totalIslrRetention} currency="VES" />
           </div>
         )}
         {hasIgtf && (
-          <div className="flex items-center justify-between gap-4 py-1.5 text-sm border-b border-zinc-100 text-yellow-700">
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-100 py-1.5 text-sm text-yellow-700">
             <span>IGTF (3%)</span>
             <MoneyBadge amount={s.totalIgtf} currency="VES" />
           </div>

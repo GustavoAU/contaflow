@@ -76,14 +76,33 @@ export function generateCajaCajaCSV(data: CajaCajaExportData): string {
   lines.push("");
 
   lines.push(csvRow(["MOVIMIENTOS (GASTOS)"]));
-  lines.push(csvRow(["Fecha", "Comprobante", "Concepto", "Cuenta gasto", "RIF proveedor", "N° soporte", "Monto", "Moneda", "Estado"]));
+  lines.push(
+    csvRow([
+      "Fecha",
+      "Comprobante",
+      "Concepto",
+      "Cuenta gasto",
+      "RIF proveedor",
+      "N° soporte",
+      "Monto",
+      "Moneda",
+      "Estado",
+    ])
+  );
   for (const m of data.movements) {
-    lines.push(csvRow([
-      m.date, m.voucherNumber, m.concept,
-      `${m.expenseAccountCode} - ${m.expenseAccountName}`,
-      m.providerRif ?? "", m.supportingDocumentId ?? "",
-      m.amount, m.currency, m.status,
-    ]));
+    lines.push(
+      csvRow([
+        m.date,
+        m.voucherNumber,
+        m.concept,
+        `${m.expenseAccountCode} - ${m.expenseAccountName}`,
+        m.providerRif ?? "",
+        m.supportingDocumentId ?? "",
+        m.amount,
+        m.currency,
+        m.status,
+      ])
+    );
   }
   lines.push("");
 
@@ -106,35 +125,66 @@ const s = StyleSheet.create({
   metaRow: { flexDirection: "row", marginTop: 2 },
   metaLabel: { width: 130, color: "#52525b" },
   metaVal: { flex: 1, fontFamily: "Helvetica-Bold" },
-  tHead: { flexDirection: "row", borderBottom: 1, borderColor: "#a1a1aa", paddingBottom: 3, marginTop: 6, fontFamily: "Helvetica-Bold" },
+  tHead: {
+    flexDirection: "row",
+    borderBottom: 1,
+    borderColor: "#a1a1aa",
+    paddingBottom: 3,
+    marginTop: 6,
+    fontFamily: "Helvetica-Bold",
+  },
   tRow: { flexDirection: "row", borderBottom: 0.5, borderColor: "#e4e4e7", paddingVertical: 3 },
   right: { textAlign: "right" },
   empty: { marginTop: 6, color: "#71717a", fontStyle: "italic" },
-  footer: { position: "absolute", bottom: 18, left: 28, right: 28, fontSize: 7, color: "#a1a1aa", textAlign: "center" },
+  footer: {
+    position: "absolute",
+    bottom: 18,
+    left: 28,
+    right: 28,
+    fontSize: 7,
+    color: "#a1a1aa",
+    textAlign: "center",
+  },
 });
 
 function meta(label: string, val: string) {
-  return React.createElement(View, { style: s.metaRow },
+  return React.createElement(
+    View,
+    { style: s.metaRow },
     React.createElement(Text, { style: s.metaLabel }, label),
-    React.createElement(Text, { style: s.metaVal }, val),
+    React.createElement(Text, { style: s.metaVal }, val)
   );
 }
 
 export async function generateCajaCajaPDF(data: CajaCajaExportData): Promise<Buffer> {
   const { caja } = data;
   const movCols = [
-    { w: "12%", t: "Fecha" }, { w: "16%", t: "Comprob." }, { w: "26%", t: "Concepto" },
-    { w: "18%", t: "RIF prov." }, { w: "16%", t: "Monto", r: true }, { w: "12%", t: "Estado" },
+    { w: "12%", t: "Fecha" },
+    { w: "16%", t: "Comprob." },
+    { w: "26%", t: "Concepto" },
+    { w: "18%", t: "RIF prov." },
+    { w: "16%", t: "Monto", r: true },
+    { w: "12%", t: "Estado" },
   ];
   const depCols = [
-    { w: "16%", t: "Fecha" }, { w: "52%", t: "Descripción" },
-    { w: "20%", t: "Monto", r: true }, { w: "12%", t: "Estado" },
+    { w: "16%", t: "Fecha" },
+    { w: "52%", t: "Descripción" },
+    { w: "20%", t: "Monto", r: true },
+    { w: "12%", t: "Estado" },
   ];
 
-  const doc = React.createElement(Document, {},
-    React.createElement(Page, { size: "A4", style: s.page },
+  const doc = React.createElement(
+    Document,
+    {},
+    React.createElement(
+      Page,
+      { size: "A4", style: s.page },
       React.createElement(Text, { style: s.title }, `Arqueo de Caja Chica — ${caja.name}`),
-      React.createElement(Text, { style: s.sub }, `${data.companyName} · Generado ${fmtDate(data.generatedAt)}`),
+      React.createElement(
+        Text,
+        { style: s.sub },
+        `${data.companyName} · Generado ${fmtDate(data.generatedAt)}`
+      ),
 
       meta("Cuenta", `${caja.accountCode} - ${caja.accountName}`),
       meta("Custodio", caja.custodianName ?? "Sin custodio"),
@@ -147,42 +197,69 @@ export async function generateCajaCajaPDF(data: CajaCajaExportData): Promise<Buf
       React.createElement(Text, { style: s.section }, "Movimientos (gastos)"),
       data.movements.length === 0
         ? React.createElement(Text, { style: s.empty }, "Sin movimientos.")
-        : React.createElement(View, {},
-            React.createElement(View, { style: s.tHead },
-              ...movCols.map((c) => React.createElement(Text, { key: c.t, style: [{ width: c.w }, c.r ? s.right : {}] }, c.t)),
+        : React.createElement(
+            View,
+            {},
+            React.createElement(
+              View,
+              { style: s.tHead },
+              ...movCols.map((c) =>
+                React.createElement(
+                  Text,
+                  { key: c.t, style: [{ width: c.w }, c.r ? s.right : {}] },
+                  c.t
+                )
+              )
             ),
             ...data.movements.map((m, i) =>
-              React.createElement(View, { key: i, style: s.tRow },
+              React.createElement(
+                View,
+                { key: i, style: s.tRow },
                 React.createElement(Text, { style: { width: "12%" } }, m.date),
                 React.createElement(Text, { style: { width: "16%" } }, m.voucherNumber),
                 React.createElement(Text, { style: { width: "26%" } }, m.concept),
                 React.createElement(Text, { style: { width: "18%" } }, m.providerRif ?? "—"),
                 React.createElement(Text, { style: [{ width: "16%" }, s.right] }, `${m.amount}`),
-                React.createElement(Text, { style: { width: "12%" } }, m.status),
-              ),
-            ),
+                React.createElement(Text, { style: { width: "12%" } }, m.status)
+              )
+            )
           ),
 
       React.createElement(Text, { style: s.section }, "Depósitos (reposiciones)"),
       data.deposits.length === 0
         ? React.createElement(Text, { style: s.empty }, "Sin depósitos.")
-        : React.createElement(View, {},
-            React.createElement(View, { style: s.tHead },
-              ...depCols.map((c) => React.createElement(Text, { key: c.t, style: [{ width: c.w }, c.r ? s.right : {}] }, c.t)),
+        : React.createElement(
+            View,
+            {},
+            React.createElement(
+              View,
+              { style: s.tHead },
+              ...depCols.map((c) =>
+                React.createElement(
+                  Text,
+                  { key: c.t, style: [{ width: c.w }, c.r ? s.right : {}] },
+                  c.t
+                )
+              )
             ),
             ...data.deposits.map((d, i) =>
-              React.createElement(View, { key: i, style: s.tRow },
+              React.createElement(
+                View,
+                { key: i, style: s.tRow },
                 React.createElement(Text, { style: { width: "16%" } }, d.date),
                 React.createElement(Text, { style: { width: "52%" } }, d.description),
                 React.createElement(Text, { style: [{ width: "20%" }, s.right] }, `${d.amount}`),
-                React.createElement(Text, { style: { width: "12%" } }, d.status),
-              ),
-            ),
+                React.createElement(Text, { style: { width: "12%" } }, d.status)
+              )
+            )
           ),
 
-      React.createElement(Text, { style: s.footer, fixed: true },
-        "Documento interno de control (arqueo de caja chica). No es un comprobante fiscal SENIAT."),
-    ),
+      React.createElement(
+        Text,
+        { style: s.footer, fixed: true },
+        "Documento interno de control (arqueo de caja chica). No es un comprobante fiscal SENIAT."
+      )
+    )
   );
 
   return renderToBuffer(doc);

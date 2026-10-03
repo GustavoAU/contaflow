@@ -23,14 +23,19 @@ function fmt(amount: Decimal | string | number | null | undefined, fractionDigit
 function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const dt = typeof d === "string" ? new Date(d) : d;
-  return dt.toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
+  return dt.toLocaleDateString("es-VE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  UNPAID:  { label: "Pendiente",    className: "bg-red-50 text-red-700" },
-  PARTIAL: { label: "Parcial",      className: "bg-amber-50 text-amber-700" },
-  PAID:    { label: "Pagada",       className: "bg-green-50 text-green-700" },
-  VOIDED:  { label: "Anulada",      className: "bg-gray-100 text-gray-500" },
+  UNPAID: { label: "Pendiente", className: "bg-red-50 text-red-700" },
+  PARTIAL: { label: "Parcial", className: "bg-amber-50 text-amber-700" },
+  PAID: { label: "Pagada", className: "bg-green-50 text-green-700" },
+  VOIDED: { label: "Anulada", className: "bg-gray-100 text-gray-500" },
 };
 
 export default async function ClientPortalPage({ params }: Props) {
@@ -113,19 +118,22 @@ export default async function ClientPortalPage({ params }: Props) {
       <div className="rounded-lg border bg-white p-5 shadow-sm">
         <p className="text-xs text-gray-400">Proveedor de servicios</p>
         <p className="mt-0.5 text-base font-semibold text-gray-900">{company.name}</p>
-        {company.rif      && <p className="text-sm text-gray-500">RIF: {company.rif}</p>}
-        {company.email    && <p className="text-sm text-gray-500">Email: {company.email}</p>}
+        {company.rif && <p className="text-sm text-gray-500">RIF: {company.rif}</p>}
+        {company.email && <p className="text-sm text-gray-500">Email: {company.email}</p>}
         {company.telefono && <p className="text-sm text-gray-500">Tel.: {company.telefono}</p>}
       </div>
 
       {/* Datos del cliente */}
       <section aria-labelledby="client-heading">
-        <h2 id="client-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h2
+          id="client-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
           Información del cliente
         </h2>
         <div className="rounded-lg border bg-white p-5 shadow-sm">
           <p className="text-xl font-bold text-gray-900">{customer.name}</p>
-          {customer.rif   && <p className="mt-0.5 text-sm text-gray-500">RIF: {customer.rif}</p>}
+          {customer.rif && <p className="mt-0.5 text-sm text-gray-500">RIF: {customer.rif}</p>}
           {customer.email && <p className="text-sm text-gray-500">Email: {customer.email}</p>}
           {customer.phone && <p className="text-sm text-gray-500">Tel.: {customer.phone}</p>}
         </div>
@@ -133,7 +141,10 @@ export default async function ClientPortalPage({ params }: Props) {
 
       {/* Resumen CxC */}
       <section aria-labelledby="cxc-summary-heading">
-        <h2 id="cxc-summary-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h2
+          id="cxc-summary-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
           Saldo pendiente
         </h2>
         <div className="rounded-lg border bg-white p-5 shadow-sm">
@@ -151,7 +162,10 @@ export default async function ClientPortalPage({ params }: Props) {
 
       {/* Facturas pendientes */}
       <section aria-labelledby="pending-heading">
-        <h2 id="pending-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h2
+          id="pending-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
           Facturas pendientes ({pendingInvoices.length})
         </h2>
         {pendingInvoices.length === 0 ? (
@@ -163,21 +177,44 @@ export default async function ClientPortalPage({ params }: Props) {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-xs font-medium text-gray-500">
                 <tr>
-                  <th scope="col" className="px-4 py-2 text-left">Fecha</th>
-                  <th scope="col" className="px-4 py-2 text-left">N° Factura</th>
-                  <th scope="col" className="px-4 py-2 text-left">N° Control</th>
-                  <th scope="col" className="px-4 py-2 text-left">Vence</th>
-                  <th scope="col" className="px-4 py-2 text-right">Total</th>
-                  <th scope="col" className="px-4 py-2 text-right">Pendiente</th>
-                  <th scope="col" className="px-4 py-2 text-center">Estado</th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Fecha
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    N° Factura
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    N° Control
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Vence
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-right">
+                    Total
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-right">
+                    Pendiente
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-center">
+                    Estado
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {pendingInvoices.map((inv) => {
-                  const status = STATUS_LABELS[inv.paymentStatus] ?? { label: inv.paymentStatus, className: "bg-gray-100 text-gray-600" };
-                  const isOverdue = inv.dueDate && new Date(inv.dueDate) < new Date() && inv.paymentStatus !== "PAID";
+                  const status = STATUS_LABELS[inv.paymentStatus] ?? {
+                    label: inv.paymentStatus,
+                    className: "bg-gray-100 text-gray-600",
+                  };
+                  const isOverdue =
+                    inv.dueDate &&
+                    new Date(inv.dueDate) < new Date() &&
+                    inv.paymentStatus !== "PAID";
                   return (
-                    <tr key={inv.id} className={`hover:bg-gray-50 ${isOverdue ? "bg-red-50/30" : ""}`}>
+                    <tr
+                      key={inv.id}
+                      className={`hover:bg-gray-50 ${isOverdue ? "bg-red-50/30" : ""}`}
+                    >
                       <td className="px-4 py-2.5 whitespace-nowrap">{fmtDate(inv.date)}</td>
                       <td className="px-4 py-2.5 font-mono text-xs">{inv.invoiceNumber}</td>
                       <td className="px-4 py-2.5 font-mono text-xs">{inv.controlNumber ?? "—"}</td>
@@ -187,7 +224,9 @@ export default async function ClientPortalPage({ params }: Props) {
                             {fmtDate(inv.dueDate)}
                             {isOverdue && " ⚠"}
                           </span>
-                        ) : "—"}
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono whitespace-nowrap">
                         {fmt(inv.totalAmountVes)} {inv.currency}
@@ -196,7 +235,9 @@ export default async function ClientPortalPage({ params }: Props) {
                         {fmt(inv.pendingAmount)} {inv.currency}
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
+                        >
                           {status.label}
                         </span>
                       </td>
@@ -211,7 +252,10 @@ export default async function ClientPortalPage({ params }: Props) {
 
       {/* Historial de pagos */}
       <section aria-labelledby="paid-heading">
-        <h2 id="paid-heading" className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        <h2
+          id="paid-heading"
+          className="mb-3 text-sm font-semibold tracking-wide text-gray-500 uppercase"
+        >
           Historial de pagos ({paidInvoices.length} últimas)
         </h2>
         {paidInvoices.length === 0 ? (
@@ -223,11 +267,21 @@ export default async function ClientPortalPage({ params }: Props) {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-xs font-medium text-gray-500">
                 <tr>
-                  <th scope="col" className="px-4 py-2 text-left">Fecha</th>
-                  <th scope="col" className="px-4 py-2 text-left">N° Factura</th>
-                  <th scope="col" className="px-4 py-2 text-left">N° Control</th>
-                  <th scope="col" className="px-4 py-2 text-right">Total pagado</th>
-                  <th scope="col" className="px-4 py-2 text-center">Estado</th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    Fecha
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    N° Factura
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-left">
+                    N° Control
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-right">
+                    Total pagado
+                  </th>
+                  <th scope="col" className="px-4 py-2 text-center">
+                    Estado
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -253,7 +307,13 @@ export default async function ClientPortalPage({ params }: Props) {
       </section>
 
       <p className="text-center text-xs text-gray-400">
-        Enlace generado el {new Date().toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" })}. Válido por 30 días.
+        Enlace generado el{" "}
+        {new Date().toLocaleDateString("es-VE", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        })}
+        . Válido por 30 días.
         <br />
         Si tienes consultas, contacta directamente con {company.name}.
       </p>

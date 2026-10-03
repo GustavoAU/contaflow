@@ -73,7 +73,7 @@ export async function openFiscalYearAction(
       ctx.userId,
       validated.year,
       ctx.ipAddress,
-      ctx.userAgent,
+      ctx.userAgent
     );
 
     revalidatePath(`/company/${validated.companyId}/periods`);

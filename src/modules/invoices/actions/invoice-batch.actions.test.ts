@@ -65,9 +65,9 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, tx: unknown, fn: (_tx: unknown) => unknown) => fn(tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, tx: unknown, fn: (_tx: unknown) => unknown) => fn(tx)),
 }));
 
 vi.mock("../services/InvoiceService", () => ({
@@ -81,14 +81,17 @@ vi.mock("../services/InvoiceSequenceService", () => ({
 // Z-1: SALE debe usar Serializable (withSerializableRetry), no `prisma.$transaction`
 // directo. El mock NO reintenta (a diferencia del real) — no hace falta para RED/GREEN.
 vi.mock("@/lib/tx-helpers", () => ({
-  withSerializableRetry: vi.fn((fn: (tx: unknown) => unknown) => fn({ auditLog: { create: auditLogCreateMock } })),
+  withSerializableRetry: vi.fn((fn: (tx: unknown) => unknown) =>
+    fn({ auditLog: { create: auditLogCreateMock } })
+  ),
 }));
 
 // Corte por suscripción vencida — se mockea "permitido" por defecto (el real es fail-open y las
 // otras 20+ pruebas de este archivo no configuran una suscripción; un solo test la desvía).
 vi.mock("@/modules/billing/services/SubscriptionService", () => ({
   assertWriteAllowed: vi.fn().mockResolvedValue(undefined),
-  READ_ONLY_MESSAGE: "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.",
+  READ_ONLY_MESSAGE:
+    "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.",
 }));
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
@@ -134,9 +137,8 @@ describe("importInvoiceBatchAction", () => {
       company: { country: "VEN" },
     } as never);
     vi.mocked(hasModuleAccess).mockResolvedValue(true);
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) => fn({ auditLog: prisma.auditLog })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({ auditLog: prisma.auditLog })) as never);
     vi.mocked(InvoiceService.create).mockResolvedValue({ id: "inv-created" } as never);
     vi.mocked(getNextControlNumber).mockResolvedValue("00-00000099" as never);
   });
@@ -215,7 +217,7 @@ describe("importInvoiceBatchAction", () => {
     expect(getNextControlNumber).toHaveBeenCalledWith(expect.anything(), "company-1", "SALE");
     expect(InvoiceService.create).toHaveBeenCalledWith(
       expect.objectContaining({ controlNumber: "00-00000042" }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -230,7 +232,7 @@ describe("importInvoiceBatchAction", () => {
     expect(getNextControlNumber).not.toHaveBeenCalled();
     expect(InvoiceService.create).toHaveBeenCalledWith(
       expect.objectContaining({ controlNumber: "00-00000007" }),
-      expect.anything(),
+      expect.anything()
     );
   });
 
@@ -330,11 +332,14 @@ describe("importInvoiceBatchAction", () => {
 
   // ── 12. Mapeo de error Prisma P2002 en SALE (Z-1) ────────────────────────
   it("RED — P2002 en secuencia de Nº Control (SALE): mensaje de negocio, no el crudo de Prisma", async () => {
-    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields: (`invoiceType`)", {
-      code: "P2002",
-      clientVersion: "7.0.0",
-      meta: { target: ["companyId", "invoiceType"] },
-    });
+    const p2002 = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed on the fields: (`invoiceType`)",
+      {
+        code: "P2002",
+        clientVersion: "7.0.0",
+        meta: { target: ["companyId", "invoiceType"] },
+      }
+    );
     vi.mocked(InvoiceService.create).mockRejectedValueOnce(p2002 as never);
 
     const rows = [goodSaleRow({ nro_control: "" })];
@@ -390,9 +395,9 @@ describe("importInvoiceBatchAction", () => {
   // ── 13. Regresión — batch mixto ──────────────────────────────────────────
   it("REGRESIÓN — batch mixto: created cuenta solo las filas válidas y errors apunta al índice correcto", async () => {
     const rows = [
-      goodPurchaseRow(),                        // row 1: válida
-      goodSaleRow({ rif: "no-es-un-rif" }),     // row 2: inválida
-      goodSaleRow({ nro_factura: "0000099" }),  // row 3: válida
+      goodPurchaseRow(), // row 1: válida
+      goodSaleRow({ rif: "no-es-un-rif" }), // row 2: inválida
+      goodSaleRow({ nro_factura: "0000099" }), // row 3: válida
     ];
 
     const result = await importInvoiceBatchAction("company-1", "period-1", rows);
@@ -407,7 +412,9 @@ describe("importInvoiceBatchAction", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/company/company-1/invoices");
 
     // idempotencyKey único por fila (las 2 filas válidas no comparten clave)
-    const calls = vi.mocked(InvoiceService.create).mock.calls as unknown as Array<[{ idempotencyKey?: string }]>;
+    const calls = vi.mocked(InvoiceService.create).mock.calls as unknown as Array<
+      [{ idempotencyKey?: string }]
+    >;
     const keys = calls.map(([payload]) => payload.idempotencyKey);
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -443,10 +450,13 @@ describe("importInvoiceBatchAction", () => {
 
   // ── 15. Errores Prisma fuera de P2002/P2003: nunca crudos (hallazgo security-agent) ──────
   it("RED — P2034 (Serializable agotado): mensaje de mapPrismaError, no el crudo de Prisma", async () => {
-    const p2034 = new Prisma.PrismaClientKnownRequestError("Transaction failed due to a write conflict", {
-      code: "P2034",
-      clientVersion: "7.0.0",
-    });
+    const p2034 = new Prisma.PrismaClientKnownRequestError(
+      "Transaction failed due to a write conflict",
+      {
+        code: "P2034",
+        clientVersion: "7.0.0",
+      }
+    );
     vi.mocked(InvoiceService.create).mockRejectedValueOnce(p2034 as never);
 
     const rows = [goodPurchaseRow()];
@@ -479,7 +489,9 @@ describe("importInvoiceBatchAction", () => {
 
   it("GUARDA — un error de negocio normal (sin keyword técnica) sigue mostrando su propio mensaje", async () => {
     vi.mocked(InvoiceService.create).mockRejectedValueOnce(
-      new Error("El Nº Control 00-00000001 ya fue registrado para el proveedor J-98765432-1") as never
+      new Error(
+        "El Nº Control 00-00000001 ya fue registrado para el proveedor J-98765432-1"
+      ) as never
     );
 
     const rows = [goodPurchaseRow()];
@@ -549,14 +561,17 @@ describe("importInvoiceBatchAction", () => {
   // ── 18. Corte por suscripción vencida (hallazgo fiscal-agent H5 — consistencia con createInvoiceAction) ──
   it("RED — suscripción vencida: bloquea el batch completo con el mensaje de solo lectura, sin tocar ninguna fila", async () => {
     vi.mocked(assertWriteAllowed).mockRejectedValueOnce(
-      new Error("Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.")
+      new Error(
+        "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar."
+      )
     );
 
     const result = await importInvoiceBatchAction("company-1", "period-1", [goodPurchaseRow()]);
 
     expect(result).toEqual({
       success: false,
-      error: "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.",
+      error:
+        "Tu suscripción venció. Estás en modo solo lectura — renueva tu plan para volver a operar.",
     });
     expect(InvoiceService.create).not.toHaveBeenCalled();
   });

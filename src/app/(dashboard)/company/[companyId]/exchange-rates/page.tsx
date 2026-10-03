@@ -26,7 +26,9 @@ function fmt(value: string) {
   const n = parseFloat(value);
   return isNaN(n)
     ? value
-    : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(n);
+    : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(
+        n
+      );
 }
 
 export default async function ExchangeRatesPage({ params }: Props) {
@@ -58,10 +60,10 @@ export default async function ExchangeRatesPage({ params }: Props) {
           Dashboard
         </Link>
         <h1 className="text-2xl font-bold tracking-tight">Tasas de Cambio</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tipo de cambio oficial BCV — 1 USD/EUR = X Bs. (VES). Para la tasa de hoy, usa el
-          widget «BCV» del encabezado; para una fecha pasada (ej. completar un historial), usa
-          el formulario de abajo.
+        <p className="text-muted-foreground mt-1 text-sm">
+          Tipo de cambio oficial BCV — 1 USD/EUR = X Bs. (VES). Para la tasa de hoy, usa el widget
+          «BCV» del encabezado; para una fecha pasada (ej. completar un historial), usa el
+          formulario de abajo.
         </p>
       </div>
 

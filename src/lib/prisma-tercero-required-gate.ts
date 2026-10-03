@@ -49,8 +49,15 @@ type EntriesNode = {
 };
 
 function pushPair(row: unknown, pairs: EntryPartyPair[]): void {
-  if (row && typeof row === "object" && typeof (row as { accountId?: unknown }).accountId === "string") {
-    pairs.push({ accountId: (row as { accountId: string }).accountId, hasThirdParty: hasThirdParty(row) });
+  if (
+    row &&
+    typeof row === "object" &&
+    typeof (row as { accountId?: unknown }).accountId === "string"
+  ) {
+    pairs.push({
+      accountId: (row as { accountId: string }).accountId,
+      hasThirdParty: hasThirdParty(row),
+    });
   }
 }
 
@@ -61,7 +68,8 @@ function collectFromEntriesNode(entriesNode: unknown, pairs: EntryPartyPair[]): 
   if (Array.isArray(node.create)) node.create.forEach((row) => pushPair(row, pairs));
   else if (node.create) pushPair(node.create, pairs);
 
-  if (Array.isArray(node.createMany?.data)) node.createMany.data.forEach((row) => pushPair(row, pairs));
+  if (Array.isArray(node.createMany?.data))
+    node.createMany.data.forEach((row) => pushPair(row, pairs));
 }
 
 function collectFromDataNode(d: unknown, pairs: EntryPartyPair[]): void {
@@ -96,7 +104,9 @@ export function createTerceroRequiredGateExtension(base: PrismaClient) {
         async $allOperations({ model, operation, args, query }) {
           if (isRelevantOperation(model, operation)) {
             const pairs = extractEntryPartyPairs(args);
-            const missingAccountIds = [...new Set(pairs.filter((p) => !p.hasThirdParty).map((p) => p.accountId))];
+            const missingAccountIds = [
+              ...new Set(pairs.filter((p) => !p.hasThirdParty).map((p) => p.accountId)),
+            ];
             if (missingAccountIds.length > 0) {
               // Fail-open: un fallo transitorio de esta consulta (cold start Neon, blip de red)
               // nunca debe bloquear el 100% de los asientos de la app. Mismo criterio que
@@ -107,11 +117,16 @@ export function createTerceroRequiredGateExtension(base: PrismaClient) {
                   select: { code: true, name: true },
                 });
                 if (requiring.length > 0) {
-                  throw new MissingThirdPartyError(notEnoughThirdPartyMessage(requiring[0].code, requiring[0].name));
+                  throw new MissingThirdPartyError(
+                    notEnoughThirdPartyMessage(requiring[0].code, requiring[0].name)
+                  );
                 }
               } catch (err) {
                 if (err instanceof MissingThirdPartyError) throw err;
-                console.error("[tercero-required-gate] verificación falló — permitiendo (fail-open):", err);
+                console.error(
+                  "[tercero-required-gate] verificación falló — permitiendo (fail-open):",
+                  err
+                );
               }
             }
           }

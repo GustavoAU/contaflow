@@ -19,7 +19,11 @@ import { useTransition, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Loader2Icon, BuildingIcon } from "lucide-react";
 import { Decimal } from "decimal.js";
-import { createPaymentAction, listBankAccountsAction, type BankAccountOption } from "../actions/payment.actions";
+import {
+  createPaymentAction,
+  listBankAccountsAction,
+  type BankAccountOption,
+} from "../actions/payment.actions";
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import { formatAmount } from "@/lib/format";
@@ -134,9 +138,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const igtfZelle = method === "ZELLE" && amountVes ? calcIgtf(amountVes) : "0.00";
   const igtfEfectivo = efectivoCurrency === "USD" && amountVes ? calcIgtf(amountVes) : "0.00";
   const igtfCashea = casheaIgtf && amountVes ? calcIgtf(amountVes) : "0.00";
-  const commAmount = vesNum > 0
-    ? new Decimal(vesNum).mul(commPct).div(100).toDecimalPlaces(2).toString()
-    : "0.00";
+  const commAmount =
+    vesNum > 0 ? new Decimal(vesNum).mul(commPct).div(100).toDecimalPlaces(2).toString() : "0.00";
 
   const needsBcv = method === "ZELLE" || (method === "EFECTIVO" && efectivoCurrency === "USD");
 
@@ -206,7 +209,9 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     }
 
     startTransition(async () => {
-      const isUsdMethod = values.method === "ZELLE" || (values.method === "EFECTIVO" && values.efectivoCurrency === "USD");
+      const isUsdMethod =
+        values.method === "ZELLE" ||
+        (values.method === "EFECTIVO" && values.efectivoCurrency === "USD");
 
       const payload: Record<string, string | undefined> = {
         companyId,
@@ -265,10 +270,14 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     });
   }
 
-  const inputCls = "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
+  const inputCls =
+    "w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
 
   return (
-    <form onSubmit={(e) => void handleSubmit(submitPayment)(e)} className="space-y-4 rounded-lg border bg-white p-5 shadow-sm">
+    <form
+      onSubmit={(e) => void handleSubmit(submitPayment)(e)}
+      className="space-y-4 rounded-lg border bg-white p-5 shadow-sm"
+    >
       <h2 className="font-semibold text-zinc-800">Registrar Pago</h2>
 
       {/* Fecha + Método */}
@@ -279,12 +288,11 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700">Medio de pago</label>
-          <select
-            className={inputCls}
-            {...register("method", { onChange: clearMethodFields })}
-          >
+          <select className={inputCls} {...register("method", { onChange: clearMethodFields })}>
             {(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethodType[]).map((m) => (
-              <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m]}</option>
+              <option key={m} value={m}>
+                {PAYMENT_METHOD_LABELS[m]}
+              </option>
             ))}
           </select>
         </div>
@@ -298,20 +306,44 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Monto en USD <span className="text-red-500">*</span>
             </label>
-            <input type="number" min="0.01" step="0.01" placeholder="0.00" required
-              className={`${inputCls} font-mono`} {...register("amountUsd")} />
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              placeholder="0.00"
+              required
+              className={`${inputCls} font-mono`}
+              {...register("amountUsd")}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Equivalente en Bs.D (VES) <span className="text-xs font-normal text-zinc-400">— calculado con la tasa BCV</span>
-              {bcvLoading && <span className="ml-2 text-xs font-normal text-zinc-400">Cargando tasa BCV...</span>}
-              {!bcvLoading && bcvRate && <span className="ml-2 text-xs font-normal text-zinc-400">Tasa BCV: {fmtNum(bcvRate)} Bs.D/USD</span>}
-              {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — regístrela antes de guardar</span>}
+              Equivalente en Bs.D (VES){" "}
+              <span className="text-xs font-normal text-zinc-400">— calculado con la tasa BCV</span>
+              {bcvLoading && (
+                <span className="ml-2 text-xs font-normal text-zinc-400">Cargando tasa BCV...</span>
+              )}
+              {!bcvLoading && bcvRate && (
+                <span className="ml-2 text-xs font-normal text-zinc-400">
+                  Tasa BCV: {fmtNum(bcvRate)} Bs.D/USD
+                </span>
+              )}
+              {!bcvLoading && !bcvRate && (
+                <span className="ml-2 text-xs font-normal text-amber-600">
+                  Sin tasa BCV — regístrela antes de guardar
+                </span>
+              )}
             </label>
             {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
-            <input type="number" readOnly tabIndex={-1} placeholder="0.00"
+            <input
+              type="number"
+              readOnly
+              tabIndex={-1}
+              placeholder="0.00"
               title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
-              className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} {...register("amountVes")} />
+              className={`${inputCls} bg-zinc-100 font-mono text-zinc-600`}
+              {...register("amountVes")}
+            />
           </div>
           {vesNum > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -328,14 +360,26 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-orange-700">Moneda del efectivo</p>
             <div className="flex overflow-hidden rounded-md border border-orange-200 text-xs">
-              <button type="button"
-                onClick={() => { setValue("efectivoCurrency", "USD"); setValue("amountVes", ""); setValue("amountUsd", ""); }}
-                className={`px-3 py-1 transition-colors ${efectivoCurrency === "USD" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  setValue("efectivoCurrency", "USD");
+                  setValue("amountVes", "");
+                  setValue("amountUsd", "");
+                }}
+                className={`px-3 py-1 transition-colors ${efectivoCurrency === "USD" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}
+              >
                 USD
               </button>
-              <button type="button"
-                onClick={() => { setValue("efectivoCurrency", "VES"); setValue("amountVes", ""); setValue("amountUsd", ""); }}
-                className={`px-3 py-1 transition-colors ${efectivoCurrency === "VES" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  setValue("efectivoCurrency", "VES");
+                  setValue("amountVes", "");
+                  setValue("amountUsd", "");
+                }}
+                className={`px-3 py-1 transition-colors ${efectivoCurrency === "VES" ? "bg-orange-600 text-white" : "bg-white text-orange-700 hover:bg-orange-50"}`}
+              >
                 Bs.D
               </button>
             </div>
@@ -346,24 +390,51 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
                   Monto en USD <span className="text-red-500">*</span>
                 </label>
-                <input type="number" min="0.01" step="0.01" placeholder="0.00" required
-                  className={`${inputCls} font-mono`} {...register("amountUsd")} />
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  required
+                  className={`${inputCls} font-mono`}
+                  {...register("amountUsd")}
+                />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
-                  Equivalente en Bs.D <span className="text-xs font-normal text-zinc-400">— calculado con la tasa BCV</span>
-                  {bcvLoading && <span className="ml-2 text-xs font-normal text-zinc-400">Cargando...</span>}
-                  {!bcvLoading && bcvRate && <span className="ml-2 text-xs font-normal text-zinc-400">Tasa: {fmtNum(bcvRate)}</span>}
-                  {!bcvLoading && !bcvRate && <span className="ml-2 text-xs font-normal text-amber-600">Sin tasa BCV — regístrela antes de guardar</span>}
+                  Equivalente en Bs.D{" "}
+                  <span className="text-xs font-normal text-zinc-400">
+                    — calculado con la tasa BCV
+                  </span>
+                  {bcvLoading && (
+                    <span className="ml-2 text-xs font-normal text-zinc-400">Cargando...</span>
+                  )}
+                  {!bcvLoading && bcvRate && (
+                    <span className="ml-2 text-xs font-normal text-zinc-400">
+                      Tasa: {fmtNum(bcvRate)}
+                    </span>
+                  )}
+                  {!bcvLoading && !bcvRate && (
+                    <span className="ml-2 text-xs font-normal text-amber-600">
+                      Sin tasa BCV — regístrela antes de guardar
+                    </span>
+                  )}
                 </label>
                 {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
-                <input type="number" readOnly tabIndex={-1} placeholder="0.00"
+                <input
+                  type="number"
+                  readOnly
+                  tabIndex={-1}
+                  placeholder="0.00"
                   title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
-                  className={`${inputCls} font-mono bg-zinc-100 text-zinc-600`} {...register("amountVes")} />
+                  className={`${inputCls} bg-zinc-100 font-mono text-zinc-600`}
+                  {...register("amountVes")}
+                />
               </div>
               {vesNum > 0 && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  IGTF 3%: <span className="font-mono font-semibold">Bs.D {fmtNum(igtfEfectivo)}</span>
+                  IGTF 3%:{" "}
+                  <span className="font-mono font-semibold">Bs.D {fmtNum(igtfEfectivo)}</span>
                 </div>
               )}
             </>
@@ -378,8 +449,14 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             Monto <span className="font-mono text-xs text-zinc-500">Bs.D (VES)</span>{" "}
             <span className="text-red-500">*</span>
           </label>
-          <input type="number" min="0.01" step="0.01" placeholder="0.00"
-            className={`${inputCls} font-mono`} {...register("amountVes")} />
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            placeholder="0.00"
+            className={`${inputCls} font-mono`}
+            {...register("amountVes")}
+          />
         </div>
       )}
 
@@ -390,8 +467,14 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             Monto <span className="font-mono text-xs text-zinc-500">Bs.D</span>{" "}
             <span className="text-red-500">*</span>
           </label>
-          <input type="number" min="0.01" step="0.01" placeholder="0.00"
-            className={`${inputCls} font-mono`} {...register("amountVes")} />
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            placeholder="0.00"
+            className={`${inputCls} font-mono`}
+            {...register("amountVes")}
+          />
         </div>
       )}
 
@@ -403,22 +486,35 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Número de referencia <span className="text-red-500">*</span>
             </label>
-            <input type="text" placeholder="REF-00123456" required className={inputCls}
-              {...register("referenceNumber")} />
+            <input
+              type="text"
+              placeholder="REF-00123456"
+              required
+              className={inputCls}
+              {...register("referenceNumber")}
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Banco origen</label>
               <select className={inputCls} {...register("originBank")}>
                 <option value="">— Seleccionar —</option>
-                {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+                {VENEZUELA_BANKS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Banco destino</label>
               <select className={inputCls} {...register("destBank")}>
                 <option value="">— Seleccionar —</option>
-                {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+                {VENEZUELA_BANKS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -433,25 +529,39 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Número de referencia <span className="text-red-500">*</span>
             </label>
-            <input type="text" placeholder="REF-12345678" required className={inputCls}
-              {...register("referenceNumber")} />
+            <input
+              type="text"
+              placeholder="REF-12345678"
+              required
+              className={inputCls}
+              {...register("referenceNumber")}
+            />
           </div>
           {/* Teléfono del emisor (#1) */}
           <div>
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Teléfono del emisor <span className="text-red-500">*</span>
             </label>
-            <input type="tel" placeholder="0414-1234567" required
+            <input
+              type="tel"
+              placeholder="0414-1234567"
+              required
               pattern={PHONE_PATTERN.source}
               title="Formato: 04XX-XXXXXXX o +58-4XX-XXXXXXX"
-              className={inputCls} {...register("senderPhone")} />
+              className={inputCls}
+              {...register("senderPhone")}
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-zinc-700">Banco origen</label>
               <select className={inputCls} {...register("originBank")}>
                 <option value="">— Seleccionar —</option>
-                {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+                {VENEZUELA_BANKS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -460,15 +570,25 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               </label>
               <select required className={inputCls} {...register("destBank")}>
                 <option value="">— Seleccionar —</option>
-                {VENEZUELA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+                {VENEZUELA_BANKS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
           {/* Teléfono del receptor (#16) */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">Teléfono del receptor</label>
-            <input type="tel" placeholder="0424-7654321" className={inputCls}
-              {...register("destPhone")} />
+            <label className="mb-1 block text-sm font-medium text-zinc-700">
+              Teléfono del receptor
+            </label>
+            <input
+              type="tel"
+              placeholder="0424-7654321"
+              className={inputCls}
+              {...register("destPhone")}
+            />
           </div>
         </div>
       )}
@@ -482,9 +602,13 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               Comisión Cashea (%) <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-2">
-              <input type="number" min="0" step="0.01"
+              <input
+                type="number"
+                min="0"
+                step="0.01"
                 className="w-28 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                {...register("commissionPct")} />
+                {...register("commissionPct")}
+              />
               {vesNum > 0 && (
                 <span className="text-sm text-zinc-600">
                   = <span className="font-mono font-semibold">Bs.D {fmtNum(commAmount)}</span>
@@ -509,9 +633,13 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         <label className="mb-1 block text-sm font-medium text-zinc-700">
           Concepto / Descripción <span className="text-red-500">*</span>
         </label>
-        <input type="text" placeholder="Ej: Pago factura proveedor ABC, período mayo 2026"
+        <input
+          type="text"
+          placeholder="Ej: Pago factura proveedor ABC, período mayo 2026"
           required
-          className={inputCls} {...register("concept")} />
+          className={inputCls}
+          {...register("concept")}
+        />
       </div>
 
       {/* ─── Cuenta Bancaria para GL auto-posting (ADR-030) ─── */}
@@ -519,11 +647,14 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         <label className="mb-1 flex items-center gap-1.5 text-sm font-medium text-zinc-700">
           <BuildingIcon className="size-3.5 text-zinc-400" />
           Cuenta bancaria
-          <span className="ml-1 text-xs font-normal text-zinc-400">(opcional — asiento automático si hay cuentas GL configuradas)</span>
+          <span className="ml-1 text-xs font-normal text-zinc-400">
+            (opcional — asiento automático si hay cuentas GL configuradas)
+          </span>
         </label>
         {bankAccounts.length === 0 ? (
           <p className="text-xs text-zinc-400">
-            No hay cuentas bancarias configuradas. Configure una en Conciliación Bancaria para habilitar el asiento automático.
+            No hay cuentas bancarias configuradas. Configure una en Conciliación Bancaria para
+            habilitar el asiento automático.
           </p>
         ) : (
           <select className={inputCls} {...register("bankAccountId")}>
@@ -542,26 +673,30 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         <div className="space-y-1">
           <label className="block text-sm font-medium text-zinc-700">
             IVA retenido por el cliente
-            <span className="ml-1 text-xs font-normal text-zinc-400">(Prov. 0049 — solo CE) — opcional</span>
+            <span className="ml-1 text-xs font-normal text-zinc-400">
+              (Prov. 0049 — solo CE) — opcional
+            </span>
           </label>
           <input
             type="number"
             min="0"
             step="0.01"
             placeholder="0.00"
-            className="block w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="block w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
             {...register("ivaRetentionAmount")}
           />
           <p className="text-xs text-zinc-400">
-            Si el cliente es Contribuyente Especial y retuvo el IVA (75%/100%), ingrese el monto retenido en Bs.
-            El asiento será Dr. Banco + Dr. IVA Ret. x Cobrar = Cr. CxC.
+            Si el cliente es Contribuyente Especial y retuvo el IVA (75%/100%), ingrese el monto
+            retenido en Bs. El asiento será Dr. Banco + Dr. IVA Ret. x Cobrar = Cr. CxC.
           </p>
         </div>
       )}
 
       {/* Feedback */}
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
       )}
       {success && (
         <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
@@ -569,17 +704,24 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
         </div>
       )}
 
-      <button type="submit" disabled={isPending} aria-busy={isPending}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50">
+      <button
+        type="submit"
+        disabled={isPending}
+        aria-busy={isPending}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+      >
         {isPending && <Loader2Icon className="size-4 animate-spin" />}
         {isPending ? "Guardando..." : "Registrar pago"}
       </button>
 
-      {!METHODS_WITH_BANK.includes(method) && !METHODS_USD.includes(method) && method !== "EFECTIVO" && method !== "CASHEA" && (
-        <p className="text-center text-xs text-zinc-400">
-          Método sin campos adicionales requeridos
-        </p>
-      )}
+      {!METHODS_WITH_BANK.includes(method) &&
+        !METHODS_USD.includes(method) &&
+        method !== "EFECTIVO" &&
+        method !== "CASHEA" && (
+          <p className="text-center text-xs text-zinc-400">
+            Método sin campos adicionales requeridos
+          </p>
+        )}
     </form>
   );
 }

@@ -42,7 +42,7 @@ export type CompanyPageContext<S extends Prisma.CompanySelect> = {
  */
 export async function requireCompanyPage<S extends Prisma.CompanySelect>(
   companyId: string,
-  select: S,
+  select: S
 ): Promise<CompanyPageContext<S>> {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");

@@ -4,31 +4,35 @@ import { createCipheriv, randomBytes } from "crypto";
 import { MockDigitalInvoiceProvider } from "../providers/mock.provider";
 import { NullDigitalInvoiceProvider } from "../providers/null.provider";
 import { HKADigitalInvoiceProvider } from "../providers/hka/hka.provider";
-import { createDigitalInvoiceProvider, createMockProvider, createNullProvider } from "../DigitalInvoiceFactory";
+import {
+  createDigitalInvoiceProvider,
+  createMockProvider,
+  createNullProvider,
+} from "../DigitalInvoiceFactory";
 import { DigitalInvoiceProviderError, DigitalInvoiceTimeoutError } from "../provider.types";
 import type { DigitalInvoiceSubmission } from "../provider.types";
 
 const BASE_INVOICE: DigitalInvoiceSubmission = {
-  companyRif:     "J-12345678-9",
-  companyName:    "Empresa Demo C.A.",
+  companyRif: "J-12345678-9",
+  companyName: "Empresa Demo C.A.",
   companyAddress: "Av. Principal, Caracas",
-  customerRif:    "V-12345678",
-  customerName:   "Cliente Demo",
-  invoiceDate:    new Date("2026-05-27"),
-  docType:        "FACTURA",
+  customerRif: "V-12345678",
+  customerName: "Cliente Demo",
+  invoiceDate: new Date("2026-05-27"),
+  docType: "FACTURA",
   lines: [
     {
       description: "Servicio de consultoría",
-      quantity:    new Decimal("1"),
-      unitPrice:   new Decimal("100.00"),
-      taxRate:     16,
-      total:       new Decimal("100.00"),
+      quantity: new Decimal("1"),
+      unitPrice: new Decimal("100.00"),
+      taxRate: 16,
+      total: new Decimal("100.00"),
     },
   ],
-  subtotal:  new Decimal("100.00"),
+  subtotal: new Decimal("100.00"),
   ivaAmount: new Decimal("16.00"),
-  total:     new Decimal("116.00"),
-  currency:  "VES",
+  total: new Decimal("116.00"),
+  currency: "VES",
 };
 
 // Helper: AES-256-GCM encrypt — mirrors decryptApiKey in DigitalInvoiceFactory
@@ -73,7 +77,7 @@ describe("MockDigitalInvoiceProvider", () => {
   it("lanza DigitalInvoiceProviderError cuando simulateTimeout=true", async () => {
     const provider = new MockDigitalInvoiceProvider({ simulateTimeout: true });
     await expect(provider.submitInvoice(BASE_INVOICE)).rejects.toBeInstanceOf(
-      DigitalInvoiceProviderError,
+      DigitalInvoiceProviderError
     );
   });
 
@@ -124,7 +128,7 @@ describe("HKADigitalInvoiceProvider", () => {
     mockFetch = vi.fn();
     vi.stubGlobal("fetch", mockFetch);
     provider = new HKADigitalInvoiceProvider({
-      apiKey:  "test-api-key",
+      apiKey: "test-api-key",
       baseUrl: "https://api.test.com/v1",
     });
   });
@@ -136,14 +140,14 @@ describe("HKADigitalInvoiceProvider", () => {
   // submitInvoice — happy path
   it("submitInvoice retorna resultado correcto cuando HKA responde ok", async () => {
     mockFetch.mockResolvedValue({
-      ok:   true,
+      ok: true,
       json: async () => ({
         codigo_respuesta: "00",
-        numero_control:   "00-12345678",
-        qr_url:           "https://qr.test.com/xxx",
-        id_transaccion:   "TXN-001",
-        fecha_emision:    "2026-05-27T10:00:00Z",
-        contingencia:     false,
+        numero_control: "00-12345678",
+        qr_url: "https://qr.test.com/xxx",
+        id_transaccion: "TXN-001",
+        fecha_emision: "2026-05-27T10:00:00Z",
+        contingencia: false,
       }),
     });
 
@@ -157,23 +161,23 @@ describe("HKADigitalInvoiceProvider", () => {
 
   it("submitInvoice incluye exchangeRate y relatedControlNumber cuando se proveen", async () => {
     mockFetch.mockResolvedValue({
-      ok:   true,
+      ok: true,
       json: async () => ({
         codigo_respuesta: "00",
-        numero_control:   "00-00000002",
-        qr_url:           "https://qr.test.com/yyy",
-        id_transaccion:   "TXN-002",
-        fecha_emision:    "2026-05-27T10:00:00Z",
-        contingencia:     false,
+        numero_control: "00-00000002",
+        qr_url: "https://qr.test.com/yyy",
+        id_transaccion: "TXN-002",
+        fecha_emision: "2026-05-27T10:00:00Z",
+        contingencia: false,
       }),
     });
 
     const invoiceWithExtras: DigitalInvoiceSubmission = {
       ...BASE_INVOICE,
-      currency:              "USD",
-      exchangeRate:          new Decimal("36.50"),
-      relatedControlNumber:  "00-00000001",
-      docType:               "NOTA_CREDITO",
+      currency: "USD",
+      exchangeRate: new Decimal("36.50"),
+      relatedControlNumber: "00-00000001",
+      docType: "NOTA_CREDITO",
     };
 
     const result = await provider.submitInvoice(invoiceWithExtras);
@@ -188,14 +192,14 @@ describe("HKADigitalInvoiceProvider", () => {
 
   it("submitInvoice mapea NOTA_DEBITO a tipo_documento '02'", async () => {
     mockFetch.mockResolvedValue({
-      ok:   true,
+      ok: true,
       json: async () => ({
         codigo_respuesta: "00",
-        numero_control:   "00-00000003",
-        qr_url:           "https://qr.test.com",
-        id_transaccion:   "TXN-003",
-        fecha_emision:    "2026-05-27T10:00:00Z",
-        contingencia:     false,
+        numero_control: "00-00000003",
+        qr_url: "https://qr.test.com",
+        id_transaccion: "TXN-003",
+        fecha_emision: "2026-05-27T10:00:00Z",
+        contingencia: false,
       }),
     });
 
@@ -212,7 +216,7 @@ describe("HKADigitalInvoiceProvider", () => {
     mockFetch.mockRejectedValue(abortErr);
 
     await expect(provider.submitInvoice(BASE_INVOICE)).rejects.toBeInstanceOf(
-      DigitalInvoiceTimeoutError,
+      DigitalInvoiceTimeoutError
     );
   });
 
@@ -243,7 +247,7 @@ describe("HKADigitalInvoiceProvider", () => {
 
   it("submitInvoice lanza DigitalInvoiceProviderError cuando codigo_respuesta != '00'", async () => {
     mockFetch.mockResolvedValue({
-      ok:   true,
+      ok: true,
       json: async () => ({ codigo_respuesta: "01", mensaje: "RIF inválido" }),
     });
 
@@ -256,10 +260,10 @@ describe("HKADigitalInvoiceProvider", () => {
   // voidInvoice
   it("voidInvoice retorna success:true cuando HKA responde ok", async () => {
     mockFetch.mockResolvedValue({
-      ok:   true,
+      ok: true,
       json: async () => ({
         codigo_respuesta: "00",
-        fecha_anulacion:  "2026-05-27T12:00:00Z",
+        fecha_anulacion: "2026-05-27T12:00:00Z",
       }),
     });
 
@@ -336,16 +340,16 @@ describe("createDigitalInvoiceProvider (factory) — producción", () => {
 
   it("en producción con HKA sin apiKeyEnc lanza error", () => {
     vi.stubEnv("NODE_ENV", "production");
-    expect(() =>
-      createDigitalInvoiceProvider({ provider: "HKA", apiKeyEnc: null }),
-    ).toThrow("HKA configurado pero sin API key");
+    expect(() => createDigitalInvoiceProvider({ provider: "HKA", apiKeyEnc: null })).toThrow(
+      "HKA configurado pero sin API key"
+    );
   });
 
   it("en producción con HKA y CERT_ENCRYPTION_SECRET ausente lanza error al descifrar", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("CERT_ENCRYPTION_SECRET", "");
     expect(() =>
-      createDigitalInvoiceProvider({ provider: "HKA", apiKeyEnc: "aabb:ccdd:eeff" }),
+      createDigitalInvoiceProvider({ provider: "HKA", apiKeyEnc: "aabb:ccdd:eeff" })
     ).toThrow("CERT_ENCRYPTION_SECRET no configurado");
   });
 
@@ -353,7 +357,7 @@ describe("createDigitalInvoiceProvider (factory) — producción", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("CERT_ENCRYPTION_SECRET", "a".repeat(64));
     expect(() =>
-      createDigitalInvoiceProvider({ provider: "HKA", apiKeyEnc: "formato-invalido" }),
+      createDigitalInvoiceProvider({ provider: "HKA", apiKeyEnc: "formato-invalido" })
     ).toThrow("Formato de clave cifrada inválido");
   });
 

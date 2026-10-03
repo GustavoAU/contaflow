@@ -44,9 +44,7 @@ export async function createOrderAction(
       ctx.userId,
       {
         ...parsed.data,
-        expectedDate: parsed.data.expectedDate
-          ? new Date(parsed.data.expectedDate)
-          : undefined,
+        expectedDate: parsed.data.expectedDate ? new Date(parsed.data.expectedDate) : undefined,
       },
       ctx.ipAddress,
       ctx.userAgent

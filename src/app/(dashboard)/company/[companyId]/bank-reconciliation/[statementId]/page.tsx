@@ -43,10 +43,7 @@ export default async function StatementDetailPage({ params }: Props) {
       </div>
 
       {/* Workbench */}
-      <ReconciliationWorkbench
-        statement={statement as never}
-        companyId={companyId}
-      />
+      <ReconciliationWorkbench statement={statement as never} companyId={companyId} />
     </div>
   );
 }

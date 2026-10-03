@@ -81,7 +81,7 @@ export async function getDashboardMetricsAction(
     for (const account of trialBalance) {
       const balance = account.journalEntries.reduce(
         (acc, e) => acc.plus(new Decimal(e.amount.toString())),
-        new Decimal(0),
+        new Decimal(0)
       );
 
       if (account.type === "ASSET") totalAssets = totalAssets.plus(balance);

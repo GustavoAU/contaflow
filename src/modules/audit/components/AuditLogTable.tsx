@@ -5,7 +5,11 @@
 
 import { useState, useTransition, useCallback } from "react";
 import { Loader2Icon, FileDownIcon } from "lucide-react";
-import { listAuditLogsAction, exportAuditLogPDFAction, exportAuditLogCSVAction } from "../actions/audit.actions";
+import {
+  listAuditLogsAction,
+  exportAuditLogPDFAction,
+  exportAuditLogCSVAction,
+} from "../actions/audit.actions";
 import type { AuditLogRow, AuditLogPage } from "../services/AuditLogService";
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -54,7 +58,13 @@ const ENTITY_LABELS: Record<string, string> = {
 
 // Grupos de módulo para el filtro rápido — sincronizados con entityName exactos de los servicios
 const MODULE_ENTITIES: Record<string, string[]> = {
-  Contabilidad: ["Transaction", "Account", "AccountingPeriod", "FiscalYearClose", "InflationAdjustment"],
+  Contabilidad: [
+    "Transaction",
+    "Account",
+    "AccountingPeriod",
+    "FiscalYearClose",
+    "InflationAdjustment",
+  ],
   // P-V: incluye TODOS los entityName reales escritos por los servicios de nómina
   Nómina: [
     "Employee",
@@ -88,10 +98,7 @@ function DiffView({ oldValue, newValue }: { oldValue: unknown; newValue: unknown
 
   if (!expanded) {
     return (
-      <button
-        onClick={() => setExpanded(true)}
-        className="text-xs text-blue-600 hover:underline"
-      >
+      <button onClick={() => setExpanded(true)} className="text-xs text-blue-600 hover:underline">
         Ver cambios
       </button>
     );
@@ -101,15 +108,15 @@ function DiffView({ oldValue, newValue }: { oldValue: unknown; newValue: unknown
     <div className="mt-2 space-y-2">
       {oldValue != null && (
         <div>
-          <p className="text-xs font-semibold text-red-600 mb-0.5">Antes</p>
-          <pre className="overflow-x-auto rounded bg-red-50 border border-red-100 px-2 py-1.5 text-xs text-red-800 max-w-xs">
+          <p className="mb-0.5 text-xs font-semibold text-red-600">Antes</p>
+          <pre className="max-w-xs overflow-x-auto rounded border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-800">
             {JSON.stringify(oldValue, null, 2)}
           </pre>
         </div>
       )}
       <div>
-        <p className="text-xs font-semibold text-green-600 mb-0.5">Después</p>
-        <pre className="overflow-x-auto rounded bg-green-50 border border-green-100 px-2 py-1.5 text-xs text-green-800 max-w-xs">
+        <p className="mb-0.5 text-xs font-semibold text-green-600">Después</p>
+        <pre className="max-w-xs overflow-x-auto rounded border border-green-100 bg-green-50 px-2 py-1.5 text-xs text-green-800">
           {JSON.stringify(newValue, null, 2)}
         </pre>
       </div>
@@ -248,25 +255,33 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
       >
         {/* F-09: Filtro por módulo */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Módulo</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Módulo</label>
           <select
             value={module}
-            onChange={(e) => { setModule(e.target.value); setEntityName(""); }}
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setModule(e.target.value);
+              setEntityName("");
+            }}
+            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             <option value="">Todos</option>
             {Object.keys(MODULE_ENTITIES).map((m) => (
-              <option key={m} value={m}>{m}</option>
+              <option key={m} value={m}>
+                {m}
+              </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Entidad</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Entidad</label>
           <select
             value={entityName}
-            onChange={(e) => { setEntityName(e.target.value); setModule(""); }}
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setEntityName(e.target.value);
+              setModule("");
+            }}
+            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             disabled={!!module}
           >
             <option value="">Todas</option>
@@ -279,32 +294,32 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">ID de usuario</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">ID de usuario</label>
           <input
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
             placeholder="user_..."
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+            className="w-48 rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Desde</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Desde</label>
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Hasta</label>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Hasta</label>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
@@ -313,7 +328,8 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
           disabled={isPending}
           className="inline-flex items-center gap-2 rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Cargando..." : "Filtrar"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}
+          {isPending ? "Cargando..." : "Filtrar"}
         </button>
 
         <button
@@ -340,7 +356,11 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
             aria-busy={isExportingCSV}
             className="flex items-center gap-1.5 rounded border border-gray-400 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            {isExportingCSV ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <FileDownIcon className="h-3.5 w-3.5" />}
+            {isExportingCSV ? (
+              <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileDownIcon className="h-3.5 w-3.5" />
+            )}
             {isExportingCSV ? "Generando CSV..." : "CSV"}
           </button>
 
@@ -352,7 +372,11 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
             aria-busy={isExporting}
             className="flex items-center gap-1.5 rounded border border-emerald-600 px-4 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
           >
-            {isExporting ? <Loader2Icon className="h-3.5 w-3.5 animate-spin" /> : <FileDownIcon className="h-3.5 w-3.5" />}
+            {isExporting ? (
+              <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileDownIcon className="h-3.5 w-3.5" />
+            )}
             {isExporting ? "Generando PDF..." : "PDF"}
           </button>
         </div>
@@ -360,13 +384,15 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
 
       {/* OM-04: Mensaje post-exportación */}
       {exportMsg && (
-        <div className={`rounded border px-4 py-2 text-xs font-mono ${exportMsg.startsWith("Error") ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+        <div
+          className={`rounded border px-4 py-2 font-mono text-xs ${exportMsg.startsWith("Error") ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
+        >
           {exportMsg}
         </div>
       )}
 
       {error && (
-        <div className="rounded bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+        <div className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -374,15 +400,29 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
       {/* Tabla */}
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-600">
+          <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase">
             <tr>
-              <th scope="col" className="px-4 py-3 text-left">Fecha / Hora</th>
-              <th scope="col" className="px-4 py-3 text-left">Entidad</th>
-              <th scope="col" className="px-4 py-3 text-left">Acción</th>
-              <th scope="col" className="px-4 py-3 text-left">ID Entidad</th>
-              <th scope="col" className="px-4 py-3 text-left">Usuario</th>
-              <th scope="col" className="px-4 py-3 text-left">Origen (IP)</th>
-              <th scope="col" className="px-4 py-3 text-left">Cambios</th>
+              <th scope="col" className="px-4 py-3 text-left">
+                Fecha / Hora
+              </th>
+              <th scope="col" className="px-4 py-3 text-left">
+                Entidad
+              </th>
+              <th scope="col" className="px-4 py-3 text-left">
+                Acción
+              </th>
+              <th scope="col" className="px-4 py-3 text-left">
+                ID Entidad
+              </th>
+              <th scope="col" className="px-4 py-3 text-left">
+                Usuario
+              </th>
+              <th scope="col" className="px-4 py-3 text-left">
+                Origen (IP)
+              </th>
+              <th scope="col" className="px-4 py-3 text-left">
+                Cambios
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -394,8 +434,8 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
               </tr>
             ) : (
               data.rows.map((row: AuditLogRow) => (
-                <tr key={row.id} className="hover:bg-gray-50 align-top">
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                <tr key={row.id} className="align-top hover:bg-gray-50">
+                  <td className="px-4 py-3 text-xs whitespace-nowrap text-gray-500">
                     <div>{new Date(row.createdAt).toLocaleDateString("es-VE")}</div>
                     <div className="font-mono text-gray-400">
                       {new Date(row.createdAt).toLocaleTimeString("es-VE")}
@@ -407,18 +447,18 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-700">
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-700">
                       {row.action}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400 max-w-30 truncate">
+                  <td className="max-w-30 truncate px-4 py-3 font-mono text-xs text-gray-400">
                     {row.entityId}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-400 max-w-35 truncate">
+                  <td className="max-w-35 truncate px-4 py-3 font-mono text-xs text-gray-400">
                     {row.userId}
                   </td>
                   <td
-                    className="px-4 py-3 font-mono text-xs text-gray-400 max-w-35 truncate"
+                    className="max-w-35 truncate px-4 py-3 font-mono text-xs text-gray-400"
                     title={row.userAgent ?? undefined}
                   >
                     {row.ipAddress ?? "—"}
@@ -444,7 +484,7 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
           <button
             onClick={() => fetchPage(data.page - 1)}
             disabled={data.page <= 1 || isPending}
-            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Anterior
           </button>
@@ -454,7 +494,7 @@ export function AuditLogTable({ companyId, entityNames, initialData }: Props) {
           <button
             onClick={() => fetchPage(data.page + 1)}
             disabled={data.page >= totalPages || isPending}
-            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Siguiente
           </button>

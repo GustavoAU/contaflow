@@ -29,7 +29,10 @@ const NOW = new Date();
 const PERIOD_YEAR = NOW.getUTCFullYear();
 const PERIOD_MONTH = NOW.getUTCMonth() + 1;
 const OPEN_PERIOD_NOW = {
-  id: "period-1", year: PERIOD_YEAR, month: PERIOD_MONTH, status: "OPEN",
+  id: "period-1",
+  year: PERIOD_YEAR,
+  month: PERIOD_MONTH,
+  status: "OPEN",
   fiscalYear: { status: "OPEN" },
 };
 
@@ -99,9 +102,8 @@ function makeCreateTx(overrides: TxOverrides = {}) {
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return { tx, reimbCreate, movUpdateMany, auditCreate };
 }
 
@@ -157,9 +159,7 @@ describe("createReimbursement", () => {
 
   it("rechaza si la caja no existe", async () => {
     makeCreateTx({ cajaCaja: { findFirst: vi.fn().mockResolvedValue(null) } });
-    await expect(createReimbursement(createInput, USER_ID)).rejects.toThrow(
-      /no encontrada/i
-    );
+    await expect(createReimbursement(createInput, USER_ID)).rejects.toThrow(/no encontrada/i);
   });
 
   it("rechaza si la caja no está ACTIVE", async () => {
@@ -173,9 +173,7 @@ describe("createReimbursement", () => {
         }),
       },
     });
-    await expect(createReimbursement(createInput, USER_ID)).rejects.toThrow(
-      /no está activa/i
-    );
+    await expect(createReimbursement(createInput, USER_ID)).rejects.toThrow(/no está activa/i);
   });
 
   it("rechaza si ya existe un reembolso no-VOIDED para el mes", async () => {
@@ -214,11 +212,11 @@ describe("createReimbursement", () => {
 
     // el check de duplicado EXCLUYE explícitamente los VOIDED
     expect(
-      (tx.cajaCajaReimbursement as { findFirst: ReturnType<typeof vi.fn> }).findFirst,
+      (tx.cajaCajaReimbursement as { findFirst: ReturnType<typeof vi.fn> }).findFirst
     ).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ status: { not: "VOIDED" } }),
-      }),
+      })
     );
     // y crea el nuevo reembolso normalmente
     expect(reimbCreate).toHaveBeenCalledTimes(1);
@@ -276,9 +274,8 @@ function makePostTx(overrides: TxOverrides = {}) {
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return { tx, txCreate, movUpdateMany, reimbUpdate, auditCreate };
 }
 
@@ -364,9 +361,7 @@ describe("postReimbursement — asiento al Mayor (partida doble N4)", () => {
         update: vi.fn(),
       },
     });
-    await expect(postReimbursement(postInput, USER_ID)).rejects.toThrow(
-      /no encontrado/i
-    );
+    await expect(postReimbursement(postInput, USER_ID)).rejects.toThrow(/no encontrado/i);
   });
 
   it("rechaza si el reembolso no está en DRAFT", async () => {
@@ -443,9 +438,8 @@ function makeVoidTx(overrides: TxOverrides = {}) {
     auditLog: { create: auditCreate },
     ...overrides,
   };
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (t: unknown) => unknown) => fn(tx)) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: unknown) => unknown) =>
+    fn(tx)) as never);
   return { tx, movUpdateMany, reimbUpdate, auditCreate };
 }
 
@@ -500,9 +494,7 @@ describe("voidReimbursement", () => {
         update: vi.fn(),
       },
     });
-    await expect(voidReimbursement(voidInput, USER_ID)).rejects.toThrow(
-      /ya está anulado/i
-    );
+    await expect(voidReimbursement(voidInput, USER_ID)).rejects.toThrow(/ya está anulado/i);
   });
 
   it("rechaza si está POSTED (publicados no se anulan directamente)", async () => {

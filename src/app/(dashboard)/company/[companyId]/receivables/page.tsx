@@ -29,13 +29,13 @@ export default async function ReceivablesPage({ params }: Props) {
 
   const contactosTabs = [
     { label: "Proveedores", href: `/company/${companyId}/vendors` },
-    { label: "Clientes",    href: `/company/${companyId}/customers` },
-    { label: "CxP",         href: `/company/${companyId}/payables` },
-    { label: "CxC",         href: `/company/${companyId}/receivables` },
+    { label: "Clientes", href: `/company/${companyId}/customers` },
+    { label: "CxP", href: `/company/${companyId}/payables` },
+    { label: "CxC", href: `/company/${companyId}/receivables` },
   ];
 
   return (
-    <div className="mx-auto max-w-6xl py-8 px-4 space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Cuentas por Cobrar</h1>
         <p className="mt-1 text-sm text-gray-500">

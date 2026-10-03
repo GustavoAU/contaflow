@@ -54,9 +54,8 @@ const CREATED = {
 };
 
 function mockTx() {
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: typeof prisma) => unknown) => fn(prisma)) as never,
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: typeof prisma) => unknown) =>
+    fn(prisma)) as never);
 }
 
 beforeEach(() => {
@@ -88,21 +87,27 @@ describe("CreateOvertimeEntrySchema", () => {
   it("exige el N° de permiso si se declara autorizada (Art. 182)", () => {
     // Declararlo baja el pago un 33%: que la afirmacion tenga un dato detras.
     const r = CreateOvertimeEntrySchema.safeParse({
-      ...BASE_INPUT, authorized: true, authorizationRef: "",
+      ...BASE_INPUT,
+      authorized: true,
+      authorizationRef: "",
     });
     expect(r.success).toBe(false);
   });
 
   it("sin permiso no exige referencia", () => {
     const r = CreateOvertimeEntrySchema.safeParse({
-      ...BASE_INPUT, authorized: false, authorizationRef: null,
+      ...BASE_INPUT,
+      authorized: false,
+      authorizationRef: null,
     });
     expect(r.success).toBe(true);
   });
 
   it("rechaza horas que redondean a cero en la columna", () => {
     // DECIMAL(6,2) guardaba 0,004 como 0,00: una fila del registro con cero horas.
-    expect(CreateOvertimeEntrySchema.safeParse({ ...BASE_INPUT, hours: 0.004 }).success).toBe(false);
+    expect(CreateOvertimeEntrySchema.safeParse({ ...BASE_INPUT, hours: 0.004 }).success).toBe(
+      false
+    );
   });
 
   it("por defecto las horas van SIN autorizacion", () => {
@@ -130,31 +135,30 @@ describe("OvertimeService.create", () => {
           ipAddress: "1.2.3.4",
           userAgent: "UA",
         }),
-      }),
+      })
     );
   });
 
   it("IDOR: un empleado de otra empresa no existe", async () => {
     vi.mocked(prisma.employee.findFirst).mockResolvedValue(null as never);
-    await expect(
-      OvertimeService.create(COMPANY, USER, BASE_INPUT),
-    ).rejects.toThrow("Empleado no encontrado");
+    await expect(OvertimeService.create(COMPANY, USER, BASE_INPUT)).rejects.toThrow(
+      "Empleado no encontrado"
+    );
   });
 
   it("no admite horas de un empleado inactivo", async () => {
-    vi.mocked(prisma.employee.findFirst).mockResolvedValue({ id: EMP, status: "TERMINATED" } as never);
-    await expect(
-      OvertimeService.create(COMPANY, USER, BASE_INPUT),
-    ).rejects.toThrow("inactivo");
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      id: EMP,
+      status: "TERMINATED",
+    } as never);
+    await expect(OvertimeService.create(COMPANY, USER, BASE_INPUT)).rejects.toThrow("inactivo");
   });
 
   it("R-3: periodo contable cerrado bloquea el registro", async () => {
     // Se avisa aqui, que es cuando el usuario todavia puede corregir la fecha,
     // y no al intentar procesar la nomina.
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ status: "CLOSED" } as never);
-    await expect(
-      OvertimeService.create(COMPANY, USER, BASE_INPUT),
-    ).rejects.toThrow("cerrado");
+    await expect(OvertimeService.create(COMPANY, USER, BASE_INPUT)).rejects.toThrow("cerrado");
   });
 
   it("sin periodo contable creado todavia NO bloquea", async () => {
@@ -175,41 +179,45 @@ describe("OvertimeService.delete", () => {
     expect(vi.mocked(prisma.overtimeEntry.deleteMany)).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ companyId: COMPANY, payrollRunId: null }),
-      }),
+      })
     );
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "DELETE_OVERTIME_ENTRY" }),
-      }),
+      })
     );
   });
 
   it("NO borra uno ya pagado: el registro conserva la remuneracion (Art. 183)", async () => {
-    vi.mocked(prisma.overtimeEntry.findFirst).mockResolvedValue(
-      { ...CREATED, payrollRunId: "run-1", paidAmount: new Decimal("500") } as never,
+    vi.mocked(prisma.overtimeEntry.findFirst).mockResolvedValue({
+      ...CREATED,
+      payrollRunId: "run-1",
+      paidAmount: new Decimal("500"),
+    } as never);
+    await expect(OvertimeService.delete(COMPANY, USER, "ot-1")).rejects.toThrow(
+      "ya están incluidas en un proceso de nómina"
     );
-    await expect(
-      OvertimeService.delete(COMPANY, USER, "ot-1"),
-    ).rejects.toThrow("ya están incluidas en un proceso de nómina");
     expect(vi.mocked(prisma.overtimeEntry.deleteMany)).not.toHaveBeenCalled();
   });
 
   it("tampoco si el run sigue en BORRADOR", async () => {
     // `payrollRunId` se reserva al CREAR el proceso, no al aprobarlo: borrar aqui
     // dejaria pagada una hora sin el soporte que exige el Art. 183.
-    vi.mocked(prisma.overtimeEntry.findFirst).mockResolvedValue(
-      { ...CREATED, payrollRunId: "run-draft", paidAmount: null } as never,
+    vi.mocked(prisma.overtimeEntry.findFirst).mockResolvedValue({
+      ...CREATED,
+      payrollRunId: "run-draft",
+      paidAmount: null,
+    } as never);
+    await expect(OvertimeService.delete(COMPANY, USER, "ot-1")).rejects.toThrow(
+      "cancélalo primero"
     );
-    await expect(
-      OvertimeService.delete(COMPANY, USER, "ot-1"),
-    ).rejects.toThrow("cancélalo primero");
     expect(vi.mocked(prisma.overtimeEntry.deleteMany)).not.toHaveBeenCalled();
   });
 
   it("IDOR: un registro de otra empresa no existe", async () => {
     vi.mocked(prisma.overtimeEntry.findFirst).mockResolvedValue(null as never);
-    await expect(
-      OvertimeService.delete(COMPANY, USER, "ot-ajeno"),
-    ).rejects.toThrow("no encontrado");
+    await expect(OvertimeService.delete(COMPANY, USER, "ot-ajeno")).rejects.toThrow(
+      "no encontrado"
+    );
   });
 });

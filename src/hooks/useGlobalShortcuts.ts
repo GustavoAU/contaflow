@@ -65,7 +65,7 @@ export function useGlobalShortcuts(shortcuts: ShortcutConfig[]): void {
 
       for (const sc of shortcutsRef.current) {
         const keyMatch = key.toLowerCase() === sc.key.toLowerCase();
-        const ctrlMatch = sc.ctrl ? (ctrlKey || metaKey) : true;
+        const ctrlMatch = sc.ctrl ? ctrlKey || metaKey : true;
         const metaMatch = sc.meta ? metaKey : true;
         const altMatch = sc.alt ? altKey : true;
         const shiftMatch = sc.shift ? shiftKey : true;
@@ -101,7 +101,9 @@ export function useGlobalShortcuts(shortcuts: ShortcutConfig[]): void {
  * Genera el atributo aria-keyshortcuts a partir de un ShortcutConfig.
  * Ejemplo: { key: "n", ctrl: true } → "Control+n"
  */
-export function ariaKeyShortcut(sc: Pick<ShortcutConfig, "key" | "ctrl" | "meta" | "alt" | "shift">): string {
+export function ariaKeyShortcut(
+  sc: Pick<ShortcutConfig, "key" | "ctrl" | "meta" | "alt" | "shift">
+): string {
   const parts: string[] = [];
   if (sc.ctrl) parts.push("Control");
   if (sc.meta) parts.push("Meta");

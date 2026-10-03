@@ -10,7 +10,11 @@ import {
   SUPPORTED_COUNTRIES,
 } from "../tax-config";
 import { FiscalProviderFactory, VenezuelaFiscalProvider } from "../fiscal-provider";
-import { validateVenezuelanRif, MAX_INVOICE_AMOUNT, CONTROL_NUMBER_REGEX } from "../fiscal-validators";
+import {
+  validateVenezuelanRif,
+  MAX_INVOICE_AMOUNT,
+  CONTROL_NUMBER_REGEX,
+} from "../fiscal-validators";
 
 // ── getFiscalConfig ───────────────────────────────────────────────────────────
 

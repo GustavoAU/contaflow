@@ -3,7 +3,15 @@
 
 import { useState, useRef, useTransition, useEffect } from "react";
 import Image from "next/image";
-import { SendIcon, ImageIcon, BotIcon, UserIcon, ShieldCheckIcon, XIcon, SparklesIcon } from "lucide-react";
+import {
+  SendIcon,
+  ImageIcon,
+  BotIcon,
+  UserIcon,
+  ShieldCheckIcon,
+  XIcon,
+  SparklesIcon,
+} from "lucide-react";
 import { sendMessageAction } from "../actions/ai-assistant.actions";
 
 type Message = {
@@ -80,9 +88,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: result.success
-          ? result.reply
-          : `Error: ${result.error}`,
+        content: result.success ? result.reply : `Error: ${result.error}`,
         isAuditMode: result.success ? result.isAuditMode : false,
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -90,7 +96,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-zinc-200 px-6 py-4">
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100">
@@ -107,7 +113,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-6 py-12 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-50">
@@ -117,8 +123,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
               <p className="text-sm font-medium text-zinc-700">Pregunta sobre tu contabilidad</p>
               <p className="mt-1 text-xs text-zinc-400">
                 Tengo acceso a los datos de{" "}
-                <span className="font-medium text-zinc-600">{companyName}</span>{" "}
-                en tiempo real
+                <span className="font-medium text-zinc-600">{companyName}</span> en tiempo real
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-2">
@@ -151,7 +156,9 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
               </div>
             )}
 
-            <div className={`max-w-4/5 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
+            <div
+              className={`max-w-4/5 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}
+            >
               {msg.imagePreview && (
                 <Image
                   src={msg.imagePreview}
@@ -159,7 +166,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
                   width={320}
                   height={160}
                   unoptimized
-                  className="max-h-40 rounded-lg object-contain border border-zinc-200"
+                  className="max-h-40 rounded-lg border border-zinc-200 object-contain"
                 />
               )}
               <div
@@ -167,8 +174,8 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
                   msg.role === "user"
                     ? "bg-violet-600 text-white"
                     : msg.isAuditMode
-                    ? "bg-amber-50 border border-amber-200 text-zinc-800"
-                    : "bg-zinc-100 text-zinc-800"
+                      ? "border border-amber-200 bg-amber-50 text-zinc-800"
+                      : "bg-zinc-100 text-zinc-800"
                 }`}
               >
                 {msg.content}
@@ -184,16 +191,16 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
         ))}
 
         {isPending && (
-          <div className="flex gap-3 justify-start">
+          <div className="flex justify-start gap-3">
             <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-100">
               <BotIcon className="h-4 w-4 text-violet-600" />
             </div>
             <div className="rounded-2xl bg-zinc-100 px-4 py-3">
               <div className="flex items-center gap-2.5">
-                <div className="flex gap-1 items-center">
-                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0ms]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:150ms]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:300ms]" />
+                <div className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:0ms]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:300ms]" />
                 </div>
                 <span className="text-xs text-zinc-400">Analizando tus datos…</span>
               </div>
@@ -214,11 +221,11 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
               width={48}
               height={48}
               unoptimized
-              className="h-12 w-12 rounded-lg object-cover border border-zinc-200"
+              className="h-12 w-12 rounded-lg border border-zinc-200 object-cover"
             />
             <button
               onClick={clearImage}
-              className="rounded-full p-1 hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600"
+              className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
             >
               <XIcon className="h-4 w-4" />
             </button>
@@ -255,7 +262,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
             placeholder="Escribe tu pregunta contable..."
             rows={1}
             disabled={isPending}
-            className="flex-1 resize-none rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100 disabled:opacity-50"
+            className="flex-1 resize-none rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-100 focus:outline-none disabled:opacity-50"
             style={{ maxHeight: "120px", overflowY: "auto" }}
           />
 
@@ -268,7 +275,7 @@ export function AIAssistantChat({ companyId, companyName }: Props) {
           </button>
         </div>
 
-        <p className="mt-2 text-center text-10 text-zinc-400">
+        <p className="text-10 mt-2 text-center text-zinc-400">
           ContaFlow IA puede cometer errores. Verifica siempre con tu contador.
         </p>
       </div>

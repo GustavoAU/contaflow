@@ -41,15 +41,19 @@ export function VoidDistributionModal({ companyId, distribution, onClose, onSucc
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-sm rounded-xl border bg-white shadow-lg dark:bg-zinc-950">
         <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Anular distribución</h2>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            Anular distribución
+          </h2>
           <p className="mt-0.5 text-xs text-zinc-500">
             Borrador {distribution.referenceNumber ?? "sin número"}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 p-4">
           <div className="space-y-1.5">
-            <Label htmlFor="void-reason" className="text-xs">Motivo de anulación *</Label>
+            <Label htmlFor="void-reason" className="text-xs">
+              Motivo de anulación *
+            </Label>
             <Input
               id="void-reason"
               value={reason}
@@ -62,9 +66,7 @@ export function VoidDistributionModal({ companyId, distribution, onClose, onSucc
             />
           </div>
 
-          {error && (
-            <p className="text-xs text-red-600">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-600">{error}</p>}
 
           <div className="flex gap-2 pt-1">
             <Button
@@ -76,7 +78,13 @@ export function VoidDistributionModal({ companyId, distribution, onClose, onSucc
             >
               Confirmar anulación
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={onClose} disabled={isPending}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onClose}
+              disabled={isPending}
+            >
               Cancelar
             </Button>
           </div>

@@ -22,7 +22,7 @@ import { isPrismaError, p2002TargetIncludes } from "@/lib/prisma-errors";
 
 // ─── Crear registro de pago ───────────────────────────────────────────────────
 export async function createPaymentAction(
-  input: unknown,
+  input: unknown
 ): Promise<ActionResult<PaymentRecordSummary>> {
   try {
     const parsed = CreatePaymentSchema.safeParse(input);
@@ -61,7 +61,7 @@ export async function createPaymentAction(
       const rate = await ExchangeRateService.getRateForDate(
         d.companyId,
         d.currency as Currency,
-        dateObj,
+        dateObj
       );
       amountVes = new Decimal(d.amountOriginal)
         .mul(new Decimal(rate.rate))
@@ -102,12 +102,7 @@ export async function createPaymentAction(
           // de la factura DENTRO del mismo $transaction. FOR UPDATE serializa
           // contra pagos concurrentes; guards: anulada, año cerrado, sobre-pago.
           if (d.invoiceId) {
-            await PaymentService.applyPaymentToInvoice(
-              tx,
-              d.companyId,
-              d.invoiceId,
-              amountVes,
-            );
+            await PaymentService.applyPaymentToInvoice(tx, d.companyId, d.invoiceId, amountVes);
           }
 
           const record = await PaymentService.create(tx as typeof prisma, {
@@ -126,7 +121,9 @@ export async function createPaymentAction(
             commissionPct: d.commissionPct ? new Decimal(d.commissionPct) : undefined,
             commissionAmount: d.commissionAmount ? new Decimal(d.commissionAmount) : undefined,
             igtfAmount: computedIgtf,
-            ivaRetentionAmount: d.ivaRetentionAmount ? new Decimal(d.ivaRetentionAmount) : undefined,
+            ivaRetentionAmount: d.ivaRetentionAmount
+              ? new Decimal(d.ivaRetentionAmount)
+              : undefined,
             date: dateObj,
             notes: d.notes,
             createdBy: userId, // always use authenticated userId
@@ -149,7 +146,7 @@ export async function createPaymentAction(
               await (tx as typeof prisma).invoice.update({
                 where: { id: d.invoiceId },
                 data: {
-                  igtfBase:   new Decimal(inv.igtfBase.toString()).plus(amountVes),
+                  igtfBase: new Decimal(inv.igtfBase.toString()).plus(amountVes),
                   igtfAmount: new Decimal(inv.igtfAmount.toString()).plus(computedIgtf),
                 },
               });
@@ -163,9 +160,9 @@ export async function createPaymentAction(
               select: {
                 arAccountId: true,
                 igtfPayableAccountId: true,
-                fxGainAccountId: true,                  // NIC 21 diferencial cambiario
+                fxGainAccountId: true, // NIC 21 diferencial cambiario
                 fxLossAccountId: true,
-                ivaRetentionReceivableAccountId: true,  // Riesgo-6 audit
+                ivaRetentionReceivableAccountId: true, // Riesgo-6 audit
               },
             });
             if (settings?.arAccountId) {
@@ -179,7 +176,9 @@ export async function createPaymentAction(
                   invoiceId: d.invoiceId,
                   amountOriginal: d.amountOriginal ? new Decimal(d.amountOriginal) : undefined,
                   currency: d.currency,
-                  ivaRetentionAmount: d.ivaRetentionAmount ? new Decimal(d.ivaRetentionAmount) : undefined,
+                  ivaRetentionAmount: d.ivaRetentionAmount
+                    ? new Decimal(d.ivaRetentionAmount)
+                    : undefined,
                   context: {
                     companyId: d.companyId,
                     date: dateObj,
@@ -195,7 +194,7 @@ export async function createPaymentAction(
                   fxGainAccountId: settings.fxGainAccountId,
                   fxLossAccountId: settings.fxLossAccountId,
                   ivaRetentionReceivableAccountId: settings.ivaRetentionReceivableAccountId,
-                },
+                }
               );
             }
           }
@@ -225,7 +224,7 @@ export async function createPaymentAction(
 
           return record;
         }),
-      { timeout: 30000 },
+      { timeout: 30000 }
     );
 
     revalidatePath(`/company/${d.companyId}/payments`);
@@ -238,7 +237,10 @@ export async function createPaymentAction(
     // H6: race — dos submits simultáneos con la misma key; el @unique de BD ganó.
     // Acotado al target idempotencyKey para no enmascarar otros uniques de la tx.
     if (p2002TargetIncludes(err, "idempotencyKey")) {
-      return { success: false, error: "Pago duplicado — ya existe un pago con esta clave de idempotencia" };
+      return {
+        success: false,
+        error: "Pago duplicado — ya existe un pago con esta clave de idempotencia",
+      };
     }
     // Sanitización centralizada: errores de negocio (español) pasan; errores técnicos
     // de BD/Postgres (p.ej. "permission denied for schema public") → mensaje genérico en español.
@@ -250,10 +252,11 @@ export async function createPaymentAction(
 export async function voidPaymentRecordAction(
   companyId: string,
   paymentId: string,
-  voidReason: string,
+  voidReason: string
 ): Promise<ActionResult<PaymentRecordSummary>> {
   try {
-    if (!voidReason?.trim()) return { success: false, error: "El motivo de anulación es obligatorio" };
+    if (!voidReason?.trim())
+      return { success: false, error: "El motivo de anulación es obligatorio" };
 
     const ctx = await requireCompanyAction(companyId, {
       roles: ROLES.WRITERS,
@@ -265,7 +268,13 @@ export async function voidPaymentRecordAction(
     // Verificar que el pago pertenece a esta empresa y no está ya anulado
     const existing = await prisma.paymentRecord.findFirst({
       where: { id: paymentId, companyId },
-      select: { id: true, deletedAt: true, invoiceId: true, appliedToInvoice: true, amountVes: true },
+      select: {
+        id: true,
+        deletedAt: true,
+        invoiceId: true,
+        appliedToInvoice: true,
+        amountVes: true,
+      },
     });
     if (!existing) return { success: false, error: "Pago no encontrado" };
     if (existing.deletedAt) return { success: false, error: "El pago ya está anulado" };
@@ -281,7 +290,12 @@ export async function voidPaymentRecordAction(
         userAgent,
       });
 
-      const voided = await PaymentService.void(tx as typeof prisma, paymentId, companyId, voidReason.trim());
+      const voided = await PaymentService.void(
+        tx as typeof prisma,
+        paymentId,
+        companyId,
+        voidReason.trim()
+      );
 
       // ADR-032 F1 (D-4): void en espejo — restaura el saldo SOLO si este pago
       // lo decrementó al crearse (appliedToInvoice). Los pagos legacy nunca
@@ -292,7 +306,7 @@ export async function voidPaymentRecordAction(
           companyId,
           existing.invoiceId,
           paymentId,
-          new Decimal(existing.amountVes.toString()),
+          new Decimal(existing.amountVes.toString())
         );
       }
 
@@ -321,7 +335,7 @@ export async function voidPaymentRecordAction(
 // ─── Obtener adjuntos de un pago ──────────────────────────────────────────────
 export async function getPaymentAttachmentsAction(
   companyId: string,
-  paymentRecordId: string,
+  paymentRecordId: string
 ): Promise<ActionResult<AttachmentSummary[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
@@ -329,7 +343,7 @@ export async function getPaymentAttachmentsAction(
 
     const data = await PaymentAttachmentService.getAttachmentsByPaymentRecord(
       paymentRecordId,
-      companyId,
+      companyId
     );
     return { success: true, data };
   } catch (error) {
@@ -341,7 +355,7 @@ export async function getPaymentAttachmentsAction(
 // Roles: OWNER, ADMIN, ACCOUNTANT (ADMINISTRATIVE y VIEWER bloqueados — ADR-029 D-5)
 export async function deleteAttachmentAction(
   companyId: string,
-  attachmentId: string,
+  attachmentId: string
 ): Promise<ActionResult<void>> {
   try {
     // Solo OWNER/ADMIN/ACCOUNTANT pueden eliminar comprobantes (ADR-029 D-5)
@@ -358,7 +372,7 @@ export async function deleteAttachmentAction(
       companyId,
       userId,
       ipAddress,
-      userAgent,
+      userAgent
     );
 
     revalidatePath(`/company/${companyId}/payments`);
@@ -377,7 +391,7 @@ export type BankAccountOption = {
 };
 
 export async function listBankAccountsAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<BankAccountOption[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL });
@@ -424,7 +438,7 @@ export type ReceiptAnalysisResult = {
  */
 export async function analyzeReceiptAction(
   companyId: string,
-  attachmentId: string,
+  attachmentId: string
 ): Promise<ActionResult<ReceiptAnalysisResult>> {
   try {
     // VIEWER no puede analizar comprobantes (ADR-030 D-4.2)
@@ -443,7 +457,10 @@ export async function analyzeReceiptAction(
 
     // Verificar que GEMINI_API_KEY está configurado
     if (!process.env.GEMINI_API_KEY) {
-      return { success: false, error: "El análisis con IA no está disponible en esta configuración." };
+      return {
+        success: false,
+        error: "El análisis con IA no está disponible en esta configuración.",
+      };
     }
 
     // Descargar el blob y convertir a base64 (Gemini inline_data)
@@ -511,7 +528,7 @@ Si algún campo no es visible o legible, devuelve null para ese campo.`,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(geminiBody),
           signal: abortController2.signal,
-        },
+        }
       );
     } catch {
       return { success: false, error: "El análisis con IA no está disponible ahora mismo." };
@@ -536,27 +553,25 @@ Si algún campo no es visible o legible, devuelve null para ese campo.`,
       // Validar y sanitizar respuesta — nunca confiar ciegamente en Gemini
       parsed = {
         method: ["EFECTIVO", "TRANSFERENCIA", "PAGOMOVIL", "ZELLE", "CASHEA"].includes(
-          raw.method ?? "",
+          raw.method ?? ""
         )
           ? (raw.method as ReceiptAnalysisResult["method"])
           : null,
-        amount: typeof raw.amount === "string" && /^\d+(\.\d+)?$/.test(raw.amount)
-          ? raw.amount
-          : null,
+        amount:
+          typeof raw.amount === "string" && /^\d+(\.\d+)?$/.test(raw.amount) ? raw.amount : null,
         currency: ["VES", "USD", "EUR"].includes(raw.currency ?? "")
           ? (raw.currency as ReceiptAnalysisResult["currency"])
           : null,
-        referenceNumber: typeof raw.referenceNumber === "string"
-          ? raw.referenceNumber.slice(0, 100)
-          : null,
+        referenceNumber:
+          typeof raw.referenceNumber === "string" ? raw.referenceNumber.slice(0, 100) : null,
         originBank: typeof raw.originBank === "string" ? raw.originBank.slice(0, 100) : null,
         destBank: typeof raw.destBank === "string" ? raw.destBank.slice(0, 100) : null,
-        senderPhone: typeof raw.senderPhone === "string"
-          ? raw.senderPhone.replace(/\D/g, "").slice(0, 20)
-          : null,
-        destPhone: typeof raw.destPhone === "string"
-          ? raw.destPhone.replace(/\D/g, "").slice(0, 20)
-          : null,
+        senderPhone:
+          typeof raw.senderPhone === "string"
+            ? raw.senderPhone.replace(/\D/g, "").slice(0, 20)
+            : null,
+        destPhone:
+          typeof raw.destPhone === "string" ? raw.destPhone.replace(/\D/g, "").slice(0, 20) : null,
         date:
           typeof raw.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : null,
         confidence:
@@ -576,7 +591,7 @@ Si algún campo no es visible o legible, devuelve null para ese campo.`,
 
 // ─── Listar pagos ─────────────────────────────────────────────────────────────
 export async function listPaymentsAction(
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<PaymentRecordSummary[]>> {
   try {
     const ctx = await requireCompanyAction(companyId, { roles: ROLES.ALL, limiter: limiters.read });

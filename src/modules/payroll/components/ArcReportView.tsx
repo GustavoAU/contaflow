@@ -9,8 +9,14 @@ import { getArcReportAction, exportArcPdfAction } from "../actions/payroll-repor
 import type { ArcReportData } from "../services/PayrollReportService";
 
 function fmt(val: unknown): string {
-  try { return parseFloat(String(val)).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  catch { return "0,00"; }
+  try {
+    return parseFloat(String(val)).toLocaleString("es-VE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  } catch {
+    return "0,00";
+  }
 }
 
 type Employee = { id: string; firstName: string; lastName: string };
@@ -39,7 +45,9 @@ export function ArcReportView({ companyId, employees }: Props) {
     startPdfTransition(async () => {
       const res = await exportArcPdfAction(companyId, employeeId, year);
       if (res.success) {
-        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/pdf" });
+        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], {
+          type: "application/pdf",
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -58,11 +66,14 @@ export function ArcReportView({ companyId, employees }: Props) {
       {/* Controles */}
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <label className="block text-xs font-medium text-zinc-500 mb-1">Empleado</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Empleado</label>
           <select
             value={employeeId}
-            onChange={(e) => { setEmployeeId(e.target.value); setData(null); }}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-55"
+            onChange={(e) => {
+              setEmployeeId(e.target.value);
+              setData(null);
+            }}
+            className="min-w-55 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           >
             {employees.length === 0 && <option value="">Sin empleados activos</option>}
             {employees.map((emp) => (
@@ -73,13 +84,20 @@ export function ArcReportView({ companyId, employees }: Props) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-zinc-500 mb-1">Año fiscal</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-500">Año fiscal</label>
           <select
             value={year}
-            onChange={(e) => { setYear(Number(e.target.value)); setData(null); }}
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            onChange={(e) => {
+              setYear(Number(e.target.value));
+              setData(null);
+            }}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
           >
-            {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+            {YEARS.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
           </select>
         </div>
         <button
@@ -87,7 +105,11 @@ export function ArcReportView({ companyId, employees }: Props) {
           disabled={isPending || !employeeId}
           className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {isPending ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Generar ARC
         </button>
         {data && (
@@ -109,24 +131,31 @@ export function ArcReportView({ companyId, employees }: Props) {
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                <strong>Valor de la UT no configurado.</strong> El desgravamen (774 UT) y el ISLR no pueden calcularse.
-                Configure el valor en <strong>Configuración de Nómina</strong>.
+                <strong>Valor de la UT no configurado.</strong> El desgravamen (774 UT) y el ISLR no
+                pueden calcularse. Configure el valor en <strong>Configuración de Nómina</strong>.
               </span>
             </div>
           )}
 
           {/* Header empleado */}
           <div className="rounded-lg border bg-white p-4">
-            <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Empleado</p>
-            <p className="text-lg font-semibold">{data.employee.lastName}, {data.employee.firstName}</p>
+            <p className="mb-2 text-xs font-medium tracking-wider text-zinc-400 uppercase">
+              Empleado
+            </p>
+            <p className="text-lg font-semibold">
+              {data.employee.lastName}, {data.employee.firstName}
+            </p>
             <p className="text-sm text-zinc-500">
-              {data.employee.cedulaType}-{data.employee.cedulaNumber} · Empresa: {data.companyName} · Año: {data.year}
+              {data.employee.cedulaType}-{data.employee.cedulaNumber} · Empresa: {data.companyName}{" "}
+              · Año: {data.year}
             </p>
           </div>
 
           {/* Ingresos */}
           <div className="rounded-lg border bg-white">
-            <div className="border-b px-4 py-3 font-semibold text-zinc-800">Ingresos del Período</div>
+            <div className="border-b px-4 py-3 font-semibold text-zinc-800">
+              Ingresos del Período
+            </div>
             <div className="divide-y divide-zinc-100 text-sm">
               <div className="flex justify-between px-4 py-2.5">
                 <span className="text-zinc-600">Sueldos y Salarios (incl. Horas Extra)</span>
@@ -140,7 +169,7 @@ export function ArcReportView({ companyId, employees }: Props) {
                 <span className="text-zinc-600">Bono Vacacional (Art. 223 LOTTT)</span>
                 <span className="tabular-nums">Bs. {fmt(data.vacationBonus)}</span>
               </div>
-              <div className="flex justify-between px-4 py-2.5 bg-zinc-50 font-semibold">
+              <div className="flex justify-between bg-zinc-50 px-4 py-2.5 font-semibold">
                 <span>Total Ingresos Brutos</span>
                 <span className="tabular-nums">Bs. {fmt(data.totalGrossIncome)}</span>
               </div>
@@ -149,7 +178,9 @@ export function ArcReportView({ companyId, employees }: Props) {
 
           {/* Cálculo ISLR */}
           <div className="rounded-lg border bg-white">
-            <div className="border-b px-4 py-3 font-semibold text-zinc-800">Cálculo ISLR — Decreto 1.808 (Tarifa 1)</div>
+            <div className="border-b px-4 py-3 font-semibold text-zinc-800">
+              Cálculo ISLR — Decreto 1.808 (Tarifa 1)
+            </div>
             <div className="divide-y divide-zinc-100 text-sm">
               <div className="flex justify-between px-4 py-2.5">
                 <span className="text-zinc-600">Total Ingresos Brutos</span>
@@ -171,11 +202,11 @@ export function ArcReportView({ companyId, employees }: Props) {
                   <span className="tabular-nums">{fmt(data.taxableIncomeUT)} UT</span>
                 </div>
               )}
-              <div className="flex justify-between px-4 py-2.5 bg-zinc-50 font-semibold">
+              <div className="flex justify-between bg-zinc-50 px-4 py-2.5 font-semibold">
                 <span>ISLR Calculado (Tarifa 1)</span>
                 <span className="tabular-nums">Bs. {fmt(data.islrAmount)}</span>
               </div>
-              <div className="flex justify-between px-4 py-2.5 bg-blue-50 font-bold text-blue-800">
+              <div className="flex justify-between bg-blue-50 px-4 py-2.5 font-bold text-blue-800">
                 <span>ISLR Retenido por la Empresa</span>
                 <span className="tabular-nums">Bs. {fmt(data.withheldAmount)}</span>
               </div>
@@ -183,7 +214,8 @@ export function ArcReportView({ companyId, employees }: Props) {
           </div>
 
           <p className="text-xs text-zinc-400">
-            Este ARC es de carácter informativo para el empleado. Basado en ingresos reales del año {data.year} registrados en ContaFlow.
+            Este ARC es de carácter informativo para el empleado. Basado en ingresos reales del año{" "}
+            {data.year} registrados en ContaFlow.
           </p>
         </div>
       )}

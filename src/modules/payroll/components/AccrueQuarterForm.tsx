@@ -18,13 +18,18 @@ export default function AccrueQuarterForm({ companyId, isCurrentQuarterAccrued }
   const [quarter, setQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3));
   const currentYear = new Date().getFullYear();
   const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
-  const [result, setResult] = useState<{ employeesProcessed: number; totalAccrued: string } | null>(null);
+  const [result, setResult] = useState<{ employeesProcessed: number; totalAccrued: string } | null>(
+    null
+  );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!window.confirm(
-      `¿Ejecutar acumulación trimestral Q${quarter}-${year}? Esta acción registrará prestaciones sociales para todos los empleados activos.`
-    )) return;
+    if (
+      !window.confirm(
+        `¿Ejecutar acumulación trimestral Q${quarter}-${year}? Esta acción registrará prestaciones sociales para todos los empleados activos.`
+      )
+    )
+      return;
 
     setResult(null);
     startTransition(async () => {
@@ -43,11 +48,13 @@ export default function AccrueQuarterForm({ companyId, isCurrentQuarterAccrued }
   return (
     <div className="space-y-4">
       {isCurrentQuarterAccrued !== undefined && (
-        <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${
-          isCurrentQuarterAccrued
-            ? "border-green-200 bg-green-50 text-green-700"
-            : "border-amber-200 bg-amber-50 text-amber-700"
-        }`}>
+        <div
+          className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${
+            isCurrentQuarterAccrued
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-amber-200 bg-amber-50 text-amber-700"
+          }`}
+        >
           <span>{isCurrentQuarterAccrued ? "✓" : "!"}</span>
           <span>
             Q{currentQuarter}-{currentYear}:{" "}
@@ -57,23 +64,23 @@ export default function AccrueQuarterForm({ companyId, isCurrentQuarterAccrued }
       )}
       <form onSubmit={handleSubmit} className="flex items-end gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Año</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">Año</label>
           <input
             type="number"
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
             min={2000}
             max={2099}
-            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             required
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Trimestre</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">Trimestre</label>
           <select
             value={quarter}
             onChange={(e) => setQuarter(Number(e.target.value))}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             <option value={1}>Q1 (Ene–Mar)</option>
             <option value={2}>Q2 (Abr–Jun)</option>
@@ -87,17 +94,19 @@ export default function AccrueQuarterForm({ companyId, isCurrentQuarterAccrued }
           aria-busy={isPending}
           className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {isPending && <Loader2Icon className="size-4 animate-spin" />}{isPending ? "Procesando…" : "Ejecutar acumulación"}
+          {isPending && <Loader2Icon className="size-4 animate-spin" />}
+          {isPending ? "Procesando…" : "Ejecutar acumulación"}
         </button>
       </form>
 
       {result && (
-        <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-sm">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm">
           <p className="font-medium text-green-800">Acumulación completada</p>
-          <p className="text-green-700 mt-1">
-            Empleados procesados: <span className="font-mono font-semibold">{result.employeesProcessed}</span>
-            &nbsp;·&nbsp;
-            Total acumulado: <span className="font-mono font-semibold">
+          <p className="mt-1 text-green-700">
+            Empleados procesados:{" "}
+            <span className="font-mono font-semibold">{result.employeesProcessed}</span>
+            &nbsp;·&nbsp; Total acumulado:{" "}
+            <span className="font-mono font-semibold">
               {Number(result.totalAccrued).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
             </span>
           </p>

@@ -72,7 +72,15 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
   const canWrite = canAccess(member.role, ROLES.ADMIN_ONLY);
 
   // U-02: fetch de datos para cada tab
-  const [history, vacationRecords, loans, benefitBalance, advances, vacationBalance, vacationRequests] = await Promise.all([
+  const [
+    history,
+    vacationRecords,
+    loans,
+    benefitBalance,
+    advances,
+    vacationBalance,
+    vacationRequests,
+  ] = await Promise.all([
     EmployeeService.getSalaryHistory(companyId, employeeId),
     VacationService.listByEmployee(companyId, employeeId),
     EmployeeLoanService.list(companyId, { employeeId }),
@@ -88,9 +96,18 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
   // Se excluyen los conceptos del sistema que calcula la propia nómina (IVSS,
   // FAOV, horas extra…): asignarlos a mano duplicaría lo que ya se computa.
   const CALCULADOS = new Set([
-    "SAL_BASE", "IVSS_OBR", "IVSS_PAT", "INCES_OBR", "INCES_PAT",
-    "FAOV_OBR", "FAOV_PAT", "RPE_OBR", "RPE_PAT",
-    "HE_DIURNA", "HE_NOCTURNA", "PRESTAMO_EMP",
+    "SAL_BASE",
+    "IVSS_OBR",
+    "IVSS_PAT",
+    "INCES_OBR",
+    "INCES_PAT",
+    "FAOV_OBR",
+    "FAOV_PAT",
+    "RPE_OBR",
+    "RPE_PAT",
+    "HE_DIURNA",
+    "HE_NOCTURNA",
+    "PRESTAMO_EMP",
   ]);
   const [recurringRows, conceptCatalog] = await Promise.all([
     EmployeeRecurringConceptService.list(companyId, { employeeId }),
@@ -119,7 +136,9 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
   // Calcular años de servicio para vacaciones
   const today = new Date();
   const hireDate = new Date(emp.hireDate);
-  const yearsOfService = Math.floor((today.getTime() - hireDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  const yearsOfService = Math.floor(
+    (today.getTime() - hireDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+  );
   const vacationEntitlement = Math.max(15, 14 + yearsOfService);
   const currentYear = today.getFullYear();
   const vacationUsedThisYear = vacationRecords
@@ -129,8 +148,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
   // Employees list for LoanTable (only this employee)
   const employeeOptions = [{ id: emp.id, name: emp.fullName }];
 
-  const tabHref = (id: string) =>
-    `/company/${companyId}/payroll/employees/${employeeId}?tab=${id}`;
+  const tabHref = (id: string) => `/company/${companyId}/payroll/employees/${employeeId}?tab=${id}`;
 
   return (
     <div className="space-y-6 p-6">
@@ -183,7 +201,9 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-5 text-sm">
         <div>
           <dt className="text-xs font-medium text-gray-500">Tipo de contrato</dt>
-          <dd className="mt-0.5 font-medium">{CONTRACT_LABELS[emp.contractType] ?? emp.contractType}</dd>
+          <dd className="mt-0.5 font-medium">
+            {CONTRACT_LABELS[emp.contractType] ?? emp.contractType}
+          </dd>
         </div>
         <div>
           <dt className="text-xs font-medium text-gray-500">Régimen LOTTT</dt>
@@ -236,9 +256,13 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
         <div>
           <dt className="text-xs font-medium text-gray-500">Tipo de trabajador</dt>
           <dd className="mt-0.5 font-medium">
-            <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${
-              emp.payrollWorkerType === "OBRERO" ? "bg-orange-100 text-orange-800" : "bg-sky-100 text-sky-800"
-            }`}>
+            <span
+              className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${
+                emp.payrollWorkerType === "OBRERO"
+                  ? "bg-orange-100 text-orange-800"
+                  : "bg-sky-100 text-sky-800"
+              }`}
+            >
               {emp.payrollWorkerType === "OBRERO" ? "Obrero" : "Empleado"}
             </span>
           </dd>
@@ -253,7 +277,9 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
         {emp.maritalStatus && (
           <div>
             <dt className="text-xs font-medium text-gray-500">Estado civil</dt>
-            <dd className="mt-0.5 font-medium capitalize">{emp.maritalStatus.toLowerCase().replace("_", " ")}</dd>
+            <dd className="mt-0.5 font-medium capitalize">
+              {emp.maritalStatus.toLowerCase().replace("_", " ")}
+            </dd>
           </div>
         )}
         <div>
@@ -269,10 +295,10 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
             <Link
               key={t.id}
               href={tabHref(t.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                 activeTab === t.id
                   ? "border-primary text-primary"
-                  : "border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300"
+                  : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
               }`}
             >
               {t.label}
@@ -296,8 +322,10 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
               <VacationBalanceWidget balance={vacationBalance} />
 
               {/* Feature 8: nueva solicitud */}
-              <div className="rounded-xl border bg-white p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-zinc-700">Nueva solicitud de vacaciones</h3>
+              <div className="space-y-3 rounded-xl border bg-white p-4">
+                <h3 className="text-sm font-semibold text-zinc-700">
+                  Nueva solicitud de vacaciones
+                </h3>
                 <VacationRequestForm
                   companyId={companyId}
                   employeeId={emp.id}
@@ -339,20 +367,21 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
                 isAdmin={canWrite}
                 scope="employee"
                 exchangeRate={loanExchangeRate}
-                headerSlot={canWrite ? (
-                  <EmployeeHistoricalImportDialog
-                    companyId={companyId}
-                    employeeId={emp.id}
-                    employeeName={emp.fullName}
-                    currentVacationDays={vacationBalance.initialBalance}
-                  />
-                ) : null}
+                headerSlot={
+                  canWrite ? (
+                    <EmployeeHistoricalImportDialog
+                      companyId={companyId}
+                      employeeId={emp.id}
+                      employeeName={emp.fullName}
+                      currentVacationDays={vacationBalance.initialBalance}
+                    />
+                  ) : null
+                }
               />
               {canWrite && (
                 <p className="text-xs text-zinc-500">
-                  El enlace de autoservicio permite al empleado consultar recibos,
-                  vacaciones y préstamos sin cuenta. Se genera desde el botón
-                  «Portal del empleado», arriba.
+                  El enlace de autoservicio permite al empleado consultar recibos, vacaciones y
+                  préstamos sin cuenta. Se genera desde el botón «Portal del empleado», arriba.
                 </p>
               )}
             </div>
@@ -375,13 +404,15 @@ export default async function EmployeeDetailPage({ params, searchParams }: Props
               initialAdvances={advances}
               canAdmin={canWrite}
               hireDate={emp.hireDate}
-              oldestSalaryDate={history.length > 0 ? history[history.length - 1].effectiveFrom : undefined}
+              oldestSalaryDate={
+                history.length > 0 ? history[history.length - 1].effectiveFrom : undefined
+              }
             />
           )}
           {activeTab === "prestaciones" && !benefitBalance && (
             <div className="rounded-lg border border-dashed p-10 text-center text-sm text-gray-500">
-              No hay saldo de prestaciones acumulado para este empleado.
-              Ejecuta la acumulación trimestral desde la sección de Prestaciones.
+              No hay saldo de prestaciones acumulado para este empleado. Ejecuta la acumulación
+              trimestral desde la sección de Prestaciones.
             </div>
           )}
         </div>

@@ -7,10 +7,9 @@ import { zBusinessDate } from "@/lib/zod-helpers";
 const balanceAmountSchema = z
   .string()
   .regex(/^-?\d+(\.\d{1,4})?$/, { error: "Monto inválido" })
-  .refine(
-    (v) => new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT)),
-    { message: "Monto excede el límite permitido" }
-  );
+  .refine((v) => new Decimal(v).abs().lte(new Decimal(MAX_INVOICE_AMOUNT)), {
+    message: "Monto excede el límite permitido",
+  });
 
 export const CreateBankStatementSchema = z.object({
   bankAccountId: z.string().min(1),
@@ -32,10 +31,9 @@ export const CreateBankTransactionSchema = z.object({
   amount: z
     .string()
     .regex(/^\d+(\.\d{1,4})?$/, { error: "Monto inválido" })
-    .refine(
-      (v) => new Decimal(v).lte(new Decimal(MAX_INVOICE_AMOUNT)),
-      { message: "Monto excede el límite permitido" }
-    ),
+    .refine((v) => new Decimal(v).lte(new Decimal(MAX_INVOICE_AMOUNT)), {
+      message: "Monto excede el límite permitido",
+    }),
   reference: z.string().max(100).trim().optional(),
 });
 

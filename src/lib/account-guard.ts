@@ -35,7 +35,7 @@ async function assertBelongToCompany(
   companyId: string,
   candidates: Array<string | null | undefined>,
   mensajeUno: string,
-  mensajeVarios: string,
+  mensajeVarios: string
 ): Promise<void> {
   const ids = [...new Set(candidates.filter((id): id is string => !!id))];
   if (ids.length === 0) return;
@@ -72,12 +72,14 @@ async function assertBelongToCompany(
 export async function assertAccountsBelongToCompany(
   db: Pick<PrismaClient, "account"> | Prisma.TransactionClient,
   companyId: string,
-  candidates: Array<string | null | undefined>,
+  candidates: Array<string | null | undefined>
 ): Promise<void> {
   return assertBelongToCompany(
-    db.account, companyId, candidates,
+    db.account,
+    companyId,
+    candidates,
     "La cuenta seleccionada no existe o no pertenece a esta empresa.",
-    "Una o más cuentas seleccionadas no existen o no pertenecen a esta empresa.",
+    "Una o más cuentas seleccionadas no existen o no pertenecen a esta empresa."
   );
 }
 
@@ -88,11 +90,13 @@ export async function assertAccountsBelongToCompany(
 export async function assertBankAccountsBelongToCompany(
   db: Pick<PrismaClient, "bankAccount"> | Prisma.TransactionClient,
   companyId: string,
-  candidates: Array<string | null | undefined>,
+  candidates: Array<string | null | undefined>
 ): Promise<void> {
   return assertBelongToCompany(
-    db.bankAccount, companyId, candidates,
+    db.bankAccount,
+    companyId,
+    candidates,
     "La cuenta bancaria seleccionada no existe o no pertenece a esta empresa.",
-    "Una o más cuentas bancarias seleccionadas no existen o no pertenecen a esta empresa.",
+    "Una o más cuentas bancarias seleccionadas no existen o no pertenecen a esta empresa."
   );
 }

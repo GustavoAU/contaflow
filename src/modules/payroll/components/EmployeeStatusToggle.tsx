@@ -17,8 +17,14 @@ import { useRouter } from "next/navigation";
 import { setEmployeeActiveStatusAction } from "../actions/employee.actions";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
 type Props = {
@@ -31,7 +37,11 @@ type Props = {
 };
 
 export function EmployeeStatusToggle({
-  companyId, employeeId, employeeName, status, activeLoanCount = 0,
+  companyId,
+  employeeId,
+  employeeName,
+  status,
+  activeLoanCount = 0,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -78,23 +88,25 @@ export function EmployeeStatusToggle({
                 {isActive ? (
                   <>
                     <p>
-                      Deja de entrar en el cálculo de nómina desde la próxima corrida.
-                      No es un egreso: no lleva fecha de salida ni liquidación, y puedes
-                      reactivarlo cuando quieras.
+                      Deja de entrar en el cálculo de nómina desde la próxima corrida. No es un
+                      egreso: no lleva fecha de salida ni liquidación, y puedes reactivarlo cuando
+                      quieras.
                     </p>
                     {activeLoanCount > 0 && (
                       <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
                         Tiene {activeLoanCount} préstamo{activeLoanCount !== 1 ? "s" : ""} activo
                         {activeLoanCount !== 1 ? "s" : ""}. Mientras esté suspendido,
-                        {activeLoanCount !== 1 ? " esas cuotas no se cobrarán" : " esa cuota no se cobrará"} en
-                        nómina y el saldo queda congelado.
+                        {activeLoanCount !== 1
+                          ? " esas cuotas no se cobrarán"
+                          : " esa cuota no se cobrará"}{" "}
+                        en nómina y el saldo queda congelado.
                       </p>
                     )}
                   </>
                 ) : (
                   <p>
-                    Vuelve a entrar en el cálculo de nómina desde la próxima corrida, con
-                    su salario vigente
+                    Vuelve a entrar en el cálculo de nómina desde la próxima corrida, con su salario
+                    vigente
                     {activeLoanCount > 0 && " y sus cuotas de préstamo"}.
                   </p>
                 )}
@@ -105,7 +117,10 @@ export function EmployeeStatusToggle({
             <AlertDialogCancel disabled={isPending}>Volver</AlertDialogCancel>
             <AlertDialogAction
               variant={isActive ? "destructive" : "default"}
-              onClick={(e) => { e.preventDefault(); handleConfirm(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirm();
+              }}
               disabled={isPending}
               aria-busy={isPending}
             >

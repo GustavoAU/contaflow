@@ -13,12 +13,31 @@ import {
 } from "../actions/payroll-reports.actions";
 import type { IvssReportData } from "../services/PayrollReportService";
 
-const MONTHS = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+const MONTHS = [
+  "",
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
 
 function fmt(val: unknown): string {
-  try { return parseFloat(String(val)).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  catch { return "0,00"; }
+  try {
+    return parseFloat(String(val)).toLocaleString("es-VE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  } catch {
+    return "0,00";
+  }
 }
 
 type Props = { companyId: string };
@@ -44,7 +63,9 @@ export function IvssReportView({ companyId }: Props) {
     startPdfTransition(async () => {
       const res = await exportIvssPdfAction(companyId, year, month);
       if (res.success) {
-        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/pdf" });
+        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], {
+          type: "application/pdf",
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -61,7 +82,9 @@ export function IvssReportView({ companyId }: Props) {
     startXlsTransition(async () => {
       const res = await exportIvssExcelAction(companyId, year, month);
       if (res.success) {
-        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const blob = new Blob([Uint8Array.from(atob(res.buffer), (c) => c.charCodeAt(0))], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -77,25 +100,43 @@ export function IvssReportView({ companyId }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-4">
-        <PeriodSelector mode="month" year={year} month={month}
-          onChange={(y, m) => { setYear(y); setMonth(m); setData(null); }} />
+        <PeriodSelector
+          mode="month"
+          year={year}
+          month={month}
+          onChange={(y, m) => {
+            setYear(y);
+            setMonth(m);
+            setData(null);
+          }}
+        />
         <button
           onClick={handleLoad}
           disabled={isPending}
           className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
-          {isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {isPending ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
           Generar reporte
         </button>
         {data && (
           <>
-            <button onClick={handlePdf} disabled={isPdf}
-              className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+            <button
+              onClick={handlePdf}
+              disabled={isPdf}
+              className="flex items-center gap-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+            >
               <Download className="h-4 w-4" />
               {isPdf ? "Generando..." : "PDF"}
             </button>
-            <button onClick={handleExcel} disabled={isXls}
-              className="flex items-center gap-2 rounded-md border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60">
+            <button
+              onClick={handleExcel}
+              disabled={isXls}
+              className="flex items-center gap-2 rounded-md border border-green-300 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-60"
+            >
               <Download className="h-4 w-4" />
               {isXls ? "Generando..." : "Excel"}
             </button>
@@ -110,8 +151,8 @@ export function IvssReportView({ companyId }: Props) {
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 <strong>Salario mínimo no configurado.</strong> El techo de cotización del IVSS
-                (Reglamento General de la LSS Art. 98: 5 salarios mínimos mensuales) no fue aplicado,
-                así que la cotización patronal se calculó sobre el salario completo.
+                (Reglamento General de la LSS Art. 98: 5 salarios mínimos mensuales) no fue
+                aplicado, así que la cotización patronal se calculó sobre el salario completo.
                 Configúrelo en <strong>Configuración de Nómina → Salario mínimo</strong>.
               </span>
             </div>
@@ -123,44 +164,79 @@ export function IvssReportView({ companyId }: Props) {
                 Planilla IVSS — {MONTHS[data.month]} {data.year}
               </h3>
               {data.utValue && (
-                <p className="text-xs text-zinc-500 mt-0.5">Valor UT: Bs. {fmt(data.utValue)} · Techo: Bs. {fmt(parseFloat(data.utValue.toString()) * 10)}</p>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  Valor UT: Bs. {fmt(data.utValue)} · Techo: Bs.{" "}
+                  {fmt(parseFloat(data.utValue.toString()) * 10)}
+                </p>
               )}
             </div>
 
             {data.rows.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-zinc-400">Sin empleados activos en el período.</p>
+              <p className="px-4 py-8 text-center text-sm text-zinc-400">
+                Sin empleados activos en el período.
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-zinc-50 text-xs text-zinc-500">
                     <tr>
-                      <th scope="col" className="px-4 py-2 text-left">Empleado</th>
-                      <th scope="col" className="px-4 py-2 text-left">Cédula</th>
-                      <th scope="col" className="px-4 py-2 text-right">Semanas</th>
-                      <th scope="col" className="px-4 py-2 text-right">Salario Base</th>
-                      <th scope="col" className="px-4 py-2 text-right">IVSS Obrero (4%)</th>
-                      <th scope="col" className="px-4 py-2 text-right">IVSS Patronal (9%)</th>
-                      <th scope="col" className="px-4 py-2 text-right font-semibold">Total IVSS</th>
+                      <th scope="col" className="px-4 py-2 text-left">
+                        Empleado
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-left">
+                        Cédula
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        Semanas
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        Salario Base
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        IVSS Obrero (4%)
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right">
+                        IVSS Patronal (9%)
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right font-semibold">
+                        Total IVSS
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
                     {data.rows.map((row) => (
                       <tr key={row.employeeId} className="hover:bg-zinc-50">
-                        <td className="px-4 py-2 font-medium">{row.lastName}, {row.firstName}</td>
-                        <td className="px-4 py-2 text-zinc-600">{row.cedulaType}-{row.cedulaNumber}</td>
+                        <td className="px-4 py-2 font-medium">
+                          {row.lastName}, {row.firstName}
+                        </td>
+                        <td className="px-4 py-2 text-zinc-600">
+                          {row.cedulaType}-{row.cedulaNumber}
+                        </td>
                         <td className="px-4 py-2 text-right tabular-nums">{row.weeksWorked}</td>
                         <td className="px-4 py-2 text-right tabular-nums">{fmt(row.salaryBase)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.ivssWorkerAmount)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums">{fmt(row.ivssEmployerAmount)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums font-semibold">{fmt(row.ivssTotalAmount)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {fmt(row.ivssWorkerAmount)}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {fmt(row.ivssEmployerAmount)}
+                        </td>
+                        <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                          {fmt(row.ivssTotalAmount)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-zinc-100 font-semibold text-zinc-800">
                     <tr>
-                      <td className="px-4 py-2" colSpan={4}>TOTALES</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{fmt(data.totalWorkerAmount)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{fmt(data.totalEmployerAmount)}</td>
+                      <td className="px-4 py-2" colSpan={4}>
+                        TOTALES
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {fmt(data.totalWorkerAmount)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {fmt(data.totalEmployerAmount)}
+                      </td>
                       <td className="px-4 py-2 text-right tabular-nums">{fmt(data.totalAmount)}</td>
                     </tr>
                   </tfoot>

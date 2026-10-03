@@ -25,14 +25,16 @@ const COMPANY_ID = "comp-1";
 const periodStart = new Date("2026-03-01");
 const periodEnd = new Date("2026-03-31");
 
-function makeRow(overrides: Partial<{
-  date: string;
-  description: string;
-  reference: string | null;
-  debit: string | null;
-  credit: string | null;
-  balance: string | null;
-}> = {}) {
+function makeRow(
+  overrides: Partial<{
+    date: string;
+    description: string;
+    reference: string | null;
+    debit: string | null;
+    credit: string | null;
+    balance: string | null;
+  }> = {}
+) {
   return {
     date: "30/03/2026",
     description: "Compra POS",
@@ -57,7 +59,11 @@ describe("periodHasTransactions", () => {
     mockInvoiceCount.mockResolvedValue(3 as never);
     mockPaymentCount.mockResolvedValue(0 as never);
     mockTxCount.mockResolvedValue(0 as never);
-    const result = await AutoReconciliationService.periodHasTransactions(COMPANY_ID, periodStart, periodEnd);
+    const result = await AutoReconciliationService.periodHasTransactions(
+      COMPANY_ID,
+      periodStart,
+      periodEnd
+    );
     expect(result).toBe(true);
   });
 
@@ -65,7 +71,11 @@ describe("periodHasTransactions", () => {
     mockInvoiceCount.mockResolvedValue(0 as never);
     mockPaymentCount.mockResolvedValue(0 as never);
     mockTxCount.mockResolvedValue(1 as never);
-    const result = await AutoReconciliationService.periodHasTransactions(COMPANY_ID, periodStart, periodEnd);
+    const result = await AutoReconciliationService.periodHasTransactions(
+      COMPANY_ID,
+      periodStart,
+      periodEnd
+    );
     expect(result).toBe(true);
   });
 
@@ -73,7 +83,11 @@ describe("periodHasTransactions", () => {
     mockInvoiceCount.mockResolvedValue(0 as never);
     mockPaymentCount.mockResolvedValue(0 as never);
     mockTxCount.mockResolvedValue(0 as never);
-    const result = await AutoReconciliationService.periodHasTransactions(COMPANY_ID, periodStart, periodEnd);
+    const result = await AutoReconciliationService.periodHasTransactions(
+      COMPANY_ID,
+      periodStart,
+      periodEnd
+    );
     expect(result).toBe(false);
   });
 });
@@ -90,7 +104,12 @@ describe("run()", () => {
     mockPaymentCount.mockResolvedValue(0 as never);
     mockTxCount.mockResolvedValue(0 as never);
 
-    const result = await AutoReconciliationService.run(COMPANY_ID, [makeRow()], periodStart, periodEnd);
+    const result = await AutoReconciliationService.run(
+      COMPANY_ID,
+      [makeRow()],
+      periodStart,
+      periodEnd
+    );
     expect(result.periodHasData).toBe(false);
     expect(result.auto).toHaveLength(0);
     expect(result.suggested).toHaveLength(0);
@@ -108,7 +127,12 @@ describe("run()", () => {
       },
     ] as never);
 
-    const result = await AutoReconciliationService.run(COMPANY_ID, [makeRow()], periodStart, periodEnd);
+    const result = await AutoReconciliationService.run(
+      COMPANY_ID,
+      [makeRow()],
+      periodStart,
+      periodEnd
+    );
     expect(result.auto).toHaveLength(1);
     expect(result.auto[0].confidence).toBe("AUTO");
     expect(result.auto[0].score).toBe(100);
@@ -120,20 +144,30 @@ describe("run()", () => {
       {
         id: "pay-2",
         amount: new Decimal("948.00"), // ~0.5% diferencia
-        date: new Date("2026-03-31"),  // 1 día de diferencia
+        date: new Date("2026-03-31"), // 1 día de diferencia
         referenceNumber: null,
         invoice: { invoiceNumber: "002", counterpartName: "Cliente B" },
       },
     ] as never);
 
-    const result = await AutoReconciliationService.run(COMPANY_ID, [makeRow()], periodStart, periodEnd);
+    const result = await AutoReconciliationService.run(
+      COMPANY_ID,
+      [makeRow()],
+      periodStart,
+      periodEnd
+    );
     // Score: amountDiff=5, tolerance=9.43, penalty≈21; datePenalty≈10 → score≈69 → MANUAL
     // Ajustamos el test a lo que realmente calcula el algoritmo
     expect(result.auto.length + result.suggested.length + result.unmatched.length).toBe(1);
   });
 
   it("sin candidatos → MANUAL con razón 'Sin coincidencia'", async () => {
-    const result = await AutoReconciliationService.run(COMPANY_ID, [makeRow()], periodStart, periodEnd);
+    const result = await AutoReconciliationService.run(
+      COMPANY_ID,
+      [makeRow()],
+      periodStart,
+      periodEnd
+    );
     expect(result.unmatched).toHaveLength(1);
     expect(result.unmatched[0].confidence).toBe("MANUAL");
     expect(result.unmatched[0].reason).toBe("Sin coincidencia en el sistema");
@@ -183,7 +217,12 @@ describe("run()", () => {
       },
     ] as never);
 
-    const result = await AutoReconciliationService.run(COMPANY_ID, [makeRow()], periodStart, periodEnd);
+    const result = await AutoReconciliationService.run(
+      COMPANY_ID,
+      [makeRow()],
+      periodStart,
+      periodEnd
+    );
     const match = result.auto[0] ?? result.suggested[0];
     expect(match?.matchId).toBe("pr-1");
     expect(match?.matchType).toBe("PAYMENT_RECORD");
@@ -239,14 +278,16 @@ describe("run()", () => {
         date: new Date("2026-03-30"),
         number: "000001",
         description: "Transferencia",
-        entries: [
-          { amount: new Decimal("943.00") },
-          { amount: new Decimal("-943.00") },
-        ],
+        entries: [{ amount: new Decimal("943.00") }, { amount: new Decimal("-943.00") }],
       },
     ] as never);
 
-    const result = await AutoReconciliationService.run(COMPANY_ID, [makeRow()], periodStart, periodEnd);
+    const result = await AutoReconciliationService.run(
+      COMPANY_ID,
+      [makeRow()],
+      periodStart,
+      periodEnd
+    );
     const match = result.auto[0] ?? result.suggested[0];
     expect(match?.matchType).toBe("JOURNAL_ENTRY");
     expect(match?.matchId).toBe("tx-1");

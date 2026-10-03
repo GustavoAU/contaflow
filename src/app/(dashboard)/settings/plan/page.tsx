@@ -79,8 +79,8 @@ export default async function PlanSettingsPage({ searchParams }: PageProps) {
       })}
 
       <p className="text-center text-xs text-slate-400">
-        Los cambios al plan Anual se confirman al recibir el pago USDT.
-        Escríbenos por WhatsApp si necesitas ayuda.
+        Los cambios al plan Anual se confirman al recibir el pago USDT. Escríbenos por WhatsApp si
+        necesitas ayuda.
       </p>
     </div>
   );

@@ -70,8 +70,26 @@ const BATCH_SUMMARY = {
   createdBy: USER_ID,
   idempotencyKey: "idem-key-1",
   lines: [
-    { id: "line-1", invoiceId: "inv-a", invoiceNumber: "TCOMP-001", counterpartName: "Proveedor A", amountVes: "150000.0000", amountOriginal: null, igtfAmount: null, notes: null },
-    { id: "line-2", invoiceId: "inv-b", invoiceNumber: "TCOMP-002", counterpartName: "Proveedor B", amountVes: "350000.0000", amountOriginal: null, igtfAmount: null, notes: null },
+    {
+      id: "line-1",
+      invoiceId: "inv-a",
+      invoiceNumber: "TCOMP-001",
+      counterpartName: "Proveedor A",
+      amountVes: "150000.0000",
+      amountOriginal: null,
+      igtfAmount: null,
+      notes: null,
+    },
+    {
+      id: "line-2",
+      invoiceId: "inv-b",
+      invoiceNumber: "TCOMP-002",
+      counterpartName: "Proveedor B",
+      amountVes: "350000.0000",
+      amountOriginal: null,
+      igtfAmount: null,
+      notes: null,
+    },
   ],
 };
 
@@ -171,9 +189,7 @@ describe("createPaymentBatchAction", () => {
   });
 
   it("sanitiza errores técnicos de Prisma", async () => {
-    vi.mocked(PaymentBatchService.createBatch).mockRejectedValue(
-      new Error("Prisma client error")
-    );
+    vi.mocked(PaymentBatchService.createBatch).mockRejectedValue(new Error("Prisma client error"));
     const result = await createPaymentBatchAction(VALID_CREATE_INPUT);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).not.toMatch(/Prisma/);
@@ -436,7 +452,9 @@ describe("discardPaymentBatchAction", () => {
 
   it("propaga error de negocio — batch no en DRAFT", async () => {
     vi.mocked(PaymentBatchService.discardBatch).mockRejectedValue(
-      new Error("Solo se pueden descartar lotes en borrador (DRAFT). Los lotes aplicados deben anularse.")
+      new Error(
+        "Solo se pueden descartar lotes en borrador (DRAFT). Los lotes aplicados deben anularse."
+      )
     );
     const result = await discardPaymentBatchAction({ companyId: COMPANY_ID, batchId: BATCH_ID });
     expect(result.success).toBe(false);

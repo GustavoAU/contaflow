@@ -104,14 +104,14 @@ describe("PayrollConfigService.saveConfig", () => {
         payrollConfig: prisma.payrollConfig,
         account: prisma.account,
         auditLog: prisma.auditLog,
-      })) as never
-    );
+      })) as never);
     // Por defecto, "todas las cuentas pedidas existen y son de esta empresa":
     // devuelve un {id} por cada id que la propia llamada pidió, así que
     // assertAccountsBelongToCompany pasa sin que cada test tenga que
     // configurarlo. Los tests que SÍ prueban el guard lo sobreescriben.
-    vi.mocked(prisma.account.findMany).mockImplementation((async (args: { where?: { id?: { in?: string[] } } }) =>
-      (args?.where?.id?.in ?? []).map((id) => ({ id }))) as never);
+    vi.mocked(prisma.account.findMany).mockImplementation((async (args: {
+      where?: { id?: { in?: string[] } };
+    }) => (args?.where?.id?.in ?? []).map((id) => ({ id }))) as never);
   });
 
   it("NOM-A-02: CREATE — AuditLog registra action CREATE_PAYROLL_CONFIG con oldValue null", async () => {
@@ -160,9 +160,9 @@ describe("PayrollConfigService.saveConfig", () => {
     // Si auditLog falla, el $transaction debería revertir el upsert
     vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error("AuditLog DB error"));
 
-    await expect(
-      PayrollConfigService.saveConfig(COMPANY_ID, USER_ID, BASE_INPUT)
-    ).rejects.toThrow("AuditLog DB error");
+    await expect(PayrollConfigService.saveConfig(COMPANY_ID, USER_ID, BASE_INPUT)).rejects.toThrow(
+      "AuditLog DB error"
+    );
   });
 
   it("devuelve la configuración serializada tras guardar", async () => {
@@ -193,14 +193,14 @@ describe("PayrollConfigService.saveConfig", () => {
       expect.objectContaining({
         create: expect.objectContaining({ ivssRiskClass: "MAXIMO" }),
         update: expect.objectContaining({ ivssRiskClass: "MAXIMO" }),
-      }),
+      })
     );
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           newValue: expect.objectContaining({ ivssRiskClass: "MAXIMO" }),
         }),
-      }),
+      })
     );
   });
 
@@ -211,7 +211,7 @@ describe("PayrollConfigService.saveConfig", () => {
       PayrollConfigService.saveConfig(COMPANY_ID, USER_ID, {
         ...BASE_INPUT,
         expenseAccountId: "acc-ajena",
-      }),
+      })
     ).rejects.toThrow(/no existe o no pertenece/);
     // Y no llega a escribir nada — el guard corre ANTES del upsert.
     expect(prisma.payrollConfig.upsert).not.toHaveBeenCalled();

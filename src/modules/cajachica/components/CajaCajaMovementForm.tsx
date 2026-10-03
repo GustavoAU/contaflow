@@ -17,7 +17,13 @@ type Props = {
   onCancel: () => void;
 };
 
-export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSuccess, onCancel }: Props) {
+export function CajaCajaMovementForm({
+  companyId,
+  cajaCajaId,
+  accounts,
+  onSuccess,
+  onCancel,
+}: Props) {
   const [date, setDate] = useState(todayLocalISO());
   const [concept, setConcept] = useState("");
   const [description, setDescription] = useState("");
@@ -65,16 +71,27 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="movement-date" className="text-xs">Fecha *</Label>
-          <Input id="movement-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required disabled={isPending} />
+          <Label htmlFor="movement-date" className="text-xs">
+            Fecha *
+          </Label>
+          <Input
+            id="movement-date"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+            disabled={isPending}
+          />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="movement-currency" className="text-xs">Moneda *</Label>
+          <Label htmlFor="movement-currency" className="text-xs">
+            Moneda *
+          </Label>
           <select
             id="movement-currency"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             disabled={isPending}
           >
             <option value="VES">VES</option>
@@ -83,7 +100,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           </select>
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="movement-concept" className="text-xs">Concepto *</Label>
+          <Label htmlFor="movement-concept" className="text-xs">
+            Concepto *
+          </Label>
           <Input
             id="movement-concept"
             value={concept}
@@ -95,12 +114,14 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="movement-expense-account" className="text-xs">Cuenta de Gasto *</Label>
+          <Label htmlFor="movement-expense-account" className="text-xs">
+            Cuenta de Gasto *
+          </Label>
           <select
             id="movement-expense-account"
             value={expenseAccountId}
             onChange={(e) => setExpenseAccountId(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
             required
             disabled={isPending || expenseAccounts.length === 0}
           >
@@ -119,7 +140,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           )}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="movement-amount" className="text-xs">Monto {currency} *</Label>
+          <Label htmlFor="movement-amount" className="text-xs">
+            Monto {currency} *
+          </Label>
           <Input
             id="movement-amount"
             type="number"
@@ -146,7 +169,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="movement-provider-rif" className="text-xs">RIF del proveedor (opcional)</Label>
+          <Label htmlFor="movement-provider-rif" className="text-xs">
+            RIF del proveedor (opcional)
+          </Label>
           <Input
             id="movement-provider-rif"
             value={providerRif}
@@ -157,7 +182,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="movement-description" className="text-xs">Descripción (opcional)</Label>
+          <Label htmlFor="movement-description" className="text-xs">
+            Descripción (opcional)
+          </Label>
           <Input
             id="movement-description"
             value={description}
@@ -168,7 +195,9 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label htmlFor="movement-notes" className="text-xs">Notas internas (opcional)</Label>
+          <Label htmlFor="movement-notes" className="text-xs">
+            Notas internas (opcional)
+          </Label>
           <Input
             id="movement-notes"
             value={notes}
@@ -186,7 +215,7 @@ export function CajaCajaMovementForm({ companyId, cajaCajaId, accounts, onSucces
         </div>
       )}
 
-      <div className="flex gap-2 pt-1 border-t">
+      <div className="flex gap-2 border-t pt-1">
         <Button type="submit" size="sm" disabled={isPending} aria-busy={isPending}>
           Registrar gasto
         </Button>

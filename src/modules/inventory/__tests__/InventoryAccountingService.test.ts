@@ -17,14 +17,16 @@ const mockItem = {
   deletedAt: null,
 };
 
-const makeMockMovement = (overrides: Partial<{
-  status: string;
-  type: string;
-  quantity: Decimal;
-  unitCost: Decimal;
-  totalCost: Decimal;
-  item: typeof mockItem;
-}> = {}) => ({
+const makeMockMovement = (
+  overrides: Partial<{
+    status: string;
+    type: string;
+    quantity: Decimal;
+    unitCost: Decimal;
+    totalCost: Decimal;
+    item: typeof mockItem;
+  }> = {}
+) => ({
   id: "mov-001",
   companyId: "company-001",
   status: "DRAFT",
@@ -62,7 +64,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { postMovement, voidPostedMovement, getInventoryValuation, autoPostMovementInTx } from "../services/InventoryAccountingService";
+import {
+  postMovement,
+  voidPostedMovement,
+  getInventoryValuation,
+  autoPostMovementInTx,
+} from "../services/InventoryAccountingService";
 import prisma from "@/lib/prisma";
 
 const COMPANY_ID = "company-001";
@@ -84,9 +91,8 @@ describe("postMovement — CPP y actualización de stock", () => {
     });
     const tx = makeTx(movement);
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID);
 
@@ -106,9 +112,8 @@ describe("postMovement — CPP y actualización de stock", () => {
     });
     const tx = makeTx(movement);
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID);
 
@@ -127,9 +132,8 @@ describe("postMovement — CPP y actualización de stock", () => {
     });
     const tx = makeTx(movement);
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await expect(
       postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID)
@@ -142,9 +146,8 @@ describe("postMovement — CPP y actualización de stock", () => {
     });
     const tx = makeTx(movement);
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await expect(
       postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID)
@@ -155,9 +158,8 @@ describe("postMovement — CPP y actualización de stock", () => {
     const movement = makeMockMovement({ status: "POSTED" });
     const tx = makeTx(movement);
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await expect(
       postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID)
@@ -173,9 +175,8 @@ describe("postMovement — CPP y actualización de stock", () => {
     });
     const tx = makeTx(movement);
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID);
 
@@ -201,25 +202,24 @@ describe("postMovement — CPP y actualización de stock", () => {
 
   it("usa isolationLevel Serializable", async () => {
     const tx = makeTx();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown, opts: unknown) => {
-        expect(opts).toEqual({ isolationLevel: "Serializable" });
-        return fn(tx);
-      }) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((
+      fn: (t: typeof tx) => unknown,
+      opts: unknown
+    ) => {
+      expect(opts).toEqual({ isolationLevel: "Serializable" });
+      return fn(tx);
+    }) as never);
 
     await postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID);
-    expect(vi.mocked(prisma.$transaction)).toHaveBeenCalledWith(
-      expect.any(Function),
-      { isolationLevel: "Serializable" }
-    );
+    expect(vi.mocked(prisma.$transaction)).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+    });
   });
 
   it("registra AuditLog dentro del mismo $transaction", async () => {
     const tx = makeTx();
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID);
 
@@ -253,9 +253,8 @@ describe("voidPostedMovement", () => {
       auditLog: { create: vi.fn() },
     };
 
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (t: typeof tx) => unknown) => fn(tx)) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
 
     await expect(
       voidPostedMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID)
@@ -288,7 +287,12 @@ describe("getInventoryValuation", () => {
   it("calcula totalValue correctamente con múltiples ítems", async () => {
     vi.mocked(prisma.inventoryItem.findMany).mockResolvedValue([
       { ...mockItem, stockQuantity: new Decimal("10"), averageCost: new Decimal("100") },
-      { ...mockItem, id: "item-002", stockQuantity: new Decimal("5"), averageCost: new Decimal("200") },
+      {
+        ...mockItem,
+        id: "item-002",
+        stockQuantity: new Decimal("5"),
+        averageCost: new Decimal("200"),
+      },
     ] as never);
 
     const result = await getInventoryValuation(COMPANY_ID);

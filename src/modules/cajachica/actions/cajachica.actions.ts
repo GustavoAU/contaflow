@@ -6,11 +6,7 @@ import prisma from "@/lib/prisma";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { mapPrismaError } from "@/lib/prisma-errors";
-import {
-  STEP_UP_CONFIG,
-  reverificationError,
-  type StepUpError,
-} from "@/lib/step-up";
+import { STEP_UP_CONFIG, reverificationError, type StepUpError } from "@/lib/step-up";
 import {
   CreateCajaCajaSchema,
   CloseCajaCajaSchema,
@@ -82,7 +78,7 @@ async function rejectAndReport(
     entityId?: string;
     ipAddress?: string;
     userAgent?: string;
-  },
+  }
 ): Promise<ActionResult<never>> {
   if (shouldLogRejection(e)) {
     await logRejection({
@@ -110,7 +106,12 @@ async function guardAdmin(companyId: string): Promise<GuardResult> {
     captureNet: true,
   });
   if (!ctx.ok) return { ok: false, error: ctx.error.error };
-  return { ok: true, userId: ctx.userId, ipAddress: ctx.ipAddress ?? undefined, userAgent: ctx.userAgent ?? undefined };
+  return {
+    ok: true,
+    userId: ctx.userId,
+    ipAddress: ctx.ipAddress ?? undefined,
+    userAgent: ctx.userAgent ?? undefined,
+  };
 }
 
 async function guardOperations(companyId: string): Promise<GuardResult> {
@@ -120,16 +121,20 @@ async function guardOperations(companyId: string): Promise<GuardResult> {
     captureNet: true,
   });
   if (!ctx.ok) return { ok: false, error: ctx.error.error };
-  return { ok: true, userId: ctx.userId, ipAddress: ctx.ipAddress ?? undefined, userAgent: ctx.userAgent ?? undefined };
+  return {
+    ok: true,
+    userId: ctx.userId,
+    ipAddress: ctx.ipAddress ?? undefined,
+    userAgent: ctx.userAgent ?? undefined,
+  };
 }
 
 // ─── CajaCaja ─────────────────────────────────────────────────────────────────
 
-export async function createCajaCajaAction(
-  raw: unknown
-): Promise<ActionResult<CajaCajaSummary>> {
+export async function createCajaCajaAction(raw: unknown): Promise<ActionResult<CajaCajaSummary>> {
   const parsed = CreateCajaCajaSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -179,11 +184,10 @@ export async function getCajaCajaByIdAction(
   }
 }
 
-export async function closeCajaCajaAction(
-  raw: unknown
-): Promise<ActionResult<void> | StepUpError> {
+export async function closeCajaCajaAction(raw: unknown): Promise<ActionResult<void> | StepUpError> {
   const parsed = CloseCajaCajaSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -194,7 +198,8 @@ export async function closeCajaCajaAction(
   const threshold = await getCajaStepUpThreshold(parsed.data.companyId);
   if (amount.greaterThan(threshold)) {
     const { has } = await auth();
-    if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
+    if (!has || !has({ reverification: STEP_UP_CONFIG }))
+      return reverificationError(STEP_UP_CONFIG);
   }
 
   const { ipAddress, userAgent } = g;
@@ -218,7 +223,8 @@ export async function reopenCajaCajaAction(
   raw: unknown
 ): Promise<ActionResult<void> | StepUpError> {
   const parsed = ReopenCajaCajaSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -229,7 +235,8 @@ export async function reopenCajaCajaAction(
   const threshold = await getCajaStepUpThreshold(parsed.data.companyId);
   if (amount.greaterThan(threshold)) {
     const { has } = await auth();
-    if (!has || !has({ reverification: STEP_UP_CONFIG })) return reverificationError(STEP_UP_CONFIG);
+    if (!has || !has({ reverification: STEP_UP_CONFIG }))
+      return reverificationError(STEP_UP_CONFIG);
   }
 
   const { ipAddress, userAgent } = g;
@@ -249,11 +256,10 @@ export async function reopenCajaCajaAction(
   }
 }
 
-export async function assignCustodianAction(
-  raw: unknown
-): Promise<ActionResult<CajaCajaSummary>> {
+export async function assignCustodianAction(raw: unknown): Promise<ActionResult<CajaCajaSummary>> {
   const parsed = AssignCustodianSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -277,11 +283,10 @@ export async function assignCustodianAction(
 
 // ─── Deposits ─────────────────────────────────────────────────────────────────
 
-export async function createDepositAction(
-  raw: unknown
-): Promise<ActionResult<DepositSummary>> {
+export async function createDepositAction(raw: unknown): Promise<ActionResult<DepositSummary>> {
   const parsed = CreateDepositSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -302,11 +307,10 @@ export async function createDepositAction(
   }
 }
 
-export async function voidDepositAction(
-  raw: unknown
-): Promise<ActionResult<void>> {
+export async function voidDepositAction(raw: unknown): Promise<ActionResult<void>> {
   const parsed = VoidDepositSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -345,11 +349,10 @@ export async function listDepositsAction(
 
 // ─── Movements ────────────────────────────────────────────────────────────────
 
-export async function createMovementAction(
-  raw: unknown
-): Promise<ActionResult<MovementSummary>> {
+export async function createMovementAction(raw: unknown): Promise<ActionResult<MovementSummary>> {
   const parsed = CreateMovementSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardOperations(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -370,11 +373,10 @@ export async function createMovementAction(
   }
 }
 
-export async function approveMovementAction(
-  raw: unknown
-): Promise<ActionResult<MovementSummary>> {
+export async function approveMovementAction(raw: unknown): Promise<ActionResult<MovementSummary>> {
   const parsed = ApproveMovementSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -396,11 +398,10 @@ export async function approveMovementAction(
   }
 }
 
-export async function voidMovementAction(
-  raw: unknown
-): Promise<ActionResult<void>> {
+export async function voidMovementAction(raw: unknown): Promise<ActionResult<void>> {
   const parsed = VoidMovementSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -443,7 +444,8 @@ export async function createReimbursementAction(
   raw: unknown
 ): Promise<ActionResult<ReimbursementSummary>> {
   const parsed = CreateReimbursementSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -468,7 +470,8 @@ export async function postReimbursementAction(
   raw: unknown
 ): Promise<ActionResult<ReimbursementSummary>> {
   const parsed = PostReimbursementSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -490,11 +493,10 @@ export async function postReimbursementAction(
   }
 }
 
-export async function voidReimbursementAction(
-  raw: unknown
-): Promise<ActionResult<void>> {
+export async function voidReimbursementAction(raw: unknown): Promise<ActionResult<void>> {
   const parsed = VoidReimbursementSchema.safeParse(raw);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  if (!parsed.success)
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
 
   const g = await guardAdmin(parsed.data.companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -535,7 +537,7 @@ export async function listReimbursementsAction(
 
 async function buildCajaExportData(
   cajaCajaId: string,
-  companyId: string,
+  companyId: string
 ): Promise<CajaCajaExportData | null> {
   const caja = await getCajaCajaById(cajaCajaId, companyId);
   if (!caja) return null;
@@ -581,14 +583,20 @@ async function buildCajaExportData(
 }
 
 function exportFilename(caja: CajaCajaExportData["caja"], ext: string): string {
-  const slug = caja.name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "caja-chica";
+  const slug =
+    caja.name
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "caja-chica";
   const stamp = new Date().toISOString().slice(0, 10);
   return `arqueo-${slug}-${stamp}.${ext}`;
 }
 
 export async function exportCajaCajaCSVAction(
   cajaCajaId: string,
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<{ csv: string; filename: string }>> {
   const g = await guardOperations(companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -596,7 +604,10 @@ export async function exportCajaCajaCSVAction(
   try {
     const data = await buildCajaExportData(cajaCajaId, companyId);
     if (!data) return { success: false, error: "Caja Chica no encontrada" };
-    return { success: true, data: { csv: generateCajaCajaCSV(data), filename: exportFilename(data.caja, "csv") } };
+    return {
+      success: true,
+      data: { csv: generateCajaCajaCSV(data), filename: exportFilename(data.caja, "csv") },
+    };
   } catch (e) {
     return toActionError(e);
   }
@@ -604,7 +615,7 @@ export async function exportCajaCajaCSVAction(
 
 export async function exportCajaCajaPDFAction(
   cajaCajaId: string,
-  companyId: string,
+  companyId: string
 ): Promise<ActionResult<{ pdf: string; filename: string }>> {
   const g = await guardOperations(companyId);
   if (!g.ok) return { success: false, error: g.error };
@@ -613,7 +624,10 @@ export async function exportCajaCajaPDFAction(
     const data = await buildCajaExportData(cajaCajaId, companyId);
     if (!data) return { success: false, error: "Caja Chica no encontrada" };
     const buffer = await generateCajaCajaPDF(data);
-    return { success: true, data: { pdf: buffer.toString("base64"), filename: exportFilename(data.caja, "pdf") } };
+    return {
+      success: true,
+      data: { pdf: buffer.toString("base64"), filename: exportFilename(data.caja, "pdf") },
+    };
   } catch (e) {
     return toActionError(e);
   }

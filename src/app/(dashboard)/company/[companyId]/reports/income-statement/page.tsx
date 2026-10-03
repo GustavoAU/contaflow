@@ -1,5 +1,8 @@
 // src/app/(dashboard)/company/[companyId]/reports/income-statement/page.tsx
-import { getIncomeStatementAction, getCompanyHeaderAction } from "@/modules/accounting/actions/report.actions";
+import {
+  getIncomeStatementAction,
+  getCompanyHeaderAction,
+} from "@/modules/accounting/actions/report.actions";
 import type { IncomeStatement } from "@/modules/accounting/actions/report.actions";
 import { ExportFinancialPDFButton } from "@/modules/accounting/components/ExportFinancialPDFButton";
 import { IncomeStatementFilter } from "@/components/reports/IncomeStatementFilter";
@@ -66,14 +69,20 @@ function SectionTable({
   return (
     <div className="overflow-hidden rounded-lg border bg-white">
       <div className={`border-b px-4 py-3 ${colorClass}`}>
-        <h2 className={`font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}>{title}</h2>
+        <h2
+          className={`font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}
+        >
+          {title}
+        </h2>
       </div>
       <table className="w-full text-sm">
         <thead className="border-b">
           <tr>
             <th className="px-4 py-2 text-left font-medium text-zinc-500">Cuenta</th>
             <th className="px-4 py-2 text-right font-medium text-zinc-500">Período actual</th>
-            {showPct && <th className="px-4 py-2 text-right text-xs font-medium text-zinc-400">% Ing.</th>}
+            {showPct && (
+              <th className="px-4 py-2 text-right text-xs font-medium text-zinc-400">% Ing.</th>
+            )}
             {showCompare && (
               <>
                 <th className="px-4 py-2 text-right font-medium text-zinc-400">Período anterior</th>
@@ -85,30 +94,39 @@ function SectionTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={colSpan} className="px-4 py-3 text-center text-zinc-400">Sin movimientos</td>
+              <td colSpan={colSpan} className="px-4 py-3 text-center text-zinc-400">
+                Sin movimientos
+              </td>
             </tr>
           ) : (
             rows.map((row, i) => {
               const cmpRow = compareRows?.find((r) => r.id === row.id);
               const v = showCompare && cmpRow ? varPct(row.balance, cmpRow.balance) : null;
               return (
-                <tr key={row.id} className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}>
+                <tr
+                  key={row.id}
+                  className={`border-b last:border-0 ${i % 2 === 1 ? "bg-zinc-50/60" : ""} hover:bg-zinc-100/60`}
+                >
                   <td className="px-4 py-2 text-zinc-600">
                     <span className="mr-2 font-mono text-xs text-zinc-400">{row.code}</span>
                     {row.name}
                   </td>
-                  <td className="tabular-nums px-4 py-2 text-right font-mono">{fmt(row.balance)}</td>
+                  <td className="px-4 py-2 text-right font-mono tabular-nums">
+                    {fmt(row.balance)}
+                  </td>
                   {showPct && (
-                    <td className="tabular-nums px-4 py-2 text-right font-mono text-xs text-zinc-400">
+                    <td className="px-4 py-2 text-right font-mono text-xs text-zinc-400 tabular-nums">
                       {pct(row.balance, total) ?? "—"}
                     </td>
                   )}
                   {showCompare && (
                     <>
-                      <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-400">
+                      <td className="px-4 py-2 text-right font-mono text-zinc-400 tabular-nums">
                         {cmpRow ? fmt(cmpRow.balance) : "—"}
                       </td>
-                      <td className={`tabular-nums px-4 py-2 text-right font-mono text-xs ${v ? (v.positive ? "text-green-600" : "text-red-600") : "text-zinc-400"}`}>
+                      <td
+                        className={`px-4 py-2 text-right font-mono text-xs tabular-nums ${v ? (v.positive ? "text-green-600" : "text-red-600") : "text-zinc-400"}`}
+                      >
                         {v ? v.text : "—"}
                       </td>
                     </>
@@ -120,24 +138,38 @@ function SectionTable({
         </tbody>
         <tfoot>
           <tr className={`border-t ${colorClass}`}>
-            <td className={`px-4 py-2 font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}>
+            <td
+              className={`px-4 py-2 font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}
+            >
               Total {title}
             </td>
-            <td className={`tabular-nums px-4 py-2 text-right font-mono font-semibold ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}>
+            <td
+              className={`px-4 py-2 text-right font-mono font-semibold tabular-nums ${colorClass.includes("green") ? "text-green-800" : "text-red-800"}`}
+            >
               {fmt(total)}
             </td>
             {showPct && (
-              <td className={`tabular-nums px-4 py-2 text-right font-mono text-xs font-semibold ${colorClass.includes("green") ? "text-green-700" : "text-red-700"}`}>
+              <td
+                className={`px-4 py-2 text-right font-mono text-xs font-semibold tabular-nums ${colorClass.includes("green") ? "text-green-700" : "text-red-700"}`}
+              >
                 100%
               </td>
             )}
             {showCompare && (
               <>
-                <td className="tabular-nums px-4 py-2 text-right font-mono text-zinc-500">
+                <td className="px-4 py-2 text-right font-mono text-zinc-500 tabular-nums">
                   {compareTotal ? fmt(compareTotal) : "—"}
                 </td>
-                <td className={`tabular-nums px-4 py-2 text-right font-mono text-xs ${(() => { const v = compareTotal ? varPct(total, compareTotal) : null; return v ? (v.positive ? "text-green-600" : "text-red-600") : "text-zinc-400"; })()}`}>
-                  {(() => { const v = compareTotal ? varPct(total, compareTotal) : null; return v ? v.text : "—"; })()}
+                <td
+                  className={`px-4 py-2 text-right font-mono text-xs tabular-nums ${(() => {
+                    const v = compareTotal ? varPct(total, compareTotal) : null;
+                    return v ? (v.positive ? "text-green-600" : "text-red-600") : "text-zinc-400";
+                  })()}`}
+                >
+                  {(() => {
+                    const v = compareTotal ? varPct(total, compareTotal) : null;
+                    return v ? v.text : "—";
+                  })()}
                 </td>
               </>
             )}
@@ -160,7 +192,9 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
     // getUTCFullYear(), la noche del 31/12 en VET producía from=añoSiguiente-01-01
     // con to=hoy — un rango invertido.
     const today = await todayForCompany(companyId);
-    redirect(`/company/${companyId}/reports/income-statement?from=${today.slice(0, 4)}-01-01&to=${today}`);
+    redirect(
+      `/company/${companyId}/reports/income-statement?from=${today.slice(0, 4)}-01-01&to=${today}`
+    );
   }
 
   const dateFrom = from ? new Date(from) : undefined;
@@ -179,7 +213,9 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Estado de Resultados</h1>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{result.error}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {result.error}
+        </div>
       </div>
     );
   }
@@ -256,7 +292,9 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
         />
 
         {/* Resultado neto */}
-        <div className={`rounded-lg border-2 p-4 ${isProfit ? "border-green-400 bg-green-50" : "border-red-400 bg-red-50"}`}>
+        <div
+          className={`rounded-lg border-2 p-4 ${isProfit ? "border-green-400 bg-green-50" : "border-red-400 bg-red-50"}`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <span className={`text-lg font-bold ${isProfit ? "text-green-800" : "text-red-800"}`}>
@@ -264,19 +302,28 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
               </span>
               {margin !== null && (
                 <p className={`mt-1 text-xs ${isProfit ? "text-green-600" : "text-red-600"}`}>
-                  Margen neto: {isProfit ? "+" : ""}{margin}% sobre ingresos
+                  Margen neto: {isProfit ? "+" : ""}
+                  {margin}% sobre ingresos
                 </p>
               )}
             </div>
             <div className="text-right">
-              <span className={`tabular-nums font-mono text-xl font-bold ${isProfit ? "text-green-700" : "text-red-700"}`}>
+              <span
+                className={`font-mono text-xl font-bold tabular-nums ${isProfit ? "text-green-700" : "text-red-700"}`}
+              >
                 {fmt(current.netIncome)} Bs.
               </span>
               {showCompare && compare && (
                 <div className="mt-1 space-x-2 text-xs">
                   <span className="text-zinc-500">vs. {fmt(compare.netIncome)} Bs.</span>
                   {netVariation && (
-                    <span className={netVariation.positive ? "font-semibold text-green-600" : "font-semibold text-red-600"}>
+                    <span
+                      className={
+                        netVariation.positive
+                          ? "font-semibold text-green-600"
+                          : "font-semibold text-red-600"
+                      }
+                    >
                       {netVariation.text}
                     </span>
                   )}
@@ -289,13 +336,20 @@ export default async function IncomeStatementPage({ params, searchParams }: Prop
         {/* ISLR proyectado */}
         {islrProyectado !== null && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">ISLR Proyectado (informativo)</p>
+            <p className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              ISLR Proyectado (informativo)
+            </p>
             <div className="mt-2 flex items-center justify-between">
-              <p className="text-sm text-zinc-600">Estimado a tasa corporativa ~34% (Ley ISLR Venezuela)</p>
-              <span className="tabular-nums font-mono font-semibold text-zinc-800">{fmt(islrProyectado)} Bs.</span>
+              <p className="text-sm text-zinc-600">
+                Estimado a tasa corporativa ~34% (Ley ISLR Venezuela)
+              </p>
+              <span className="font-mono font-semibold text-zinc-800 tabular-nums">
+                {fmt(islrProyectado)} Bs.
+              </span>
             </div>
             <p className="mt-2 text-xs text-zinc-400">
-              Valor indicativo. El cálculo definitivo depende de la renta neta fiscal ajustada por ISLR.
+              Valor indicativo. El cálculo definitivo depende de la renta neta fiscal ajustada por
+              ISLR.
             </p>
           </div>
         )}

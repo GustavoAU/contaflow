@@ -121,7 +121,12 @@ describe("generateForma30PDF", () => {
         totalRetenciones: ZERO,
       },
       seccionD: { igtfBase: ZERO, igtfTotal: ZERO },
-      seccionE: { creditoFiscalPeriodoAnterior: ZERO, cuotaPeriodo: ZERO, esSaldoAFavor: false, excedenteCreditoFiscal: ZERO },
+      seccionE: {
+        creditoFiscalPeriodoAnterior: ZERO,
+        cuotaPeriodo: ZERO,
+        esSaldoAFavor: false,
+        excedenteCreditoFiscal: ZERO,
+      },
     };
     await expect(generateForma30PDF(zeroParams)).resolves.toBeInstanceOf(Buffer);
   });

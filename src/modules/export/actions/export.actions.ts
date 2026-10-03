@@ -23,7 +23,7 @@ export async function createExportJobAction(
   const { companyId, allHistory = false } = parsed.data;
   // Si allHistory, usar ventana amplia (10 años) para los campos de BD
   const dateFrom = parsed.data.dateFrom ?? new Date(new Date().getFullYear() - 10, 0, 1);
-  const dateTo   = parsed.data.dateTo   ?? new Date();
+  const dateTo = parsed.data.dateTo ?? new Date();
 
   try {
     // Rate limit — MEDIUM-2: exports son costosos
@@ -46,7 +46,8 @@ export async function createExportJobAction(
     if (inProgress) {
       return {
         success: false,
-        error: "Ya existe una exportación en proceso para esta empresa. Intenta de nuevo en unos minutos.",
+        error:
+          "Ya existe una exportación en proceso para esta empresa. Intenta de nuevo en unos minutos.",
       };
     }
 
@@ -64,7 +65,12 @@ export async function createExportJobAction(
 
     try {
       // CRITICAL-2: todas las queries dentro del service reciben companyId explícito
-      const { data, sizeBytes } = await generateExportZip({ companyId, dateFrom, dateTo, allHistory });
+      const { data, sizeBytes } = await generateExportZip({
+        companyId,
+        dateFrom,
+        dateTo,
+        allHistory,
+      });
 
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // +24h
 
@@ -82,8 +88,7 @@ export async function createExportJobAction(
         where: { id: job.id },
         data: {
           status: "ERROR",
-          errorMsg:
-            genError instanceof Error ? genError.message : "Error desconocido",
+          errorMsg: genError instanceof Error ? genError.message : "Error desconocido",
         },
       });
       throw genError;
@@ -92,24 +97,29 @@ export async function createExportJobAction(
     revalidatePath("/export");
     return { success: true, data: { jobId: job.id } };
   } catch (error) {
-    console.error("[createExportJobAction]", error instanceof Error ? error.message : String(error));
+    console.error(
+      "[createExportJobAction]",
+      error instanceof Error ? error.message : String(error)
+    );
     return toActionError(error);
   }
 }
 
 // ─── Listar jobs recientes del usuario para una empresa ───────────────────────
 
-export async function listExportJobsAction(
-  companyId: string
-): Promise<ActionResult<Array<{
-  id: string;
-  status: string;
-  dateFrom: Date;
-  dateTo: Date;
-  fileSize: number | null;
-  expiresAt: Date | null;
-  createdAt: Date;
-}>>> {
+export async function listExportJobsAction(companyId: string): Promise<
+  ActionResult<
+    Array<{
+      id: string;
+      status: string;
+      dateFrom: Date;
+      dateTo: Date;
+      fileSize: number | null;
+      expiresAt: Date | null;
+      createdAt: Date;
+    }>
+  >
+> {
   try {
     // CRITICAL-1: verify membership
     const ctx = await requireCompanyAction(companyId, { roles: "MEMBER_ANY" });

@@ -43,7 +43,7 @@ describe("ExchangeDifferentialService.aggregate", () => {
 
     expect(summary.totalFxGain.toFixed(2)).toBe("500.00");
     expect(summary.totalFxLoss.toFixed(2)).toBe("0.00");
-    expect(summary.netCxCMovement.toFixed(2)).toBe("500.00");   // CxC Dr+500
+    expect(summary.netCxCMovement.toFixed(2)).toBe("500.00"); // CxC Dr+500
     expect(summary.netCxPMovement.toFixed(2)).toBe("0.00");
   });
 
@@ -77,14 +77,14 @@ describe("ExchangeDifferentialService.aggregate", () => {
 
   it("GL invariant: netCxC + (-netCxP) + (-totalFxGain) + totalFxLoss = 0", () => {
     const lines = [
-      makeLine("SALE", 100, 40, 45),    // gain 500 on CxC
+      makeLine("SALE", 100, 40, 45), // gain 500 on CxC
       makeLine("PURCHASE", 50, 38, 45), // loss 350 on CxP
     ];
     const s = ExchangeDifferentialService.aggregate(lines);
 
     // CxC +500, CxP Cr(-350), FxGain Cr(-500), FxLoss Dr +350
     const gl = s.netCxCMovement
-      .plus(s.netCxPMovement.negated())   // CxP entry is negated (liability Cr)
+      .plus(s.netCxPMovement.negated()) // CxP entry is negated (liability Cr)
       .plus(s.totalFxGain.negated())
       .plus(s.totalFxLoss);
 
@@ -94,7 +94,7 @@ describe("ExchangeDifferentialService.aggregate", () => {
   it("mixed SALE gain + SALE loss nets correctly", () => {
     const lines = [
       makeLine("SALE", 100, 40, 45), // diff +500 (gain)
-      makeLine("SALE", 80, 50, 45),  // diff -400 (loss)
+      makeLine("SALE", 80, 50, 45), // diff -400 (loss)
     ];
     const s = ExchangeDifferentialService.aggregate(lines);
 
@@ -125,8 +125,8 @@ describe("ExchangeDifferentialService.aggregate", () => {
 describe("ExchangeDifferentialService.aggregate — tercero por línea (ADR-054)", () => {
   it("agrupa el movimiento neto de CxC por customerId", () => {
     const lineA1 = { ...makeLine("SALE", 100, 40, 45), customerId: "cust-A" }; // +500
-    const lineA2 = { ...makeLine("SALE", 80, 50, 45), customerId: "cust-A" };  // -400
-    const lineB = { ...makeLine("SALE", 100, 40, 45), customerId: "cust-B" };  // +500
+    const lineA2 = { ...makeLine("SALE", 80, 50, 45), customerId: "cust-A" }; // -400
+    const lineB = { ...makeLine("SALE", 100, 40, 45), customerId: "cust-B" }; // +500
 
     const s = ExchangeDifferentialService.aggregate([lineA1, lineA2, lineB]);
 
@@ -187,7 +187,13 @@ describe("ExchangeDifferentialService.calculate — resolución de tercero por v
     };
   }
 
-  function makeDb(overrides: Partial<{ invoices: unknown[]; customerRows: { id: string; rif: string }[]; vendorRows: { id: string; rif: string }[] }> = {}) {
+  function makeDb(
+    overrides: Partial<{
+      invoices: unknown[];
+      customerRows: { id: string; rif: string }[];
+      vendorRows: { id: string; rif: string }[];
+    }> = {}
+  ) {
     return {
       invoice: { findMany: vi.fn().mockResolvedValue(overrides.invoices ?? []) },
       customer: { findMany: vi.fn().mockResolvedValue(overrides.customerRows ?? []) },
@@ -196,12 +202,18 @@ describe("ExchangeDifferentialService.calculate — resolución de tercero por v
   }
 
   it("SALE con customerId ya vinculado → la línea lo usa directo, sin consultar por RIF", async () => {
-    const db = makeDb({ invoices: [makeInvoiceRow({ customerId: "cust-linked", counterpartRif: "J-11111111-1" })] });
+    const db = makeDb({
+      invoices: [makeInvoiceRow({ customerId: "cust-linked", counterpartRif: "J-11111111-1" })],
+    });
 
     const summary = await ExchangeDifferentialService.calculate("co-1", "USD", REVAL_RATE, db);
 
     expect(summary.lines[0].customerId).toBe("cust-linked");
-    expect(vi.mocked((db as unknown as { customer: { findMany: ReturnType<typeof vi.fn> } }).customer.findMany)).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(
+        (db as unknown as { customer: { findMany: ReturnType<typeof vi.fn> } }).customer.findMany
+      )
+    ).not.toHaveBeenCalled();
   });
 
   it("SALE sin vínculo, resuelve customerId por RIF en una sola query batch", async () => {
@@ -220,7 +232,11 @@ describe("ExchangeDifferentialService.calculate — resolución de tercero por v
 
     expect(summary.lines.find((l) => l.invoiceId === "inv-1")?.customerId).toBe("cust-1");
     expect(summary.lines.find((l) => l.invoiceId === "inv-2")?.customerId).toBe("cust-2");
-    expect(vi.mocked((db as unknown as { customer: { findMany: ReturnType<typeof vi.fn> } }).customer.findMany)).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(
+        (db as unknown as { customer: { findMany: ReturnType<typeof vi.fn> } }).customer.findMany
+      )
+    ).toHaveBeenCalledTimes(1);
   });
 
   it("PURCHASE sin vínculo, resuelve vendorId por RIF", async () => {

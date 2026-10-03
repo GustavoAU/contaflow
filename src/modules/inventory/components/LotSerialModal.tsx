@@ -37,7 +37,14 @@ type LotAllocation = {
 };
 
 export type LotSerialInput =
-  | { lotData: { lotNumber: string; expiresAt?: string | null; notes?: string | null; receivedAt?: string | null } }
+  | {
+      lotData: {
+        lotNumber: string;
+        expiresAt?: string | null;
+        notes?: string | null;
+        receivedAt?: string | null;
+      };
+    }
   | { lotAllocations: Array<{ lotId: string; quantity: string }> }
   | { serialNumbers: string[] }
   | { serialIds: string[] };
@@ -100,7 +107,9 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
   // ── SERIAL SALIDA state ──
   const [availableSerials, setAvailableSerials] = useState<AvailableSerial[]>([]);
   const [selectedSerialIds, setSelectedSerialIds] = useState<string[]>([]);
-  const [serialsLoading, setSerialsLoading] = useState(trackingType === "SERIAL" && movType !== "ENTRADA");
+  const [serialsLoading, setSerialsLoading] = useState(
+    trackingType === "SERIAL" && movType !== "ENTRADA"
+  );
   const [serialsError, setSerialsError] = useState<string | null>(null);
   const [serialSearch, setSerialSearch] = useState("");
 
@@ -176,9 +185,7 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
   }
 
   function updateAllocation(lotId: string, value: string) {
-    setAllocations((prev) =>
-      prev.map((a) => (a.lotId === lotId ? { ...a, quantity: value } : a))
-    );
+    setAllocations((prev) => prev.map((a) => (a.lotId === lotId ? { ...a, quantity: value } : a)));
   }
 
   const filteredSerials = availableSerials.filter((s) =>
@@ -190,43 +197,46 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
     (trackingType === "LOT" && movType === "ENTRADA"
       ? !!lotNumber.trim()
       : trackingType === "LOT"
-      ? allocationOk
-      : trackingType === "SERIAL" && movType === "ENTRADA"
-      ? serialEntradaOk
-      : serialSalidaOk);
+        ? allocationOk
+        : trackingType === "SERIAL" && movType === "ENTRADA"
+          ? serialEntradaOk
+          : serialSalidaOk);
 
   const typeLabel = movType === "ENTRADA" ? "Entrada" : movType === "SALIDA" ? "Salida" : "Ajuste";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl flex flex-col max-h-[90vh]">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <h2 className="text-base font-semibold text-gray-900">
               Contabilizar — {movement.item.name}
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {typeLabel} · {trackingType === "LOT" ? "Seguimiento por lote" : "Seguimiento por número de serie"} · {parseFloat(movement.quantity).toLocaleString("es-VE", { maximumFractionDigits: 4 })} {movement.item.unit}
+            <p className="mt-0.5 text-xs text-gray-500">
+              {typeLabel} ·{" "}
+              {trackingType === "LOT" ? "Seguimiento por lote" : "Seguimiento por número de serie"}{" "}
+              ·{" "}
+              {parseFloat(movement.quantity).toLocaleString("es-VE", { maximumFractionDigits: 4 })}{" "}
+              {movement.item.unit}
             </p>
           </div>
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="text-gray-400 hover:text-gray-600 disabled:opacity-40 text-xl leading-none"
+            className="text-xl leading-none text-gray-400 hover:text-gray-600 disabled:opacity-40"
           >
             ✕
           </button>
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
           {/* ── LOT ENTRADA ─────────────────────────────────────────────── */}
           {trackingType === "LOT" && movType === "ENTRADA" && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Número de lote <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -235,14 +245,14 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                   onChange={(e) => setLotNumber(e.target.value)}
                   placeholder="Ej. LOTE-2026-001"
                   maxLength={100}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-gray-400">
                   Si el lote ya existe, se sumará la cantidad al stock existente.
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Fecha de vencimiento
                   <span className="ml-1 text-xs font-normal text-gray-400">(opcional)</span>
                 </label>
@@ -252,13 +262,15 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                   onChange={(e) =>
                     setExpiresAt(e.target.value ? new Date(e.target.value).toISOString() : "")
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Fecha de recepción
-                  <span className="ml-1 text-xs font-normal text-gray-400">(opcional, por defecto hoy)</span>
+                  <span className="ml-1 text-xs font-normal text-gray-400">
+                    (opcional, por defecto hoy)
+                  </span>
                 </label>
                 <input
                   type="date"
@@ -266,11 +278,11 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                   onChange={(e) =>
                     setReceivedAt(e.target.value ? new Date(e.target.value).toISOString() : "")
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Notas del lote
                   <span className="ml-1 text-xs font-normal text-gray-400">(opcional)</span>
                 </label>
@@ -280,7 +292,7 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                   rows={2}
                   maxLength={500}
                   placeholder="Proveedor, condiciones de almacenamiento, etc."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
             </>
@@ -290,40 +302,57 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
           {trackingType === "LOT" && movType !== "ENTRADA" && (
             <>
               {lotsLoading && (
-                <p className="text-sm text-gray-500 text-center py-4">Cargando lotes disponibles...</p>
+                <p className="py-4 text-center text-sm text-gray-500">
+                  Cargando lotes disponibles...
+                </p>
               )}
               {lotsError && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{lotsError}</p>
+                <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{lotsError}</p>
               )}
               {!lotsLoading && !lotsError && availableLots.length === 0 && (
-                <p className="text-sm text-amber-700 bg-amber-50 rounded-lg p-3">
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
                   No hay lotes con stock disponible para este producto.
                 </p>
               )}
               {!lotsLoading && !lotsError && availableLots.length > 0 && (
                 <>
                   <p className="text-xs text-gray-500">
-                    Asignación FEFO automática (editable). Los lotes se ordenan por fecha de vencimiento más próxima primero.
+                    Asignación FEFO automática (editable). Los lotes se ordenan por fecha de
+                    vencimiento más próxima primero.
                   </p>
-                  <div className="rounded-lg border border-gray-200 overflow-x-auto">
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500">
+                      <thead className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
                         <tr>
-                          <th scope="col" className="px-3 py-2 text-left">Lote</th>
-                          <th scope="col" className="px-3 py-2 text-left">Vence</th>
-                          <th scope="col" className="px-3 py-2 text-right">Disponible</th>
-                          <th scope="col" className="px-3 py-2 text-right">Asignar</th>
+                          <th scope="col" className="px-3 py-2 text-left">
+                            Lote
+                          </th>
+                          <th scope="col" className="px-3 py-2 text-left">
+                            Vence
+                          </th>
+                          <th scope="col" className="px-3 py-2 text-right">
+                            Disponible
+                          </th>
+                          <th scope="col" className="px-3 py-2 text-right">
+                            Asignar
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {allocations.map((alloc) => (
                           <tr key={alloc.lotId} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 font-mono text-xs text-gray-800">{alloc.lotNumber}</td>
+                            <td className="px-3 py-2 font-mono text-xs text-gray-800">
+                              {alloc.lotNumber}
+                            </td>
                             <td className="px-3 py-2 text-xs text-gray-500">
-                              {formatDate(availableLots.find((l) => l.id === alloc.lotId)?.expiresAt ?? null)}
+                              {formatDate(
+                                availableLots.find((l) => l.id === alloc.lotId)?.expiresAt ?? null
+                              )}
                             </td>
                             <td className="px-3 py-2 text-right font-mono text-xs text-gray-600">
-                              {parseFloat(alloc.available).toLocaleString("es-VE", { maximumFractionDigits: 4 })}
+                              {parseFloat(alloc.available).toLocaleString("es-VE", {
+                                maximumFractionDigits: 4,
+                              })}
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
@@ -333,7 +362,7 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                                 step="0.0001"
                                 value={alloc.quantity}
                                 onChange={(e) => updateAllocation(alloc.lotId, e.target.value)}
-                                className="w-24 rounded border border-gray-300 px-2 py-1 text-right text-xs font-mono focus:border-blue-500 focus:outline-none"
+                                className="w-24 rounded border border-gray-300 px-2 py-1 text-right font-mono text-xs focus:border-blue-500 focus:outline-none"
                               />
                             </td>
                           </tr>
@@ -341,8 +370,13 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                       </tbody>
                     </table>
                   </div>
-                  <div className={`text-xs font-medium text-right ${allocationOk ? "text-green-600" : "text-red-600"}`}>
-                    Total asignado: {allocationTotal.toLocaleString("es-VE", { maximumFractionDigits: 4 })} / {requiredQty.toLocaleString("es-VE", { maximumFractionDigits: 4 })} {movement.item.unit}
+                  <div
+                    className={`text-right text-xs font-medium ${allocationOk ? "text-green-600" : "text-red-600"}`}
+                  >
+                    Total asignado:{" "}
+                    {allocationTotal.toLocaleString("es-VE", { maximumFractionDigits: 4 })} /{" "}
+                    {requiredQty.toLocaleString("es-VE", { maximumFractionDigits: 4 })}{" "}
+                    {movement.item.unit}
                     {!allocationOk && " — debe coincidir exactamente"}
                   </div>
                 </>
@@ -354,7 +388,7 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
           {trackingType === "SERIAL" && movType === "ENTRADA" && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
                   Números de serie
                   <span className="ml-1 text-xs font-normal text-gray-400">(uno por línea)</span>
                 </label>
@@ -363,11 +397,14 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                   onChange={(e) => setSerialInput(e.target.value)}
                   rows={6}
                   placeholder={"SN-001\nSN-002\nSN-003"}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
-              <div className={`text-xs font-medium ${serialEntradaOk ? "text-green-600" : "text-gray-500"}`}>
-                {uniqueSerials.length} serie(s) ingresada(s) — se requieren {Math.round(requiredQty)}
+              <div
+                className={`text-xs font-medium ${serialEntradaOk ? "text-green-600" : "text-gray-500"}`}
+              >
+                {uniqueSerials.length} serie(s) ingresada(s) — se requieren{" "}
+                {Math.round(requiredQty)}
                 {parsedSerials.length !== uniqueSerials.length && (
                   <span className="ml-2 text-amber-600">
                     ({parsedSerials.length - uniqueSerials.length} duplicado(s) ignorado(s))
@@ -375,9 +412,11 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                 )}
               </div>
               {uniqueSerials.length > 0 && (
-                <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 max-h-32 overflow-y-auto">
+                <div className="max-h-32 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
                   {uniqueSerials.map((s) => (
-                    <div key={s} className="text-xs font-mono text-gray-600">{s}</div>
+                    <div key={s} className="font-mono text-xs text-gray-600">
+                      {s}
+                    </div>
                   ))}
                 </div>
               )}
@@ -388,35 +427,40 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
           {trackingType === "SERIAL" && movType !== "ENTRADA" && (
             <>
               {serialsLoading && (
-                <p className="text-sm text-gray-500 text-center py-4">Cargando seriales disponibles...</p>
+                <p className="py-4 text-center text-sm text-gray-500">
+                  Cargando seriales disponibles...
+                </p>
               )}
               {serialsError && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{serialsError}</p>
+                <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{serialsError}</p>
               )}
               {!serialsLoading && !serialsError && availableSerials.length === 0 && (
-                <p className="text-sm text-amber-700 bg-amber-50 rounded-lg p-3">
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
                   No hay números de serie disponibles para este producto.
                 </p>
               )}
               {!serialsLoading && !serialsError && availableSerials.length > 0 && (
                 <>
-                  <div className={`text-xs font-medium ${serialSalidaOk ? "text-green-600" : "text-gray-500"}`}>
-                    {selectedSerialIds.length} seleccionado(s) de {Math.round(requiredQty)} requerido(s)
+                  <div
+                    className={`text-xs font-medium ${serialSalidaOk ? "text-green-600" : "text-gray-500"}`}
+                  >
+                    {selectedSerialIds.length} seleccionado(s) de {Math.round(requiredQty)}{" "}
+                    requerido(s)
                   </div>
                   <input
                     type="text"
                     value={serialSearch}
                     onChange={(e) => setSerialSearch(e.target.value)}
                     placeholder="Buscar número de serie..."
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
-                  <div className="rounded-lg border border-gray-200 max-h-52 overflow-y-auto divide-y divide-gray-100">
+                  <div className="max-h-52 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
                     {filteredSerials.map((s) => {
                       const checked = selectedSerialIds.includes(s.id);
                       return (
                         <label
                           key={s.id}
-                          className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                          className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-50"
                         >
                           <input
                             type="checkbox"
@@ -424,12 +468,12 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
                             onChange={() => toggleSerial(s.id)}
                             className="h-4 w-4 rounded border-gray-300 text-blue-600"
                           />
-                          <span className="text-sm font-mono text-gray-800">{s.serialNumber}</span>
+                          <span className="font-mono text-sm text-gray-800">{s.serialNumber}</span>
                         </label>
                       );
                     })}
                     {filteredSerials.length === 0 && (
-                      <p className="text-xs text-gray-400 text-center py-4">Sin resultados</p>
+                      <p className="py-4 text-center text-xs text-gray-400">Sin resultados</p>
                     )}
                   </div>
                 </>
@@ -450,7 +494,7 @@ export function LotSerialModal({ movement, companyId, onClose, onConfirm, isSubm
           <button
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting ? (
               <span className="flex items-center gap-2">

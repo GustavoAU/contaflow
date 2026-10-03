@@ -67,9 +67,7 @@ describe("Architecture: AuditLog append-only integrity (ADR-006 D-4)", () => {
 
     // Exclude the __tests__ directory (test files are allowed to reference these
     // patterns in test descriptions or this guard itself)
-    const productionFiles = allFiles.filter(
-      (f) => !f.startsWith(testsDir + path.sep),
-    );
+    const productionFiles = allFiles.filter((f) => !f.startsWith(testsDir + path.sep));
 
     const violations: string[] = [];
 
@@ -86,9 +84,7 @@ describe("Architecture: AuditLog append-only integrity (ADR-006 D-4)", () => {
 
         for (const pattern of FORBIDDEN_PATTERNS) {
           if (pattern.test(line)) {
-            violations.push(
-              `[${rel(absPath)}:${i + 1}]: "${trimmed.slice(0, 100)}"`,
-            );
+            violations.push(`[${rel(absPath)}:${i + 1}]: "${trimmed.slice(0, 100)}"`);
             break;
           }
         }
@@ -100,7 +96,7 @@ describe("Architecture: AuditLog append-only integrity (ADR-006 D-4)", () => {
       `CRITICAL — AuditLog tamper found in production code (ADR-006 D-4):\n` +
         `The following files call auditLog.update or auditLog.delete, which is ` +
         `forbidden under VEN-NIF (Código de Comercio Art. 32-33):\n\n` +
-        violations.map((v) => `  ✗ ${v}`).join("\n"),
+        violations.map((v) => `  ✗ ${v}`).join("\n")
     ).toHaveLength(0);
   });
 

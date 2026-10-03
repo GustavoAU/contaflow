@@ -73,7 +73,7 @@ describe("createCheckoutAction", () => {
       "MONTHLY",
       "actor-1",
       null,
-      null,
+      null
     );
   });
 
@@ -144,7 +144,10 @@ describe("createCheckoutAction", () => {
   });
 
   it("rechaza si se supera el rate limit", async () => {
-    vi.mocked(checkRateLimit).mockResolvedValueOnce({ allowed: false, error: "Demasiadas solicitudes. Intente más tarde." });
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      error: "Demasiadas solicitudes. Intente más tarde.",
+    });
 
     const result = await createCheckoutAction({
       companyId: COMPANY_ID,
@@ -168,7 +171,7 @@ describe("createCheckoutAction", () => {
       "ANNUAL",
       "actor-1",
       null,
-      null,
+      null
     );
   });
 });

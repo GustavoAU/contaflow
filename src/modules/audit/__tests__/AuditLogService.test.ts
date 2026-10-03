@@ -89,7 +89,9 @@ describe("AuditLogService.list", () => {
       dateTo: "2026-01-31",
     });
 
-    const call = vi.mocked(prisma.auditLog.findMany).mock.calls[0][0] as { where: { createdAt: { gte: Date; lte: Date } } };
+    const call = vi.mocked(prisma.auditLog.findMany).mock.calls[0][0] as {
+      where: { createdAt: { gte: Date; lte: Date } };
+    };
     expect(call.where.createdAt).toBeDefined();
     expect(call.where.createdAt.gte).toEqual(new Date("2026-01-01T00:00:00.000Z"));
     expect(call.where.createdAt.lte).toEqual(new Date("2026-01-31T23:59:59.999Z"));
@@ -113,9 +115,7 @@ describe("AuditLogService.list", () => {
 
     await AuditLogService.list({ companyId: COMPANY_ID, pageSize: 500 });
 
-    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 100 })
-    );
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
   });
 });
 

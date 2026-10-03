@@ -3,7 +3,11 @@ import { Decimal } from "decimal.js";
 import { invoiceBaseAndIva, invoiceTotalAmount } from "@/lib/invoice-amounts";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, TaxLineType } from "@prisma/client";
-import type { CreateInvoiceInput, CreateInvoiceWithLinesInput, InvoiceBookFilter } from "../schemas/invoice.schema";
+import type {
+  CreateInvoiceInput,
+  CreateInvoiceWithLinesInput,
+  InvoiceBookFilter,
+} from "../schemas/invoice.schema";
 import {
   computeLineTotals,
   deriveInvoiceTaxLines,
@@ -37,9 +41,9 @@ export type InvoiceTaxLineSerialized = {
 
 export type InvoiceBookExchangeRate = {
   foreignCurrency: string; // e.g. "USD"
-  rate: string;            // VES per 1 foreignCurrency unit
-  date: string;            // ISO date string
-  source: string;          // e.g. "BCV"
+  rate: string; // VES per 1 foreignCurrency unit
+  date: string; // ISO date string
+  source: string; // e.g. "BCV"
 };
 
 export type InvoiceBookRow = {
@@ -144,14 +148,14 @@ export type InvoiceBookParams = {
   companyId: string;
   periodId: string;
   invoiceType: "SALE" | "PURCHASE";
-  cursor?: string;   // id del último registro visto (cursor opaco)
-  limit?: number;    // default 50, max 50
+  cursor?: string; // id del último registro visto (cursor opaco)
+  limit?: number; // default 50, max 50
 };
 
 export type InvoiceBookPage = {
   items: InvoiceBookRow[];
   nextCursor: string | null; // null si no hay más páginas
-  total: number;             // count total para mostrar "X de Y"
+  total: number; // count total para mostrar "X de Y"
 };
 
 export class InvoiceService {
@@ -206,7 +210,11 @@ export class InvoiceService {
 
     // ─── Pre-computar taxLines (puro — sin DB) ───────────────────────────────
     let taxLinesToCreate: Array<{
-      taxType: string; base: Decimal; rate: Decimal; amount: Decimal; description?: string | null;
+      taxType: string;
+      base: Decimal;
+      rate: Decimal;
+      amount: Decimal;
+      description?: string | null;
     }>;
     let totalAmountVes: Decimal;
 
@@ -254,7 +262,7 @@ export class InvoiceService {
         db,
         input.companyId,
         invoiceDate,
-        "una factura",
+        "una factura"
       );
       const resolvedPeriodId = input.periodId ?? resolvedFromDate;
 
@@ -301,12 +309,13 @@ export class InvoiceService {
           ivaDFAccountId: true,
           ivaCFAccountId: true,
           ivaRetentionPayableAccountId: true, // GAP-03
-          igtfPayableAccountId: true,         // H-6 — ADR-030
+          igtfPayableAccountId: true, // H-6 — ADR-030
         },
       });
 
       // H-1/H-2: snapshotear dirección fiscal y estado CE del contacto al momento de emisión
-      let snapshotAddress: string | null = (input as { counterpartAddress?: string }).counterpartAddress ?? null;
+      let snapshotAddress: string | null =
+        (input as { counterpartAddress?: string }).counterpartAddress ?? null;
       let snapshotIsCE = false;
       // ADR-054: ids resueltos por RIF más abajo, reusados por InvoiceGLPostingService para
       // derivar el tercero de la línea CxC/CxP — evita un segundo round-trip a la BD.
@@ -390,14 +399,18 @@ export class InvoiceService {
           input.createdBy ?? "",
           stockLevel,
           db,
-          input.type as "SALE" | "PURCHASE"  // OM-01: tipo de movimiento correcto
+          input.type as "SALE" | "PURCHASE" // OM-01: tipo de movimiento correcto
         );
       }
 
       // ─── GL auto-posting (ADR-026) ──────────────────────────────────────────
       // Solo si no se pasó transactionId explícito y la config GL está completa
       let glTransactionId: string | null = null;
-      if (!input.transactionId && settings && InvoiceGLPostingService.canPost(input.type as "SALE" | "PURCHASE", settings)) {
+      if (
+        !input.transactionId &&
+        settings &&
+        InvoiceGLPostingService.canPost(input.type as "SALE" | "PURCHASE", settings)
+      ) {
         // NIC 21: obtener tasa histórica para enriquecer descripción GL (ALERTA 1)
         let exchangeRateVes: Decimal | null = null;
         if (input.exchangeRateId && (input.currency ?? "VES") !== "VES") {
@@ -471,12 +484,17 @@ export class InvoiceService {
 
       // Re-fetch para incluir transactionId actualizado (si GL posting ocurrió)
       if (glTransactionId) {
-        return db.invoice.findUniqueOrThrow({ where: { id: invoice.id }, include: { taxLines: true } });
+        return db.invoice.findUniqueOrThrow({
+          where: { id: invoice.id },
+          include: { taxLines: true },
+        });
       }
       return invoice;
     };
 
-    const inv = await (outerTx ? doCreate(outerTx) : prisma.$transaction(doCreate, { timeout: 10000 }));
+    const inv = await (outerTx
+      ? doCreate(outerTx)
+      : prisma.$transaction(doCreate, { timeout: 10000 }));
     return Object.assign(inv, { stockWarnings });
   }
 
@@ -524,7 +542,8 @@ export class InvoiceService {
       ];
     }
 
-    const invoices = await prisma.invoice.findMany({ // ADR-004-EXCEPTION: companyId en 'where' construido arriba con Prisma.InvoiceWhereInput
+    const invoices = await prisma.invoice.findMany({
+      // ADR-004-EXCEPTION: companyId en 'where' construido arriba con Prisma.InvoiceWhereInput
       where,
       take,
       ...(cursor
@@ -569,8 +588,12 @@ export class InvoiceService {
       counterpartName: inv.counterpartName,
       counterpartRif: inv.counterpartRif,
       currency: inv.currency,
-      totalAmountVes: inv.totalAmountVes ? new Decimal(inv.totalAmountVes.toString()).toFixed(2) : null,
-      pendingAmount: inv.pendingAmount ? new Decimal(inv.pendingAmount.toString()).toFixed(2) : null,
+      totalAmountVes: inv.totalAmountVes
+        ? new Decimal(inv.totalAmountVes.toString()).toFixed(2)
+        : null,
+      pendingAmount: inv.pendingAmount
+        ? new Decimal(inv.pendingAmount.toString()).toFixed(2)
+        : null,
       paymentStatus: inv.paymentStatus,
       ivaRetentionAmount: new Decimal(inv.ivaRetentionAmount.toString()).toFixed(2),
       islrRetentionAmount: new Decimal(inv.islrRetentionAmount.toString()).toFixed(2),
@@ -684,18 +707,26 @@ export class InvoiceService {
     let startDate: Date;
     let endDate: Date;
     if (filter.startDate && filter.endDate) {
-      startDate = new Date(Date.UTC(
-        filter.startDate.getUTCFullYear(), filter.startDate.getUTCMonth(), filter.startDate.getUTCDate()
-      ));
+      startDate = new Date(
+        Date.UTC(
+          filter.startDate.getUTCFullYear(),
+          filter.startDate.getUTCMonth(),
+          filter.startDate.getUTCDate()
+        )
+      );
       // endDate inclusivo: avanzar al día siguiente para que `lt` capture todo el día final
-      endDate = new Date(Date.UTC(
-        filter.endDate.getUTCFullYear(), filter.endDate.getUTCMonth(), filter.endDate.getUTCDate() + 1
-      ));
+      endDate = new Date(
+        Date.UTC(
+          filter.endDate.getUTCFullYear(),
+          filter.endDate.getUTCMonth(),
+          filter.endDate.getUTCDate() + 1
+        )
+      );
     } else {
       const year = filter.year!;
       const month = filter.month!;
       startDate = new Date(Date.UTC(year, month - 1, 1));
-      endDate   = new Date(Date.UTC(year, month, 1));
+      endDate = new Date(Date.UTC(year, month, 1));
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -705,7 +736,12 @@ export class InvoiceService {
         date: { gte: startDate, lt: endDate },
         deletedAt: null,
       },
-      include: { taxLines: true, retenciones: { where: { deletedAt: null } }, exchangeRate: true, seniatSubmission: { select: { status: true } } },
+      include: {
+        taxLines: true,
+        retenciones: { where: { deletedAt: null } },
+        exchangeRate: true,
+        seniatSubmission: { select: { status: true } },
+      },
       orderBy: { date: "asc" },
     });
 
@@ -720,8 +756,12 @@ export class InvoiceService {
         .filter((r) => r.type === "ISLR" || r.type === "AMBAS")
         .reduce((sum, r) => sum.plus(r.islrAmount ?? new Decimal(0)), new Decimal(0));
       const hasLinked = inv.retenciones.length > 0;
-      const ivaRetentionAmount = hasLinked ? ivaFromRet.toFixed(2) : inv.ivaRetentionAmount.toFixed(2);
-      const islrRetentionAmount = hasLinked ? islrFromRet.toFixed(2) : inv.islrRetentionAmount.toFixed(2);
+      const ivaRetentionAmount = hasLinked
+        ? ivaFromRet.toFixed(2)
+        : inv.ivaRetentionAmount.toFixed(2);
+      const islrRetentionAmount = hasLinked
+        ? islrFromRet.toFixed(2)
+        : inv.islrRetentionAmount.toFixed(2);
 
       return {
         id: inv.id,
@@ -744,14 +784,15 @@ export class InvoiceService {
         igtfAmount: inv.igtfAmount.toFixed(2),
         currency: inv.currency,
         exchangeRateId: inv.exchangeRateId,
-        exchangeRate: inv.exchangeRate && inv.currency !== "VES"
-          ? {
-              foreignCurrency: inv.currency,
-              rate: inv.exchangeRate.rate.toFixed(6),
-              date: inv.exchangeRate.date.toISOString(),
-              source: inv.exchangeRate.source,
-            }
-          : null,
+        exchangeRate:
+          inv.exchangeRate && inv.currency !== "VES"
+            ? {
+                foreignCurrency: inv.currency,
+                rate: inv.exchangeRate.rate.toFixed(6),
+                date: inv.exchangeRate.date.toISOString(),
+                source: inv.exchangeRate.source,
+              }
+            : null,
         taxLines: inv.taxLines.map((line) => ({
           id: line.id,
           taxType: line.taxType,
@@ -764,7 +805,11 @@ export class InvoiceService {
           const { base, iva } = invoiceBaseAndIva(inv.taxLines);
           return base.plus(iva).toFixed(2);
         })(),
-        seniatStatus: (inv.seniatSubmission?.status ?? null) as "PENDING" | "SENT" | "FAILED" | null,
+        seniatStatus: (inv.seniatSubmission?.status ?? null) as
+          | "PENDING"
+          | "SENT"
+          | "FAILED"
+          | null,
       };
     });
 
@@ -811,13 +856,22 @@ export class InvoiceService {
       totalExempt: sumTaxBases("EXENTO"),
       // Sumar desde rows — ya incorporan montos derivados de Retenciones vinculadas
       totalIvaRetention: rows
-        .reduce((acc, r) => acc.plus(new Decimal(r.ivaRetentionAmount).times(signOf(r.docType))), new Decimal(0))
+        .reduce(
+          (acc, r) => acc.plus(new Decimal(r.ivaRetentionAmount).times(signOf(r.docType))),
+          new Decimal(0)
+        )
         .toFixed(2),
       totalIslrRetention: rows
-        .reduce((acc, r) => acc.plus(new Decimal(r.islrRetentionAmount).times(signOf(r.docType))), new Decimal(0))
+        .reduce(
+          (acc, r) => acc.plus(new Decimal(r.islrRetentionAmount).times(signOf(r.docType))),
+          new Decimal(0)
+        )
         .toFixed(2),
       totalIgtf: invoices
-        .reduce((acc, inv) => acc.plus(new Decimal(inv.igtfAmount.toString()).times(signOf(inv.docType))), new Decimal(0))
+        .reduce(
+          (acc, inv) => acc.plus(new Decimal(inv.igtfAmount.toString()).times(signOf(inv.docType))),
+          new Decimal(0)
+        )
         .toFixed(2),
       totalBase: totalBase.toFixed(2),
       totalIva: totalIva.toFixed(2),

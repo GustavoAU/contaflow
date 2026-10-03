@@ -16,9 +16,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx)
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 
 import { prisma } from "@/lib/prisma";
@@ -56,16 +58,14 @@ describe("BankReconciliationService.matchTransaction", () => {
     vi.clearAllMocks();
 
     // Default: $transaction ejecuta el callback inmediatamente
-    vi.mocked(prisma.$transaction).mockImplementation(
-      ((fn: (tx: unknown) => unknown) =>
-        fn({
-          bankTransaction: prisma.bankTransaction,
-          invoicePayment: prisma.invoicePayment,
-          transaction: prisma.transaction,
-          paymentRecord: prisma.paymentRecord,
-          auditLog: prisma.auditLog,
-        })) as never
-    );
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        bankTransaction: prisma.bankTransaction,
+        invoicePayment: prisma.invoicePayment,
+        transaction: prisma.transaction,
+        paymentRecord: prisma.paymentRecord,
+        auditLog: prisma.auditLog,
+      })) as never);
   });
 
   // ─── INVOICE_PAYMENT ───────────────────────────────────────────────────────
@@ -74,7 +74,10 @@ describe("BankReconciliationService.matchTransaction", () => {
     const PAYMENT_ID = "pay-1";
 
     vi.mocked(prisma.bankTransaction.findFirst).mockResolvedValue(BASE_BANK_TX as never);
-    vi.mocked(prisma.invoicePayment.findFirst).mockResolvedValue({ id: PAYMENT_ID, companyId: COMPANY_ID } as never);
+    vi.mocked(prisma.invoicePayment.findFirst).mockResolvedValue({
+      id: PAYMENT_ID,
+      companyId: COMPANY_ID,
+    } as never);
     vi.mocked(prisma.bankTransaction.update).mockResolvedValue({
       ...BASE_BANK_TX,
       isReconciled: true,
@@ -105,7 +108,10 @@ describe("BankReconciliationService.matchTransaction", () => {
     const JOURNAL_ID = "txn-1";
 
     vi.mocked(prisma.bankTransaction.findFirst).mockResolvedValue(BASE_BANK_TX as never);
-    vi.mocked(prisma.transaction.findFirst).mockResolvedValue({ id: JOURNAL_ID, companyId: COMPANY_ID } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue({
+      id: JOURNAL_ID,
+      companyId: COMPANY_ID,
+    } as never);
     vi.mocked(prisma.bankTransaction.update).mockResolvedValue({
       ...BASE_BANK_TX,
       isReconciled: true,
@@ -135,7 +141,10 @@ describe("BankReconciliationService.matchTransaction", () => {
     const RECORD_ID = "pr-1";
 
     vi.mocked(prisma.bankTransaction.findFirst).mockResolvedValue(BASE_BANK_TX as never);
-    vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue({ id: RECORD_ID, companyId: COMPANY_ID } as never);
+    vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue({
+      id: RECORD_ID,
+      companyId: COMPANY_ID,
+    } as never);
     vi.mocked(prisma.bankTransaction.update).mockResolvedValue({
       ...BASE_BANK_TX,
       isReconciled: true,

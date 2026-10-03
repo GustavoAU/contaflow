@@ -32,9 +32,11 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/prisma-rls", () => ({
-  withCompanyContext: vi.fn().mockImplementation(
-    (_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) => fn(_tx),
-  ),
+  withCompanyContext: vi
+    .fn()
+    .mockImplementation((_companyId: string, _tx: unknown, fn: (_tx: unknown) => unknown) =>
+      fn(_tx)
+    ),
 }));
 vi.mock("../services/ReceivableService", () => ({
   ReceivableService: {
@@ -131,28 +133,30 @@ beforeEach(() => {
   vi.mocked(ReceivableService.cancelPayment).mockResolvedValue(undefined as never);
   vi.mocked(ReceivableService.getPaymentsByInvoice).mockResolvedValue([MOCK_PAYMENT] as never);
   vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: false } as never);
-  vi.mocked(prisma.$transaction).mockImplementation(
-    ((fn: (tx: unknown) => unknown) =>
-      fn({
-        company: prisma.company,
-        auditLog: prisma.auditLog,
-        paymentRecord: prisma.paymentRecord,
-        invoice: prisma.invoice,
-        companySettings: prisma.companySettings,
-      })) as never
-  );
+  vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+    fn({
+      company: prisma.company,
+      auditLog: prisma.auditLog,
+      paymentRecord: prisma.paymentRecord,
+      invoice: prisma.invoice,
+      companySettings: prisma.companySettings,
+    })) as never);
   vi.mocked(prisma.company.findUnique).mockResolvedValue({ paymentTermDays: 30 } as never);
   vi.mocked(prisma.company.update).mockResolvedValue({ paymentTermDays: 60 } as never);
   // ADR-032 F2: defaults de la vía canónica
   vi.mocked(prisma.paymentRecord.findUnique).mockResolvedValue(null as never); // sin duplicado
   vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValue(null as never); // cancel: legacy por defecto
-  vi.mocked(prisma.invoice.findFirst).mockResolvedValue(
-    { type: "SALE", igtfBase: new Decimal(0), igtfAmount: new Decimal(0), invoiceNumber: "0001" } as never,
-  );
+  vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
+    type: "SALE",
+    igtfBase: new Decimal(0),
+    igtfAmount: new Decimal(0),
+    invoiceNumber: "0001",
+  } as never);
   vi.mocked(prisma.companySettings.findUnique).mockResolvedValue(null as never);
-  vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue(
-    { newPending: new Decimal(0), newStatus: "PAID" } as never,
-  );
+  vi.mocked(PaymentService.applyPaymentToInvoice).mockResolvedValue({
+    newPending: new Decimal(0),
+    newStatus: "PAID",
+  } as never);
   vi.mocked(PaymentService.create).mockResolvedValue(MOCK_PAYMENT as never);
   vi.mocked(PaymentService.void).mockResolvedValue(MOCK_PAYMENT as never);
   vi.mocked(PaymentService.revertPaymentFromInvoice).mockResolvedValue(undefined as never);
@@ -160,13 +164,16 @@ beforeEach(() => {
   vi.mocked(IGTFService.applies).mockReturnValue(false);
   vi.mocked(IGTFService.calculate).mockReturnValue({ igtfAmount: "0" } as never);
   // Divisa: tasa por defecto (los tests la sobrescriben cuando importa)
-  vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValue(
-    { id: "rate-1", rate: "600" } as never,
-  );
+  vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValue({
+    id: "rate-1",
+    rate: "600",
+  } as never);
   // H-004: por defecto la fecha cae en el período abierto
-  vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue(
-    { id: "period-1", year: 2026, month: 7 } as never,
-  );
+  vi.mocked(PeriodService.assertDateInOpenPeriod).mockResolvedValue({
+    id: "period-1",
+    year: 2026,
+    month: 7,
+  } as never);
 });
 
 // ─── getReceivablesAction ─────────────────────────────────────────────────────
@@ -250,7 +257,7 @@ describe("recordPaymentAction", () => {
         appliedToInvoice: true,
         idempotencyKey: VALID_INPUT.idempotencyKey,
         createdBy: "user-1",
-      }),
+      })
     );
   });
 
@@ -263,7 +270,7 @@ describe("recordPaymentAction", () => {
     expect(res.success).toBe(true);
     expect(PaymentService.create).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ createdBy: "user-1" }),
+      expect.objectContaining({ createdBy: "user-1" })
     );
   });
 
@@ -278,7 +285,7 @@ describe("recordPaymentAction", () => {
 
   it("error genérico → mapPrismaError", async () => {
     vi.mocked(PaymentService.applyPaymentToInvoice).mockRejectedValueOnce(
-      new Error("network issue") as never,
+      new Error("network issue") as never
     );
     const res = await recordPaymentAction(VALID_INPUT);
     expect(res.success).toBe(false);
@@ -286,10 +293,14 @@ describe("recordPaymentAction", () => {
   });
 
   it("SALE con bankAccountId → asiento COBRO (postPaymentRecordGL)", async () => {
-    vi.mocked(prisma.companySettings.findUnique).mockResolvedValueOnce(
-      { arAccountId: "acc-ar", apAccountId: "acc-ap", igtfPayableAccountId: null,
-        fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null } as never,
-    );
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValueOnce({
+      arAccountId: "acc-ar",
+      apAccountId: "acc-ap",
+      igtfPayableAccountId: null,
+      fxGainAccountId: null,
+      fxLossAccountId: null,
+      ivaRetentionReceivableAccountId: null,
+    } as never);
     const res = await recordPaymentAction({ ...VALID_INPUT, bankAccountId: "bank-1" });
     expect(res.success).toBe(true);
     expect(PaymentGLService.postPaymentRecordGL).toHaveBeenCalledTimes(1);
@@ -297,13 +308,20 @@ describe("recordPaymentAction", () => {
   });
 
   it("PURCHASE con bankAccountId → asiento PAGO (postVendorPaymentRecordGL — D-5)", async () => {
-    vi.mocked(prisma.invoice.findFirst).mockResolvedValueOnce(
-      { type: "PURCHASE", igtfBase: new Decimal(0), igtfAmount: new Decimal(0), invoiceNumber: "0002" } as never,
-    );
-    vi.mocked(prisma.companySettings.findUnique).mockResolvedValueOnce(
-      { arAccountId: "acc-ar", apAccountId: "acc-ap", igtfPayableAccountId: null,
-        fxGainAccountId: null, fxLossAccountId: null, ivaRetentionReceivableAccountId: null } as never,
-    );
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValueOnce({
+      type: "PURCHASE",
+      igtfBase: new Decimal(0),
+      igtfAmount: new Decimal(0),
+      invoiceNumber: "0002",
+    } as never);
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValueOnce({
+      arAccountId: "acc-ar",
+      apAccountId: "acc-ap",
+      igtfPayableAccountId: null,
+      fxGainAccountId: null,
+      fxLossAccountId: null,
+      ivaRetentionReceivableAccountId: null,
+    } as never);
     const res = await recordPaymentAction({ ...VALID_INPUT, bankAccountId: "bank-1" });
     expect(res.success).toBe(true);
     expect(PaymentGLService.postVendorPaymentRecordGL).toHaveBeenCalledTimes(1);
@@ -319,9 +337,10 @@ describe("recordPaymentAction", () => {
 
   // ── H-003 follow-up (Z-2): cobro en divisa recalcula amountVes con la tasa BCV ──
   it("cobro USD → recalcula amountVes = amountOriginal × tasa (Art. 4 LGTF)", async () => {
-    vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValueOnce(
-      { id: "rate-usd-1", rate: "600" } as never,
-    );
+    vi.mocked(ExchangeRateService.getRateForDate).mockResolvedValueOnce({
+      id: "rate-usd-1",
+      rate: "600",
+    } as never);
     // IGTF activo para verificar que se calcula sobre el VES autoritativo
     vi.mocked(IGTFService.applies).mockReturnValue(true);
     vi.mocked(IGTFService.calculate).mockReturnValue({ igtfAmount: "900" } as never);
@@ -331,7 +350,9 @@ describe("recordPaymentAction", () => {
 
     // La tasa se consulta para la moneda y fecha correctas
     expect(ExchangeRateService.getRateForDate).toHaveBeenCalledWith(
-      COMPANY_ID, "USD", expect.any(Date),
+      COMPANY_ID,
+      "USD",
+      expect.any(Date)
     );
 
     // applyPaymentToInvoice recibe el VES autoritativo (50 × 600 = 30000), no "50"
@@ -347,10 +368,11 @@ describe("recordPaymentAction", () => {
       expect.objectContaining({
         currency: "USD",
         exchangeRateId: "rate-usd-1",
-      }),
+      })
     );
     const createArg = vi.mocked(PaymentService.create).mock.calls[0][1] as {
-      amountVes: Decimal; amountOriginal?: Decimal;
+      amountVes: Decimal;
+      amountOriginal?: Decimal;
     };
     expect(createArg.amountVes.toString()).toBe("30000");
     expect(createArg.amountOriginal?.toString()).toBe("50");
@@ -358,7 +380,9 @@ describe("recordPaymentAction", () => {
 
   it("cobro USD sin tasa registrada → error, no crea el cobro", async () => {
     vi.mocked(ExchangeRateService.getRateForDate).mockRejectedValueOnce(
-      new Error("No hay tasa BCV registrada para USD el 2026-07-01. Ingrese la tasa antes de registrar la transacción.") as never,
+      new Error(
+        "No hay tasa BCV registrada para USD el 2026-07-01. Ingrese la tasa antes de registrar la transacción."
+      ) as never
     );
     const res = await recordPaymentAction({ ...VALID_INPUT, amount: "50", currency: "USD" });
     expect(res.success).toBe(false);
@@ -379,8 +403,8 @@ describe("recordPaymentAction", () => {
   it("fecha fuera del período abierto → error, no aplica ni crea el cobro", async () => {
     vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
       new Error(
-        "La fecha (01/2024) está fuera del período contable abierto (07/2026). Solo se pueden registrar operaciones del período abierto actual.",
-      ),
+        "La fecha (01/2024) está fuera del período contable abierto (07/2026). Solo se pueden registrar operaciones del período abierto actual."
+      )
     );
 
     const res = await recordPaymentAction({ ...VALID_INPUT, date: "2024-01-15T00:00:00.000Z" });
@@ -393,7 +417,7 @@ describe("recordPaymentAction", () => {
 
   it("sin período contable abierto → error, no crea el cobro", async () => {
     vi.mocked(PeriodService.assertDateInOpenPeriod).mockRejectedValueOnce(
-      new Error("No hay período contable abierto"),
+      new Error("No hay período contable abierto")
     );
 
     const res = await recordPaymentAction(VALID_INPUT);
@@ -407,8 +431,7 @@ describe("recordPaymentAction", () => {
     const res = await recordPaymentAction(VALID_INPUT);
     expect(res.success).toBe(true);
     expect(PeriodService.assertDateInOpenPeriod).toHaveBeenCalledTimes(1);
-    const [companyArg, dateArg] =
-      vi.mocked(PeriodService.assertDateInOpenPeriod).mock.calls[0];
+    const [companyArg, dateArg] = vi.mocked(PeriodService.assertDateInOpenPeriod).mock.calls[0];
     expect(companyArg).toBe(COMPANY_ID);
     expect(dateArg).toBeInstanceOf(Date);
   });
@@ -434,26 +457,36 @@ describe("cancelPaymentAction", () => {
 
   it("ADMIN → pago canónico: reverso GL + void + restaura saldo (ADR-032 D-4)", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
-    vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValueOnce(
-      { id: "pay-1", deletedAt: null, invoiceId: "inv-1", appliedToInvoice: true,
-        amountVes: new Decimal("100") } as never,
-    );
+    vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValueOnce({
+      id: "pay-1",
+      deletedAt: null,
+      invoiceId: "inv-1",
+      appliedToInvoice: true,
+      amountVes: new Decimal("100"),
+    } as never);
     const res = await cancelPaymentAction(VALID_INPUT);
     expect(res.success).toBe(true);
     expect(PaymentGLService.reversePaymentRecordGL).toHaveBeenCalledTimes(1);
     expect(PaymentService.void).toHaveBeenCalledTimes(1);
     expect(PaymentService.revertPaymentFromInvoice).toHaveBeenCalledWith(
-      expect.anything(), COMPANY_ID, "inv-1", "pay-1", expect.anything(),
+      expect.anything(),
+      COMPANY_ID,
+      "inv-1",
+      "pay-1",
+      expect.anything()
     );
     expect(ReceivableService.cancelPayment).not.toHaveBeenCalled();
   });
 
   it("pago canónico legacy (appliedToInvoice=false) → NO restaura saldo", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue(ADMIN_MEMBER as never);
-    vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValueOnce(
-      { id: "pay-2", deletedAt: null, invoiceId: "inv-1", appliedToInvoice: false,
-        amountVes: new Decimal("100") } as never,
-    );
+    vi.mocked(prisma.paymentRecord.findFirst).mockResolvedValueOnce({
+      id: "pay-2",
+      deletedAt: null,
+      invoiceId: "inv-1",
+      appliedToInvoice: false,
+      amountVes: new Decimal("100"),
+    } as never);
     const res = await cancelPaymentAction(VALID_INPUT);
     expect(res.success).toBe(true);
     expect(PaymentService.void).toHaveBeenCalledTimes(1);
@@ -499,7 +532,10 @@ describe("updatePaymentTermsAction", () => {
 
 describe("exportReceivablesAgingPDFAction", () => {
   beforeEach(() => {
-    vi.mocked(prisma.company.findFirst).mockResolvedValue({ name: "Empresa", rif: "J-12345678-9" } as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({
+      name: "Empresa",
+      rif: "J-12345678-9",
+    } as never);
   });
 
   it("sin sesión → error", async () => {
@@ -522,7 +558,10 @@ describe("exportReceivablesAgingPDFAction", () => {
 
 describe("exportPayablesAgingPDFAction", () => {
   beforeEach(() => {
-    vi.mocked(prisma.company.findFirst).mockResolvedValue({ name: "Empresa", rif: "J-12345678-9" } as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({
+      name: "Empresa",
+      rif: "J-12345678-9",
+    } as never);
   });
 
   it("sin sesión → error", async () => {

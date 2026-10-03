@@ -19,12 +19,12 @@ export default function PeriodsError({
   }, [error]);
 
   return (
-    <div className="flex min-h-96 flex-col items-center justify-center gap-4 text-center px-4">
+    <div className="flex min-h-96 flex-col items-center justify-center gap-4 px-4 text-center">
       <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
         Error al cargar Períodos
       </h2>
       {process.env.NODE_ENV === "development" && (
-        <pre className="max-w-lg rounded-md bg-red-50 p-3 text-left text-xs text-red-700 border border-red-200 overflow-auto">
+        <pre className="max-w-lg overflow-auto rounded-md border border-red-200 bg-red-50 p-3 text-left text-xs text-red-700">
           {error.message}
           {error.stack ? "\n\n" + error.stack : ""}
         </pre>

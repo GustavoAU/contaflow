@@ -58,7 +58,7 @@ function emulateGroupBy(rows: InvoiceFixture[]) {
       [...byType.entries()].map(([type, sum]) => ({
         type,
         _sum: { pendingAmount: sum === null ? null : sum.toString() },
-      })),
+      }))
     );
   }) as never);
 }

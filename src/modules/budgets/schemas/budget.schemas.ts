@@ -18,11 +18,7 @@ const zDecimalPositive = z
   }, "El importe debe ser mayor a 0");
 
 export const CreateBudgetSchema = z.object({
-  periodYear: z
-    .number()
-    .int()
-    .min(2000, "Año inválido")
-    .max(2100, "Año inválido"),
+  periodYear: z.number().int().min(2000, "Año inválido").max(2100, "Año inválido"),
   name: z
     .string()
     .trim()
@@ -32,12 +28,7 @@ export const CreateBudgetSchema = z.object({
 });
 
 export const UpdateBudgetSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Nombre requerido")
-    .max(100)
-    .optional(),
+  name: z.string().trim().min(1, "Nombre requerido").max(100).optional(),
   status: z.enum(["DRAFT", "ACTIVE", "CLOSED"]).optional(),
 });
 
@@ -53,6 +44,6 @@ export const DeleteBudgetLineSchema = z.object({
   accountId: z.string().cuid(),
 });
 
-export type CreateBudgetInput      = z.infer<typeof CreateBudgetSchema>;
-export type UpdateBudgetInput      = z.infer<typeof UpdateBudgetSchema>;
-export type UpsertBudgetLineInput  = z.infer<typeof UpsertBudgetLineSchema>;
+export type CreateBudgetInput = z.infer<typeof CreateBudgetSchema>;
+export type UpdateBudgetInput = z.infer<typeof UpdateBudgetSchema>;
+export type UpsertBudgetLineInput = z.infer<typeof UpsertBudgetLineSchema>;

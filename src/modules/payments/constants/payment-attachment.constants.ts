@@ -25,14 +25,15 @@ const EXT_BY_MIME: Record<AllowedMimeType, string> = {
 // y sin techo un usuario con permiso de escritura podría ciclar subir/borrar y llenar el almacenamiento.
 export const MAX_ATTACHMENTS_PER_PAYMENT = 10;
 
-const LEAF_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|jpg|png|webp)$/;
+const LEAF_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|jpg|png|webp)$/;
 
 // La ruta la fija el servidor (nunca el cliente) con este builder; isValidAttachmentPathname la verifica al leer.
 export function buildAttachmentPathname(
   companyId: string,
   paymentRecordId: string,
   mimeType: AllowedMimeType,
-  uuid: string,
+  uuid: string
 ): string {
   return `${companyId}/payments/${paymentRecordId}/${uuid}${EXT_BY_MIME[mimeType]}`;
 }
@@ -65,7 +66,10 @@ export function sanitizeAttachmentFileName(name: unknown): string {
 // La extensión del nombre la dicta el tipo detectado por bytes: "x.pdf.hta" con cabecera %PDF no debe guardarse ni
 // servirse como .hta. Solo se reemplaza una extensión alfabética ("Pago 12.05.2026" conserva el año).
 export function attachmentFileNameFor(name: unknown, mimeType: AllowedMimeType): string {
-  const base = sanitizeAttachmentFileName(name).replace(/\.[A-Za-z]{1,8}$/, "").trim() || "comprobante";
+  const base =
+    sanitizeAttachmentFileName(name)
+      .replace(/\.[A-Za-z]{1,8}$/, "")
+      .trim() || "comprobante";
   return `${base}${EXT_BY_MIME[mimeType]}`;
 }
 
@@ -74,7 +78,7 @@ export function isValidAttachmentPathname(
   pathname: string,
   companyId: string,
   paymentRecordId: string,
-  mimeType?: AllowedMimeType,
+  mimeType?: AllowedMimeType
 ): boolean {
   const prefix = `${companyId}/payments/${paymentRecordId}/`;
   if (!pathname.startsWith(prefix)) return false;
@@ -89,7 +93,9 @@ export function attachmentDownloadPath(companyId: string, attachmentId: string):
 }
 
 function startsWith(bytes: Uint8Array, signature: number[], offset = 0): boolean {
-  return bytes.length >= offset + signature.length && signature.every((b, i) => bytes[offset + i] === b);
+  return (
+    bytes.length >= offset + signature.length && signature.every((b, i) => bytes[offset + i] === b)
+  );
 }
 
 // El tipo declarado por el navegador (`file.type`) no prueba nada: se decide por los primeros bytes del archivo.
@@ -97,7 +103,10 @@ export function detectAttachmentMime(bytes: Uint8Array): AllowedMimeType | null 
   if (startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) return "application/pdf"; // %PDF-
   if (startsWith(bytes, [0xff, 0xd8, 0xff])) return "image/jpeg";
   if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
-  if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)) {
+  if (
+    startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)
+  ) {
     return "image/webp"; // RIFF????WEBP
   }
   return null;

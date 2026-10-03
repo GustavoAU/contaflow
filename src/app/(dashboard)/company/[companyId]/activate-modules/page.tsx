@@ -3,7 +3,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BuildingIcon, UserIcon, LayoutGridIcon, Loader2Icon, CheckCircle2Icon } from "lucide-react";
+import {
+  BuildingIcon,
+  UserIcon,
+  LayoutGridIcon,
+  Loader2Icon,
+  CheckCircle2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { updateScopeProfileAction } from "@/modules/company/actions/company.actions";
@@ -94,8 +100,9 @@ export default function ActivateModulesPage({
         <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
           ¿Cómo opera tu empresa?
         </h1>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
-          Selecciona el perfil que mejor describe tu operación. Esto adapta los módulos visibles en el menú. Puedes cambiarlo en cualquier momento desde Configuración.
+        <p className="mx-auto mt-2 max-w-md text-sm text-zinc-500 dark:text-zinc-400">
+          Selecciona el perfil que mejor describe tu operación. Esto adapta los módulos visibles en
+          el menú. Puedes cambiarlo en cualquier momento desde Configuración.
         </p>
       </div>
 
@@ -111,10 +118,10 @@ export default function ActivateModulesPage({
               className={cn(
                 "relative flex flex-col items-start gap-3 rounded-xl border p-4 text-left transition-all",
                 "outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:ring-offset-2",
-                disabled && "opacity-40 cursor-not-allowed",
+                disabled && "cursor-not-allowed opacity-40",
                 isSelected
-                  ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-sm"
-                  : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                  ? "border-blue-500 bg-blue-50 shadow-sm dark:bg-blue-950/30"
+                  : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/50"
               )}
             >
               {/* Check mark */}
@@ -122,20 +129,36 @@ export default function ActivateModulesPage({
                 <CheckCircle2Icon className="absolute top-3 right-3 h-4 w-4 text-blue-600 dark:text-blue-400" />
               )}
 
-              <div className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-lg",
-                isSelected ? "bg-blue-100 dark:bg-blue-900/40" : "bg-zinc-100 dark:bg-zinc-800"
-              )}>
-                <Icon className={cn("h-5 w-5", isSelected ? "text-blue-600 dark:text-blue-400" : "text-zinc-500 dark:text-zinc-400")} />
+              <div
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-lg",
+                  isSelected ? "bg-blue-100 dark:bg-blue-900/40" : "bg-zinc-100 dark:bg-zinc-800"
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-5 w-5",
+                    isSelected
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-zinc-500 dark:text-zinc-400"
+                  )}
+                />
               </div>
 
               <div>
                 <div className="flex items-center gap-2">
-                  <p className={cn("text-sm font-semibold", isSelected ? "text-blue-700 dark:text-blue-300" : "text-zinc-800 dark:text-zinc-100")}>
+                  <p
+                    className={cn(
+                      "text-sm font-semibold",
+                      isSelected
+                        ? "text-blue-700 dark:text-blue-300"
+                        : "text-zinc-800 dark:text-zinc-100"
+                    )}
+                  >
                     {label}
                   </p>
                   {disabled && (
-                    <span className="text-10 font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full">
+                    <span className="text-10 rounded-full bg-zinc-100 px-1.5 py-0.5 font-bold text-zinc-400 dark:bg-zinc-800">
                       Pronto
                     </span>
                   )}
@@ -143,7 +166,7 @@ export default function ActivateModulesPage({
                 <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>
               </div>
 
-              <ul className="space-y-1 text-xs text-zinc-600 dark:text-zinc-400 mt-1">
+              <ul className="mt-1 space-y-1 text-xs text-zinc-600 dark:text-zinc-400">
                 {features.map((f) => (
                   <li key={f} className="flex items-start gap-1.5">
                     <span className="mt-0.5 text-zinc-400">✓</span>
@@ -156,19 +179,19 @@ export default function ActivateModulesPage({
         })}
       </div>
 
-      <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+      <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <Button
           onClick={handleConfirm}
           disabled={!selected || isPending}
           aria-busy={isPending}
-          className="w-full sm:w-auto gap-2 min-w-[200px]"
+          className="w-full min-w-[200px] gap-2 sm:w-auto"
         >
           {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
           {isPending ? "Guardando..." : "Confirmar perfil"}
         </Button>
         <button
           onClick={handleSkip}
-          className="text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          className="text-sm text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           Decidir después
         </button>

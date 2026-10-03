@@ -69,13 +69,13 @@ export const RATE_REFERENCE_PCT: {
   RPE_OBR_RATE: Decimal;
   RPE_PAT_RATE: Decimal;
 } = {
-  IVSS_OBR_RATE: pct(DEFAULT_IVSS_WORKER_RATE),   // LSS Reglamento Art. 108 — 4%
-  INCES_OBR_RATE: new Decimal("0.50"),            // Ley INCES Art. 50 — 0,5% sobre utilidades/aguinaldos
-  INCES_PAT_RATE: pct(DEFAULT_INCES_PAT_RATE),     // Ley INCES Art. 49 — 2%
-  FAOV_OBR_RATE: pct(DEFAULT_FAOV_WORKER_RATE),    // LRPVH Art. 33 (G.O. 6.805, 01-05-2024) — 1%
-  FAOV_PAT_RATE: pct(DEFAULT_FAOV_PAT_RATE),       // LRPVH Art. 33 (G.O. 6.805, 01-05-2024) — 2%
-  RPE_OBR_RATE: pct(DEFAULT_RPE_WORKER_RATE),      // RPE Art. 46 (G.O. 38.281) — 0,5%
-  RPE_PAT_RATE: pct(DEFAULT_RPE_PAT_RATE),         // RPE Art. 46 (G.O. 38.281) — 2,0%
+  IVSS_OBR_RATE: pct(DEFAULT_IVSS_WORKER_RATE), // LSS Reglamento Art. 108 — 4%
+  INCES_OBR_RATE: new Decimal("0.50"), // Ley INCES Art. 50 — 0,5% sobre utilidades/aguinaldos
+  INCES_PAT_RATE: pct(DEFAULT_INCES_PAT_RATE), // Ley INCES Art. 49 — 2%
+  FAOV_OBR_RATE: pct(DEFAULT_FAOV_WORKER_RATE), // LRPVH Art. 33 (G.O. 6.805, 01-05-2024) — 1%
+  FAOV_PAT_RATE: pct(DEFAULT_FAOV_PAT_RATE), // LRPVH Art. 33 (G.O. 6.805, 01-05-2024) — 2%
+  RPE_OBR_RATE: pct(DEFAULT_RPE_WORKER_RATE), // RPE Art. 46 (G.O. 38.281) — 0,5%
+  RPE_PAT_RATE: pct(DEFAULT_RPE_PAT_RATE), // RPE Art. 46 (G.O. 38.281) — 2,0%
 };
 
 /**
@@ -84,7 +84,7 @@ export const RATE_REFERENCE_PCT: {
  */
 export const IVSS_PAT_RATE_REFERENCE_PCT: Record<IvssRiskClass, Decimal> = {
   MINIMO: pct(IVSS_PAT_RATE_BY_RISK.MINIMO), // 9%
-  MEDIO: pct(IVSS_PAT_RATE_BY_RISK.MEDIO),   // 10% — clase residual
+  MEDIO: pct(IVSS_PAT_RATE_BY_RISK.MEDIO), // 10% — clase residual
   MAXIMO: pct(IVSS_PAT_RATE_BY_RISK.MAXIMO), // 11%
 };
 

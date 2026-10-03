@@ -57,13 +57,9 @@ export function PaymentTermsForm({ companyId, currentPaymentTermDays }: Props) {
           Las nuevas facturas tendrán vencimiento = fecha + {days || "?"} días
         </p>
       </div>
-      <Button
-        onClick={handleSave}
-        disabled={isPending || !isChanged}
-        variant="outline"
-        size="sm"
-      >
-        {isPending && <Loader2Icon className="animate-spin" />}{isPending ? "Guardando..." : "Guardar"}
+      <Button onClick={handleSave} disabled={isPending || !isChanged} variant="outline" size="sm">
+        {isPending && <Loader2Icon className="animate-spin" />}
+        {isPending ? "Guardando..." : "Guardar"}
       </Button>
     </div>
   );

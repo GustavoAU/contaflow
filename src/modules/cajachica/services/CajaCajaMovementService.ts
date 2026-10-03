@@ -76,7 +76,10 @@ function serializeMovement(m: {
   };
 }
 
-async function getNextVoucherNumber(companyId: string, tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]): Promise<string> {
+async function getNextVoucherNumber(
+  companyId: string,
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+): Promise<string> {
   const count = await tx.cajaCajaMovement.count({ where: { companyId } });
   return `CCC-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
 }
@@ -192,7 +195,8 @@ export async function approveMovement(
       include: { expenseAccount: { select: { code: true, name: true } } },
     });
     if (!movement) throw new Error("Movimiento no encontrado");
-    if (movement.status !== "PENDING") throw new Error("Solo se pueden aprobar movimientos en estado PENDING");
+    if (movement.status !== "PENDING")
+      throw new Error("Solo se pueden aprobar movimientos en estado PENDING");
 
     // Asimetría INTENCIONAL vs createMovement/closeCajaCaja (gate security-agent Fase 2, LOW):
     // aquí NO se valida fecha-vs-período con assertDateInOpenPeriod. La aprobación es un
@@ -242,7 +246,8 @@ export async function voidMovement(
       where: { id: input.movementId, companyId: input.companyId },
     });
     if (!movement) throw new Error("Movimiento no encontrado");
-    if (movement.status === "REIMBURSED") throw new Error("No se puede anular un movimiento ya reembolsado");
+    if (movement.status === "REIMBURSED")
+      throw new Error("No se puede anular un movimiento ya reembolsado");
     if (movement.status === "VOIDED") throw new Error("El movimiento ya está anulado");
 
     await tx.cajaCajaMovement.update({
