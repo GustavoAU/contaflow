@@ -1,7 +1,7 @@
 ---
 id: SPEC-004
 titulo: Los asientos se redondean al céntimo (2 decimales) ANTES de verificar el cuadre
-estado: APROBADA   # aprobada 2026-10-03 con la regla del céntimo (opción A); va ANTES que SPEC-001
+estado: EN_CURSO   # aprobada 2026-10-03 con la regla del céntimo (opción A); va ANTES que SPEC-001
 fecha: 2026-10-03
 rama: fix/spec-004-precision-asientos
 arbol: "[11]"
@@ -73,10 +73,23 @@ Sin cambios.
 - [ ] CA-6: El asiento `NOM-2026-08-16-83jgfm` queda con Σ = 0 mediante un asiento de ajuste (nunca DELETE, ADR-005), si SPEC-001 decide `T = 0`.
 
 ## 10. Plan de agentes
-Lo completa `/implementar`. Dejar vacío al escribir la spec.
+Línea base (2026-10-03, main `a7b46ba9`): tsc 0 errores · vitest **5434 tests / 264 archivos**, 0 fallos. Plan armado por la sesión principal (orchestrator-agent no está disponible). Patrón verificado en el código: cada servicio arma `entries` → `assertBalancedGLEntries(entries)` → `tx.transaction.create({ entries: { create: entries } })`; el cambio por servicio es mecánico (cuantizar antes de verificar y de persistir).
+
+**Invariante de orden (R-2 de la spec):** `assertBalancedGLEntries` conserva su tolerancia de 0,01 hasta que TODOS los call-sites cuantizan; solo entonces (paso 8) pasa a exacto. Así ningún flujo real se rompe a mitad del trabajo.
 
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | fiscal-agent | Revisión de solo lectura de los 21 servicios (sección 7): cuáles calculan IVA/ISLR/IGTF/retenciones y si su redondeo legal ya es a 2 decimales. Reporta `BLOQUEANTE` si algún monto fiscal debe conservar 4 decimales (R-4a) | no |
+| 2 | arch-agent | ADR-058 de precisión de asientos (R-4b): escala 2, `ROUND_HALF_UP`, absorción en la línea de mayor valor absoluto, residuo en el payload del AuditLog, y orden de la tolerancia | no |
+| 3 | test-agent | Tests en RED: unitarios de `quantizeGLEntries`; test de arquitectura "todo servicio que llama `assertBalancedGLEntries` cuantiza antes" (RED con la lista de los 38 pendientes); test de integración nómina USD (tasa 779,9522, 11 líneas) para el CI | sí |
+| 4 | ledger-agent | Implementar `quantizeGLEntries` en `src/lib/gl-assertions.ts` hasta GREEN en los unitarios | — |
+| 5 | ledger-agent | Lote 1 — nómina: PayrollRunService, ProfitSharingService, TerminationService, VacationService, BenefitAccrualService, BenefitAdvanceService, EmployeeLoanService (+ residuo en AuditLog) | sí |
+| 6 | ledger-agent | Lote 2 — pagos y fiscales: PaymentGLService (5 sitios), retention.actions, RetentionService, ExchangeDifferentialService, InventoryAccountingService (3), TransactionService (2) | sí |
+| 7 | ledger-agent | Lote 3 — resto: CajaCajaService/Deposit/Reimbursement, FixedAssetService/Depreciation, INPCService, FiscalYearCloseService, IncomeDistributionService | sí |
+| 8 | sesión principal | Flip: tolerancia por defecto de `assertBalancedGLEntries` de 0,01 a 0; el test de arquitectura del paso 3 pasa a GREEN | — |
+| 9 | sesión principal | PR a `main`; aprobar `neon-ci`: el test de integración de nómina USD corre contra Postgres real | no |
+| 10 | sesión principal | **Decisión al llegar:** corrección del asiento demo `NOM-2026-08-16-83jgfm` (Σ = −0,0001) con la regla de SPEC-001; la escritura en producción se hace solo con confirmación del usuario | no |
+| 11 | sesión principal | Gates finales, `/revisar`, sección 12, LL-016. security-agent: no aplica (sin acciones, rutas ni modelos nuevos) salvo que cambie el contrato del AuditLog | no |
 
 ## 11. Riesgos y preguntas abiertas
 - **PA-1 (RESUELTA 2026-10-03):** la contadora pidió cuadre exacto "hasta en decimales" (SPEC-001 `T = 0`), así que esta spec es **OBLIGATORIA y va ANTES** del trigger. Pregunta original: ¿esta spec es obligatoria? Depende de SPEC-001 PA-1. Con `T = 0.01` es una mejora (el libro derivaría 0,0001 por nómina en USD pero la base no lo rechazaría); con `T = 0` es **prerrequisito**, o una nómina nueva en USD fallaría al aprobarse.
