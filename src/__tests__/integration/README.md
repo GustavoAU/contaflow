@@ -20,6 +20,15 @@ DATABASE_URL_TEST=postgresql://user:pass@localhost:5432/contaflow_test \
 # Si DATABASE_URL_TEST no está definida, todos los tests se omiten automáticamente (skipIf)
 ```
 
+## En CI (SPEC-002)
+
+El job `integration` de `.github/workflows/ci.yml` corre solo en pull requests hacia `main` (no en forks). Crea un branch de Neon hijo **solo-esquema** del default, llamado `ci-<run>-<intento>`, aplica `prisma migrate deploy`, corre `pnpm test:integration` y borra el branch siempre (`if: always()`). Ningún dato de clientes llega al CI.
+
+- Requiere los secretos de repositorio `NEON_API_KEY` y `NEON_PROJECT_ID`; sin ellos el job se omite sin fallar.
+- La lógica de crear/borrar está en `scripts/ci-neon-branch.mjs`; las guardas (solo `ci-*`, nunca default/primary/protegido, nunca otro proyecto) en `scripts/lib/neon-ci-guards.mjs`, con tests en `scripts/__tests__/`.
+- El branch nace con `expires_at` (3 h) como red de seguridad si el borrado nunca llega a correr.
+- Los tests usan `adapter-pg`; producción usa el adaptador de Neon. Un P2002 puede llegar con otra forma según el driver (LL-014): un test que dependa de esa forma debe tenerlo en cuenta.
+
 ## Convenciones
 
 - Cada describe block lleva el tag `@integration` en su nombre.

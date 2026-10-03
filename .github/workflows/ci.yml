@@ -322,6 +322,80 @@ jobs:
         run: pnpm audit --audit-level=high --ignore GHSA-qjx8-664m-686j
 
   # ============================================================================
+  # INTEGRATION (SPEC-002) — tests contra Postgres real en un branch efímero de Neon
+  #
+  # Lo que los mocks no ven: constraints, triggers, RLS, Serializable, P2002 con el
+  # adaptador real (LL-014). El branch es hijo SOLO-ESQUEMA del default: ningún dato de
+  # clientes llega al CI. scripts/ci-neon-branch.mjs solo borra branches ci-<run>-<intento>
+  # (ver scripts/lib/neon-ci-guards.mjs). NO está en `needs` de ci-result todavía:
+  # se agrega después de que haya corrido en verde al menos una vez.
+  # ============================================================================
+  integration:
+    name: Integration (Neon branch efímero)
+    runs-on: ubuntu-latest
+    # RN-5: los PRs de forks no reciben secretos; se omite sin fallar.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+    steps:
+      - name: Verificar secretos
+        id: gate
+        run: |
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "::notice::Faltan NEON_API_KEY / NEON_PROJECT_ID: integración omitida"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.enabled == 'true'
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        if: steps.gate.outputs.enabled == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.1
+
+      - name: Setup Node.js
+        if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Generar cliente Prisma
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm prisma generate
+
+      - name: Crear branch efímero (solo esquema)
+        if: steps.gate.outputs.enabled == 'true'
+        run: node scripts/ci-neon-branch.mjs create
+
+      - name: Aplicar migraciones al branch efímero
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm prisma migrate deploy
+
+      - name: Tests de integración
+        if: steps.gate.outputs.enabled == 'true'
+        run: pnpm test:integration
+
+      # RN-4: siempre, también si fallan los pasos anteriores o se cancela el job.
+      # Es idempotente: si el branch no llegó a crearse, no hay nada que borrar.
+      - name: Borrar branch efímero
+        if: always() && steps.gate.outputs.enabled == 'true'
+        run: node scripts/ci-neon-branch.mjs delete
+
+  # ============================================================================
   # RESULT CHECK
   # ============================================================================
   ci-result:
