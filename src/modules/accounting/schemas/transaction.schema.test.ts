@@ -99,7 +99,19 @@ describe("CreateTransactionSchema", () => {
   });
 
   describe("Precision decimal", () => {
-    it("acepta montos con hasta 4 decimales balanceados", () => {
+    // ADR-058 decisión 10 (cambio DELIBERADO del contrato: antes aceptaba hasta 4 decimales).
+    it("acepta montos con hasta 2 decimales balanceados", () => {
+      const result = CreateTransactionSchema.safeParse({
+        ...BASE_TRANSACTION,
+        entries: [
+          { accountId: "acc-1", debit: "1000.12", credit: "" },
+          { accountId: "acc-2", debit: "", credit: "1000.12" },
+        ],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rechaza montos con mas de 2 decimales (aunque esten balanceados)", () => {
       const result = CreateTransactionSchema.safeParse({
         ...BASE_TRANSACTION,
         entries: [
@@ -107,7 +119,23 @@ describe("CreateTransactionSchema", () => {
           { accountId: "acc-2", debit: "", credit: "1000.1234" },
         ],
       });
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message)).toContain(
+          "El monto no puede tener más de 2 decimales"
+        );
+      }
+    });
+
+    it("rechaza un credito con mas de 2 decimales", () => {
+      const result = CreateTransactionSchema.safeParse({
+        ...BASE_TRANSACTION,
+        entries: [
+          { accountId: "acc-1", debit: "10.00", credit: "" },
+          { accountId: "acc-2", debit: "", credit: "10.005" },
+        ],
+      });
+      expect(result.success).toBe(false);
     });
 
     it("balancea correctamente montos decimales", () => {

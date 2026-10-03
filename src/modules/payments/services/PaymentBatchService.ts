@@ -234,7 +234,8 @@ export class PaymentBatchService {
       const igtfApplies = IGTFService.applies(currency, company?.isSpecialContributor ?? false);
       const IGTF_RATE = new Decimal(VEN_TAX_RATES.igtf);
       const computedTotalIgtf = igtfApplies
-        ? input.totalAmountVes.mul(IGTF_RATE).toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
+        ? // ADR-058 / PC-1: IGTF del lote = round(total del lote × 3%, 2) (cierre del día, no por línea)
+          input.totalAmountVes.mul(IGTF_RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
         : null;
 
       // Distribuir IGTF proporcionalmente a las líneas (con ajuste en la última para cuadrar)
@@ -252,7 +253,7 @@ export class PaymentBatchService {
             const proportional = linesWithIgtf[i].amountVes
               .div(input.totalAmountVes)
               .mul(computedTotalIgtf)
-              .toDecimalPlaces(4, Decimal.ROUND_DOWN);
+              .toDecimalPlaces(2, Decimal.ROUND_DOWN); // ADR-058: prorrateo a 2 decimales; la última línea cuadra
             linesWithIgtf[i].computedIgtf = proportional;
             accumulated = accumulated.plus(proportional);
           }

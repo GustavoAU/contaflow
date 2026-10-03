@@ -29,20 +29,14 @@ const GL_ASSERTIONS_FILE = "src/lib/gl-assertions.ts";
  * Quitar cada uno en el MISMO commit que lo migra. Meta: lista vacia.
  */
 const PENDING_ADOPTION: string[] = [
-  "src/modules/accounting/services/TransactionService.ts",
   "src/modules/cajachica/services/CajaCajaDepositService.ts",
   "src/modules/cajachica/services/CajaCajaReimbursementService.ts",
   "src/modules/cajachica/services/CajaCajaService.ts",
-  "src/modules/exchange-rates/services/ExchangeDifferentialService.ts",
   "src/modules/fiscal-close/services/FiscalYearCloseService.ts",
   "src/modules/fixed-assets/services/FixedAssetDepreciationService.ts",
   "src/modules/fixed-assets/services/FixedAssetService.ts",
   "src/modules/income-distribution/services/IncomeDistributionService.ts",
   "src/modules/inflation/services/INPCService.ts",
-  "src/modules/inventory/services/InventoryAccountingService.ts",
-  "src/modules/payments/services/PaymentGLService.ts",
-  "src/modules/retentions/actions/retention.actions.ts",
-  "src/modules/retentions/services/RetentionService.ts",
 ];
 
 // Ratchet: nº minimo de archivos que llaman assertBalancedGLEntries (medir antes de bajarlo).

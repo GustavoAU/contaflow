@@ -1,6 +1,6 @@
 // src/modules/retentions/services/RetentionService.ts
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { ISLR_RATES, IVA_RETENTION_RATES, INCES_RATE, FAT_RATE } from "../schemas/retention.schema";
 import type { EnterRetentionInput } from "../schemas/retention.schema";
 import { validateVenezuelanRif } from "@/lib/fiscal-validators";
@@ -228,9 +228,11 @@ export async function enterRetention(
     if (!bankAccount) throw new Error("Cuenta banco/caja no encontrada");
 
     // Total amount to enter = totalRetention + INCES + FAT
+    // ADR-058: monto del documento a 2 decimales en el origen (los importes ya vienen a 2).
     const enterAmount = new Decimal(retention.totalRetention.toString())
       .plus(retention.incesAmount ? new Decimal(retention.incesAmount.toString()) : new Decimal(0))
-      .plus(retention.fatAmount ? new Decimal(retention.fatAmount.toString()) : new Decimal(0));
+      .plus(retention.fatAmount ? new Decimal(retention.fatAmount.toString()) : new Decimal(0))
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     // Sequence number for enteramiento transaction
     const enterCount = await tx.retencion.count({
@@ -241,18 +243,28 @@ export async function enterRetention(
     const displayNumber = retentionDisplayNumber(retention);
 
     // Journal entry: Debit liability, Credit bank
-    const enterEntries = [
+    const rawEnterEntries = [
       {
+        // Pasivo "Retenciones por enterar": obligación fiscal → noAbsorb
         accountId: input.liabilityAccountId,
         amount: enterAmount,
         description: `Enteramiento retención ${displayNumber}`,
+        noAbsorb: true,
       },
       {
+        // Banco/caja: monto real que salió → noAbsorb
         accountId: input.bankAccountId,
         amount: enterAmount.negated(),
         description: `Enteramiento retención ${displayNumber}`,
+        noAbsorb: true,
       },
     ];
+    // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir (sin residuo: ya a 2 dec.).
+    const {
+      entries: enterEntries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(rawEnterEntries);
     assertBalancedGLEntries(enterEntries); // N4: invariante partida doble
     const transaction = await tx.transaction.create({
       data: {
@@ -264,7 +276,11 @@ export async function enterRetention(
         type: "DIARIO",
         userId,
         entries: {
-          create: enterEntries,
+          create: enterEntries.map((e) => ({
+            accountId: e.accountId,
+            amount: e.amount,
+            description: e.description,
+          })),
         },
       },
     });
@@ -295,6 +311,15 @@ export async function enterRetention(
           enterAmount: enterAmount.toFixed(2),
           liabilityAccountId: input.liabilityAccountId,
           bankAccountId: input.bankAccountId,
+          ...(!glResidual.isZero()
+            ? {
+                glRounding: {
+                  residual: glResidual.toString(),
+                  absorbedIndex: glAbsorbedIndex,
+                  scale: 2,
+                },
+              }
+            : {}),
         },
       },
     });

@@ -14,6 +14,20 @@ function isValidAmount(v: string | undefined): boolean {
   }
 }
 
+/**
+ * ADR-058 decisión 10: el asiento manual NO redondea en silencio lo que el usuario escribió;
+ * rechaza montos con más de 2 decimales (la unidad contable es el céntimo).
+ * Un valor no numérico lo reporta `isValidAmount`, no esta regla.
+ */
+function hasMaxTwoDecimals(v: string | undefined): boolean {
+  if (!v || v === "") return true;
+  try {
+    return strictDecimal(v).decimalPlaces() <= 2;
+  } catch {
+    return true;
+  }
+}
+
 export const JournalEntrySchema = z.object({
   accountId: z.string().min(1, { message: "Selecciona una cuenta" }),
   description: z.string().max(200).optional().or(z.literal("")),
@@ -21,12 +35,14 @@ export const JournalEntrySchema = z.object({
     .string()
     .optional()
     .or(z.literal(""))
-    .refine(isValidAmount, { message: "Monto fuera del rango permitido" }),
+    .refine(isValidAmount, { message: "Monto fuera del rango permitido" })
+    .refine(hasMaxTwoDecimals, { message: "El monto no puede tener más de 2 decimales" }),
   credit: z
     .string()
     .optional()
     .or(z.literal(""))
-    .refine(isValidAmount, { message: "Monto fuera del rango permitido" }),
+    .refine(isValidAmount, { message: "Monto fuera del rango permitido" })
+    .refine(hasMaxTwoDecimals, { message: "El monto no puede tener más de 2 decimales" }),
   // ADR-054: tercero de la línea (a lo sumo UNO — TransactionService valida exclusión
   // mutua y obligatoriedad contra Account.requiresThirdParty, porque eso exige una
   // consulta a la BD que un schema Zod puro no puede hacer).
