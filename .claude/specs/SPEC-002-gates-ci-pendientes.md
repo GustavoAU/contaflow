@@ -1,7 +1,7 @@
 ---
 id: SPEC-002
 titulo: Activar los gates de CI pendientes (Prettier, integración, accesibilidad)
-estado: BORRADOR
+estado: APROBADA
 fecha: 2026-10-01
 rama: chore/spec-002-gates-ci
 arbol: "[11]"
@@ -78,9 +78,10 @@ Cada test renderiza el componente en jsdom (`// @vitest-environment jsdom` en la
 |---|---|---|---|
 
 ## 11. Riesgos y preguntas abiertas
-- **P-1 (usuario):** el job de integración necesita `NEON_API_KEY` y `NEON_PROJECT_ID` como secretos de GitHub. ¿Los creas tú? Claude Code no debe pedir ni manejar la API key.
-- **P-2 (usuario):** el formateo masivo genera conflictos con cualquier rama abierta. ¿Hay ramas o worktrees en curso que haya que mergear antes?
-- **P-3 (usuario):** el plan de Neon limita la cantidad de branches. Si el job corre en cada push, ¿lo limitamos a PRs contra `main`?
+- **P-1 (RESUELTA 2026-10-02):** `NEON_API_KEY` (key personal, nombre `github-ci-integration`) y `NEON_PROJECT_ID` creados por el usuario como secretos de repositorio. No hay organización en Neon, así que no existe key por proyecto: el job debe operar solo sobre `NEON_PROJECT_ID`, borrar solo branches propios con prefijo `ci-` y nunca el branch por defecto ni el de producción.
+- **P-2 (RESUELTA 2026-10-02):** orden de ejecución B (job de integración) → C (a11y) → A (Prettier masivo) **al final**, cuando no haya PRs ni worktrees abiertos (hoy hay 6 PRs abiertos). Antes de A, mergear o cerrar los PRs pendientes.
+- **P-3 (RESUELTA 2026-10-02):** el job de integración corre solo en pull requests hacia `main`.
+- **Pendiente técnico:** el branch padre del que clonar el efímero se consulta por la API de Neon al implementar (nota de 2026-08-09: `br-rough-sound-ai9i4g7p`; verificar que siga vigente).
 - **R-1:** si la Spec 001 se implementa antes que esta, sus tests de integración no correrían en CI. Conviene hacer esta primero, o al menos la parte B.
 - **R-2:** las violaciones de a11y que salgan pueden ser muchas. Si pasan de unas pocas por componente, se abre una spec aparte para corregirlas.
 

@@ -1,7 +1,7 @@
 ---
 id: SPEC-001
 titulo: Cuadre de partida doble garantizado en la base de datos
-estado: BORRADOR
+estado: APROBADA
 fecha: 2026-10-01
 rama: feat/spec-001-cuadre-bd
 arbol: "[7]"
@@ -31,7 +31,7 @@ La existencia de `prisma/diagnose-balance.ts` y `prisma/fix-payroll-balance.ts` 
 **No incluye (explícito):**
 - Corregir asientos descuadrados existentes. Si la auditoría encuentra alguno, se reporta y el usuario decide cómo corregirlo (con asiento de ajuste, nunca DELETE, por ADR-005).
 - Cambiar la validación aplicativa: `validateDoubleEntry` se mantiene, porque da mejores mensajes y falla antes.
-- Validaciones de cuadre por moneda original (ver pregunta P-2).
+- Validaciones de cuadre por moneda original (descartado por la contadora, ver P-2).
 
 ## 4. Reglas de negocio
 - RN-1: Al confirmar una transacción de base de datos, todo asiento cuyas líneas se insertaron, modificaron o borraron en ella cumple `SUM(débitos) = SUM(créditos)`, con comparación exacta en `NUMERIC` (sin tolerancia).
@@ -80,8 +80,8 @@ Sin cambios. El mensaje llega por el canal de errores existente.
 |---|---|---|---|
 
 ## 11. Riesgos y preguntas abiertas
-- **P-1 (usuario):** si la auditoría encuentra asientos descuadrados en producción, el trigger no los bloquea retroactivamente: solo valida asientos que se vuelvan a tocar. Pero un asiento viejo descuadrado no se podrá anular ni editar hasta corregirlo. ¿Se corrigen todos antes de activar el trigger, o se acepta ese efecto?
-- **P-2 (PREGUNTA PARA CONTADOR):** en asientos en divisas, ¿el cuadre se exige solo sobre el monto en Bs., o también sobre el monto en moneda original? Con tasas aplicadas por línea podría haber diferencias de redondeo en Bs. que hoy se absorben de alguna forma. Hay que confirmar cómo se manejan antes de exigir igualdad exacta.
+- **P-1 (RESUELTA 2026-10-02):** se corre primero la auditoría de solo lectura (CA-1). Si hay asientos descuadrados, el usuario decide cómo corregirlos antes de activar el trigger; no se activa sin ese resultado. Un asiento viejo descuadrado no se podrá anular ni editar hasta corregirlo.
+- **P-2 (RESUELTA 2026-10-02, contadora):** "La moneda establecida para la contabilidad en Venezuela es en Bs., y las divisas, cuando se relacionan, se relacionan en Bs. a la tasa del día." Decisión: el cuadre se exige **solo sobre el monto en Bs.**, igualdad exacta; la moneda original no entra. Obligatorio para arch-agent antes del SQL: confirmar en `prisma/schema.prisma` que cada línea guarda su monto en Bs. ya redondeado. Si el Bs. se calcula en lectura y no se persiste, la igualdad exacta no es viable y hay que volver al usuario.
 - **R-1:** importaciones masivas y scripts de seed que hoy insertan líneas fuera del servicio podrían empezar a fallar. Es el comportamiento deseado, pero hay que correr los seeds en un branch de Neon antes de producción.
 - **R-2:** los tests unitarios con Prisma mockeado no ven el trigger. CA-2 a CA-5 requieren tests de integración (ver SPEC-002 para correrlos en CI).
 - **R-3:** aplicar primero en un branch de Neon, nunca directo en producción.
