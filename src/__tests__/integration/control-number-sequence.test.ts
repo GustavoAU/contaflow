@@ -59,15 +59,29 @@ describe.skipIf(!DB_URL)("@integration control-number-sequence", () => {
   });
 
   it("llamadas concurrentes nunca retornan el mismo número", async () => {
-    // Lanza 5 transacciones en paralelo — sin Serializable habría colisión
-    const results = await Promise.all(
-      Array.from({ length: 5 }, () =>
-        prisma.$transaction(
-          (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
-          { isolationLevel: "Serializable" },
-        ),
-      ),
-    );
+    // Lanza 5 transacciones Serializable en paralelo sobre la MISMA fila de secuencia.
+    // Postgres hace perder a algunas con P2034 (TransactionWriteConflict): es el comportamiento
+    // correcto y la app lo reintenta (src/lib/tx-helpers.ts, withSerializableRetry). Aquí no se
+    // puede importar ese helper: está atado al cliente de la app (@/lib/prisma, DATABASE_URL,
+    // adaptador de Neon) y limitado a 3 intentos; este test usa su propio cliente contra la BD
+    // de test. Se replica la misma política de reintento solo para P2034.
+    // Lo que se garantiza: NINGÚN número duplicado, aunque haya conflictos de serialización.
+    const nextWithRetry = async (maxAttempts = 10): Promise<string> => {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await prisma.$transaction(
+            (tx) => getNextControlNumber(tx, COMPANY_ID, InvoiceType.SALE),
+            { isolationLevel: "Serializable" },
+          );
+        } catch (e) {
+          const isSerializationFailure = (e as { code?: string }).code === "P2034";
+          if (!isSerializationFailure || attempt >= maxAttempts) throw e;
+          await new Promise((r) => setTimeout(r, 20 * attempt + Math.random() * 30));
+        }
+      }
+    };
+
+    const results = await Promise.all(Array.from({ length: 5 }, () => nextWithRetry()));
 
     const unique = new Set(results);
     expect(unique.size).toBe(5); // todos distintos
