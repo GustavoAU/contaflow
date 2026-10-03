@@ -1,7 +1,7 @@
 ---
 id: SPEC-004
 titulo: Los asientos se redondean a 4 decimales ANTES de verificar el cuadre
-estado: BORRADOR   # depende de la respuesta de la contadora (SPEC-001 PA-1); puede ser opcional
+estado: APROBADA   # aprobada 2026-10-03; va ANTES que SPEC-001
 fecha: 2026-10-03
 rama: fix/spec-004-precision-asientos
 arbol: "[11]"
@@ -43,8 +43,8 @@ Es una **clase de bug**: hay 38 call-sites de `assertBalancedGLEntries` en ~20 s
 
 ## 4. Reglas de negocio
 - RN-1: Todo asiento persistido tiene `SUM(amount) = 0` exacto con los montos tal como quedan en `Decimal(19,4)`.
-- RN-2: Cada línea se redondea a 4 decimales con una regla única y documentada (modo de redondeo a definir con la contadora, PA-2); el redondeo ocurre antes de verificar y antes de persistir.
-- RN-3: El residuo de redondeo (|residuo| ≤ N × 0,00005 para N líneas) se absorbe en la línea designada por la función central. Si el residuo supera ese máximo, es un error de cálculo y se lanza, no se absorbe.
+- RN-2: Cada línea se redondea a 4 decimales con `ROUND_HALF_UP` (mitad hacia arriba, el modo habitual en contabilidad; decidido por el usuario el 2026-10-03); el redondeo ocurre antes de verificar y antes de persistir.
+- RN-3: El residuo de redondeo (|residuo| ≤ N × 0,00005 para N líneas) se absorbe en la línea de MAYOR valor absoluto del asiento (si hay empate, la primera en orden). El residuo y la línea donde se absorbió se devuelven al llamador para dejarlos en el payload del AuditLog. Si el residuo supera ese máximo, es un error de cálculo y se lanza, no se absorbe.
 - RN-4: Los asientos sin conversión de moneda (montos ya en 4 decimales) quedan exactamente igual que hoy: la función es idempotente sobre valores ya redondeados.
 - RN-5: Anular un asiento (VOID) niega los montos ya guardados, así que hereda el cuadre exacto del original.
 
@@ -80,7 +80,7 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 
 ## 11. Riesgos y preguntas abiertas
 - **PA-1 (RESUELTA 2026-10-03):** la contadora pidió cuadre exacto "hasta en decimales" (SPEC-001 `T = 0`), así que esta spec es **OBLIGATORIA y va ANTES** del trigger. Pregunta original: ¿esta spec es obligatoria? Depende de SPEC-001 PA-1. Con `T = 0.01` es una mejora (el libro derivaría 0,0001 por nómina en USD pero la base no lo rechazaría); con `T = 0` es **prerrequisito**, o una nómina nueva en USD fallaría al aprobarse.
-- **PA-2 (PREGUNTA PARA CONTADOR):** ¿en qué línea se absorbe el residuo de redondeo? Opciones: la de mayor monto (Nómina por Pagar en una nómina), o una cuenta propia "Diferencias de redondeo". Y el modo de redondeo (mitad hacia arriba, el habitual en contabilidad, o bancario).
+- **PA-2 (RESUELTA 2026-10-03, decisión del usuario sobre la recomendación):** el residuo se absorbe en la línea de mayor monto del mismo asiento (sin cuenta nueva por empresa) y se redondea mitad hacia arriba. Alternativa descartada: cuenta propia "Diferencias de redondeo" (obliga a configurarla en cada empresa y un servicio sin ella fallaría).
 - **R-1:** tocar 21 servicios de asientos es un cambio ancho en zona fiscal (Z-2). Hay que hacerlo por lotes con test de integración por generador, y el job `integration` ya existe para eso.
 - **R-2:** `assertBalancedGLEntries` hoy tolera 0,01; si pasa a exacto sin arreglar antes los generadores, rompe flujos reales. El orden obligatorio es: función central + generadores primero, verificación exacta después.
 - **R-3:** el asiento existente es de la empresa demo del usuario: sin riesgo operativo.

@@ -1,7 +1,7 @@
 ---
 id: SPEC-001
 titulo: Cuadre de partida doble garantizado en la base de datos
-estado: BORRADOR   # reabierta 2026-10-03: hallazgos que invalidan supuestos (ver sección 11)
+estado: APROBADA   # reaprobada 2026-10-03 (T = 0). NO implementar hasta que SPEC-004 esté HECHA y la auditoría dé cero
 fecha: 2026-10-01
 rama: feat/spec-001-cuadre-bd
 arbol: "[7]"
