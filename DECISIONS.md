@@ -16,6 +16,16 @@ Resuelve 5 CVEs HIGH: CSRF bypass en Server Actions (null origin), HTTP request 
 
 ---
 
+### `axe-core` (devDependency) — tests de accesibilidad (2026-10-02, SPEC-002)
+
+Se usa `axe-core` directo con un helper propio (`src/__tests__/a11y.ts`), no `vitest-axe`: el wrapper tiene su última versión (0.1.0) publicada hace años y solo añadiría ~20 líneas de glue. Falla solo ante impacto `serious`/`critical`. La regla `color-contrast` está desactivada a propósito: jsdom no calcula estilos, así que el contraste se revisa aparte (navegador/Lighthouse).
+
+La deuda de a11y existente se registra con `expectKnownA11yDebt(container, [reglas])`, que fija las reglas exactas: una violación nueva o una corregida ponen el test en rojo. Al corregir un componente se cambia por `expectNoSeriousA11yViolations`.
+
+**Cuidado con `pnpm add`:** poda de `node_modules` lo que no esté en `package.json`/lockfile (el 2026-10-02 eliminó `@neon/config` y `@neon/env`, instalados por fuera por la herramienta de Neon, y `neon.ts` dejó de compilar localmente).
+
+---
+
 ### `xlsx` → `exceljs` (2026-04-27)
 
 `xlsx` eliminado completamente. CVEs de prototype pollution + ReDoS (GHSA-4r6h-8v6p-xvw6 / GHSA-5pgg-2g8v-p4x9) afectan parsing de archivos maliciosos — riesgo real en `ImportService` y `AccountsImporter`.
