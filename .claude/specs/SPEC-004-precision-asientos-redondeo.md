@@ -102,6 +102,27 @@ Línea base (2026-10-03, main `a7b46ba9`): tsc 0 errores · vitest **5434 tests 
 - **PA-3 (RESUELTA 2026-10-03, decisión del usuario: opción A):** unidad contable = céntimo (2 decimales); el residuo de redondeo se absorbe en la línea de mayor monto del mismo asiento, visible en reportes y trazable en el AuditLog. Razón del usuario: "la gente para pagar siempre utiliza 2 decimales, no 4". Descartada la cuenta propia "Diferencias de redondeo" (opción B). Se mantiene: los asientos históricos a 4 decimales no se tocan y el trigger exacto de SPEC-001 vale sobre lo guardado.
 - **Flujos de diferencias reales (fuera de alcance, a revisar):** cierre de caja con faltante (descuento al cajero) y pagos emitidos por un monto distinto del esperado ya existen en el sistema (CajaCaja, PaymentGLService); con el trigger exacto deberán registrar la diferencia de forma explícita. Se revisarán al implementar SPEC-001.
 
+### Hallazgos del paso 1 (fiscal-agent, 2026-10-03; los 3 marcados ✔ fueron VERIFICADOS por la sesión principal)
+Veredicto: **sin bloqueantes de base legal**. El redondeo fiscal ya es a 2 decimales en el origen en retenciones (`RetentionCalculator`), nómina (`PayrollCalculatorService`), `InvoiceTaxLine` e IGTF de pagos sueltos. Los montos de documentos con 4 decimales son: IGTF de lotes de pago, depreciación, prestaciones (acumulación y adelantos), liquidación, utilidades, vacaciones, costo de inventario, ajuste INPC y diferencial cambiario.
+- **B1 ✔ Asientos de UNA línea:** `InventoryAccountingService` (ENTRADA "standalone", líneas 120-135 y 157/373) crea un asiento solo con Dr Inventario; el Cr "se genera" en el asiento de la factura. Σ ≠ 0 por diseño: `quantizeGLEntries` no debe intentar absorber ahí, y un trigger por asiento (SPEC-001) los rechazaría. **Pendiente de decisión del usuario para SPEC-001** (exigir contrapartida o generar una).
+- **B2 Anulaciones, cierres y liquidaciones derivados de lo guardado** (TransactionService void, CajaCaja, PaymentGLService reverso, FiscalYearClose): deben usar **negación exacta (modo `exact`)**, sin cuantizar, o el espejo de un asiento histórico a 4 decimales deja centésimas.
+- **B3 Absorción del residuo:** las líneas de obligaciones fiscales (IVA, retenciones por enterar, IGTF, IVSS/FAOV/INCES/RPE/pensiones) y las líneas con tercero (CxC/CxP) se marcan `noAbsorb`; el residuo cae en la mayor de las restantes; si no hay candidata, error.
+- **B4 ✔ IGTF de lotes a 4 decimales** (`PaymentBatchService`, líneas ~237 y ~255): redondear a 2 en el origen, con la última línea cuadrando el total.
+- **R-1 Documento a 4, asiento a 2:** el monto del DOCUMENTO se redondea a 2 en el origen (donde se calcula) y el asiento se arma con ese valor; así los auxiliares coinciden con el mayor y el residuo solo cubre multiplicaciones por tasa (nómina USD, diferencial).
+- **R-2 Asiento manual:** Zod con `decimalPlaces ≤ 2` (como `zMoneyPositive`): rechazar en vez de redondear en silencio; descartar líneas de monto 0 tras cuantizar.
+- **R-3 Diferencial en `PaymentGLService`:** redondear `invoiceAmountVes` a 2 ANTES de calcular `fxDiff`, para que el diferencial sea explícito y exacto.
+- **R-4 ✔ `InvoiceGLPostingService`** crea asientos sin `assertBalancedGLEntries` y no está en la lista de la spec. Sus asientos cuadran por construcción, pero no cumplen RN-1 (múltiplos de 0,01) porque `Invoice.totalAmountVes` se guarda sin redondear en facturas con líneas. **Fuera de alcance de esta spec:** redondear el total de la factura toca la factura impresa y el libro de IVA (SENIAT) → candidato a SPEC-005, depende de la PC-3.
+- **R-5 Modo de redondeo:** `ROUND_HALF_UP` de `Decimal.js` es "mitad alejándose de cero" (simétrico en Dr/Cr), no "mitad hacia arriba" literal. El ADR debe decirlo.
+- **Hueco de funcionalidad (fuera de alcance):** NO existe flujo de faltante/sobrante de caja chica (`closeCajaCaja` manda el saldo GL a una cuenta de retorno sin cuenta de diferencia). Es lo que la contadora describe ("descuento al cajero"): candidato a spec propia.
+- **Paso 8 (tolerancia a 0):** antes, revisar que ningún flujo (reembolso de caja, diferencial) dependiera de la holgura de 0,01: hoy cualquier diferencia hasta 0,01 pasa en silencio.
+- **Comparaciones documento↔asiento:** ninguna usa igualdad exacta ni tolerancia menor a 0,01 (verificado por el agente en los consumidores de `journalEntry`); las tolerancias de conciliación son 0,01 a 1,00 Bs.
+- Impacto estimado en tests: 5 a 15 (nómina y depreciación); la cifra real sale del test de arquitectura en RED (paso 3).
+
+### Preguntas para la contadora (surgidas del paso 1; no bloquean el núcleo, sí lotes concretos)
+- **PC-1 (lote 2, IGTF de lotes):** ¿el IGTF (3%) se redondea a 2 decimales HALF_UP, y sobre el total del lote o por línea?
+- **PC-2 (lote 1, nómina):** ¿los aportes a organismos (IVSS, FAOV, INCES, RPE, pensiones) se calculan por trabajador o sobre el total del mes? (decide si la planilla de pago coincide con el asiento al céntimo). Además: fecha de vigencia del redondeo a 2 decimales en prestaciones ya acumuladas a 4.
+- **PC-3 (SPEC-005, fuera de alcance):** ¿se acepta redondear `Invoice.totalAmountVes` a 2 decimales en facturas con líneas, o el total debe conservar los decimales de cantidad × precio?
+
 ## 12. Cierre
 Lo completa `/implementar`.
 - Commits:
