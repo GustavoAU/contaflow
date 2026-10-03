@@ -336,6 +336,9 @@ jobs:
     # RN-5: los PRs de forks no reciben secretos; se omite sin fallar.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 20
+    # Environment con revisores requeridos: ningún PR ejecuta código con la key de Neon
+    # sin aprobación humana. Los secretos NEON_* viven SOLO aquí, no a nivel de repositorio.
+    environment: neon-ci
     permissions:
       contents: read
     # La key NO va en el env del job: solo la reciben los pasos que la usan (gate, create,
