@@ -89,10 +89,12 @@ Línea base (2026-10-02, main): tsc exit 0 · vitest 5350 tests / 256 archivos, 
 | 9 | sesión principal | Gates finales, cierre de sección 12, `/revisar` | no |
 
 ## 11. Riesgos y preguntas abiertas
-- **P-1 (RESUELTA 2026-10-02):** `NEON_API_KEY` (key personal, nombre `github-ci-integration`) y `NEON_PROJECT_ID` creados por el usuario como secretos de repositorio. No hay organización en Neon, así que no existe key por proyecto: el job debe operar solo sobre `NEON_PROJECT_ID`, borrar solo branches propios con prefijo `ci-` y nunca el branch por defecto ni el de producción.
+- **P-1 (RESUELTA 2026-10-02):** `NEON_API_KEY` (key personal, nombre `github-ci-integration`) y `NEON_PROJECT_ID` creados por el usuario como secretos de repositorio. Verificado 2026-10-02 (MCP de Neon): el proyecto `royal-voice-77113362` pertenece a la organización `org-restless-band-70215756` y el usuario es ADMIN, así que una key de alcance por proyecto (Organization settings → API keys → Project-scoped) probablemente sea posible y más segura que la personal; queda como mejora opcional. Con cualquiera de las dos, el job debe operar solo sobre `NEON_PROJECT_ID`, borrar solo branches propios con prefijo `ci-` y nunca el branch por defecto ni el de producción.
+- **Hallazgo:** el branch `production` (`br-rough-sound-ai9i4g7p`, único del proyecto, plan Scale, límite 5000 branches) tiene `protected: false`. Se recomienda activarlo en la consola de Neon como defensa extra contra borrados. Es un cambio de configuración de producción: lo decide y lo hace el usuario.
 - **P-2 (RESUELTA 2026-10-02):** orden de ejecución B (job de integración) → C (a11y) → A (Prettier masivo) **al final**, cuando no haya PRs ni worktrees abiertos (hoy hay 6 PRs abiertos). Antes de A, mergear o cerrar los PRs pendientes.
 - **P-3 (RESUELTA 2026-10-02):** el job de integración corre solo en pull requests hacia `main`.
-- **Pendiente técnico:** el branch padre del que clonar el efímero se consulta por la API de Neon al implementar (nota de 2026-08-09: `br-rough-sound-ai9i4g7p`; verificar que siga vigente).
+- **Branch padre (verificado 2026-10-02):** `br-rough-sound-ai9i4g7p` ("production"). El script no lo hardcodea: lo resuelve en cada corrida como el branch `default` del proyecto.
+- **Pendiente técnico:** que el plan permita `init_source: schema-only` se confirma en la primera corrida real del job (CA-3); si la API lo rechaza, se vuelve al usuario antes de usar una copia con datos.
 - **R-1:** si la Spec 001 se implementa antes que esta, sus tests de integración no correrían en CI. Conviene hacer esta primero, o al menos la parte B.
 - **R-2:** las violaciones de a11y que salgan pueden ser muchas. Si pasan de unas pocas por componente, se abre una spec aparte para corregirlas.
 
