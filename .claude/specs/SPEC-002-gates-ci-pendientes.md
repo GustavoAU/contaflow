@@ -1,7 +1,7 @@
 ---
 id: SPEC-002
 titulo: Activar los gates de CI pendientes (Prettier, integración, accesibilidad)
-estado: APROBADA
+estado: EN_CURSO
 fecha: 2026-10-01
 rama: chore/spec-002-gates-ci
 arbol: "[11]"
@@ -74,8 +74,19 @@ Cada test renderiza el componente en jsdom (`// @vitest-environment jsdom` en la
 
 ## 10. Plan de agentes
 
+Línea base (2026-10-02, main): tsc exit 0 · vitest 5350 tests / 256 archivos, 0 fallos. Plan armado por la sesión principal (orchestrator-agent no estaba disponible).
+
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | sesión principal | Consultar Neon (solo lectura, MCP): branch por defecto vigente y si el plan permite branch solo-esquema. Decide la estrategia del branch efímero (hijo solo-esquema del default + `prisma migrate deploy`) | no |
+| 2 | test-agent | Tests de las guardas de `scripts/ci-neon-branch.mjs` (prefijo `ci-`, nunca default/protegido, nunca otro project id) en RED | sí |
+| 3 | sesión principal | Implementar `scripts/ci-neon-branch.mjs` (create/delete vía API de Neon con `fetch`, sin acción de terceros) hasta GREEN | — |
+| 4 | sesión principal | Job `integration` en `ci.yml` (solo PR a main, mismo repo, `if: always()` en el borrado, secretos enmascarados), scripts `test:integration`, README de integración. `integration` entra a `needs` de "CI Result" solo tras una corrida verde | no |
+| 5 | security-agent | Revisar workflow + script (alcance de la API key personal, inyección vía nombre de rama, fuga en logs, PRs de forks) | no |
+| 6 | test-agent | Helper a11y + tests axe de los 5 componentes de la sección 8, en RED por la razón correcta | sí |
+| 7 | ui-agent | Solo si el paso 6 destapa violaciones `serious`/`critical` en ≤ unas pocas por componente; si son muchas, se reporta y se abre otra spec (R-2) | — |
+| 8 | sesión principal | **PAUSA — requiere decisión del usuario**: Prettier masivo (A) en commit aislado + `.git-blame-ignore-revs` + check en CI, solo con PRs/worktrees abiertos resueltos (hoy 6 PRs) | no |
+| 9 | sesión principal | Gates finales, cierre de sección 12, `/revisar` | no |
 
 ## 11. Riesgos y preguntas abiertas
 - **P-1 (RESUELTA 2026-10-02):** `NEON_API_KEY` (key personal, nombre `github-ci-integration`) y `NEON_PROJECT_ID` creados por el usuario como secretos de repositorio. No hay organización en Neon, así que no existe key por proyecto: el job debe operar solo sobre `NEON_PROJECT_ID`, borrar solo branches propios con prefijo `ci-` y nunca el branch por defecto ni el de producción.
