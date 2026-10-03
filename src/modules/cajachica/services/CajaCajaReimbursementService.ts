@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import prisma from "@/lib/prisma";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import type {
@@ -189,7 +189,8 @@ export async function postReimbursement(
         entriesByAccount.set(m.expenseAccountId, cur.plus(m.amount));
       }
 
-      const journalEntries = [
+      // ADR-058: cuantizar al céntimo antes de verificar y persistir.
+      const rawJournalEntries = [
         // Debit expense accounts
         ...Array.from(entriesByAccount.entries()).map(([accountId, amount]) => ({
           accountId,
@@ -204,6 +205,14 @@ export async function postReimbursement(
         },
       ];
 
+      const {
+        entries: journalEntries,
+        residual: glResidual,
+        absorbedIndex: glAbsorbedIndex,
+      } = quantizeGLEntries(rawJournalEntries);
+      if (journalEntries.length === 0) {
+        throw new Error("El reembolso no tiene montos mayores a un céntimo (0,01)");
+      }
       assertBalancedGLEntries(journalEntries); // N4: invariante partida doble
       const transaction = await tx.transaction.create({
         data: {
@@ -214,7 +223,13 @@ export async function postReimbursement(
           description: `Reembolso Caja Chica ${reimbursement.reimbursementNumber} — ${reimbursement.monthYear}`,
           type: "DIARIO",
           userId,
-          entries: { create: journalEntries },
+          entries: {
+            create: journalEntries.map((e) => ({
+              accountId: e.accountId,
+              amount: e.amount,
+              description: e.description,
+            })),
+          },
         },
       });
 
@@ -244,7 +259,18 @@ export async function postReimbursement(
           entityId: input.reimbursementId,
           ipAddress,
           userAgent,
-          newValue: { transactionId: transaction.id },
+          newValue: {
+            transactionId: transaction.id,
+            ...(!glResidual.isZero()
+              ? {
+                  glRounding: {
+                    residual: glResidual.toString(),
+                    absorbedIndex: glAbsorbedIndex,
+                    scale: 2,
+                  },
+                }
+              : {}),
+          },
         },
       });
 

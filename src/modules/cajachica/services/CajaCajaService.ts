@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { assertAccountOfType } from "./account-type.guard";
 import { CAJA_CHICA_STEP_UP_THRESHOLD_VES } from "@/lib/step-up";
@@ -323,7 +323,7 @@ export async function closeCajaCaja(
 
         // ADR-036 D-2.4: Dr cuenta retorno / Cr cuenta caja por el remanente.
         // Devuelve el efectivo a su origen y deja el GL de la caja en 0.
-        const closeEntries = [
+        const rawCloseEntries = [
           {
             accountId: input.returnAccountId,
             amount: remaining,
@@ -335,6 +335,8 @@ export async function closeCajaCaja(
             description: `Liquidación de caja chica: ${caja.name}`,
           },
         ];
+        // ADR-058 B2: derivado de saldos guardados → exact, sin cuantizar
+        const { entries: closeEntries } = quantizeGLEntries(rawCloseEntries, { mode: "exact" });
         assertBalancedGLEntries(closeEntries); // R-1: invariante partida doble
 
         const closeCount = await tx.cajaCaja.count({
@@ -439,7 +441,7 @@ export async function reopenCajaCaja(
         } else {
           // Entries espejo a partir de las entries REALES del cierre (no recalcular
           // remanente): garantiza anular exactamente lo asentado. R-5: Decimal.js.
-          const reverseEntries = original.entries.map((e) => ({
+          const rawReverseEntries = original.entries.map((e) => ({
             accountId: e.accountId,
             amount: new Decimal(e.amount.toString()).negated(),
             description: `Reapertura caja chica: ${caja.name}`,
@@ -450,6 +452,10 @@ export async function reopenCajaCaja(
             partnerId: e.partnerId ?? undefined,
             employeeId: e.employeeId ?? undefined,
           }));
+          // ADR-058 B2: derivado de saldos guardados → exact, sin cuantizar
+          const { entries: reverseEntries } = quantizeGLEntries(rawReverseEntries, {
+            mode: "exact",
+          });
           assertBalancedGLEntries(reverseEntries); // R-1: invariante partida doble
 
           // A.5 (ADR-038): la reversa se postea con fecha hoy en período OPEN (R-3);

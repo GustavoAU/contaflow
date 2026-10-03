@@ -3,7 +3,7 @@
 // Cálculo puro de cuotas + posteo mensual/catch-up + baja de activos.
 
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { PrismaClient, DepreciationMethod, FixedAsset } from "@prisma/client";
 import type { DisposeFixedAssetInput } from "../schemas/fixed-asset.schema";
@@ -15,6 +15,12 @@ type Tx = Omit<
 
 // Alícuota IVA general — Art. 27 LIVA. Constante en lugar de literal para evitar D-3.
 const IVA_GENERAL_RATE = new Decimal("0.16");
+
+/** ADR-058 D-8: residuo de cuantización para el payload del AuditLog (solo si ≠ 0). */
+const glRoundingPayload = (residual: Decimal, absorbedIndex: number | null) =>
+  residual.isZero()
+    ? {}
+    : { glRounding: { residual: residual.toString(), absorbedIndex, scale: 2 } };
 
 // ─── Tipos de salida ────────────────────────────────────────────────────────────
 
@@ -59,20 +65,23 @@ export function calcMonthlyDepreciation(
 
   switch (asset.depreciationMethod as DepreciationMethod) {
     case "LINEA_RECTA":
-      return depreciable.dividedBy(n).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+      // ADR-058 R-1: la cuota (monto de documento) se redondea a 2 decimales EN ORIGEN.
+      // La vida útil y el factor no se redondean; el remanente de la última cuota lo
+      // resuelve calcDepreciationForPeriod.
+      return depreciable.dividedBy(n).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     case "SUMA_DIGITOS": {
       // SDA mensual: peso del período = (n − month1 + 1) / Σ(1..n)
       // Σ(1..n) = n*(n+1)/2
       const sumOfDigits = new Decimal(n).times(n + 1).dividedBy(2);
       const weight = new Decimal(n - month1 + 1).dividedBy(sumOfDigits);
-      return depreciable.times(weight).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+      return depreciable.times(weight).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     }
 
     case "UNIDADES_PRODUCCION": {
       if (!asset.totalUnits || asset.totalUnits === 0) return new Decimal(0);
       const ratePerUnit = depreciable.dividedBy(asset.totalUnits);
-      return ratePerUnit.times(unitsThisPeriod).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+      return ratePerUnit.times(unitsThisPeriod).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     }
   }
 }
@@ -95,9 +104,18 @@ export function calcDepreciationForPeriod(
 
   let amount = calcMonthlyDepreciation(asset, month1, unitsThisPeriod);
 
-  // No depreciar más allá del valor depreciable
   const remainingDepreciable = depreciable.minus(previousAccumulated);
-  if (amount.greaterThan(remainingDepreciable)) {
+  const isLastQuota =
+    (asset.depreciationMethod as DepreciationMethod) !== "UNIDADES_PRODUCCION" &&
+    month1 === asset.usefulLifeMonths;
+  if (isLastQuota) {
+    // ADR-058 R-1: con cuotas redondeadas a 2 decimales la suma de las cuotas deja de dar el
+    // depreciable de forma exacta (1000/3 → 333,33 × 3 = 999,99). La ÚLTIMA cuota es el
+    // remanente exacto (depreciable − acumulada) para que el valor en libros final sea
+    // exactamente el valor residual (p. ej. 333,33 + 333,33 + 333,34).
+    amount = Decimal.max(remainingDepreciable, new Decimal(0));
+  } else if (amount.greaterThan(remainingDepreciable)) {
+    // No depreciar más allá del valor depreciable
     amount = Decimal.max(remainingDepreciable, new Decimal(0));
   }
 
@@ -221,7 +239,7 @@ export async function postDepreciation(
   // new Date(year, month, 0) → día 0 del mes siguiente = último día del mes actual.
   const periodDate = new Date(year, month, 0);
 
-  const depEntries = [
+  const rawDepEntries = [
     // Débito: Gasto Depreciación
     {
       accountId: asset.depreciationAccountId,
@@ -235,6 +253,9 @@ export async function postDepreciation(
       description: `Dep. Acumulada: ${asset.name} — ${year}/${String(month).padStart(2, "0")}`,
     },
   ];
+  // ADR-058: cuantizar al céntimo (cuota ya a 2 decimales). Sin AuditLog en este flujo: ambas
+  // líneas son ±la misma cuota, el residuo es siempre 0.
+  const { entries: depEntries } = quantizeGLEntries(rawDepEntries);
   assertBalancedGLEntries(depEntries); // N4: invariante partida doble
   const journalTx = await tx.transaction.create({
     data: {
@@ -245,7 +266,11 @@ export async function postDepreciation(
       type: "AJUSTE",
       userId,
       entries: {
-        create: depEntries,
+        create: depEntries.map((e) => ({
+          accountId: e.accountId,
+          amount: e.amount,
+          description: e.description,
+        })),
       },
     },
   });
@@ -338,7 +363,7 @@ export async function postClosedYearCatchUpDepreciation(
   // txNumber único: por construcción (un solo catch-up VEN-NIF8 por activo por mes corriente)
   const txNumber = `DEP-VNF8-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}-${assetId.slice(-8).toUpperCase()}`;
 
-  const vnf8Entries = [
+  const rawVnf8Entries = [
     {
       accountId: asset.depreciationAccountId,
       amount: totalAmount,
@@ -350,6 +375,8 @@ export async function postClosedYearCatchUpDepreciation(
       description: `Dep. Acum. ejercicios ${years}: ${asset.name} — VEN-NIF 8`,
     },
   ];
+  // ADR-058: cuantizar al céntimo. Sin AuditLog en este flujo: ambas líneas son ±el mismo total.
+  const { entries: vnf8Entries } = quantizeGLEntries(rawVnf8Entries);
   assertBalancedGLEntries(vnf8Entries); // N4: invariante partida doble
   const glTx = await tx.transaction.create({
     data: {
@@ -360,7 +387,11 @@ export async function postClosedYearCatchUpDepreciation(
       type: "AJUSTE",
       userId,
       entries: {
-        create: vnf8Entries,
+        create: vnf8Entries.map((e) => ({
+          accountId: e.accountId,
+          amount: e.amount,
+          description: e.description,
+        })),
       },
     },
   });
@@ -485,11 +516,16 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
   const label = asset.name;
 
   // ── Construir las líneas del asiento ─────────────────────────────────────
-  const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
+  const rawGlEntries: {
+    accountId: string;
+    amount: Decimal;
+    description: string;
+    noAbsorb?: boolean;
+  }[] = [];
 
   // 1. DEBE: Dep. Acumulada (revertir créditos de períodos anteriores)
   if (accumulated.greaterThan(new Decimal("0.001"))) {
-    glEntries.push({
+    rawGlEntries.push({
       accountId: asset.accDepreciationAccountId,
       amount: accumulated,
       description: `Baja activo — dep. acum.: ${label}`,
@@ -498,7 +534,7 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
 
   // 2. DEBE: Banco / CxC — importe total cobrado (precio + IVA si aplica)
   if (proceeds.greaterThan(new Decimal("0.001")) && input.proceedsAccountId) {
-    glEntries.push({
+    rawGlEntries.push({
       accountId: input.proceedsAccountId,
       amount: totalReceivable, // precio neto + IVA (o solo precio neto si no aplica IVA)
       description: `Baja activo — cobro venta${applyIva ? " (inc. IVA)" : ""}: ${label}`,
@@ -507,15 +543,16 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
 
   // 2b. HABER: IVA Débito Fiscal (Art. 3 LIVA) — solo si venta con IVA activado
   if (applyIva && ivaAmount.greaterThan(new Decimal("0.001")) && input.ivaDFAccountId) {
-    glEntries.push({
+    rawGlEntries.push({
       accountId: input.ivaDFAccountId,
       amount: ivaAmount.negated(), // negativo = crédito
       description: `Baja activo — IVA DF 16% venta: ${label}`,
+      noAbsorb: true, // obligación fiscal: no diverge de la declaración (ADR-058 B3)
     });
   }
 
   // 3. HABER: Eliminar costo histórico del activo del balance
-  glEntries.push({
+  rawGlEntries.push({
     accountId: asset.assetAccountId,
     amount: cost.negated(), // negativo = crédito
     description: `Baja activo — costo histórico: ${label}`,
@@ -528,7 +565,7 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
   //    para no dejar el asiento descuadrado (aunque la cuenta no es la ideal).
   const glAccountId = input.gainLossAccountId ?? asset.depreciationAccountId;
   if (gainLoss.abs().greaterThan(new Decimal("0.01"))) {
-    glEntries.push({
+    rawGlEntries.push({
       accountId: glAccountId,
       amount: gainLoss.negated(),
       description: `Baja activo — ${gainLoss.greaterThan(0) ? "ganancia" : "pérdida"}: ${label}`,
@@ -556,20 +593,26 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
         .times(new Decimal(36 - mUsed).dividedBy(new Decimal(36)))
         .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
       if (art66Amount.greaterThan(new Decimal("0.001"))) {
-        glEntries.push({
+        rawGlEntries.push({
           accountId: input.art66ExpenseAccountId,
           amount: art66Amount,
           description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
         });
-        glEntries.push({
+        rawGlEntries.push({
           accountId: input.ivaCFAccountId,
           amount: art66Amount.negated(),
           description: `Reintegro IVA Crédito Fiscal Art. 66 LIVA — baja anticipada: ${label}`,
+          noAbsorb: true, // IVA crédito fiscal (ADR-058 B3)
         });
       }
     }
   }
 
+  const {
+    entries: glEntries,
+    residual: glResidual,
+    absorbedIndex: glAbsorbedIndex,
+  } = quantizeGLEntries(rawGlEntries);
   assertBalancedGLEntries(glEntries); // N4: invariante partida doble
   await tx.transaction.create({
     data: {
@@ -579,7 +622,13 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
       description: `Baja de activo: ${label}${input.notes ? ` — ${input.notes}` : ""}`,
       type: "AJUSTE",
       userId,
-      entries: { create: glEntries },
+      entries: {
+        create: glEntries.map((e) => ({
+          accountId: e.accountId,
+          amount: e.amount,
+          description: e.description,
+        })),
+      },
     },
   });
 
@@ -602,6 +651,7 @@ export async function dispose(input: DisposeFixedAssetInput, userId: string, tx:
         proceeds: input.saleProceeds,
         gainLoss: gainLoss.toFixed(2),
         notes: input.notes,
+        ...glRoundingPayload(glResidual, glAbsorbedIndex),
       },
     },
   });

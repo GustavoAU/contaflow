@@ -5,7 +5,7 @@
 // Sección 36: filtro isMonetary + REPOMO (Resultado por Posición Monetaria Neta)
 
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { PrismaClient, AccountType } from "@prisma/client";
 import type {
@@ -82,7 +82,8 @@ export function calcInflationFactor(baseIndex: Decimal, currentIndex: Decimal): 
  *   - Negativo = Crédito
  */
 export function calcAdjustmentAmount(balance: Decimal, factor: Decimal): Decimal {
-  return balance.times(factor.minus(1)).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+  // ADR-058 R-1: el MONTO del ajuste (documento) a 2 decimales en origen; el factor INPC no se redondea.
+  return balance.times(factor.minus(1)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
 
 /**
@@ -102,7 +103,8 @@ export function calcNetMonetaryPosition(monetaryBalances: Decimal[]): Decimal {
  * Negativo = ganancia monetaria (crédito a ingreso REPOMO).
  */
 export function calcRepomo(netMonetaryPosition: Decimal, factor: Decimal): Decimal {
-  return netMonetaryPosition.times(factor.minus(1)).toDecimalPlaces(4, Decimal.ROUND_HALF_UP);
+  // ADR-058 R-1: monto REPOMO a 2 decimales en origen; el factor no se redondea.
+  return netMonetaryPosition.times(factor.minus(1)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 }
 
 /**
@@ -428,7 +430,7 @@ export class INPCService {
     const periodLabel = `${periodYear}/${String(periodMonth).padStart(2, "0")}`;
 
     // Construir entradas: reexpresión de cuentas no monetarias
-    const journalEntries: { accountId: string; amount: Decimal; description?: string }[] = [
+    const rawJournalEntries: { accountId: string; amount: Decimal; description?: string }[] = [
       ...preview.map((r) => ({
         accountId: r.accountId,
         amount: r.adjustmentAmount,
@@ -444,7 +446,7 @@ export class INPCService {
     // Asiento REPOMO si aplica (VEN-NIF 3 §36.4)
     let repomoRegistered: Decimal | null = null;
     if (repomo && !repomo.repomoAmount.isZero() && repomoAccountId) {
-      journalEntries.push(
+      rawJournalEntries.push(
         {
           accountId: repomoAccountId,
           amount: repomo.repomoAmount,
@@ -462,6 +464,15 @@ export class INPCService {
     // Obtener baseYear/Month para registros InflationAdjustment
     const company = await tx.company.findUniqueOrThrow({ where: { id: companyId } });
 
+    // ADR-058: cuantizar al céntimo (los ajustes ya vienen a 2 decimales).
+    const {
+      entries: journalEntries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(rawJournalEntries);
+    if (journalEntries.length === 0) {
+      throw new Error("El ajuste por inflación no genera montos mayores a un céntimo (0,01).");
+    }
     assertBalancedGLEntries(journalEntries); // N4: invariante partida doble
     const journalTx = await tx.transaction.create({
       data: {
@@ -516,6 +527,15 @@ export class INPCService {
           totalAdjustment: totalAbsolute.toFixed(4),
           factor: factor.toFixed(6),
           repomo: repomoRegistered?.toFixed(4) ?? null,
+          ...(!glResidual.isZero()
+            ? {
+                glRounding: {
+                  residual: glResidual.toString(),
+                  absorbedIndex: glAbsorbedIndex,
+                  scale: 2,
+                },
+              }
+            : {}),
         },
       },
     });

@@ -461,3 +461,96 @@ describe("FiscalYearCloseService.getFiscalYearCloseHistory", () => {
     expect(result[0].netResult.toString()).toBe("15000");
   });
 });
+
+// ─── ADR-058 B2: el cierre deriva de saldos guardados → modo exact ─────────────
+
+describe("FiscalYearCloseService — ADR-058 B2 modo exact con saldos históricos a 4 decimales", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupTxMock();
+  });
+
+  it("closeFiscalYear: el asiento de cierre es el espejo EXACTO de los saldos (Σ = 0, sin cuantizar, sin noAbsorb)", async () => {
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+    vi.mocked(prisma.fiscalYear.findUnique).mockResolvedValue(mockFiscalYear as never);
+    vi.mocked(prisma.accountingPeriod.findMany).mockResolvedValue(mockPeriods as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue(mockCompany as never);
+    vi.mocked(prisma.journalEntry.findMany)
+      .mockResolvedValueOnce([
+        {
+          amount: new Decimal("-1234.5678"),
+          accountId: "rev-1",
+          account: { id: "rev-1", name: "Ventas", code: "4.1" },
+        },
+        {
+          amount: new Decimal("-0.0049"),
+          accountId: "rev-2",
+          account: { id: "rev-2", name: "Otros", code: "4.2" },
+        },
+      ] as never)
+      .mockResolvedValueOnce([
+        {
+          amount: new Decimal("500.1234"),
+          accountId: "exp-1",
+          account: { id: "exp-1", name: "Gastos", code: "5.1" },
+        },
+      ] as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-closing-x" } as never);
+    vi.mocked(prisma.accountingPeriod.updateMany).mockResolvedValue({ count: 2 } as never);
+    vi.mocked(prisma.fiscalYear.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.fiscalYearClose.create).mockResolvedValue({ id: "fyc-x" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await FiscalYearCloseService.closeFiscalYear(COMPANY_ID, YEAR, USER_ID);
+
+    const data = vi.mocked(prisma.transaction.create).mock.calls[0]![0].data as {
+      entries: { createMany: { data: { accountId: string; amount: Decimal }[] } };
+    };
+    const lines = data.entries.createMany.data;
+    expect(lines).toHaveLength(4);
+    expect(lines.find((l) => l.accountId === "rev-1")!.amount.toString()).toBe("1234.5678");
+    expect(lines.find((l) => l.accountId === "rev-2")!.amount.toString()).toBe("0.0049");
+    expect(lines.find((l) => l.accountId === "exp-1")!.amount.toString()).toBe("-500.1234");
+    // resultado = 1234.5678 + 0.0049 − 500.1234 = 734.4493 → crédito
+    expect(lines.find((l) => l.accountId === "account-result")!.amount.toString()).toBe(
+      "-734.4493"
+    );
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+  });
+
+  it("appropriateFiscalYearResult: la apropiación niega EXACTAMENTE el resultado guardado a 4 decimales", async () => {
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue({
+      id: "fyc-1",
+      appropriationTransactionId: null,
+      closingTransactionId: "tx-closing-1",
+      netResult: new Decimal("734.4493"),
+    } as never);
+    vi.mocked(prisma.company.findUnique).mockResolvedValue({
+      resultAccountId: "account-result",
+      retainedEarningsAccountId: "account-retained",
+      retainedEarningsAccount: { id: "account-retained", type: "EQUITY", name: "UR" },
+    } as never);
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValue({
+      date: new Date(YEAR, 11, 31),
+    } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-approp-x" } as never);
+    vi.mocked(prisma.fiscalYearClose.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await FiscalYearCloseService.appropriateFiscalYearResult(COMPANY_ID, YEAR, USER_ID);
+
+    const data = vi.mocked(prisma.transaction.create).mock.calls[0]![0].data as {
+      entries: { createMany: { data: { accountId: string; amount: Decimal }[] } };
+    };
+    const lines = data.entries.createMany.data;
+    expect(lines.find((l) => l.accountId === "account-result")!.amount.toString()).toBe("734.4493");
+    expect(lines.find((l) => l.accountId === "account-retained")!.amount.toString()).toBe(
+      "-734.4493"
+    );
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+  });
+});

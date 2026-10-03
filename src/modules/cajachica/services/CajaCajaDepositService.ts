@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 import prisma from "@/lib/prisma";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { withSerializableRetry } from "@/lib/tx-helpers";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
 import { assertAccountOfType } from "./account-type.guard";
@@ -101,7 +101,8 @@ export async function createDeposit(
 
     // Partida doble (R-1): Dr Caja Chica (entra el fondo) / Cr cuenta origen (sale el efectivo).
     const depositCount = await tx.cajaCajaDeposit.count({ where: { companyId: input.companyId } });
-    const depositEntries = [
+    // ADR-058: cuantizar al céntimo antes de verificar y persistir (el monto ya viene a ≤2 dec.).
+    const rawDepositEntries = [
       {
         accountId: caja.accountId,
         amount: amountDecimal,
@@ -113,6 +114,14 @@ export async function createDeposit(
         description: `Salida fondos hacia Caja Chica — ${input.description}`,
       },
     ];
+    const {
+      entries: depositEntries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(rawDepositEntries);
+    if (depositEntries.length === 0) {
+      throw new Error("El monto del depósito es inferior a un céntimo (0,01)");
+    }
     assertBalancedGLEntries(depositEntries); // N4: invariante partida doble
     const transaction = await tx.transaction.create({
       data: {
@@ -124,7 +133,11 @@ export async function createDeposit(
         type: "DIARIO",
         userId,
         entries: {
-          create: depositEntries,
+          create: depositEntries.map((e) => ({
+            accountId: e.accountId,
+            amount: e.amount,
+            description: e.description,
+          })),
         },
       },
     });
@@ -143,7 +156,19 @@ export async function createDeposit(
         entityId: deposit.id,
         ipAddress,
         userAgent,
-        newValue: { amount: input.amount, cajaCajaId: input.cajaCajaId },
+        newValue: {
+          amount: input.amount,
+          cajaCajaId: input.cajaCajaId,
+          ...(!glResidual.isZero()
+            ? {
+                glRounding: {
+                  residual: glResidual.toString(),
+                  absorbedIndex: glAbsorbedIndex,
+                  scale: 2,
+                },
+              }
+            : {}),
+        },
       },
     });
 
@@ -183,7 +208,7 @@ export async function voidDeposit(
         // período OPEN sin validar, que dejaría la contrapartida fuera de su período).
         const today = new Date();
         const period = await PeriodService.assertDateInOpenPeriod(input.companyId, today, tx);
-        const reverseEntries = original.entries.map((e) => ({
+        const rawReverseEntries = original.entries.map((e) => ({
           accountId: e.accountId,
           amount: new Decimal(e.amount.toString()).negated(),
           description: `Reversión depósito — ${e.description ?? ""}`.trim(),
@@ -194,6 +219,10 @@ export async function voidDeposit(
           partnerId: e.partnerId ?? undefined,
           employeeId: e.employeeId ?? undefined,
         }));
+        // ADR-058 B2: derivado de saldos guardados → exact, sin cuantizar
+        const { entries: reverseEntries } = quantizeGLEntries(rawReverseEntries, {
+          mode: "exact",
+        });
         assertBalancedGLEntries(reverseEntries); // N4: invariante partida doble
         // MÁXIMO + 1 sobre los propios números de reversión, no `count` de depósitos.
         //

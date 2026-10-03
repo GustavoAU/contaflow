@@ -28,16 +28,7 @@ const GL_ASSERTIONS_FILE = "src/lib/gl-assertions.ts";
  * Archivos que aun NO cuantizan (inventario del 2026-10-03: 21). SPEC-004, lotes 1-3.
  * Quitar cada uno en el MISMO commit que lo migra. Meta: lista vacia.
  */
-const PENDING_ADOPTION: string[] = [
-  "src/modules/cajachica/services/CajaCajaDepositService.ts",
-  "src/modules/cajachica/services/CajaCajaReimbursementService.ts",
-  "src/modules/cajachica/services/CajaCajaService.ts",
-  "src/modules/fiscal-close/services/FiscalYearCloseService.ts",
-  "src/modules/fixed-assets/services/FixedAssetDepreciationService.ts",
-  "src/modules/fixed-assets/services/FixedAssetService.ts",
-  "src/modules/income-distribution/services/IncomeDistributionService.ts",
-  "src/modules/inflation/services/INPCService.ts",
-];
+const PENDING_ADOPTION: string[] = [];
 
 // Ratchet: nº minimo de archivos que llaman assertBalancedGLEntries (medir antes de bajarlo).
 const MIN_EXPECTED_CALLERS = 15;

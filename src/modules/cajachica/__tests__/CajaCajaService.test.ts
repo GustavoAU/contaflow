@@ -1242,3 +1242,46 @@ describe("getCajaStepUpThreshold", () => {
     expect(result.equals(new Decimal(CAJA_CHICA_STEP_UP_THRESHOLD_VES))).toBe(true);
   });
 });
+
+// ─── ADR-058 B2: liquidación y reapertura derivan de lo guardado → espejo EXACTO ───
+
+describe("closeCajaCaja / reopenCajaCaja — ADR-058 B2 modo exact con saldos históricos a 4 decimales", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("la liquidación asienta el saldo GL guardado SIN cuantizar (cuenta de caja en 0 exacto)", async () => {
+    const { closeCajaCaja } = await import("../services/CajaCajaService");
+    const { txCreate } = makeCloseTx({}, "1234.5678");
+
+    await closeCajaCaja(closeInput, USER_ID);
+
+    const entries = txCreate.mock.calls[0][0].data.entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
+    expect(entries).toHaveLength(2);
+    expect(entries.find((e) => e.accountId === RETURN_ACCOUNT)!.amount.toString()).toBe(
+      "1234.5678"
+    );
+    expect(entries.find((e) => e.accountId === CAJA_ACCOUNT)!.amount.toString()).toBe("-1234.5678");
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of entries) expect("noAbsorb" in e).toBe(false);
+  });
+
+  it("la reapertura niega exactamente el asiento de liquidación histórico a 4 decimales", async () => {
+    const { reopenCajaCaja } = await import("../services/CajaCajaService");
+    const { txCreate } = makeReopenTx({}, "1234.5678");
+
+    await reopenCajaCaja(reopenInput, USER_ID);
+
+    const entries = txCreate.mock.calls[0][0].data.entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
+    expect(entries.find((e) => e.accountId === CAJA_ACCOUNT)!.amount.toString()).toBe("1234.5678");
+    expect(entries.find((e) => e.accountId === RETURN_ACCOUNT)!.amount.toString()).toBe(
+      "-1234.5678"
+    );
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of entries) expect("noAbsorb" in e).toBe(false);
+  });
+});
