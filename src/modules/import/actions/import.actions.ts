@@ -4,7 +4,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { ImportService } from "../services/ImportService";
+import { ImportAccountRowSchema } from "../schemas/import.schema";
 import type { ImportAccountRow, ImportAccountRowError } from "../schemas/import.schema";
+import { z } from "zod";
 import { ROLES } from "@/lib/auth-helpers";
 import { limiters } from "@/lib/ratelimit";
 import { requireCompanyAction } from "@/lib/action-guard";
@@ -35,7 +37,17 @@ export async function importAccountsAction(
       };
     }
 
-    const result = await ImportService.importAccounts(companyId, ctx.userId, rows);
+    // Las filas llegan del cliente: validarlas aquí (antes solo se validaban al parsear el
+    // archivo). Un payload forjado con `codigo` no-string no debe abortar el lote a medias.
+    const parsed = z.array(ImportAccountRowSchema).safeParse(rows);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: "Hay filas con código, nombre o tipo inválidos. Vuelve a cargar el archivo.",
+      };
+    }
+
+    const result = await ImportService.importAccounts(companyId, ctx.userId, parsed.data);
     revalidatePath(`/company/${companyId}/accounts`);
     return { success: true, data: result };
   } catch (error) {

@@ -20,7 +20,7 @@ export default async function CajaCajaPage({ params }: Props) {
   if (!member || !canAccess(member.role, ROLES.WRITERS)) redirect(`/company/${companyId}`);
 
   const [accountsResult, employeesResult] = await Promise.all([
-    getAccountsAction(companyId),
+    getAccountsAction(companyId, { onlyPostable: true }),
     listEmployeesAction(companyId),
   ]);
 

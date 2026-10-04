@@ -85,7 +85,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     currentTab === "contabilidad"
       ? await Promise.all([
           getFiscalConfigAction(companyId),
-          getAccountsAction(companyId),
+          getAccountsAction(companyId, { onlyPostable: true }),
           getGLConfigAction(companyId),
           getStockControlLevelAction(companyId),
           getCajaChicaStepUpThresholdAction(companyId),

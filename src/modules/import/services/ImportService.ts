@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { p2002TargetIncludes } from "@/lib/prisma-errors";
+import { isPostableCode } from "@/lib/account-code";
 import {
   ImportAccountsSchema,
   type ImportAccountRow,
@@ -261,15 +262,10 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
       tipo = inferred;
     }
 
-    // G/M: "G" = cuenta de título (no admite movimientos); cualquier otro valor, vacío o
-    // columna ausente = detalle/movimiento (default seguro — nunca bloquear una cuenta por una
-    // columna rara o ausente, rompería la plantilla simple actual).
-    const gm = hasCol("g/m")
-      ? String(get("g/m") ?? "")
-          .trim()
-          .toUpperCase()
-      : "";
-    const isPostable = gm !== "G";
+    // ADR-059 (contadora, 2026-10-04): solo las cuentas de 9 dígitos reciben movimiento; las de
+    // menos son títulos/subtítulos de relleno. Manda la longitud del CÓDIGO — la columna G/M del
+    // archivo se ignora para que no contradiga la regla.
+    const isPostable = isPostableCode(codigo);
 
     // Pre.: "SI" = la cuenta se puede usar en líneas de presupuesto (BudgetLine). Confirmado
     // por el dueño 2026-09-26. Cualquier otro valor, vacío o columna ausente = false (default
@@ -291,7 +287,7 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
       : "";
     const requiresThirdParty = ter === "SI";
 
-    // Nivel, C/C, Clase, Tipo(O/C) — significado sin confirmar o pendiente de otra tanda, se
+    // G/M, Nivel, C/C, Clase, Tipo(O/C) — significado sin confirmar o pendiente de otra tanda, se
     // ignoran a propósito (en particular NO "Clase"→isMonetary: hipótesis descartada por
     // evidencia real, ver ADR-053 — C/C confirmado pero diferido a otra tanda).
 
@@ -339,9 +335,8 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
   }
 }
 
-// Fila de importación tal como llega a `importAccounts` — `isPostable` es opcional aquí (a
-// diferencia de `ImportAccountRow`, cuya salida de Zod siempre lo resuelve a boolean) para no
-// forzar a cada caller/test existente a proveerlo; se asume `true` (detalle) si falta.
+// Fila de importación tal como llega a `importAccounts` — `isPostable` es opcional aquí y se
+// IGNORA: el servidor lo deriva siempre del código (ADR-059), nunca de lo que mande el cliente.
 type ImportAccountRowInput = Omit<
   ImportAccountRow,
   "isPostable" | "isBudgetable" | "requiresThirdParty"
@@ -427,7 +422,7 @@ export class ImportService {
               | "REVENUE"
               | "EXPENSE",
             description: row.descripcion,
-            isPostable: row.isPostable ?? true,
+            isPostable: isPostableCode(row.codigo),
             isBudgetable: row.isBudgetable ?? false,
             requiresThirdParty: row.requiresThirdParty ?? false,
             companyId,
@@ -436,33 +431,20 @@ export class ImportService {
 
         created++;
       } catch (e) {
-        // ADR-056: el único de (companyId, name) ahora es PARCIAL (solo entre cuentas
-        // de movimiento) — un P2002 aquí es un duplicado real de nombre entre dos
-        // cuentas de movimiento, no una colisión de título, así que vale la pena
-        // decirlo. Antes caía al catch genérico sin explicar cuál de los dos @@unique
-        // había chocado (CLAUDE.md: "Errores Prisma al cliente? Nunca raw").
-        //
-        // `row` completo viaja en el error (no solo el código) para que el cliente
-        // pueda ofrecer "renombrar y reintentar esta fila" sin tener que reconstruir
-        // el objeto original — feedback del dueño 2026-10-01.
+        // ADR-059: el nombre ya no es único (títulos y cuentas de movimiento repiten nombre);
+        // solo el CÓDIGO puede chocar.
+        // `row` completo viaja en el error (no solo el código) para que el cliente pueda
+        // mostrar qué fila falló sin reconstruir el objeto original.
         const fullRow: ImportAccountRow = {
           codigo: row.codigo,
           nombre: row.nombre,
           tipo: row.tipo as ImportAccountRow["tipo"],
           descripcion: row.descripcion,
-          isPostable: row.isPostable ?? true,
+          isPostable: isPostableCode(row.codigo),
           isBudgetable: row.isBudgetable ?? false,
           requiresThirdParty: row.requiresThirdParty ?? false,
         };
-        if (p2002TargetIncludes(e, "name")) {
-          errors.push({
-            row: fullRow,
-            reason: "duplicate_name",
-            message:
-              `Fila ${row.codigo}: ya existe una cuenta de movimiento con el nombre "${row.nombre}" — ` +
-              `cámbiale el nombre en el archivo para diferenciarla y vuelve a importar esta fila`,
-          });
-        } else if (p2002TargetIncludes(e, "code")) {
+        if (p2002TargetIncludes(e, "code")) {
           errors.push({
             row: fullRow,
             reason: "duplicate_code",

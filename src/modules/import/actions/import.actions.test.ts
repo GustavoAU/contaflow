@@ -114,6 +114,13 @@ describe("importAccountsAction", () => {
     if (!r.success) expect(r.error).toContain("1000");
   });
 
+  it("[L-2] filas forjadas (codigo no-string) → rechazo de negocio sin tocar el servicio", async () => {
+    const forged = [{ codigo: 123456789, nombre: "Cuenta", tipo: "ASSET" }] as never;
+    const r = await importAccountsAction(COMPANY_ID, USER_ID, forged);
+    expect(r.success).toBe(false);
+    expect(ImportService.importAccounts).not.toHaveBeenCalled();
+  });
+
   it("happy path — retorna resultado de importación", async () => {
     vi.mocked(ImportService.importAccounts).mockResolvedValue({
       created: 5,

@@ -29,6 +29,7 @@ export default async function FixedAssetsPage({ params }: Props) {
       where: {
         companyId,
         deletedAt: null,
+        isPostable: true,
         type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE", "EQUITY"] },
       },
       select: { id: true, code: true, name: true, type: true },
