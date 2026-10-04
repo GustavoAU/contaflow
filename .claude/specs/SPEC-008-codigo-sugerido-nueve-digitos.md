@@ -1,7 +1,7 @@
 ---
 id: SPEC-008
 titulo: Una cuenta de movimiento es de 9 dígitos y siempre cuelga de un título padre (sugerencia de código + validación)
-estado: BORRADOR   # preguntas resueltas por el dueño 2026-10-05; falta que el dueño la marque APROBADA
+estado: APROBADA   # aprobada por el dueño 2026-10-05; preguntas resueltas (ver §2 y §11)
 fecha: 2026-10-05
 rama: feat/spec-008-codigo-sugerido-nueve-digitos
 arbol: "[3]+[10]"  # Server Actions (lectura + alta/edición) + formulario de cuentas + importador
