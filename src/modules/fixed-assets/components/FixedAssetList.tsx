@@ -279,7 +279,7 @@ export function FixedAssetList({
           );
         }
         setInpcResult(
-          `${processed} ajustados · ${skipped} omitidos · Total Bs. ${totalAdjustment}`
+          `${processed} ajustados · ${skipped} omitidos · Total Bs. ${formatAmount(totalAdjustment)}`
         );
       } else {
         toast.error(r.error);

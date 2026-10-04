@@ -9,6 +9,7 @@ import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { savePayrollConfigAction } from "../actions/payroll-config.actions";
 import type { PayrollConfigRow } from "../services/PayrollConfigService";
+import { formatMoneyVE, parseMoneyInput } from "@/lib/money-input";
 
 type Step = 1 | 2 | 3;
 
@@ -704,7 +705,10 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             </p>
             {form.ivssEnabled && <p>Riesgo IVSS: {IVSS_RISK_LABELS[form.ivssRiskClass]}</p>}
             {form.salaryMinimumVes && (
-              <p>Salario mínimo: Bs {form.salaryMinimumVes} (topes activos)</p>
+              <p>
+                Salario mínimo: Bs {formatMoneyVE(parseMoneyInput(form.salaryMinimumVes))} (topes
+                activos)
+              </p>
             )}
             <p>Cesta ticket: {CESTA_LABELS[form.cestaTicketType]}</p>
             <p>Moneda: {CURRENCY_LABELS[form.paymentCurrency]}</p>

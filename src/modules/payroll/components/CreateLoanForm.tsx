@@ -8,6 +8,7 @@ import { Loader2Icon, InfoIcon } from "lucide-react";
 import { toast } from "sonner";
 import { createLoanAction } from "../actions/employee-loan.actions";
 import type { EmployeeLoanRow } from "../services/EmployeeLoanService";
+import { formatAmount } from "@/lib/format";
 
 interface EmployeeOption {
   id: string;
@@ -238,7 +239,9 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
           <p className="font-medium text-blue-800">Cuota estimada (método francés)</p>
           <p className="text-blue-700">
             {currency === "USD" ? "USD: " : "Bs.: "}
-            <span className="font-mono font-semibold">{installmentPreview.toFixed(2)}</span>
+            <span className="font-mono font-semibold">
+              {formatAmount(installmentPreview, currency)}
+            </span>
             {hasInterest && annualRateDecimal > 0 && (
               <span className="ml-1 text-blue-500">(incluye interés)</span>
             )}

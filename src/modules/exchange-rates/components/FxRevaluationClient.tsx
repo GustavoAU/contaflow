@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { todayLocalISO } from "@/lib/today";
+import { formatAmount } from "@/lib/format";
 import {
   Select,
   SelectContent,
@@ -265,7 +266,7 @@ export function FxRevaluationClient({ companyId, latestRates, hasGLConfig, openP
                           {l.invoiceType === "SALE" ? "Venta" : "Compra"}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-zinc-700">
-                          {parseFloat(l.outstandingForeign).toFixed(2)}
+                          {formatAmount(l.outstandingForeign, currency)}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono text-zinc-600">
                           {fmt(l.vesAtOriginal)}

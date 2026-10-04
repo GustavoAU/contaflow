@@ -13,6 +13,7 @@ import { computeSalMinAlert } from "../utils/sal-min-alert";
 import type { LegalThresholdRow } from "../services/LegalThresholdService";
 import { MoneyInput } from "@/components/ui/money-input";
 import { formatMoneyVE } from "@/lib/money-input";
+import { formatAmount } from "@/lib/format";
 
 interface Props {
   companyId: string;
@@ -340,12 +341,12 @@ export default function LegalThresholdsPanel({ companyId, initialThresholds, isA
                 <tr key={type} className="hover:bg-muted/30 border-b last:border-0">
                   <td className="px-4 py-2">{TYPE_LABELS[type]}</td>
                   <td className="text-muted-foreground px-4 py-2 text-right font-mono">
-                    {TYPE_DEFAULTS[type]}%
+                    {formatAmount(TYPE_DEFAULTS[type])}%
                   </td>
                   <td className="px-4 py-2 text-right font-mono">
                     {latest ? (
                       <span className="font-semibold text-blue-700">
-                        {Number(latest.value).toFixed(2)}%{" "}
+                        {formatAmount(latest.value)}%{" "}
                         <span className="text-muted-foreground text-xs font-normal">
                           desde {latest.effectiveFrom}
                         </span>

@@ -4,6 +4,7 @@
 
 import { useState, useTransition } from "react";
 import { CheckCircle2Icon, XCircleIcon, AlertTriangleIcon, LinkIcon } from "lucide-react";
+import { formatAmount } from "@/lib/format";
 import {
   getRetentionReconciliationAction,
   type ReconciliationRow,
@@ -245,7 +246,7 @@ export function RetentionReconciliation({ companyId, defaultYear, defaultMonth }
                           }`}
                         >
                           {row.invoiceIvaRetentionAmount ? (
-                            `Bs. ${row.invoiceIvaRetentionAmount}`
+                            `Bs. ${formatAmount(row.invoiceIvaRetentionAmount)}`
                           ) : (
                             <span className="text-zinc-400">—</span>
                           )}

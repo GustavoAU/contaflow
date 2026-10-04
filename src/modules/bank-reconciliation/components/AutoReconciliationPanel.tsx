@@ -24,6 +24,7 @@ import type {
   AutoMatchResult,
 } from "../schemas/auto-reconciliation.schema";
 import { fmtVen } from "@/lib/fmt-ven";
+import { formatMoneyVE } from "@/lib/money-input";
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
           }
           const diff = Math.abs(computed - cb);
           if (diff > 0.02) {
-            balanceError = `El saldo calculado (${computed.toFixed(2)}) no coincide con el saldo final declarado (${cb.toFixed(2)})`;
+            balanceError = `El saldo calculado (${formatMoneyVE(computed)}) no coincide con el saldo final declarado (${formatMoneyVE(cb)})`;
           }
         }
         dispatch({ type: "PARSED", extracted: result.data, balanceError });

@@ -31,6 +31,7 @@ import {
   appropriateFiscalYearResultAction,
 } from "../actions/fiscal-close.actions";
 import type { FiscalYearCloseSummary } from "../services/FiscalYearCloseService";
+import { formatAmount } from "@/lib/format";
 
 type SerializedFiscalYearCloseSummary = Omit<
   FiscalYearCloseSummary,
@@ -67,7 +68,7 @@ export function FiscalYearCloseManager({ companyId, yearToClose, isConfigured, h
         if (!result) return; // cancelado por el usuario
         if (result.success) {
           toast.success(
-            `Ejercicio ${yearToClose} cerrado. Resultado neto: ${Number(result.data.netResult) >= 0 ? "+" : ""}${result.data.netResult} Bs.`
+            `Ejercicio ${yearToClose} cerrado. Resultado neto: ${Number(result.data.netResult) >= 0 ? "+" : ""}${formatAmount(result.data.netResult)} Bs.`
           );
           setLocalHistory((prev) => [
             {

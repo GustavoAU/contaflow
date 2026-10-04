@@ -34,6 +34,7 @@ import {
   getExpensesForAssetImportAction,
 } from "../actions/fixed-asset.actions";
 import type { ExpenseForAssetImport } from "../actions/fixed-asset.actions";
+import { formatAmount } from "@/lib/format";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
 
@@ -350,7 +351,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
                   {expenseList.map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.invoiceDate ? `[${e.invoiceDate}] ` : ""}
-                      {e.concept} — {e.currency} {e.amount}
+                      {e.concept} — {e.currency} {formatAmount(e.amount, e.currency)}
                       {e.vendorName ? ` | ${e.vendorName}` : ""}
                     </option>
                   ))}

@@ -20,7 +20,7 @@ import {
   searchJournalEntriesAction,
   searchPaymentRecordsAction,
 } from "../actions/banking.actions";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, formatAmount } from "@/lib/format";
 import { fmtVen } from "@/lib/fmt-ven";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -857,7 +857,7 @@ function PaymentRecordPanel({
                 </span>
                 {record.currency !== "VES" && record.amountOriginal && (
                   <span className="text-green-600">
-                    {record.amountOriginal} {record.currency}
+                    {formatAmount(record.amountOriginal, record.currency)} {record.currency}
                   </span>
                 )}
               </div>
@@ -867,7 +867,7 @@ function PaymentRecordPanel({
                 className="font-mono font-semibold text-zinc-800"
                 style={{ fontVariantNumeric: "tabular-nums", fontSize: "15px" }}
               >
-                {record.amountVes} VES
+                {formatAmount(record.amountVes)} VES
               </span>
               <MatchButton
                 disabled={isPending}
