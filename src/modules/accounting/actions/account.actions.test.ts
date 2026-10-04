@@ -432,6 +432,22 @@ describe("updateAccountAction", () => {
       })) as never);
   });
 
+  // M-1 (auditoría SPEC-008): la edición era la única mutación de cuentas sin rate limit.
+  it("[M-1] la edición pasa por el limiter fiscal y, con el límite excedido, no escribe", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(BASE_ACCOUNT as never);
+    vi.mocked(checkRateLimit).mockResolvedValueOnce({
+      allowed: false,
+      error: "Límite de solicitudes excedido",
+    } as never);
+
+    const result = await updateAccountAction({ id: "acc-1", name: "Otro nombre" });
+
+    expect(result.success).toBe(false);
+    expect(checkRateLimit).toHaveBeenCalledWith("company-1:user-1", { kind: "fiscal" });
+    expect(prisma.account.update).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
   it("actualiza una cuenta correctamente en el happy path", async () => {
     vi.mocked(prisma.account.findUnique).mockResolvedValue(BASE_ACCOUNT as never);
     vi.mocked(prisma.account.findFirst).mockResolvedValue(null);
@@ -935,7 +951,7 @@ describe("createAccountAction — título padre obligatorio para cuentas de movi
     sinEscrituras();
   });
 
-  it("alta y edición siguen en el limiter fiscal (roles y limiters sin cambios)", async () => {
+  it("el alta sigue en el limiter fiscal (roles y limiters sin cambios)", async () => {
     mountAccountDb(createAccountDb([TITULO_CAJAS]));
 
     await createAccountAction(entrada("1.1.01.01.050"));

@@ -32,9 +32,34 @@ Los títulos y subtítulos comparten nombre en mayúsculas (`UTILIDADES ACUMULAD
 - Las dos empresas demo con plan de 4 dígitos se migraron el 2026-10-05 (migración `20261005_demo_accounts_nine_digits`, esquema `1105 → 1.1.05.01.001`, con AuditLog) y los seeds (`prisma/seed*.ts`, `scripts/fix-demo-company.ts`) generan ya códigos de 9 dígitos. Ese mismo día se les creó la jerarquía completa de títulos (migración `20261005_demo_account_titles`: 169 títulos de 4 niveles, cada cuenta de movimiento con su padre de 6 dígitos; los seeds usan `prisma/seed-account-titles.ts`). Cualquier otra empresa con códigos de 4 dígitos no se migra automáticamente; sus cuentas nuevas con < 9 dígitos serán títulos.
 - Dos cuentas de movimiento pueden tener el mismo nombre: la diferenciación en los selectores es por código (se muestra `código — nombre`).
 
-## Pendiente (no bloqueante, decisión del dueño)
+## SPEC-008 (2026-10-05): sugerencia de 9 dígitos y título padre obligatorio
 
-- `getNextAccountCodeAction` sigue proponiendo códigos de 4 dígitos (rangos 1000-1999…): una cuenta creada a mano con el código sugerido nace como título. Proponer el siguiente código de 9 dígitos requiere elegir el padre — diseño aparte.
-- `Pre.` (`isBudgetable`) no tiene consumidores y `budgets/page.tsx` ahora ofrece solo cuentas de movimiento: confirmar con la contadora que se presupuesta en cuentas de 9 dígitos.
-- `saveGLConfigAction` / `setFiscalConfigAction` no validan `isPostable` al elegir cuentas de configuración (el gate de asientos es el respaldo).
-- Migración: aplicar y luego `npm run verify:drift`; antes, comprobar que ninguna cuenta de ≥ 9 dígitos marcada como título sea prefijo de otra (quedaría padre y movimiento a la vez).
+Decisiones del dueño/contadora: la estructura `A.B.CC.DD.EEE` (1/1/2/2/3) es igual en todos los planes y **no se permite
+crear una cuenta de movimiento sin título padre**.
+
+- `getNextAccountCodeAction(type, companyId, parentId)` propone `PADRE.EEE` (primer EEE libre de 001 a 999; las cuentas
+  eliminadas cuentan como ocupadas por el `@@unique([companyId, code])`). Los rangos numéricos de 4 dígitos
+  desaparecieron.
+- El padre obligatorio se valida **en el servidor**, no solo en el formulario: `createAccountAction`, `updateAccountAction`
+  (solo si el código cambia y el nuevo es de movimiento) e `ImportService.importAccounts` (padre en la base o como título
+  en el mismo archivo; `missing_parent` por fila sin abortar el lote). Reglas puras en `utils/parent-title.ts`.
+- La regla **no es retroactiva** (RN-12): una cuenta existente sin título padre sigue siendo editable.
+- Formulario "Nueva cuenta": selector "Cuenta padre (título)"; sin padre solo se pueden crear títulos.
+- Auditoría de seguridad: GO (0 críticos/altos). Corregidos en la misma rama: `updateAccountAction` sin limiter (M-1),
+  desbloqueo de la UI si la sugerencia falla por red (L-1) y topes de longitud en el importador (L-2).
+
+## Pendiente (no bloqueante)
+
+- **Importador (M-2, R-6):** el AuditLog `IMPORT` guarda `ipAddress`/`userAgent` en null y los `create` no van en un
+  `$transaction` con él; falta `captureNet` y registrar los códigos creados. Rama aparte (decisión de diseño de arch-agent).
+- `deleteAccountAction`/`updateAccountAction` leen la cuenta por `{ id }` antes del guard: "Cuenta no encontrada" vs
+  "acceso denegado" distingue un id existente de uno inexistente (L-4, poco explotable por ser CUID).
+- Sugerencia: acotar el `findMany` de códigos ocupados por prefijo `${padre}.` (L-3, rendimiento) y prefetch de padres en
+  el import.
+- Cambiar solo el `type` de una cuenta de movimiento con el mismo código no revalida RN-3 contra su título (I-1).
+- Mover `parent-title.ts` a `src/lib/` para no acoplar `import` con `accounting` (I-3).
+- Borrar o renombrar un título con hijos los deja huérfanos (ya era así; fuera de alcance).
+- `Pre.` (`isBudgetable`) no tiene consumidores y `budgets/page.tsx` ofrece solo cuentas de movimiento: ya confirmado
+  por el dueño ("si, asi", 2026-10-04).
+- `saveGLConfigAction` / `setFiscalConfigAction` no validan `isPostable` al elegir cuentas de configuración (el gate de
+  asientos es el respaldo).

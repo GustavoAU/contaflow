@@ -171,6 +171,25 @@ describe("AccountsTable — Nueva cuenta con título padre (SPEC-008 CA-UI)", ()
     expect(codeInput().value).toBe("1.1.01.01.050");
   });
 
+  it("[L-1] si la llamada a la action se rechaza, el código y el guardado se desbloquean y hay toast", async () => {
+    vi.mocked(getNextAccountCodeAction).mockRejectedValue(new Error("fetch failed"));
+    renderTable();
+    await openCreateDialog();
+
+    await choose(PARENT_LABEL, "1.1.01.01 — CAJAS");
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        "No se pudo calcular el código sugerido. Inténtalo de nuevo o escríbelo."
+      )
+    );
+    await waitFor(() => expect(codeInput().disabled).toBe(false));
+    expect(codeInput().getAttribute("aria-busy")).toBe("false");
+    expect(
+      (screen.getByRole("button", { name: /crear cuenta/i }) as HTMLButtonElement).disabled
+    ).toBe(false);
+  });
+
   it("(c) mientras llega la sugerencia el código queda aria-busy y bloqueado, y no se puede guardar", async () => {
     const pending = deferred<NextCodeResult>();
     vi.mocked(getNextAccountCodeAction).mockReturnValue(pending.promise);

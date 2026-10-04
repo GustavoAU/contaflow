@@ -2,8 +2,17 @@
 import { z } from "zod";
 
 export const ImportAccountRowSchema = z.object({
-  codigo: z.string().min(1, "El código es obligatorio"),
-  nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
+  // Mismos topes que el alta manual (createAccountAction): code 20, name 100, description 255.
+  codigo: z
+    .string()
+    .trim()
+    .min(1, "El código es obligatorio")
+    .max(20, "El código admite hasta 20 caracteres"),
+  nombre: z
+    .string()
+    .trim()
+    .min(2, "El nombre debe tener al menos 2 caracteres")
+    .max(100, "El nombre admite hasta 100 caracteres"),
   tipo: z.enum(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
     // El valor real sigue en inglés (nombre del enum en BD) — ImportService.normalizeAccountRows
     // ya traduce "Activo"/"Pasivo"/etc antes de llegar aquí (TIPO_ES_TO_EN). Este mensaje es lo
@@ -11,7 +20,7 @@ export const ImportAccountRowSchema = z.object({
     error: "Tipo debe ser: Activo, Contra-activo, Pasivo, Patrimonio, Ingreso o Gasto",
   }),
 
-  descripcion: z.string().optional(),
+  descripcion: z.string().max(255, "La descripción admite hasta 255 caracteres").optional(),
   // ADR-059: informativo — el servidor SIEMPRE lo deriva del código (≥ 9 dígitos = movimiento,
   // menos = título/subtítulo; src/lib/account-code.ts) e ignora este valor. Ver ImportService.
   isPostable: z.boolean().default(true),

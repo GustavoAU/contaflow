@@ -244,17 +244,26 @@ export function AccountsTable({
 
     setIsSuggesting(true);
     startSuggestion(async () => {
-      const result = await getNextAccountCodeAction(watchedType, companyId, nextParentId);
-      // Respuesta obsoleta: otra elección (o cambiar de tipo / cerrar el diálogo) ya la reemplazó.
-      if (requestId !== suggestionRequestRef.current) return;
-      setIsSuggesting(false);
-      if (result.success) {
-        form.setValue("code", result.data.code, { shouldValidate: true });
-        setSuggestion({ parentId: nextParentId, ok: true });
-      } else {
-        // El código se deja como estaba; el usuario puede teclearlo o elegir otro título.
-        toast.error(result.error);
+      try {
+        const result = await getNextAccountCodeAction(watchedType, companyId, nextParentId);
+        // Respuesta obsoleta: otra elección (o cambiar de tipo / cerrar el diálogo) ya la reemplazó.
+        if (requestId !== suggestionRequestRef.current) return;
+        if (result.success) {
+          form.setValue("code", result.data.code, { shouldValidate: true });
+          setSuggestion({ parentId: nextParentId, ok: true });
+        } else {
+          // El código se deja como estaba; el usuario puede teclearlo o elegir otro título.
+          toast.error(result.error);
+          setSuggestion({ parentId: nextParentId, ok: false });
+        }
+      } catch {
+        // La llamada a la Server Action se rechazó (red/transporte): sin esto `isSuggesting`
+        // quedaría en true y bloquearía el código y el botón de guardar hasta cerrar el diálogo.
+        if (requestId !== suggestionRequestRef.current) return;
+        toast.error("No se pudo calcular el código sugerido. Inténtalo de nuevo o escríbelo.");
         setSuggestion({ parentId: nextParentId, ok: false });
+      } finally {
+        if (requestId === suggestionRequestRef.current) setIsSuggesting(false);
       }
     });
   }

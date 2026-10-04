@@ -252,6 +252,7 @@ export async function updateAccountAction(
 
     const ctx = await requireCompanyAction(before.companyId, {
       roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
       captureNet: true,
     });
     if (!ctx.ok) return ctx.error;
