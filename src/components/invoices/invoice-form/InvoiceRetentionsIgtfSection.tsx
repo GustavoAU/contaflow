@@ -3,7 +3,47 @@
 // Estado y handlers viven en el contenedor; aquí solo llegan por props.
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
+import { MoneyInput } from "@/components/ui/money-input";
 import type { IGTFCalculation } from "@/modules/igtf/services/IGTFService";
+
+// Importe NO controlado por el contenedor: InvoiceForm lo lee con FormData(form) por `name`.
+// El input visible muestra "1.234,56"; el <input hidden> lleva el valor canónico ("1234.56")
+// que es lo que ve FormData. Se restablece con el evento `reset` del formulario (form.reset()).
+export function FormMoneyInput({
+  name,
+  className,
+  ariaLabel,
+}: {
+  name: string;
+  className: string;
+  ariaLabel: string;
+}) {
+  const [value, setValue] = useState("0");
+  const hiddenRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const form = hiddenRef.current?.form;
+    if (!form) return;
+    const onReset = () => setValue("0");
+    form.addEventListener("reset", onReset);
+    return () => form.removeEventListener("reset", onReset);
+  }, []);
+
+  return (
+    <>
+      <input ref={hiddenRef} type="hidden" name={name} value={value || "0"} />
+      <MoneyInput
+        bare
+        aria-label={ariaLabel}
+        value={value}
+        onValueChange={setValue}
+        className={className}
+      />
+    </>
+  );
+}
 
 type Props = {
   type: "SALE" | "PURCHASE";
@@ -34,11 +74,9 @@ export function InvoiceRetentionsIgtfSection({
             <label className="mb-1 block text-xs font-medium text-zinc-600">
               Monto IVA Retenido
             </label>
-            <input
+            <FormMoneyInput
               name="ivaRetentionAmount"
-              type="number"
-              step="0.01"
-              defaultValue="0"
+              ariaLabel="Monto IVA Retenido"
               className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
             />
           </div>
@@ -69,11 +107,9 @@ export function InvoiceRetentionsIgtfSection({
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Monto ISLR Retenido
               </label>
-              <input
+              <FormMoneyInput
                 name="islrRetentionAmount"
-                type="number"
-                step="0.01"
-                defaultValue="0"
+                ariaLabel="Monto ISLR Retenido"
                 className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-orange-400 focus:outline-none"
               />
             </div>
@@ -100,13 +136,12 @@ export function InvoiceRetentionsIgtfSection({
                 Base IGTF (3%)
                 <span className="ml-1 font-normal text-zinc-400">(subtotal + IVA)</span>
               </label>
-              <input
-                type="number"
-                step="0.01"
+              <MoneyInput
+                bare
                 value={igtfBase}
-                onChange={(e) => setIgtfBase(e.target.value)}
+                onValueChange={setIgtfBase}
                 className="w-full rounded-md border px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-yellow-500 focus:outline-none"
-                placeholder="0.00"
+                placeholder="0,00"
               />
             </div>
             <div>

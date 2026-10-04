@@ -88,7 +88,7 @@ describe("InvoiceForm — desglose de impuestos", () => {
 
   it("calcula monto IVA automáticamente al ingresar base", async () => {
     render(<InvoiceForm {...BASE_PROPS} />);
-    const baseInput = screen.getByPlaceholderText("0.00");
+    const baseInput = screen.getByPlaceholderText("0,00");
     fireEvent.change(baseInput, { target: { value: "1000" } });
     await waitFor(() => {
       // ADR-049: en COMPRA (BASE_PROPS por defecto) el input de Monto IVA es editable (type="number",
@@ -195,7 +195,7 @@ describe("InvoiceForm — submit exitoso", () => {
     fireEvent.change(screen.getByPlaceholderText("00-00000001"), {
       target: { value: "00-00000001" },
     });
-    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByPlaceholderText("0,00"), { target: { value: "1000" } });
     fireEvent.change(screen.getByPlaceholderText("Razón Social"), {
       target: { value: "Proveedor Test" },
     });

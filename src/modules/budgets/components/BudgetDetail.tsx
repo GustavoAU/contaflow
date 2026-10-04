@@ -5,6 +5,7 @@
 import { useState, useTransition, useEffect, useCallback } from "react";
 import { PlusIcon, Trash2Icon, BarChart2Icon, ListIcon } from "lucide-react";
 import { toast } from "sonner";
+import { MoneyInput } from "@/components/ui/money-input";
 import type { BudgetRow, BudgetLineRow, BudgetVsActualLine } from "../services/BudgetService";
 import {
   upsertBudgetLineAction,
@@ -185,14 +186,13 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
                     ))}
                   </select>
                   <div className="flex gap-2">
-                    <input
+                    <MoneyInput
+                      bare
                       className="flex-1 rounded border px-2 py-1.5 text-sm"
                       placeholder="Importe Bs. (anual)"
+                      aria-label="Importe anual en bolívares"
                       value={addAmount}
-                      onChange={(e) => setAddAmount(e.target.value)}
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      onValueChange={setAddAmount}
                     />
                     <input
                       className="flex-1 rounded border px-2 py-1.5 text-sm"

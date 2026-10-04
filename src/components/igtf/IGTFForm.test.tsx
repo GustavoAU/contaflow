@@ -40,7 +40,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
   it("muestra preview para USD con CE (A5)", async () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={true} />);
 
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), {
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), {
       target: { value: "1000" },
     });
 
@@ -53,7 +53,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
   it("NO muestra preview para USD sin CE (A5)", async () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={false} />);
 
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), { target: { value: "1000" } });
 
     await waitFor(() => {
       expect(screen.queryByText(/Vista previa/i)).toBeNull();
@@ -65,7 +65,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={false} />);
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "EUR" } });
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "500" } });
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), { target: { value: "500" } });
 
     await waitFor(() => {
       expect(screen.queryByText(/Vista previa/i)).toBeNull();
@@ -77,7 +77,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={false} />);
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "VES" } });
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), { target: { value: "1000" } });
 
     await waitFor(() => {
       expect(screen.queryByText(/Vista previa/i)).toBeNull();
@@ -89,7 +89,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={true} />);
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "VES" } });
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), { target: { value: "1000" } });
 
     await waitFor(() => {
       expect(screen.queryByText(/Vista previa/i)).toBeNull();
@@ -100,7 +100,7 @@ describe("IGTFForm ÔÇö preview condicional", () => {
   it("no muestra preview si monto es 0", async () => {
     render(<IGTFForm {...BASE_PROPS} isSpecialContributor={false} />);
 
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "0" } });
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), { target: { value: "0" } });
 
     expect(screen.queryByText(/Vista previa/i)).toBeNull();
   });
@@ -119,7 +119,7 @@ describe("IGTFForm ÔÇö submit", () => {
     fireEvent.change(screen.getByPlaceholderText("Pago a proveedor en divisas"), {
       target: { value: "Pago proveedor" },
     });
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "500" } });
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), { target: { value: "500" } });
     fireEvent.click(screen.getByRole("button", { name: /Registrar IGTF/i }));
 
     await waitFor(() => {
@@ -147,7 +147,7 @@ describe("IGTFForm ÔÇö submit", () => {
     fireEvent.change(screen.getByPlaceholderText("Pago a proveedor en divisas"), {
       target: { value: "Pago test" },
     });
-    fireEvent.change(screen.getByPlaceholderText("1000.00"), { target: { value: "100" } });
+    fireEvent.change(screen.getByPlaceholderText("1.000,00"), { target: { value: "100" } });
     fireEvent.click(screen.getByRole("button", { name: /Registrar IGTF/i }));
 
     await waitFor(() => {

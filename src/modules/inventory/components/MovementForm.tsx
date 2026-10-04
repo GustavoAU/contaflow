@@ -12,6 +12,7 @@ import { useState, useTransition, useEffect } from "react";
 import { createMovementAction } from "../actions/inventory-operations.actions";
 import { listUomsAction } from "../actions/inventory-uom.actions";
 import { todayLocalISO } from "@/lib/today";
+import { MoneyInput } from "@/components/ui/money-input";
 
 type ItemOption = {
   id: string;
@@ -82,6 +83,7 @@ export function MovementForm({
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [selectedUnitId, setSelectedUnitId] = useState<string>("");
+  const [unitCost, setUnitCost] = useState("");
 
   const selectedItem = items.find((i) => i.id === selectedItemId);
   const selectedUnit = units.find((u) => u.id === selectedUnitId);
@@ -137,7 +139,7 @@ export function MovementForm({
       itemId: fd.get("itemId") as string,
       type: movType,
       quantity: parseFloat(fd.get("quantity") as string),
-      unitCost: movType === "ENTRADA" ? (fd.get("unitCost") as string) || undefined : undefined,
+      unitCost: movType === "ENTRADA" ? unitCost || undefined : undefined,
       reference: fd.get("reference") as string,
       notes: (fd.get("notes") as string) || null,
       date: new Date(fd.get("date") as string).toISOString(),
@@ -156,6 +158,7 @@ export function MovementForm({
         setMovType("ENTRADA");
         setUnits([]);
         setSelectedUnitId("");
+        setUnitCost("");
         onSuccess?.();
       } else {
         setError(r.error);
@@ -329,15 +332,13 @@ export function MovementForm({
         {movType === "ENTRADA" && (
           <div>
             <label className={labelClass}>Costo unitario (VES) *</label>
-            <input
-              name="unitCost"
-              type="number"
-              step="0.01"
-              min="0"
-              max="9999999999"
+            <MoneyInput
+              bare
               required
+              value={unitCost}
+              onValueChange={setUnitCost}
               className={fieldClass}
-              placeholder="0.00"
+              placeholder="0,00"
             />
             <p className="mt-1 text-xs text-gray-500">
               Actualizará el CPP del producto al contabilizarse.

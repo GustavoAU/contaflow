@@ -12,6 +12,8 @@ import {
 import { exportForma30PDFAction } from "../actions/exportForma30PDF.action";
 import { ChevronDownIcon, ChevronRightIcon, FileTextIcon } from "lucide-react";
 import { fmtDate } from "@/lib/format";
+import { MoneyInput } from "@/components/ui/money-input";
+import { parseMoneyInput } from "@/lib/money-input";
 
 const MESES = [
   "Enero",
@@ -142,7 +144,7 @@ export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: 
 
   function handleCalcular() {
     setError(null);
-    const credito = parseFloat(creditoAnterior) || 0;
+    const credito = parseMoneyInput(creditoAnterior).toNumber();
     startTransition(async () => {
       const res = await generarForma30Action(companyId, year, month, credito);
       if (res.success) {
@@ -171,7 +173,7 @@ export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: 
   function handleExportarPDF() {
     if (!result) return;
     startExportTransition(async () => {
-      const credito = parseFloat(creditoAnterior) || 0;
+      const credito = parseMoneyInput(creditoAnterior).toNumber();
       const res = await exportForma30PDFAction(companyId, result.year, result.month, credito);
       if (res.success) {
         const bytes = Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0));
@@ -232,13 +234,11 @@ export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: 
           <label className="text-xs font-medium text-zinc-500">
             Crédito fiscal período anterior (Bs.)
           </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
+          <MoneyInput
+            bare
             value={creditoAnterior}
-            onChange={(e) => setCreditoAnterior(e.target.value)}
-            placeholder="0.00"
+            onValueChange={setCreditoAnterior}
+            placeholder="0,00"
             className="w-40 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-zinc-400 focus:outline-none"
           />
         </div>

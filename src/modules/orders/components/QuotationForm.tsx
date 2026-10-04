@@ -5,6 +5,7 @@
 import { useTransition, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { MoneyInput } from "@/components/ui/money-input";
 import { createQuotationAction } from "../actions/quotation.actions";
 
 interface Props {
@@ -188,14 +189,12 @@ export function QuotationForm({ companyId, onSuccess }: Props) {
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className={labelCls}>Precio unit.</label>}
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
+                <MoneyInput
+                  bare
                   className={inputCls}
                   value={item.unitPrice}
-                  onChange={(e) => updateItem(idx, "unitPrice", e.target.value)}
-                  placeholder="0.00"
+                  onValueChange={(v) => updateItem(idx, "unitPrice", v)}
+                  placeholder="0,00"
                   required
                 />
               </div>

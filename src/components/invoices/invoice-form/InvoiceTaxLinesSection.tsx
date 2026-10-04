@@ -3,6 +3,8 @@
 // Estado y handlers viven en el contenedor; aquí solo llegan por props.
 "use client";
 
+import { MoneyInput } from "@/components/ui/money-input";
+import { parseMoneyInput } from "@/lib/money-input";
 import { formatCurrencyAmount } from "./helpers";
 import { isIvaAmountEditable } from "@/lib/invoice-amounts";
 import type { TaxLine, TaxLineType } from "./types";
@@ -164,15 +166,13 @@ export function InvoiceTaxLinesSection({
                     </span>
                   )}
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <MoneyInput
+                  bare
                   value={line.base}
                   disabled={line.taxType === "IVA_GENERAL" && !!line.luxuryGroupId}
-                  onChange={(e) => updateTaxLine(line.id, "base", e.target.value)}
+                  onValueChange={(v) => updateTaxLine(line.id, "base", v)}
                   className="w-full rounded-md border px-3 py-2 font-mono text-sm text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500"
-                  placeholder="0.00"
+                  placeholder="0,00"
                 />
               </div>
               <div>
@@ -197,12 +197,10 @@ export function InvoiceTaxLinesSection({
                   )}
                 </label>
                 {montoIvaEditable ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <MoneyInput
+                    bare
                     value={line.amount}
-                    onChange={(e) => updateTaxLine(line.id, "amount", e.target.value)}
+                    onValueChange={(v) => updateTaxLine(line.id, "amount", v)}
                     className="w-full rounded-md border bg-white px-3 py-2 text-right font-mono text-sm font-semibold text-zinc-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 ) : (
@@ -235,7 +233,7 @@ export function InvoiceTaxLinesSection({
               <>
                 ≈ Bs.D{" "}
                 {formatCurrencyAmount(
-                  (parseFloat(totalIva) * parseFloat(bcvRate.rate)).toFixed(2),
+                  parseMoneyInput(totalIva).times(parseMoneyInput(bcvRate.rate)).toFixed(2),
                   "VES"
                 ).replace("Bs.D ", "")}{" "}
                 (tasa BCV:{" "}

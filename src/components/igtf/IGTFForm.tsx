@@ -6,6 +6,8 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
+import { MoneyInput } from "@/components/ui/money-input";
+import { parseMoneyInput } from "@/lib/money-input";
 import { createIGTFAction } from "@/modules/igtf/actions/igtf.actions";
 import { IGTFService, IGTF_RATE } from "@/modules/igtf/services/IGTFService";
 import { fmtVen } from "@/lib/fmt-ven";
@@ -24,7 +26,9 @@ export function IGTFForm({ companyId, userId, isSpecialContributor }: Props) {
   // ← FIX: solo calcula si aplica IGTF según la lógica fiscal
   const applies = IGTFService.applies(currency, isSpecialContributor);
   const preview =
-    applies && amount && parseFloat(amount) > 0 ? IGTFService.calculate(amount, IGTF_RATE) : null;
+    applies && amount && parseMoneyInput(amount).gt(0)
+      ? IGTFService.calculate(amount, IGTF_RATE)
+      : null;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -73,14 +77,13 @@ export function IGTFForm({ companyId, userId, isSpecialContributor }: Props) {
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Monto de la Transacción
               </label>
-              <input
-                type="number"
-                step="0.01"
+              <MoneyInput
+                bare
                 required
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValueChange={setAmount}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="1000.00"
+                placeholder="1.000,00"
               />
             </div>
             <div>
@@ -98,7 +101,7 @@ export function IGTFForm({ companyId, userId, isSpecialContributor }: Props) {
           </div>
 
           {/* ← Aviso cuando NO aplica IGTF */}
-          {!applies && amount && parseFloat(amount) > 0 && (
+          {!applies && amount && parseMoneyInput(amount).gt(0) && (
             <div className="rounded-lg bg-zinc-50 p-3 text-sm text-zinc-500">
               ℹ️ IGTF no aplica para esta combinación de moneda y tipo de contribuyente.
             </div>

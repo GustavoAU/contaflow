@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { createDistributionAction } from "../actions/income-distribution.actions";
 import { todayLocalISO } from "@/lib/today";
@@ -140,13 +141,10 @@ export function IncomeDistributionForm({
           <Label className="text-xs">
             Monto {currencyCode !== "VES" ? `(${currencyCode})` : "Bs.D"} *
           </Label>
-          <Input
-            type="number"
-            step="0.01"
-            min="0.01"
+          <MoneyInput
             value={totalAmountOriginal}
-            onChange={(e) => setTotalAmountOriginal(e.target.value)}
-            placeholder="0.00"
+            onValueChange={setTotalAmountOriginal}
+            placeholder="0,00"
             required
             disabled={isPending}
           />

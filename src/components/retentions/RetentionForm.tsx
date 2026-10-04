@@ -19,6 +19,8 @@ import {
 import { RetentionCalculator } from "@/modules/retentions/services/RetentionCalculator";
 import { ISLR_RATES, IVA_RETENTION_RATES } from "@/modules/retentions/schemas/retention.schema";
 import { fmtVen } from "@/lib/fmt-ven";
+import { MoneyInput } from "@/components/ui/money-input";
+import { parseMoneyInput } from "@/lib/money-input";
 
 type Props = {
   companyId: string;
@@ -138,7 +140,7 @@ export function RetentionForm({ companyId, userId }: Props) {
 
   // Preview en tiempo real
   const preview =
-    taxBase && parseFloat(taxBase) > 0
+    taxBase && parseMoneyInput(taxBase).gt(0)
       ? RetentionCalculator.calculate(
           taxBase,
           ivaRetentionPct,
@@ -164,7 +166,7 @@ export function RetentionForm({ companyId, userId }: Props) {
     : null;
 
   const baseExceedsTotal =
-    taxBase && invoiceAmount && parseFloat(taxBase) > parseFloat(invoiceAmount);
+    !!taxBase && !!invoiceAmount && parseMoneyInput(taxBase).gt(parseMoneyInput(invoiceAmount));
 
   // ALERTA 20: calcular si la fecha de factura está fuera del período activo
   const invoiceDateOutsidePeriod = (() => {
@@ -211,7 +213,7 @@ export function RetentionForm({ companyId, userId }: Props) {
         providerRif: data.get("providerRif") as string,
         invoiceNumber: data.get("invoiceNumber") as string,
         invoiceDate: new Date(data.get("invoiceDate") as string),
-        invoiceAmount: data.get("invoiceAmount") as string,
+        invoiceAmount: invoiceAmount,
         taxBase: taxBase,
         ivaAmount: preview?.ivaAmount ?? "0",
         ivaRetentionPct,
@@ -323,31 +325,29 @@ export function RetentionForm({ companyId, userId }: Props) {
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Monto Total Factura <span className="font-normal text-zinc-400">(Bs.)</span>
               </label>
-              <input
+              <MoneyInput
+                bare
                 name="invoiceAmount"
-                type="number"
-                step="0.01"
                 required
                 value={invoiceAmount}
-                onChange={(e) => setInvoiceAmount(e.target.value)}
+                onValueChange={setInvoiceAmount}
                 className="w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                placeholder="1160.00"
+                placeholder="1.160,00"
               />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Base Imponible <span className="font-normal text-zinc-400">(Bs.)</span>
               </label>
-              <input
-                type="number"
-                step="0.01"
+              <MoneyInput
+                bare
                 required
                 value={taxBase}
-                onChange={(e) => setTaxBase(e.target.value)}
+                onValueChange={setTaxBase}
                 className={`w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none ${
                   baseExceedsTotal ? "border-amber-400 bg-amber-50" : ""
                 }`}
-                placeholder="1000.00"
+                placeholder="1.000,00"
               />
               {baseExceedsTotal && (
                 <p className="mt-0.5 text-xs text-amber-600">

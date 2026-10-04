@@ -5,6 +5,8 @@
 import { useTransition, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { MoneyInput } from "@/components/ui/money-input";
+import { parseMoneyInput } from "@/lib/money-input";
 import { createOrderAction } from "../actions/order.actions";
 import type { QuotationRow } from "../services/QuotationService";
 import { ProductCombobox } from "./ProductCombobox";
@@ -56,7 +58,7 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
           description: i.description,
           unit: i.unit,
           quantity: Number(i.quantity).toString(),
-          unitPrice: Number(i.unitPrice).toString(),
+          unitPrice: parseMoneyInput(i.unitPrice).toFixed(),
           taxRate: Math.round(Number(i.taxRate)).toString() as "0" | "8" | "16",
           stockQuantity: null,
           inventoryItemId: i.inventoryItemId ?? null, // OM-08: hereda el vínculo de la cotización
@@ -292,14 +294,12 @@ export function OrderForm({ companyId, approvedQuotations, onSuccess }: Props) {
               </div>
               <div className="col-span-2">
                 {idx === 0 && <label className={labelCls}>Precio unit.</label>}
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
+                <MoneyInput
+                  bare
                   className={inputCls}
                   value={item.unitPrice}
-                  onChange={(e) => updateItem(idx, "unitPrice", e.target.value)}
-                  placeholder="0.00"
+                  onValueChange={(v) => updateItem(idx, "unitPrice", v)}
+                  placeholder="0,00"
                   required
                 />
               </div>
