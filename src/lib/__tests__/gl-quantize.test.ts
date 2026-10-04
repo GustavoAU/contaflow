@@ -340,3 +340,41 @@ describe("quantizeGLEntries — propiedad sobre 200 asientos USD x tasa de 6 dec
     }
   });
 });
+
+describe("quantizeGLEntries — la absorcion no puede anular ni invertir una linea (seguridad LOW-2)", () => {
+  const noAbsorb = (v: string) => ({ amount: d(v), noAbsorb: true });
+
+  it("la linea que absorbe quedaria en 0.00 -> lanza", () => {
+    // Σ bruta 0; redondeadas suman +0.01; la unica linea absorbible (0.01) quedaria en 0.00.
+    const entries = [
+      { amount: d("0.01") },
+      noAbsorb("0.005"),
+      noAbsorb("0.005"),
+      noAbsorb("-0.02"),
+    ];
+    expect(() => quantizeGLEntries(entries)).toThrow(/dejaría la línea/);
+  });
+
+  it("la linea que absorbe cambiaria de signo (Dr -> Cr) -> lanza", () => {
+    // Σ bruta 0; redondeadas suman +0.02; la unica linea absorbible (0.01) quedaria en -0.01.
+    const entries = [
+      { amount: d("0.01") },
+      noAbsorb("0.005"),
+      noAbsorb("0.005"),
+      noAbsorb("0.005"),
+      noAbsorb("0.005"),
+      noAbsorb("-0.03"),
+    ];
+    expect(() => quantizeGLEntries(entries)).toThrow(/dejaría la línea/);
+  });
+
+  it("una absorcion normal (la linea absorbente es mucho mayor) sigue funcionando", () => {
+    const out = quantizeGLEntries([
+      { amount: d("100.004") },
+      { amount: d("-50.0049") },
+      { amount: d("-50.0001") },
+    ]);
+    expect(sum(out.entries).isZero()).toBe(true);
+    for (const x of out.entries) expect(isCentMultiple(x.amount)).toBe(true);
+  });
+});

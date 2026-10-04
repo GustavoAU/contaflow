@@ -127,6 +127,26 @@ describe("CreateTransactionSchema", () => {
       }
     });
 
+    it("rechaza un monto de mas de 32 caracteres (tope de longitud, seguridad LOW-3)", () => {
+      const huge = "1".repeat(33);
+      for (const entries of [
+        [
+          { accountId: "acc-1", debit: huge, credit: "" },
+          { accountId: "acc-2", debit: "", credit: "1.00" },
+        ],
+        [
+          { accountId: "acc-1", debit: "1.00", credit: "" },
+          { accountId: "acc-2", debit: "", credit: huge },
+        ],
+      ]) {
+        const result = CreateTransactionSchema.safeParse({ ...BASE_TRANSACTION, entries });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.issues.map((i) => i.message)).toContain("Monto demasiado largo");
+        }
+      }
+    });
+
     it("rechaza un credito con mas de 2 decimales", () => {
       const result = CreateTransactionSchema.safeParse({
         ...BASE_TRANSACTION,

@@ -130,16 +130,13 @@ export class TransactionService {
           : new Decimal(entry.credit || "0").negated(),
     }));
 
-    // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir. El schema ya rechaza
-    // más de 2 decimales, así que aquí es un no-op salvo líneas de monto 0 (se descartan).
-    // Las líneas llevan tercero opcional pero el asiento manual lo decide el usuario; no se
-    // marca noAbsorb porque con montos a 2 decimales no hay residuo que absorber.
-    const {
-      entries: quantizedEntries,
-      residual: glResidual,
-      absorbedIndex: glAbsorbedIndex,
-    } = quantizeGLEntries(rawEntries);
-    const entries = quantizedEntries;
+    // ADR-058 (decisión 10 + hallazgo de seguridad MEDIUM-1): el asiento MANUAL lo escribe el
+    // usuario y el schema ya rechaza más de 2 decimales, así que NO hay redondeo que hacer. Por
+    // eso va en modo "exact": sin redondear y SIN absorber. En modo absorb, un asiento que el
+    // usuario descuadra por unos céntimos (Dr 100,01 / Cr 100,00) se "arreglaría" en silencio
+    // restándole el residuo a la línea mayor, que puede llevar un tercero. Aquí cualquier
+    // descuadre debe RECHAZARSE, y de eso se encarga assertBalancedGLEntries (cuadre exacto).
+    const { entries } = quantizeGLEntries(rawEntries, { mode: "exact" });
 
     // N4: invariante de partida doble — lanza si Σ(amount) ≠ 0
     assertBalancedGLEntries(entries);
@@ -306,18 +303,7 @@ export class TransactionService {
             userId: validated.userId,
             ipAddress: ipAddress ?? null,
             userAgent: userAgent ?? null,
-            newValue: {
-              ...(created as object),
-              ...(!glResidual.isZero()
-                ? {
-                    glRounding: {
-                      residual: glResidual.toString(),
-                      absorbedIndex: glAbsorbedIndex,
-                      scale: 2,
-                    },
-                  }
-                : {}),
-            },
+            newValue: created as object,
           },
         });
 

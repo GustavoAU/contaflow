@@ -698,6 +698,23 @@ describe("ADR-058 — TransactionService cuantizacion", () => {
     ).rejects.toThrow(/más de 2 decimales/);
   });
 
+  it("asiento manual descuadrado por 1 centimo (Dr 100,01 / Cr 100,00): se RECHAZA, no se 'arregla' en silencio", async () => {
+    // Defensa en capas (revisión de seguridad MEDIUM-1): el schema compara débitos y créditos con
+    // igualdad EXACTA y rechaza antes de llegar al servicio; además el servicio llama a
+    // quantizeGLEntries en modo exact (sin absorber) para que, aunque el schema cambiara algún
+    // día, un descuadre de céntimos nunca se "arregle" restándolo a la línea mayor.
+    await expect(
+      TransactionService.createBalancedTransaction({
+        ...BASE_INPUT,
+        entries: [
+          { accountId: "acc-1", debit: "100.01", credit: "0" },
+          { accountId: "acc-2", debit: "0", credit: "100.00" },
+        ],
+      })
+    ).rejects.toThrow(/desbalanceado/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it("anulacion de un asiento historico a 4 decimales: espejo EXACTO, sin cuantizar", async () => {
     vi.mocked(prisma.transaction.findFirst)
       .mockResolvedValueOnce({

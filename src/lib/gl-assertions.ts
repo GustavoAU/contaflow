@@ -112,10 +112,16 @@ export function quantizeGLEntries<T extends GLEntryLike>(
       "Residuo de redondeo sin línea donde absorber: todas las líneas están marcadas noAbsorb (obligaciones fiscales o terceros)."
     );
   }
-  rounded[absorbedIndex] = {
-    ...rounded[absorbedIndex],
-    amount: rounded[absorbedIndex].amount.minus(residual),
-  };
+  const before = rounded[absorbedIndex].amount;
+  const after = before.minus(residual);
+  // Hallazgo de seguridad LOW-2: si la línea que absorbe es pequeña frente al residuo, quedaría en
+  // 0,00 (línea que el propio filtro descarta) o cambiaría de Dr a Cr. Eso ya no es redondeo.
+  if (after.isZero() || after.isNegative() !== before.isNegative()) {
+    throw new Error(
+      `Error de cálculo: absorber el residuo ${residual.toFixed(2)} dejaría la línea ${absorbedIndex} (${before.toFixed(2)}) en ${after.toFixed(2)}; no se absorbe.`
+    );
+  }
+  rounded[absorbedIndex] = { ...rounded[absorbedIndex], amount: after };
 
   return { entries: rounded, residual, absorbedIndex };
 }

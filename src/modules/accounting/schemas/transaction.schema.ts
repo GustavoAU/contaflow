@@ -33,12 +33,14 @@ export const JournalEntrySchema = z.object({
   description: z.string().max(200).optional().or(z.literal("")),
   debit: z
     .string()
+    .max(32, { message: "Monto demasiado largo" })
     .optional()
     .or(z.literal(""))
     .refine(isValidAmount, { message: "Monto fuera del rango permitido" })
     .refine(hasMaxTwoDecimals, { message: "El monto no puede tener más de 2 decimales" }),
   credit: z
     .string()
+    .max(32, { message: "Monto demasiado largo" })
     .optional()
     .or(z.literal(""))
     .refine(isValidAmount, { message: "Monto fuera del rango permitido" })
