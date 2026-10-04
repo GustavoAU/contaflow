@@ -1541,7 +1541,7 @@ model InflationAdjustment {
   - Calcula débito fiscal, crédito fiscal, retenciones, saldo a pagar/favor
   - `SeccionE.creditoFiscalPeriodoAnterior` — 5° arg opcional, guard negativo → 0, reduce cuota
   - VEN-NIF: artículos 43–46 LIVA
-- **`generarForma30Action(companyId, year, month, creditoFiscalPeriodoAnterior?)`** — auth-gated, rate limiting fiscal, nonnegative schema guard
+- **`generarForma30Action(companyId, year, month, creditoFiscalPeriodoAnterior?: string)`** — auth-gated, rate limiting fiscal. El crédito viaja como STRING decimal (R-5, 2026-10-04; antes `number`); schema propio: formato llano, >= 0, máx. 2 decimales, tope `MAX_INVOICE_AMOUNT` (ADR-006 D-2). Igual en `exportForma30PDFAction`
 - **`Forma30View.tsx`** — tabla fiscal + input crédito anterior + fila E1 condicional + saldo coloreado
 
 ### Fase 19C — PDF export ✅

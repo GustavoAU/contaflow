@@ -180,7 +180,7 @@ describe("generarForma30Action — security", () => {
   });
 
   it("creditoFiscalPeriodoAnterior válido llega al servicio (5 argumentos)", async () => {
-    const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH, 500);
+    const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH, "500.00");
 
     expect(result.success).toBe(true);
     // El servicio debe ser llamado con el 5to argumento (Decimal de 500)
@@ -191,9 +191,30 @@ describe("generarForma30Action — security", () => {
   });
 
   it("falla con crédito negativo (schema guard)", async () => {
-    const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH, -100);
+    const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH, "-100");
 
     expect(result.success).toBe(false);
+  });
+
+  // R-5: el crédito viaja como string. Estos formatos NO pueden llegar al servicio:
+  // un Decimal los leería como OTRA cifra ("0x64" → 100, "1e3" → 1000) sin avisar.
+  it.each(["100,99", "0x64", "1e3", "1_000", "abc", "12abc", "100.123", "10000000000"])(
+    "rechaza el crédito %j sin llamar al servicio de cálculo",
+    async (credito) => {
+      vi.mocked(DeclaracionIVAService.calculate).mockClear();
+      const result = await generarForma30Action(COMPANY_ID, YEAR, MONTH, credito);
+
+      expect(result.success).toBe(false);
+      expect(DeclaracionIVAService.calculate).not.toHaveBeenCalled();
+    }
+  );
+
+  it("el crédito llega al servicio EXACTO, sin pasar por number", async () => {
+    // 12345678.9 como float es 12345678.9000000003…; como string es exacto.
+    await generarForma30Action(COMPANY_ID, YEAR, MONTH, "12345678.90");
+
+    const calls = vi.mocked(DeclaracionIVAService.calculate).mock.calls;
+    expect(calls[calls.length - 1][4]?.toFixed(2)).toBe("12345678.90");
   });
 
   it("creditoFiscalPeriodoAnterior omitido equivale a 0", async () => {
