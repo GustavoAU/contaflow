@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
 titulo: El selector de cuenta busca por código o por nombre (en vez de recorrer una lista)
-estado: BORRADOR   # 3 preguntas abiertas en §11; falta aprobar
+estado: BORRADOR   # Q2 y Q3 resueltas por el dueño (2026-10-05); falta Q1 (títulos en la lista) y aprobar
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
@@ -148,16 +148,17 @@ Lo completa `/implementar`.
 |---|---|---|---|
 
 ## 11. Riesgos y preguntas abiertas
-- **Q1 — PREGUNTA PARA CONTADORA:** el 2026-10-04 dijo que los títulos "deben aparecer como títulos y subtítulos, pero
-  no como cuentas seleccionables". En los selectores de asientos hoy los títulos **no aparecen** (se filtran). ¿Los
-  quiere ver como **encabezados de grupo no seleccionables** dentro de la lista (ayuda a orientarse), o basta con la
-  búsqueda por código/nombre? **Recomendación:** versión 1 sin títulos (la búsqueda ya resuelve lo que pidió); mostrarlos
-  como encabezados es una mejora posterior que exige pasar los títulos a cada uno de los ~17 formularios.
-- **Q2 — decisión de producto:** RN-10 hace que **Tab** seleccione cuando la consulta deja un solo resultado (rapidez
-  para quien teclea códigos de memoria). Riesgo: elegir sin querer. **Recomendación:** sí.
-- **Q3 — decisión del dueño:** ¿una sola entrega o dos? **Recomendación:** dos PR (A: componente + asientos, para que la
-  contadora lo pruebe primero; B: el resto), con la spec cerrada al terminar B. Y ¿qué formularios usa más, para ordenar
-  la Tanda B?
+- **Q1 — PENDIENTE (dueño/contadora):** ¿la lista de resultados debe mostrar, además de las cuentas de movimiento, los
+  **títulos en gris y sin poder elegirse** (p. ej. `1.1.01.01 CAJAS` encima de sus cuentas) para orientarse? El
+  2026-10-04 la contadora dijo que los títulos "deben aparecer como títulos y subtítulos, pero no como cuentas
+  seleccionables". Hoy en los selectores **no aparecen** (solo cuentas de movimiento). **Recomendación:** versión 1 sin
+  títulos (la búsqueda por código o nombre ya resuelve lo que pidió); mostrarlos como encabezados es una mejora posterior
+  que exige pasar los títulos a cada uno de los ~17 formularios. *(El dueño confirmó el 2026-10-05 que todas las cuentas
+  deben llevar título y subtítulo: eso ya está garantizado por SPEC-008 y no cambia esta pregunta.)*
+- **Q2 — RESUELTA (dueño, 2026-10-05): sí.** RN-10 se mantiene: Tab elige cuando la consulta deja un solo resultado.
+- **Q3 — RESUELTA (dueño, 2026-10-05): dos entregas.** A = componente + asientos manuales; B = **todos** los demás
+  formularios en un solo PR. Como B va completa, el orden entre formularios no importa: se descarta la pregunta de qué
+  formulario usa más la contadora.
 - Riesgo: sustituir un control conocido en ~17 formularios. Mitigación: contrato idéntico (RN-13), tandas, test de
   arquitectura y tests existentes ajustados.
 - Riesgo: algunos formularios usan `<select>` nativo y no `Select` de Radix; el ui-agent inventaría cada sitio antes de
