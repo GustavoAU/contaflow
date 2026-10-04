@@ -2574,10 +2574,10 @@ model BenefitAccrualLine {
   quarter                  Int? // 1–4 para QUARTERLY_ACCRUAL
   month                    Int? // 1–12 para BCV_INTEREST
   // Snapshot de salario integral al momento del accrual (inmutable post-creación — ADR-014 Dec. 3)
-  dailyNormalWage          Decimal?           @db.Decimal(19, 4) // snapshot salario diario normal
-  profitDaysAliquot        Decimal?           @db.Decimal(19, 4) // alícuota utilidades
-  vacationBonusDaysAliquot Decimal?           @db.Decimal(19, 4) // alícuota bono vacacional
-  integralDailyWage        Decimal?           @db.Decimal(19, 4) // = suma de los tres campos
+  dailyNormalWage          Decimal?           @db.Decimal(19, 8) // snapshot salario diario normal
+  profitDaysAliquot        Decimal?           @db.Decimal(19, 8) // alícuota utilidades
+  vacationBonusDaysAliquot Decimal?           @db.Decimal(19, 8) // alícuota bono vacacional
+  integralDailyWage        Decimal?           @db.Decimal(19, 8) // = suma de los tres campos
   accrualDays              Int? // días base del período (siempre 5 — Art. 142)
   additionalDays           Decimal?           @db.Decimal(5, 2) // días adicionales por antigüedad (+2/año, máx 30 — Art. 142)
   // Montos del evento
@@ -2703,7 +2703,7 @@ model VacationRecord {
   vacationDays    Decimal  @db.Decimal(5, 2) // días hábiles causados (máx 90 — Zod)
   bonusDays       Decimal  @db.Decimal(5, 2) // bono vacacional causado (máx 90 — Zod)
   // Montos snapshot — dailyNormalWage calculado server-side, nunca del cliente (ADR-014 Dec. 3)
-  dailyNormalWage Decimal  @db.Decimal(19, 4)
+  dailyNormalWage Decimal  @db.Decimal(19, 8)
   vacationAmount  Decimal  @db.Decimal(19, 4)
   bonusAmount     Decimal  @db.Decimal(19, 4)
   // Período de disfrute
@@ -2761,7 +2761,7 @@ model ProfitSharingRecord {
   fractionalDays     Decimal  @db.Decimal(5, 2) // días proporcionales al tiempo trabajado
   monthsWorked       Int // meses completos en el año fiscal
   // Snapshot de salario base — calculado server-side (ADR-014 Dec. 3)
-  baseSalarySnapshot Decimal  @db.Decimal(19, 4) // promedio salarial del período
+  baseSalarySnapshot Decimal  @db.Decimal(19, 8) // promedio salarial del período
   profitAmount       Decimal  @db.Decimal(19, 4) // fractionalDays × (baseSalary/30)
   // Ley INCES Art. 50: 0,5% de las utilidades anuales, retenido al trabajador.
   // Es aqui donde vive el aporte del trabajador — NO es una deduccion mensual.
@@ -2827,7 +2827,7 @@ model Termination {
   // Utilidades fraccionadas
   profitSharingFractionalDays   Decimal           @default(0) @db.Decimal(5, 2)
   profitSharingFractionalAmount Decimal           @default(0) @db.Decimal(19, 4)
-  profitSharingBaseSalary       Decimal?          @db.Decimal(19, 4) // promedio snapshot (ADR-014 Dec. 8)
+  profitSharingBaseSalary       Decimal?          @db.Decimal(19, 8) // promedio snapshot (ADR-014 Dec. 8)
   // Indemnización Art. 92 (solo DISMISSAL_UNJUSTIFIED)
   indemnificationAmount         Decimal           @default(0) @db.Decimal(19, 4)
   // Preaviso Art. 86 LOTTT (solo DISMISSAL_UNJUSTIFIED — tramos por antigüedad)

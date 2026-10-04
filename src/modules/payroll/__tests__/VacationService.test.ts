@@ -492,9 +492,13 @@ describe("VacationService.create — ADR-058 (montos a 2 decimales)", () => {
     const recordData = vi.mocked(prisma.vacationRecord.create).mock.calls[0]?.[0]?.data as {
       vacationAmount: string;
       bonusAmount: string;
+      dailyNormalWage: string;
     };
     expect(recordData.vacationAmount).toBe("500.01");
     expect(recordData.bonusAmount).toBe("233.34");
+    // SPEC-006: el salario diario (factor) conserva sus decimales: 1000,01 / 30 = 33,33366666...
+    // se guarda como 33.33366667 (antes toFixed(4) daba 33.3337).
+    expect(recordData.dailyNormalWage).toBe("33.33366667");
 
     const txData = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0]?.data;
     const entries = (txData?.entries?.create ?? []) as Array<{ amount: Decimal }>;

@@ -208,7 +208,7 @@ export const VacationService = {
               periodYear: input.periodYear,
               vacationDays: vacationDays.toFixed(2),
               bonusDays: bonusDays.toFixed(2),
-              dailyNormalWage: dailyNormalWage.toFixed(4),
+              dailyNormalWage: dailyNormalWage.toFixed(8),
               vacationAmount: vacationAmount.toFixed(2),
               bonusAmount: bonusAmount.toFixed(2),
               startDate: new Date(input.startDate),

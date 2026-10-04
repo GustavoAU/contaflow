@@ -285,7 +285,7 @@ export const TerminationService = {
         .reduce((sum, r) => sum.add(new Decimal(r.amount.toString())), new Decimal(0))
         .div(salaryRowsFiscal.length);
 
-      profitSharingBaseSalary = avgSalary.toDecimalPlaces(4);
+      profitSharingBaseSalary = avgSalary;
       // LOTTT Art. 131: el mínimo son treinta días. El resto del barrido ya lo
       // acotaba; este sitio se había quedado crudo, y el valor de BD es 15.
       const profitDays = Decimal.max(
@@ -423,7 +423,7 @@ export const TerminationService = {
             vacationBonusFractionalAmount: vacationBonusFractionalAmount.toFixed(4),
             profitSharingFractionalDays: profitSharingFractionalDays.toFixed(2),
             profitSharingFractionalAmount: profitSharingFractionalAmount.toFixed(4),
-            profitSharingBaseSalary: profitSharingBaseSalary?.toFixed(4) ?? null,
+            profitSharingBaseSalary: profitSharingBaseSalary?.toFixed(8) ?? null,
             indemnificationAmount: indemnificationAmount.toFixed(4),
             noticePeriodDays: noticePeriodDays.toFixed(2),
             noticePeriodAmount: noticePeriodAmount.toFixed(4),
