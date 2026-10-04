@@ -30,8 +30,10 @@ export const ImportAccountsSchema = z.array(ImportAccountRowSchema).min(1, "El a
 export type ImportAccountsData = z.infer<typeof ImportAccountsSchema>;
 
 // ADR-059: el nombre ya no es único, así que el único choque posible es de CÓDIGO.
-// `unknown` cubre cualquier otro fallo de esa fila. `row` viaja completo en el error.
-export const ImportErrorReasonSchema = z.enum(["duplicate_code", "unknown"]);
+// SPEC-008 RN-11: `missing_parent` = una cuenta de movimiento cuyo título padre (6 dígitos) no existe
+// ni en la base ni en el archivo. `unknown` cubre cualquier otro fallo de esa fila (código mal formado,
+// tipo incompatible con el título, error de BD). `row` viaja completo en el error.
+export const ImportErrorReasonSchema = z.enum(["duplicate_code", "missing_parent", "unknown"]);
 export type ImportErrorReason = z.infer<typeof ImportErrorReasonSchema>;
 
 export type ImportAccountRowError = {

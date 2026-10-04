@@ -46,7 +46,6 @@ import {
   getAccountsAction,
   createAccountAction,
   updateAccountAction,
-  getNextAccountCodeAction,
   deleteAccountAction,
 } from "@/modules/accounting/actions/account.actions";
 
@@ -147,7 +146,9 @@ export function AccountsTable({
     }
   };
 
-  async function openCreate() {
+  // SPEC-008: la sugerencia de código necesita un título padre elegido (`parentId`); hasta que el
+  // formulario tenga el selector de padre (ui-agent) el código queda vacío y editable.
+  function openCreate() {
     setEditing(null);
     form.reset({
       name: "",
@@ -158,9 +159,6 @@ export function AccountsTable({
       isCurrent: false,
     });
     setDialogOpen(true);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const result = await getNextAccountCodeAction("ASSET", companyId);
-    if (result.success) form.setValue("code", result.data.code);
   }
 
   function handleDelete(account: Account) {
@@ -200,13 +198,6 @@ export function AccountsTable({
       isCurrent: account.isCurrent,
     });
     setDialogOpen(true);
-  }
-
-  async function handleTypeChange(type: string) {
-    if (!editing) {
-      const result = await getNextAccountCodeAction(type as AccountType, companyId);
-      if (result.success) form.setValue("code", result.data.code);
-    }
   }
 
   function onSubmit(values: AccountFormValues) {
@@ -275,7 +266,7 @@ export function AccountsTable({
               </Link>
             </Button>
           )}
-          <Button onClick={() => void openCreate()} className="gap-2">
+          <Button onClick={() => openCreate()} className="gap-2">
             <PlusIcon className="h-4 w-4" />
             Nueva Cuenta
           </Button>
@@ -396,13 +387,7 @@ export function AccountsTable({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Cuenta</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        void handleTypeChange(value);
-                      }}
-                    >
+                    <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="w-full">
                           <SelectValue />
