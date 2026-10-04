@@ -119,7 +119,7 @@ export async function generarForma30Action(
   companyId: string,
   year: number,
   month: number,
-  creditoFiscalPeriodoAnterior?: number
+  creditoFiscalPeriodoAnterior?: string
 ): Promise<ActionResult<Forma30ActionResult>> {
   // 1. Auth + rate limit + membresía (cualquier rol puede generar reportes) — ADR-041
   const ctx = await requireCompanyAction(companyId, {

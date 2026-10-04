@@ -62,6 +62,8 @@ type Account = {
   description: string | null;
   isMonetary: boolean;
   isCurrent: boolean;
+  // false = título/subtítulo (< 9 dígitos, ADR-059): no se puede seleccionar en asientos.
+  isPostable?: boolean;
   companyId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -311,7 +313,14 @@ export function AccountsTable({
             {accounts.map((account) => (
               <TableRow key={account.id}>
                 <TableCell className="font-mono font-medium">{account.code}</TableCell>
-                <TableCell>{account.name}</TableCell>
+                <TableCell>
+                  {account.name}
+                  {account.isPostable === false && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Título
+                    </Badge>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Badge className={TYPE_BADGE_CLASS[account.type]}>
                     {TYPE_LABELS[account.type]}
@@ -419,7 +428,10 @@ export function AccountsTable({
                   <FormItem>
                     <FormLabel>Codigo</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ej: 1105" {...field} />
+                      <Input
+                        placeholder="Ej: 1.1.01.01.001 (9 dígitos = cuenta de movimiento)"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

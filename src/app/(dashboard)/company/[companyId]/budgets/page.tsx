@@ -31,7 +31,7 @@ export default async function BudgetsPage({ params }: Props) {
     BudgetService.list(companyId),
     CashFlowProjectionService.project(companyId),
     prisma.account.findMany({
-      where: { companyId, deletedAt: null },
+      where: { companyId, deletedAt: null, isPostable: true },
       orderBy: [{ code: "asc" }],
       select: { id: true, code: true, name: true, type: true },
     }),

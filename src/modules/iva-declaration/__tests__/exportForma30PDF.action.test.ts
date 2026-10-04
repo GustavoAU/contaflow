@@ -164,7 +164,7 @@ describe("exportForma30PDFAction", () => {
   });
 
   it("pasa creditoFiscalPeriodoAnterior al servicio de cálculo", async () => {
-    await exportForma30PDFAction("cmp_test", 2026, 3, 500);
+    await exportForma30PDFAction("cmp_test", 2026, 3, "500.00");
     expect(vi.mocked(DeclaracionIVAService.calculate)).toHaveBeenCalledWith(
       "cmp_test",
       2026,
@@ -172,6 +172,18 @@ describe("exportForma30PDFAction", () => {
       undefined,
       expect.any(Object)
     );
+  });
+
+  it("rechaza un crédito con coma o formato engañoso sin calcular ni generar el PDF", async () => {
+    for (const credito of ["100,99", "0x64", "1e3", "-5", "100.123"]) {
+      vi.mocked(DeclaracionIVAService.calculate).mockClear();
+      vi.mocked(generateForma30PDF).mockClear();
+      const result = await exportForma30PDFAction("cmp_test", 2026, 3, credito);
+
+      expect(result.success).toBe(false);
+      expect(DeclaracionIVAService.calculate).not.toHaveBeenCalled();
+      expect(generateForma30PDF).not.toHaveBeenCalled();
+    }
   });
 
   it("llama a generateForma30PDF con companyName y rif de la empresa", async () => {

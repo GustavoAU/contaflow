@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { strictDecimal } from "@/lib/zod-helpers";
 
 export const createLoanSchema = z.object({
   employeeId: z.string().min(1, { error: "Seleccione un empleado." }),
@@ -9,9 +10,16 @@ export const createLoanSchema = z.object({
   totalAmount: z
     .string()
     .min(1, { error: "Ingrese el monto total." })
-    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, {
-      error: "El monto debe ser mayor que cero.",
-    }),
+    .refine(
+      (v) => {
+        try {
+          return strictDecimal(v).gt(0);
+        } catch {
+          return false;
+        }
+      },
+      { error: "El monto debe ser mayor que cero." }
+    ),
   amountUsd: z.string().optional().nullable(),
   installments: z
     .number({ error: "Ingrese el número de cuotas." })

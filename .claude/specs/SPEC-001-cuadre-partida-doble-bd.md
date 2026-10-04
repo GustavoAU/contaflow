@@ -1,7 +1,7 @@
 ---
 id: SPEC-001
 titulo: Cuadre de partida doble garantizado en la base de datos
-estado: APROBADA   # reaprobada 2026-10-03 (T = 0). NO implementar hasta que SPEC-004 esté HECHA y la auditoría dé cero
+estado: APROBADA   # reaprobada 2026-10-03 (T = 0). SPEC-004 HECHA. Pendiente: SPEC-007 (entrada de inventario con contrapartida) antes de activar el trigger
 fecha: 2026-10-01
 rama: feat/spec-001-cuadre-bd
 arbol: "[7]"
@@ -88,6 +88,8 @@ Sin cambios. El mensaje llega por el canal de errores existente.
 - **R-1:** importaciones masivas y scripts de seed que hoy insertan líneas fuera del servicio podrían empezar a fallar. Es el comportamiento deseado, pero hay que correr los seeds contra un branch del CI antes de producción.
 - **R-2:** los tests unitarios con Prisma mockeado no ven el trigger. Los casos CA-2 a CA-5 requieren tests de integración, que ya corren en CI (SPEC-002).
 - **R-3:** aplicar primero en el branch efímero del CI. **La aplicación a producción está autorizada por el usuario (2026-10-03: "si se necesita aplicar, hazlo")**, pero solo después de que `T` esté decidida, el CI en verde y la auditoría de CA-1 en cero.
+
+- **PRERREQUISITO (decidido 2026-10-04): SPEC-007.** La ENTRADA de inventario "standalone" (`InventoryAccountingService`, `expectBalanced: false`) crea hoy un asiento de UNA sola línea (Dr Inventario sin contrapartida) y el trigger lo rechazaría. La contadora resolvió que **toda entrada de inventario lleva contrapartida**: Banco o Caja (compra), Cuentas por pagar (a crédito), o Capital solo cuando es aporte de socios al constituir la empresa. Por eso la SPEC-007 (exigir contrapartida) va ANTES que el trigger. Producción no tiene ningún asiento de una línea (auditoría 2026-10-03), así que no hay datos que migrar.
 
 ## 12. Cierre
 - Commits:

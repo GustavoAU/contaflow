@@ -144,7 +144,7 @@ export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: 
 
   function handleCalcular() {
     setError(null);
-    const credito = parseMoneyInput(creditoAnterior).toNumber();
+    const credito = parseMoneyInput(creditoAnterior).toFixed(2);
     startTransition(async () => {
       const res = await generarForma30Action(companyId, year, month, credito);
       if (res.success) {
@@ -173,7 +173,7 @@ export function Forma30View({ companyId, activePeriodMonth, activePeriodYear }: 
   function handleExportarPDF() {
     if (!result) return;
     startExportTransition(async () => {
-      const credito = parseMoneyInput(creditoAnterior).toNumber();
+      const credito = parseMoneyInput(creditoAnterior).toFixed(2);
       const res = await exportForma30PDFAction(companyId, result.year, result.month, credito);
       if (res.success) {
         const bytes = Uint8Array.from(atob(res.data), (c) => c.charCodeAt(0));

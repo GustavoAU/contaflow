@@ -84,7 +84,12 @@ export default async function InventoryPage({ params, searchParams }: Props) {
       : Promise.resolve([] as Awaited<ReturnType<typeof getInventoryItems>>),
     needsAccounts
       ? prisma.account.findMany({
-          where: { companyId, deletedAt: null, type: { in: ["ASSET", "EXPENSE", "LIABILITY"] } },
+          where: {
+            companyId,
+            deletedAt: null,
+            isPostable: true,
+            type: { in: ["ASSET", "EXPENSE", "LIABILITY"] },
+          },
           select: { id: true, code: true, name: true, type: true },
           orderBy: [{ code: "asc" }],
         })

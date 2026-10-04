@@ -20,7 +20,7 @@ export default async function IncomeDistributionPage({ params }: Props) {
   if (!member || !canAccess(member.role, ROLES.ACCOUNTING)) redirect(`/company/${companyId}`);
 
   // Cargar cuentas de la empresa para los selects
-  const accountsResult = await getAccountsAction(companyId);
+  const accountsResult = await getAccountsAction(companyId, { onlyPostable: true });
   const accounts = accountsResult.success
     ? accountsResult.data.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))
     : [];

@@ -3,6 +3,7 @@ import { PrismaClient, AccountType, UserRole } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import "dotenv/config";
+import { buildTitleAccounts } from "./seed-account-titles";
 
 const connectionString = process.env.DATABASE_URL;
 const pool = new pg.Pool({ connectionString });
@@ -56,18 +57,33 @@ async function main() {
 
   // ─── 4. Cuentas contables de la empresa demo ──────────────────────────────
   const accounts: { name: string; code: string; type: AccountType }[] = [
-    { name: "Caja General", code: "1105", type: AccountType.ASSET },
-    { name: "Bancos", code: "1110", type: AccountType.ASSET },
-    { name: "Cuentas por Cobrar", code: "1305", type: AccountType.ASSET },
-    { name: "Proveedores", code: "2205", type: AccountType.LIABILITY },
-    { name: "Capital Social", code: "3105", type: AccountType.EQUITY },
-    { name: "Utilidades Retenidas", code: "3205", type: AccountType.EQUITY },
-    { name: "Resultado del Ejercicio", code: "3210", type: AccountType.EQUITY },
-    { name: "Ventas", code: "4135", type: AccountType.REVENUE },
-    { name: "Gastos de Personal", code: "5105", type: AccountType.EXPENSE },
+    { name: "Caja General", code: "1.1.05.01.001", type: AccountType.ASSET },
+    { name: "Bancos", code: "1.1.10.01.001", type: AccountType.ASSET },
+    { name: "Cuentas por Cobrar", code: "1.3.05.01.001", type: AccountType.ASSET },
+    { name: "Proveedores", code: "2.2.05.01.001", type: AccountType.LIABILITY },
+    { name: "Capital Social", code: "3.1.05.01.001", type: AccountType.EQUITY },
+    { name: "Utilidades Retenidas", code: "3.2.05.01.001", type: AccountType.EQUITY },
+    { name: "Resultado del Ejercicio", code: "3.2.10.01.001", type: AccountType.EQUITY },
+    { name: "Ventas", code: "4.1.35.01.001", type: AccountType.REVENUE },
+    { name: "Gastos de Personal", code: "5.1.05.01.001", type: AccountType.EXPENSE },
   ];
 
   console.log("🚀 Seeding accounts...");
+
+  // Títulos padre (ADR-059): una cuenta de movimiento siempre cuelga de un título.
+  for (const t of buildTitleAccounts(accounts)) {
+    await prisma.account.upsert({
+      where: { companyId_code: { companyId: company.id, code: t.code } },
+      update: {},
+      create: {
+        companyId: company.id,
+        code: t.code,
+        name: t.name,
+        type: t.type,
+        isPostable: false,
+      },
+    });
+  }
 
   for (const account of accounts) {
     await prisma.account.upsert({
@@ -90,8 +106,8 @@ async function main() {
 
   // ─── 5. Pre-configurar cuentas de cierre fiscal ───────────────────────────
   const [resultAccount, retainedAccount] = await Promise.all([
-    prisma.account.findUnique({ where: { companyId_code: { companyId: company.id, code: "3210" } } }),
-    prisma.account.findUnique({ where: { companyId_code: { companyId: company.id, code: "3205" } } }),
+    prisma.account.findUnique({ where: { companyId_code: { companyId: company.id, code: "3.2.10.01.001" } } }),
+    prisma.account.findUnique({ where: { companyId_code: { companyId: company.id, code: "3.2.05.01.001" } } }),
   ]);
   if (resultAccount && retainedAccount) {
     await prisma.company.update({

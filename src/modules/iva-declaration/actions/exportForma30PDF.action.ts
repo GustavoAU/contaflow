@@ -29,7 +29,7 @@ export async function exportForma30PDFAction(
   companyId: string,
   year: number,
   month: number,
-  creditoFiscalPeriodoAnterior?: number
+  creditoFiscalPeriodoAnterior?: string
 ): Promise<ActionResult<string>> {
   // 1. Auth + rate limit + membresía (cualquier rol puede exportar reportes) — ADR-041
   const ctx = await requireCompanyAction(companyId, {
@@ -67,7 +67,7 @@ export async function exportForma30PDFAction(
     if (!company) return { success: false, error: "Empresa no encontrada" };
 
     // 5. Calcular Forma 30 (con crédito anterior si aplica)
-    const creditoDecimal = new Decimal(parsed.data.creditoFiscalPeriodoAnterior ?? 0);
+    const creditoDecimal = new Decimal(parsed.data.creditoFiscalPeriodoAnterior);
     const result = await DeclaracionIVAService.calculate(
       parsed.data.companyId,
       parsed.data.year,
