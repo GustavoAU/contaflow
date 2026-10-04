@@ -20,6 +20,7 @@
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
 import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { calcInstallment } from "./loan-installment";
 import type { LoanStatus } from "@prisma/client";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -64,25 +65,6 @@ export interface CreateLoanInput {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Método francés: cuota fija = P × r(1+r)^n / ((1+r)^n − 1)
- * Si interestRate es null o 0 → cuota = ceil(total / n, 2 dec).
- * Retorna la cuota mensual fija en Decimal.
- */
-function calcInstallment(
-  principal: Decimal,
-  installments: number,
-  annualRate: Decimal | null
-): Decimal {
-  if (!annualRate || annualRate.isZero()) {
-    return principal.dividedBy(installments).toDecimalPlaces(2, Decimal.ROUND_UP);
-  }
-  const r = annualRate.dividedBy(12); // tasa mensual
-  const rn = r.plus(1).pow(installments); // (1+r)^n
-  const cuota = principal.times(r.times(rn)).dividedBy(rn.minus(1));
-  return cuota.toDecimalPlaces(2, Decimal.ROUND_UP);
-}
 
 function serializeLoan(row: {
   id: string;

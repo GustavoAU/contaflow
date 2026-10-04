@@ -25,6 +25,7 @@ import type {
 } from "../schemas/auto-reconciliation.schema";
 import { fmtVen } from "@/lib/fmt-ven";
 import { formatMoneyVE } from "@/lib/money-input";
+import { findStatementBalanceMismatch } from "../services/statement-balance";
 
 // ─── State machine ────────────────────────────────────────────────────────────
 
@@ -128,23 +129,13 @@ export function AutoReconciliationPanel({ bankAccountId, bankAccountName, compan
         }
         // Validar balance (openingBalance + credits - debits = closingBalance)
         let balanceError: string | null = null;
-        const ob = parseFloat(
-          (result.data.openingBalance ?? "0").replace(/\./g, "").replace(",", ".")
+        const mismatch = findStatementBalanceMismatch(
+          result.data.rows,
+          result.data.openingBalance,
+          result.data.closingBalance
         );
-        const cb = parseFloat(
-          (result.data.closingBalance ?? "0").replace(/\./g, "").replace(",", ".")
-        );
-        if (!isNaN(ob) && !isNaN(cb) && result.data.rows.length > 0) {
-          let computed = ob;
-          for (const r of result.data.rows) {
-            if (r.credit)
-              computed += parseFloat(r.credit.replace(/\./g, "").replace(",", ".")) || 0;
-            if (r.debit) computed -= parseFloat(r.debit.replace(/\./g, "").replace(",", ".")) || 0;
-          }
-          const diff = Math.abs(computed - cb);
-          if (diff > 0.02) {
-            balanceError = `El saldo calculado (${formatMoneyVE(computed)}) no coincide con el saldo final declarado (${formatMoneyVE(cb)})`;
-          }
+        if (mismatch) {
+          balanceError = `El saldo calculado (${formatMoneyVE(mismatch.computed)}) no coincide con el saldo final declarado (${formatMoneyVE(mismatch.declared)})`;
         }
         dispatch({ type: "PARSED", extracted: result.data, balanceError });
       });

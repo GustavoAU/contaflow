@@ -8,7 +8,10 @@ import { Loader2Icon, InfoIcon } from "lucide-react";
 import { toast } from "sonner";
 import { createLoanAction } from "../actions/employee-loan.actions";
 import type { EmployeeLoanRow } from "../services/EmployeeLoanService";
+import { Decimal } from "decimal.js";
 import { formatAmount } from "@/lib/format";
+import { parseMoneyInput } from "@/lib/money-input";
+import { calcInstallment } from "../services/loan-installment";
 
 interface EmployeeOption {
   id: string;
@@ -20,21 +23,6 @@ interface Props {
   employees: EmployeeOption[];
   onCreated: (loan: EmployeeLoanRow) => void;
   onCancel: () => void;
-}
-
-// Método francés client-side (preview)
-function calcFrenchInstallment(
-  principal: number,
-  installments: number,
-  annualRate: number
-): number {
-  if (annualRate === 0 || !annualRate) {
-    return Math.ceil((principal / installments) * 100) / 100;
-  }
-  const r = annualRate / 12;
-  const rn = Math.pow(1 + r, installments);
-  const cuota = (principal * r * rn) / (rn - 1);
-  return Math.ceil(cuota * 100) / 100;
 }
 
 const INPUT =
@@ -53,20 +41,19 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
   const [interestRate, setInterestRate] = useState(""); // % anual, ej: "30"
   const [description, setDescription] = useState("");
 
-  const principal = parseFloat(totalAmount);
-  const principalUsd = parseFloat(amountUsd);
   const installmentsNum = parseInt(installments, 10);
-  const annualRateDecimal = hasInterest ? parseFloat(interestRate || "0") / 100 : 0;
+  const annualRateDecimal = hasInterest
+    ? parseMoneyInput(interestRate || "0").dividedBy(100)
+    : new Decimal(0);
 
   // El monto vive en un campo u otro segun la moneda elegida; la vista previa
   // tiene que leer el que corresponde o no aparece nunca en prestamos USD.
-  const principalForPreview = currency === "USD" ? principalUsd : principal;
+  // La cuota sale de calcInstallment, la MISMA funcion que usa el servicio al crear
+  // el prestamo: la vista previa no puede diferir de lo que se guarda.
+  const principalForPreview = parseMoneyInput(currency === "USD" ? amountUsd : totalAmount);
   const installmentPreview =
-    !isNaN(principalForPreview) &&
-    principalForPreview > 0 &&
-    !isNaN(installmentsNum) &&
-    installmentsNum > 0
-      ? calcFrenchInstallment(principalForPreview, installmentsNum, annualRateDecimal)
+    principalForPreview.gt(0) && !isNaN(installmentsNum) && installmentsNum > 0
+      ? calcInstallment(principalForPreview, installmentsNum, annualRateDecimal)
       : null;
 
   function handleSubmit(e: React.FormEvent) {
@@ -240,9 +227,9 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
           <p className="text-blue-700">
             {currency === "USD" ? "USD: " : "Bs.: "}
             <span className="font-mono font-semibold">
-              {formatAmount(installmentPreview, currency)}
+              {formatAmount(installmentPreview.toFixed(2), currency)}
             </span>
-            {hasInterest && annualRateDecimal > 0 && (
+            {hasInterest && annualRateDecimal.gt(0) && (
               <span className="ml-1 text-blue-500">(incluye interés)</span>
             )}
           </p>

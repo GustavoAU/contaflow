@@ -8,6 +8,12 @@ import { TrendingUp, TrendingDown, Clock, Wallet, RefreshCw, InboxIcon } from "l
 import { getKpiDashboardAction } from "../actions/kpi-dashboard.actions";
 import type { KpiDashboardData } from "../actions/kpi-dashboard.actions";
 import { fmtBs } from "@/lib/fmt-ven";
+import Decimal from "decimal.js";
+
+/** Suma exacta (Decimal, R-5) de importes en string; devuelve string de 2 decimales. */
+function sumMoney(values: string[]): string {
+  return values.reduce((acc, v) => acc.plus(v), new Decimal(0)).toFixed(2);
+}
 
 function fmtRelativeTime(date: Date): string {
   const mins = Math.floor((Date.now() - date.getTime()) / 60_000);
@@ -237,20 +243,18 @@ export function ExecutiveKpiPanel({ companyId, initialData }: Props) {
                   <td className="px-5 py-3 text-zinc-700">Total 90d</td>
                   <td className="px-5 py-3 text-right">
                     <AmountCell
-                      value={cashFlow.reduce((acc, b) => acc + Number(b.collections), 0).toFixed(2)}
+                      value={sumMoney(cashFlow.map((b) => b.collections))}
                       colorClass="text-emerald-700"
                     />
                   </td>
                   <td className="px-5 py-3 text-right">
                     <AmountCell
-                      value={cashFlow.reduce((acc, b) => acc + Number(b.payments), 0).toFixed(2)}
+                      value={sumMoney(cashFlow.map((b) => b.payments))}
                       colorClass="text-red-700"
                     />
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <NetBadge
-                      value={cashFlow.reduce((acc, b) => acc + Number(b.net), 0).toFixed(2)}
-                    />
+                    <NetBadge value={sumMoney(cashFlow.map((b) => b.net))} />
                   </td>
                 </tr>
               </tfoot>
