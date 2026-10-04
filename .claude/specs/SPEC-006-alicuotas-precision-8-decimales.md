@@ -1,7 +1,7 @@
 ---
 id: SPEC-006
 titulo: Salario diario y alícuotas de prestaciones se guardan con todos sus decimales
-estado: APROBADA   # regla dada por el usuario/contadora 2026-10-04; la APLICACIÓN de la migración en producción requiere confirmación aparte
+estado: HECHA   # cerrada 2026-10-04; PR #57 mergeado (95499fb2) y migración aplicada en producción
 fecha: 2026-10-04
 rama: feat/spec-006-alicuotas-precision
 arbol: "[7]"
@@ -55,10 +55,10 @@ Sin firmas nuevas. Cambios internos de precisión en `BenefitAccrualService`, `V
 Sin cambios. (Los componentes que muestren estos valores redondean para mostrar; no se tocan.)
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: Un test unitario por servicio comprueba que el valor pasado a Prisma conserva más de 4 decimales (p. ej. 0,12353…).
-- [ ] CA-2: Un test de integración contra Postgres real (`alicuotas-precision.test.ts`) comprueba que las 7 columnas son `NUMERIC(19,8)` tras aplicar las migraciones desde cero y que 0,12353 sobrevive en ese tipo (con el tipo viejo `NUMERIC(19,4)` se perdía el 5.º decimal).
-- [ ] CA-3: El job `integration` aplica las 166 migraciones desde cero con la nueva.
-- [ ] CA-4: Ningún monto de documento ni de asiento cambia (la suite de nómina sigue en verde con los mismos montos a 2 decimales).
+- [x] CA-1: Un test unitario por servicio comprueba que el valor pasado a Prisma conserva más de 4 decimales (p. ej. 0,12353…). **Cubierto por 4 tests: devengo trimestral (alícuota 9,25925 tal cual), vacaciones (33,33366667), utilidades y liquidación (promedio 1000,01333333). Verificado que fallan si se vuelve a `toFixed(4)`.**
+- [x] CA-2: Un test de integración contra Postgres real (`alicuotas-precision.test.ts`) comprueba que las 7 columnas son `NUMERIC(19,8)` tras aplicar las migraciones desde cero y que 0,12353 sobrevive en ese tipo (con el tipo viejo `NUMERIC(19,4)` se perdía el 5.º decimal). **Cubierto por `alicuotas-precision.test.ts` (8 tests, corrieron en el job `integration`).**
+- [x] CA-3: El job `integration` aplica las 166 migraciones desde cero con la nueva. **El job aplicó las 169 migraciones desde cero, incluidas las de la otra ventana, en orden.**
+- [x] CA-4: Ningún monto de documento ni de asiento cambia (la suite de nómina sigue en verde con los mismos montos a 2 decimales). **La suite de nómina sigue en verde con los mismos montos a 2 decimales (5584 tests).**
 - [ ] CA-tenant / CA-período: no aplican (sin mutaciones nuevas).
 
 ## 10. Plan de agentes
@@ -70,8 +70,8 @@ Sesión principal (cambio mecánico y acotado: 1 migración, 7 columnas, ~15 lí
 - **PA-1 (contadora, abierta):** pregunta de nómina todavía sin respuesta (ver memoria: cuota de préstamo restada dos veces en `PayrollRunService`). No es parte de esta spec.
 
 ## 12. Cierre
-Lo completa `/implementar`.
-- Commits:
-- Tests: antes N → después N
-- ADR creado o actualizado:
-- Lección aprendida (LL-XXX):
+- **PR:** #57 (`95499fb2`), mergeado el 2026-10-04. Commit `860c48b3` + fusión con `main` `3e05300e`.
+- **Producción:** migración `20261004_alicuotas_salario_diario_decimal8` aplicada el 2026-10-04 en una transacción con comprobación final, registrada en `_prisma_migrations` (checksum `f4e9a8ee...`). Verificado: las 7 columnas en `NUMERIC(19,8)`; las sumas de todos los valores existentes son idénticas a las de antes (p. ej. suma de salario diario del devengo 522520.0074); 169 migraciones registradas = las del repo; 117 asientos, 0 descuadrados.
+- **Tests:** antes 5581 (main con los de otra sesión) → después 5584, más 8 de integración que corren solo en CI.
+- **ADR:** no hizo falta (aplica ADR-058: las alícuotas son factores y no se redondean a 2 decimales).
+- **Pendiente (no es de esta spec):** la pregunta de nómina sobre la cuota de préstamo sigue sin respuesta de la contadora.
