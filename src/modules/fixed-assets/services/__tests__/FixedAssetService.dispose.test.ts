@@ -435,3 +435,47 @@ describe("FixedAssetService.dispose — guard de cuenta ajena", () => {
     expect(mockTx.transaction.create).not.toHaveBeenCalled();
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// ADR-058 — cuantización del asiento de baja
+// ────────────────────────────────────────────────────────────────────────────
+describe("FixedAssetService.dispose — ADR-058 asiento al céntimo", () => {
+  it("depreciación histórica a 4 decimales + venta con IVA: Σ = 0, múltiplos de 0,01, noAbsorb nunca llega a Prisma", async () => {
+    const mockTx = makeMockTx();
+    mockTx.fixedAsset.findFirstOrThrow.mockResolvedValue(
+      makeAsset({ acquisitionCost: new Decimal("1000.0000") })
+    );
+    // acumulado histórico con 4 decimales (asientos anteriores al ADR-058)
+    mockTx.depreciationEntry.aggregate.mockResolvedValue({
+      _sum: { amount: new Decimal("333.3333") },
+    });
+    const input = makeInput({
+      reason: "SALE",
+      saleProceeds: "700.00",
+      proceedsAccountId: "acc-bank",
+      gainLossAccountId: "acc-gain",
+      applyIva: true,
+      ivaDFAccountId: "acc-iva-df",
+    });
+
+    await FixedAssetService.dispose(input, USER_ID, mockTx as never);
+
+    const lines = mockTx.transaction.create.mock.calls[0]![0].data.entries.create as {
+      accountId: string;
+      amount: Decimal;
+    }[];
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const l of lines) {
+      expect(l.amount.equals(l.amount.toDecimalPlaces(2))).toBe(true);
+      expect("noAbsorb" in l).toBe(false);
+    }
+    // La línea de IVA DF (112.00) no absorbe el residuo y queda intacta
+    const iva = lines.find((l) => l.accountId === "acc-iva-df")!;
+    expect(iva.amount.toFixed(2)).toBe("-112.00");
+
+    // El acumulado de 4 decimales y la ganancia derivada se redondean de forma simétrica
+    // (333.3333 → 333.33 y 33.3333 → 33.33): residuo 0, así que no se escribe glRounding.
+    const audit = mockTx.auditLog.create.mock.calls[0]![0].data.newValue;
+    expect(audit.glRounding).toBeUndefined();
+  });
+});

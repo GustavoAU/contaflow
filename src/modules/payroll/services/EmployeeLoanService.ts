@@ -19,7 +19,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { calcInstallment } from "./loan-installment";
 import type { LoanStatus } from "@prisma/client";
 
@@ -132,7 +132,8 @@ export const EmployeeLoanService = {
     });
     if (!employee) throw new Error("Empleado no encontrado en esta empresa.");
 
-    const principal = new Decimal(input.totalAmount);
+    // ADR-058 (R-1): los montos del DOCUMENTO (principal) se redondean a 2 decimales en el origen.
+    const principal = new Decimal(input.totalAmount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     if (principal.lte(0)) throw new Error("El monto total debe ser mayor que cero.");
     if (input.installments < 1) throw new Error("El número de cuotas debe ser al menos 1.");
 
@@ -148,7 +149,7 @@ export const EmployeeLoanService = {
     if (input.currency === "MIXED" || input.currency === "USD") {
       if (input.currency === "MIXED") {
         if (!input.amountUsd) throw new Error("Préstamo MIXTO requiere un monto en USD.");
-        principalUsd = new Decimal(input.amountUsd);
+        principalUsd = new Decimal(input.amountUsd).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
         if (principalUsd.lte(0)) throw new Error("El monto USD debe ser mayor que cero.");
         installmentUsd = calcInstallment(principalUsd, input.installments, annualRate);
       } else {
@@ -249,10 +250,16 @@ export const EmployeeLoanService = {
         include: INCLUDE_EMP,
       });
 
+      let glRounding: { residual: string; absorbedIndex: number | null; scale: number } | null =
+        null;
       if (canJournalize && openPeriod) {
         const empName = `${u.employee.firstName} ${u.employee.lastName}`;
-        const vesAmount = new Decimal(loan.totalAmount.toString());
-        const loanEntries = [
+        // ADR-058: préstamos previos pueden traer 4 decimales; el asiento va al céntimo.
+        const vesAmount = new Decimal(loan.totalAmount.toString()).toDecimalPlaces(
+          2,
+          Decimal.ROUND_HALF_UP
+        );
+        const rawLoanEntries = [
           {
             accountId: payrollConfig!.loanReceivableAccountId!,
             amount: vesAmount,
@@ -264,6 +271,12 @@ export const EmployeeLoanService = {
             description: `Salida banco — préstamo ${empName}`,
           },
         ];
+        // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+        const {
+          entries: loanEntries,
+          residual: glResidual,
+          absorbedIndex: glAbsorbedIndex,
+        } = quantizeGLEntries(rawLoanEntries);
         assertBalancedGLEntries(loanEntries); // N4: invariante partida doble
         await tx.transaction.create({
           data: {
@@ -276,10 +289,17 @@ export const EmployeeLoanService = {
             periodId: openPeriod.id,
             type: "DIARIO",
             entries: {
-              create: loanEntries,
+              create: loanEntries.map((e) => ({
+                accountId: e.accountId,
+                amount: e.amount,
+                description: e.description,
+              })),
             },
           },
         });
+        glRounding = !glResidual.isZero()
+          ? { residual: glResidual.toString(), absorbedIndex: glAbsorbedIndex, scale: 2 }
+          : null;
       }
 
       await tx.auditLog.create({
@@ -289,7 +309,11 @@ export const EmployeeLoanService = {
           action: "LOAN_APPROVED",
           entityName: "EmployeeLoan",
           entityId: loanId,
-          newValue: { status: "ACTIVE", journalized: canJournalize },
+          newValue: {
+            status: "ACTIVE",
+            journalized: canJournalize,
+            ...(glRounding ? { glRounding } : {}),
+          },
           ipAddress: auditMeta.ipAddress ?? null,
           userAgent: auditMeta.userAgent ?? null,
         },

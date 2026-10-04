@@ -7,6 +7,7 @@ import {
   generateDepreciationSchedule,
   FixedAssetService,
 } from "./FixedAssetService";
+import { postDepreciation } from "./FixedAssetDepreciationService";
 import type { FixedAsset } from "@prisma/client";
 
 // ─── Fixture helper ───────────────────────────────────────────────────────────
@@ -56,9 +57,10 @@ describe("calcMonthlyDepreciation — LINEA_RECTA", () => {
 
   it("cuota considera valor residual", () => {
     const asset = makeAsset({ residualValue: new Decimal("2000") as never });
-    // (12000 − 2000) / 12 = 833.3333
+    // (12000 − 2000) / 12 = 833.3333… → ADR-058 R-1: la cuota (monto de documento) se
+    // redondea a 2 decimales HALF_UP en origen = 833.33 (antes se guardaba 833.3333).
     const amount = calcMonthlyDepreciation(asset, 1);
-    expect(amount.toDecimalPlaces(4).toNumber()).toBe(833.3333);
+    expect(amount.toNumber()).toBe(833.33);
   });
 
   it("retorna 0 cuando month1 > usefulLifeMonths", () => {
@@ -316,5 +318,196 @@ describe("FixedAssetService.postINPCRestatement", () => {
         tx as never
       )
     ).rejects.toThrow(/no existe o no pertenece/);
+  });
+});
+
+// ─── ADR-058 R-1: cuotas al céntimo, suma EXACTA = depreciable ──────────────
+
+describe("Depreciación al céntimo (ADR-058 R-1) — la suma de las cuotas es exactamente el depreciable", () => {
+  const cases: { cost: string; residual: string; months: number; method: string }[] = [
+    { cost: "1000", residual: "0", months: 3, method: "LINEA_RECTA" },
+    { cost: "100", residual: "0", months: 7, method: "LINEA_RECTA" },
+    { cost: "1234.56", residual: "0", months: 12, method: "LINEA_RECTA" },
+    { cost: "1234.56", residual: "34.56", months: 7, method: "LINEA_RECTA" },
+    { cost: "1000", residual: "100", months: 7, method: "SUMA_DIGITOS" },
+    { cost: "1234.56", residual: "0", months: 11, method: "SUMA_DIGITOS" },
+  ];
+
+  it.each(cases)("$method costo $cost residual $residual en $months meses", (c) => {
+    const asset = makeAsset({
+      acquisitionCost: new Decimal(c.cost) as never,
+      residualValue: new Decimal(c.residual) as never,
+      usefulLifeMonths: c.months,
+      depreciationMethod: c.method as never,
+    });
+    const depreciable = new Decimal(c.cost).minus(c.residual);
+    const schedule = generateDepreciationSchedule(asset);
+    expect(schedule).toHaveLength(c.months);
+
+    const total = schedule.reduce((acc, r) => acc.plus(r.amount), new Decimal(0));
+    expect(total.equals(depreciable)).toBe(true); // exacto, sin tolerancia
+
+    for (const r of schedule) {
+      // cada monto de documento es múltiplo de 0,01
+      expect(r.amount.equals(r.amount.toDecimalPlaces(2))).toBe(true);
+      expect(r.accumulated.equals(r.accumulated.toDecimalPlaces(2))).toBe(true);
+      expect(r.bookValue.equals(r.bookValue.toDecimalPlaces(2))).toBe(true);
+    }
+    const last = schedule[schedule.length - 1]!;
+    expect(last.bookValue.equals(new Decimal(c.residual))).toBe(true); // valor residual exacto
+    expect(last.accumulated.equals(depreciable)).toBe(true);
+  });
+
+  it("1000 en 3 meses = 333.33 + 333.33 + 333.34 (la última cuota es el remanente)", () => {
+    const asset = makeAsset({
+      acquisitionCost: new Decimal("1000") as never,
+      usefulLifeMonths: 3,
+    });
+    const amounts = generateDepreciationSchedule(asset).map((r) => r.amount.toFixed(2));
+    expect(amounts).toEqual(["333.33", "333.33", "333.34"]);
+  });
+
+  it("postDepreciation: asiento y DepreciationEntry con la cuota a 2 decimales; asiento suma 0 y sin noAbsorb", async () => {
+    const txCreate = vi.fn().mockResolvedValue({ id: "gl-1" });
+    const entryCreate = vi.fn().mockResolvedValue({ id: "dep-1" });
+    const tx = {
+      depreciationEntry: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        aggregate: vi.fn().mockResolvedValue({ _sum: { amount: new Decimal("666.66") } }),
+        create: entryCreate,
+      },
+      fixedAsset: {
+        findFirstOrThrow: vi.fn().mockResolvedValue({
+          id: "asset-1",
+          name: "Equipo",
+          status: "ACTIVE",
+          acquisitionCost: new Decimal("1000"),
+          residualValue: new Decimal("0"),
+          usefulLifeMonths: 3,
+          depreciationMethod: "LINEA_RECTA",
+          totalUnits: null,
+          acquisitionDate: new Date("2026-01-01T00:00:00Z"),
+          depreciationAccountId: "acc-exp",
+          accDepreciationAccountId: "acc-acc",
+        }),
+        update: vi.fn(),
+      },
+      transaction: { create: txCreate },
+    };
+    // month1 = 3 (abril vs enero): última cuota = remanente 333.34 (1000 − 666.66)
+    const res = await postDepreciation("asset-1", "c-1", 2026, 4, "u-1", tx as never);
+    expect(res.entry.amount.toFixed(2)).toBe("333.34");
+
+    const lines = txCreate.mock.calls[0]![0].data.entries.create as {
+      amount: Decimal;
+    }[];
+    const sum = lines.reduce((a, l) => a.plus(l.amount), new Decimal(0));
+    expect(sum.isZero()).toBe(true);
+    for (const l of lines) {
+      expect(l.amount.equals(l.amount.toDecimalPlaces(2))).toBe(true);
+      expect("noAbsorb" in l).toBe(false);
+    }
+    const data = entryCreate.mock.calls[0]![0].data;
+    expect(new Decimal(data.accumulatedDepreciation).toFixed(2)).toBe("1000.00");
+    expect(new Decimal(data.bookValue).toFixed(2)).toBe("0.00");
+  });
+});
+
+describe("FixedAssetService.create — ADR-058 cuantización del asiento de adquisición", () => {
+  it("costo con muchos decimales: líneas múltiplos de 0,01, Σ = 0 exacto, sin noAbsorb", async () => {
+    const txCreate = vi.fn().mockResolvedValue({ id: "gl-1" });
+    const tx = {
+      fixedAsset: { create: vi.fn().mockResolvedValue({ id: "asset-1" }) },
+      transaction: { create: txCreate, count: vi.fn().mockResolvedValue(0) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+      account: {
+        findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id }))
+        ),
+      },
+    };
+    await FixedAssetService.create(
+      {
+        companyId: "c-1",
+        name: "Equipo",
+        assetAccountId: "acc-asset",
+        depreciationAccountId: "acc-dep",
+        accDepreciationAccountId: "acc-acc",
+        acquisitionCounterpartAccountId: "acc-cxp",
+        acquisitionDate: new Date("2026-01-01"),
+        acquisitionCost: "1234.56789",
+        acquisitionCurrency: "VES",
+        residualValue: "0",
+        usefulLifeMonths: 12,
+        depreciationMethod: "LINEA_RECTA",
+      } as never,
+      "u-1",
+      tx as never
+    );
+    const lines = txCreate.mock.calls[0]![0].data.entries.create as { amount: Decimal }[];
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+    expect(lines[0]!.amount.toFixed(2)).toBe("1234.57");
+    for (const l of lines) {
+      expect(l.amount.equals(l.amount.toDecimalPlaces(2))).toBe(true);
+      expect("noAbsorb" in l).toBe(false);
+    }
+  });
+});
+
+describe("FixedAssetService.postINPCRestatement — ADR-058 asiento al céntimo", () => {
+  it("costos históricos a 4 decimales: asiento múltiplos de 0,01, Σ = 0, sin noAbsorb", async () => {
+    const txCreate = vi.fn().mockResolvedValue({ id: "gl-1" });
+    const mkAsset = (id: string, cost: string) => ({
+      id,
+      name: id,
+      assetAccountId: `acc-${id}`,
+      acquisitionCost: new Decimal(cost),
+      acquisitionDate: new Date("2026-01-15T00:00:00Z"),
+    });
+    const tx = {
+      account: {
+        findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id }))
+        ),
+      },
+      iNPCRate: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ year: 2026, month: 8, indexValue: new Decimal("137.7777") }),
+        findMany: vi.fn().mockResolvedValue([
+          { year: 2026, month: 1, indexValue: new Decimal("100.1234") },
+          { year: 2026, month: 8, indexValue: new Decimal("137.7777") },
+        ]),
+      },
+      fixedAsset: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([mkAsset("a1", "1234.5678"), mkAsset("a2", "999.9999")]),
+      },
+      fixedAssetINPCRestatement: {
+        findMany: vi.fn().mockResolvedValue([]),
+        createMany: vi.fn().mockResolvedValue({}),
+      },
+      transaction: { create: txCreate, count: vi.fn().mockResolvedValue(0) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const res = await FixedAssetService.postINPCRestatement(
+      {
+        companyId: "c-1",
+        periodYear: 2026,
+        periodMonth: 8,
+        patrimonioAccountId: "acc-eq",
+      } as never,
+      "u-1",
+      tx as never
+    );
+    expect(res.processed).toBe(2);
+    const lines = txCreate.mock.calls[0]![0].data.entries.create as { amount: Decimal }[];
+    expect(lines).toHaveLength(4);
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const l of lines) {
+      expect(l.amount.equals(l.amount.toDecimalPlaces(2))).toBe(true);
+      expect("noAbsorb" in l).toBe(false);
+    }
   });
 });

@@ -887,3 +887,67 @@ describe("voidDeposit — reintento P2034 (Serializable)", () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADR-058 — cuantización del asiento al céntimo
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("createDeposit — ADR-058 asiento al céntimo", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("monto con muchos decimales: líneas múltiplos de 0,01, Σ = 0 exacto y sin noAbsorb hacia Prisma", async () => {
+    const { txCreate } = makeTx();
+
+    await createDeposit({ ...baseInput, amount: "1234.56789" }, USER_ID);
+
+    const entries = txCreate.mock.calls[0][0].data.entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    expect(entries.find((e) => e.accountId === CAJA_ACCOUNT)!.amount.toFixed(2)).toBe("1234.57");
+    for (const e of entries) {
+      expect(e.amount.equals(e.amount.toDecimalPlaces(2))).toBe(true);
+      expect("noAbsorb" in e).toBe(false);
+    }
+  });
+
+  it("monto inferior a un céntimo: no crea Transaction vacío", async () => {
+    const { txCreate } = makeTx();
+    await expect(createDeposit({ ...baseInput, amount: "0.004" }, USER_ID)).rejects.toThrow(
+      /inferior a un céntimo/i
+    );
+    expect(txCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("voidDeposit — ADR-058 B2: espejo EXACTO del asiento histórico a 4 decimales", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("niega los montos guardados sin cuantizar: Σ = 0 y valores idénticos negados", async () => {
+    const original: FakeTxRow = {
+      id: "tx-1",
+      companyId: COMPANY_ID,
+      number: "DEP-000002",
+      status: "POSTED",
+      entries: [
+        { accountId: CAJA_ACCOUNT, amount: new Decimal("1234.5678"), description: "Dep" },
+        { accountId: SOURCE_ACCOUNT, amount: new Decimal("-1234.5678"), description: "Sal" },
+      ],
+    };
+    const { txCreate } = installVoidTx([original]);
+
+    await voidDep("dep-1");
+
+    const rev = (
+      txCreate.mock.calls[0][0] as unknown as {
+        data: { entries: { create: Array<{ accountId: string; amount: Decimal }> } };
+      }
+    ).data.entries.create;
+    expect(rev).toHaveLength(2);
+    expect(rev.find((e) => e.accountId === CAJA_ACCOUNT)!.amount.toString()).toBe("-1234.5678");
+    expect(rev.find((e) => e.accountId === SOURCE_ACCOUNT)!.amount.toString()).toBe("1234.5678");
+    expect(rev.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of rev) expect("noAbsorb" in e).toBe(false);
+  });
+});

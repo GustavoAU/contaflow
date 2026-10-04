@@ -443,3 +443,53 @@ describe("ProfitSharingService - cuenta contable del INCES", () => {
     ).resolves.toBeDefined();
   });
 });
+
+// ─── ADR-058: redondeo al céntimo en el origen ───────────────────────────────
+
+describe("ProfitSharingService.calculate — ADR-058 (montos a 2 decimales)", () => {
+  it("utilidad e INCES se redondean a 2 decimales y el asiento suma 0 con montos múltiplos de 0,01", async () => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.employee.count).mockResolvedValue(8 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ...BASE_CONFIG,
+      incesEnabled: true,
+      incesPayableAccountId: "acc-inces",
+    } as never);
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      { ...BASE_SALARY_ROWS[0], amount: new Decimal("3333.33") },
+    ] as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+      fiscalYear: 2026,
+      isFractional: true,
+      periodStart: "2026-01-01",
+      periodEnd: "2026-04-01",
+    });
+
+    // 7,5 días x 3333,33/30 = 833,3325 -> 833,33 ; INCES 0,5% = 4,166650 -> 4,17
+    const recordData = vi.mocked(prisma.profitSharingRecord.create).mock.calls[0]?.[0]?.data as {
+      profitAmount: string;
+      incesRetention: string;
+    };
+    expect(recordData.profitAmount).toBe("833.33");
+    expect(recordData.incesRetention).toBe("4.17");
+
+    const txData = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0]?.data;
+    const entries = (txData?.entries?.create ?? []) as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
+    expect(entries.map((e) => e.amount.toFixed(2))).toEqual(["833.33", "-829.16", "-4.17"]);
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of entries) {
+      expect(e.amount.mul(100).isInteger()).toBe(true);
+      expect(Object.keys(e)).not.toContain("noAbsorb");
+    }
+  });
+});

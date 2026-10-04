@@ -63,9 +63,17 @@ describe("calcAdjustmentAmount", () => {
     expect(adj.toNumber()).toBeCloseTo(-100, 4);
   });
 
-  it("redondea a 4 decimales", () => {
-    const adj = calcAdjustmentAmount(new Decimal("1000"), new Decimal("1.00001"));
-    expect(adj.decimalPlaces()).toBeLessThanOrEqual(4);
+  it("redondea a 2 decimales HALF_UP en origen (ADR-058 R-1; antes 4)", () => {
+    // 1000 × 0.000123456 = 0.123456 → 0.12 (antes 0.1235)
+    const adj = calcAdjustmentAmount(new Decimal("1000"), new Decimal("1.000123456"));
+    expect(adj.toString()).toBe("0.12");
+    // mitad se aleja de cero: 1000 × 0.000005 = 0.005 → 0.01 y −0.005 → −0.01
+    expect(calcAdjustmentAmount(new Decimal("1000"), new Decimal("1.000005")).toString()).toBe(
+      "0.01"
+    );
+    expect(calcAdjustmentAmount(new Decimal("-1000"), new Decimal("1.000005")).toString()).toBe(
+      "-0.01"
+    );
   });
 });
 
@@ -152,9 +160,10 @@ describe("calcRepomo", () => {
     expect(repomo.toNumber()).toBe(0);
   });
 
-  it("redondea a 4 decimales", () => {
-    const repomo = calcRepomo(new Decimal("1000"), new Decimal("1.00001"));
-    expect(repomo.decimalPlaces()).toBeLessThanOrEqual(4);
+  it("redondea a 2 decimales HALF_UP en origen (ADR-058 R-1; antes 4)", () => {
+    // 1000 × 0.000123456 = 0.123456 → 0.12 (antes 0.1235)
+    const repomo = calcRepomo(new Decimal("1000"), new Decimal("1.000123456"));
+    expect(repomo.toString()).toBe("0.12");
   });
 
   it("partida doble del REPOMO: asiento repomoAccount + adjustmentAccount suma cero", () => {

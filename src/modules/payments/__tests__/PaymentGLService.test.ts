@@ -1112,3 +1112,249 @@ describe("Riesgo-6 — IVA retenido por cliente CE en cobros", () => {
     expect(entries).toHaveLength(2);
   });
 });
+
+// ─── ADR-058 / SPEC-004 lote 2 — cuantizacion al centimo ─────────────────────
+
+type CreatedLine = { accountId: string; amount: Decimal; [k: string]: unknown };
+const createdLines = (tx: Prisma.TransactionClient, callIdx = 0): CreatedLine[] =>
+  (
+    vi.mocked(tx.transaction.create).mock.calls[callIdx][0] as {
+      data: { entries: { create: CreatedLine[] } };
+    }
+  ).data.entries.create;
+const sumOf = (lines: CreatedLine[]) => lines.reduce((a, l) => a.plus(l.amount), new Decimal(0));
+const allCents = (lines: CreatedLine[]) => lines.every((l) => l.amount.mul(100).isInteger());
+
+describe("ADR-058 — PaymentGLService cuantiza al centimo", () => {
+  const ARSETTINGS = {
+    arAccountId: AR_ACCOUNT_ID,
+    igtfPayableAccountId: IGTF_PAYABLE_ID,
+    fxGainAccountId: "fxgain-1",
+    fxLossAccountId: "fxloss-1",
+    ivaRetentionReceivableAccountId: null,
+  };
+
+  it("R-3: redondea invoiceAmountVes a 2 decimales ANTES del diferencial (fxDiff explicito y exacto)", async () => {
+    const tx = makeTxMock({
+      invoice: {
+        findFirst: vi.fn().mockResolvedValue({
+          exchangeRate: { rate: "779.9522" },
+          customerId: null,
+          vendorId: null,
+          counterpartRif: null,
+        }),
+        findMany: vi.fn().mockResolvedValue([]),
+      } as never,
+    } as never);
+
+    await PaymentGLService.postPaymentRecordGL(
+      tx,
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        // 4 decimales de entrada: se redondea a 78300.40 en origen
+        amountVes: new Decimal("78300.4049"),
+        igtfAmount: null,
+        invoiceId: "inv-fx",
+        amountOriginal: new Decimal("100.37"),
+        currency: "USD",
+        context: BASE_CONTEXT,
+      },
+      ARSETTINGS
+    );
+
+    const lines = createdLines(tx);
+    // 100.37 x 779.9522 = 78283.802314 -> 78283.80 (HALF_UP). Sin redondear, fxDiff = 16.597686.
+    const bank = lines.find((l) => l.accountId === GL_ACCOUNT_ID)!;
+    const cxc = lines.find((l) => l.accountId === AR_ACCOUNT_ID)!;
+    const gain = lines.find((l) => l.accountId === "fxgain-1")!;
+    expect(bank.amount.toString()).toBe("78300.4");
+    expect(cxc.amount.toString()).toBe("-78283.8");
+    expect(gain.amount.toString()).toBe("-16.6"); // diferencial explicito: 78300.40 - 78283.80
+    expect(sumOf(lines).isZero()).toBe(true);
+    expect(allCents(lines)).toBe(true);
+  });
+
+  it("cobro con IGTF y montos a 4 decimales: Σ = 0 exacto, multiplos de 0,01 y sin noAbsorb hacia Prisma", async () => {
+    const tx = makeTxMock();
+
+    await PaymentGLService.postPaymentRecordGL(
+      tx,
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("1234.5678"),
+        igtfAmount: new Decimal("37.0371"),
+        context: BASE_CONTEXT,
+      },
+      ARSETTINGS
+    );
+
+    const lines = createdLines(tx);
+    expect(lines).toHaveLength(4);
+    expect(sumOf(lines).isZero()).toBe(true);
+    expect(allCents(lines)).toBe(true);
+    // 1234.5678 -> 1234.57 ; 37.0371 -> 37.04
+    expect(lines[0].amount.toString()).toBe("1234.57");
+    expect(lines.some((l) => l.amount.abs().toString() === "37.04")).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+    // Sin residuo -> el AuditLog no lleva glRounding
+    const audit = vi.mocked(tx.auditLog.create).mock.calls[0][0] as {
+      data: { newValue: Record<string, unknown> };
+    };
+    expect(audit.data.newValue).not.toHaveProperty("glRounding");
+  });
+
+  it("pago A/P individual con IGTF a 4 decimales: Σ = 0 y multiplos de 0,01", async () => {
+    const tx = makeTxMock();
+
+    await PaymentGLService.postVendorPaymentRecordGL(
+      tx,
+      {
+        paymentRecordId: PAYMENT_RECORD_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        amountVes: new Decimal("999.9949"),
+        igtfAmount: new Decimal("30.0001"),
+        context: BASE_CONTEXT,
+      },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID }
+    );
+
+    const lines = createdLines(tx);
+    expect(lines).toHaveLength(4);
+    expect(sumOf(lines).isZero()).toBe(true);
+    expect(allCents(lines)).toBe(true);
+    expect(lines[0].amount.toString()).toBe("999.99");
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+  });
+
+  it("lote A/P con varias lineas y 4 decimales: Σ = 0 exacto y multiplos de 0,01", async () => {
+    const tx = makeTxMock();
+
+    await PaymentGLService.postPaymentBatchGL(
+      tx,
+      {
+        paymentBatchId: PAYMENT_BATCH_ID,
+        bankAccountId: BANK_ACCOUNT_ID,
+        lines: [
+          {
+            invoiceId: "i1",
+            amountVes: new Decimal("100.1234"),
+            igtfAmount: new Decimal("3.0037"),
+          },
+          {
+            invoiceId: "i2",
+            amountVes: new Decimal("200.4567"),
+            igtfAmount: new Decimal("6.0137"),
+          },
+          {
+            invoiceId: "i3",
+            amountVes: new Decimal("333.3349"),
+            igtfAmount: new Decimal("10.0001"),
+          },
+        ],
+        context: BASE_CONTEXT,
+      },
+      { apAccountId: AP_ACCOUNT_ID, igtfPayableAccountId: IGTF_PAYABLE_ID }
+    );
+
+    const lines = createdLines(tx);
+    expect(lines).toHaveLength(12);
+    expect(sumOf(lines).isZero()).toBe(true);
+    expect(allCents(lines)).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+  });
+
+  it("B2: el reverso de un asiento historico a 4 decimales es el espejo EXACTO (no cuantiza)", async () => {
+    const original = [
+      {
+        id: "je-1",
+        accountId: GL_ACCOUNT_ID,
+        amount: new Decimal("1000.1234"),
+        description: "Cobro",
+      },
+      {
+        id: "je-2",
+        accountId: AR_ACCOUNT_ID,
+        amount: new Decimal("-1000.1234"),
+        description: "Cobro",
+      },
+    ];
+    const txFindFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: TX_ID,
+        status: "POSTED",
+        description: "Cobro FAC-001",
+        type: "COBRO",
+        entries: original,
+      })
+      .mockResolvedValueOnce(null);
+    const tx = makeTxMock({
+      paymentRecord: {
+        findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }),
+        update: vi.fn(),
+      } as never,
+      transaction: {
+        findFirst: txFindFirst,
+        create: vi.fn().mockResolvedValue({ id: "tx-reverse-1" }),
+        update: vi.fn().mockResolvedValue({}),
+      } as never,
+    } as never);
+
+    await PaymentGLService.reversePaymentRecordGL(
+      tx,
+      PAYMENT_RECORD_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
+    );
+
+    const lines = createdLines(tx);
+    expect(lines.map((l) => l.amount.toString())).toEqual(["-1000.1234", "1000.1234"]);
+    expect(sumOf(lines).isZero()).toBe(true);
+  });
+
+  it("B2: el reverso de un lote historico a 4 decimales tambien es exacto", async () => {
+    const original = [
+      { id: "je-1", accountId: AP_ACCOUNT_ID, amount: new Decimal("55.5555"), description: "Pago" },
+      {
+        id: "je-2",
+        accountId: GL_ACCOUNT_ID,
+        amount: new Decimal("-55.5555"),
+        description: "Pago",
+      },
+    ];
+    const txFindFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: TX_ID,
+        status: "POSTED",
+        description: "Pago lote",
+        entries: original,
+      })
+      .mockResolvedValueOnce(null);
+    const tx = makeTxMock({
+      paymentBatch: {
+        findFirst: vi.fn().mockResolvedValue({ glTransactionId: TX_ID }),
+        update: vi.fn(),
+      } as never,
+      transaction: {
+        findFirst: txFindFirst,
+        create: vi.fn().mockResolvedValue({ id: "tx-reverse-2" }),
+        update: vi.fn().mockResolvedValue({}),
+      } as never,
+    } as never);
+
+    await PaymentGLService.reversePaymentBatchGL(
+      tx,
+      PAYMENT_BATCH_ID,
+      COMPANY_ID,
+      USER_ID,
+      BASE_CONTEXT
+    );
+
+    const lines = createdLines(tx);
+    expect(lines.map((l) => l.amount.toString())).toEqual(["-55.5555", "55.5555"]);
+  });
+});

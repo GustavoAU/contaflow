@@ -9,7 +9,7 @@ import { assertWriteAllowed } from "@/modules/billing/services/SubscriptionServi
 import { revalidatePath } from "next/cache";
 import { Decimal } from "decimal.js";
 import { invoiceBaseAndIva } from "@/lib/invoice-amounts";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { limiters, redis } from "@/lib/ratelimit";
 import * as Sentry from "@sentry/nextjs";
 import type { Retencion } from "@prisma/client";
@@ -273,7 +273,12 @@ export async function createRetentionAction(
               });
 
               if (glSettings?.apAccountId) {
-                const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
+                const glEntries: {
+                  accountId: string;
+                  amount: Decimal;
+                  description: string;
+                  noAbsorb?: boolean;
+                }[] = [];
                 let totalGlRetention = new Decimal(0);
 
                 // IVA: Dr CxP / Cr Ret.IVA por Enterar (Prov. SNAT/2005/0056)
@@ -282,13 +287,18 @@ export async function createRetentionAction(
                   glSettings.ivaRetentionPayableAccountId &&
                   new Decimal(calc.ivaRetention).greaterThan(0)
                 ) {
-                  const ivaRet = new Decimal(calc.ivaRetention);
+                  // ADR-058: el calculador ya redondea a 2 decimales; se reafirma en el origen.
+                  const ivaRet = new Decimal(calc.ivaRetention).toDecimalPlaces(
+                    2,
+                    Decimal.ROUND_HALF_UP
+                  );
                   totalGlRetention = totalGlRetention.plus(ivaRet);
                   glEntries.push({
                     accountId: glSettings.ivaRetentionPayableAccountId,
                     // Cr Ret.IVA: obligación por enterar al SENIAT
                     amount: ivaRet.negated(),
                     description: `Retención IVA ${voucherNumber} — Ret. por enterar`,
+                    noAbsorb: true, // IVA retenido por enterar: debe coincidir con la declaración
                   });
                 }
 
@@ -299,13 +309,17 @@ export async function createRetentionAction(
                   calc.islrAmount &&
                   new Decimal(calc.islrAmount).greaterThan(0)
                 ) {
-                  const islrRet = new Decimal(calc.islrAmount);
+                  const islrRet = new Decimal(calc.islrAmount).toDecimalPlaces(
+                    2,
+                    Decimal.ROUND_HALF_UP
+                  );
                   totalGlRetention = totalGlRetention.plus(islrRet);
                   glEntries.push({
                     accountId: glSettings.islrRetentionPayableAccountId,
                     // Cr Ret.ISLR: obligación por enterar al SENIAT
                     amount: islrRet.negated(),
                     description: `Retención ISLR ${islrVoucherNumber} — Ret. por enterar`,
+                    noAbsorb: true, // ISLR retenido por enterar: debe coincidir con la declaración
                   });
                 }
 
@@ -330,7 +344,14 @@ export async function createRetentionAction(
                     description: `Retenciones ${retNumbersLabel} — CxP`,
                   });
 
-                  assertBalancedGLEntries(glEntries); // N4: invariante partida doble
+                  // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir. Las líneas
+                  // fiscales son noAbsorb; el residuo (normalmente 0) solo puede caer en la CxP.
+                  const {
+                    entries: quantizedGlEntries,
+                    residual: glResidual,
+                    absorbedIndex: glAbsorbedIndex,
+                  } = quantizeGLEntries(glEntries);
+                  assertBalancedGLEntries(quantizedGlEntries); // N4: invariante partida doble
                   const retGlTx = await tx.transaction.create({
                     data: {
                       companyId: data.companyId,
@@ -339,9 +360,38 @@ export async function createRetentionAction(
                       description: `Retenciones ${retNumbersLabel} — ${data.providerName} (Factura ${data.invoiceNumber})`,
                       type: "DIARIO",
                       userId,
-                      entries: { create: glEntries },
+                      entries: {
+                        create: quantizedGlEntries.map((e) => ({
+                          accountId: e.accountId,
+                          amount: e.amount,
+                          description: e.description,
+                        })),
+                      },
                     },
                   });
+                  // ADR-058 D-8 / R-6: el residuo de redondeo (solo si ≠ 0) queda trazado. El
+                  // AuditLog CREATE ya se escribió antes del asiento, así que va en uno propio.
+                  if (!glResidual.isZero()) {
+                    await tx.auditLog.create({
+                      data: {
+                        companyId: data.companyId,
+                        entityId: ret.id,
+                        entityName: "Retencion",
+                        action: "GL_ROUNDING",
+                        userId,
+                        ipAddress,
+                        userAgent,
+                        newValue: {
+                          transactionId: retGlTx.id,
+                          glRounding: {
+                            residual: glResidual.toString(),
+                            absorbedIndex: glAbsorbedIndex,
+                            scale: 2,
+                          },
+                        },
+                      },
+                    });
+                  }
                   await tx.retencion.update({
                     where: { id: ret.id },
                     data: { transactionId: retGlTx.id },

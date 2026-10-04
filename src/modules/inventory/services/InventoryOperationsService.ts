@@ -312,7 +312,9 @@ export async function createDraftMovement(
           status: "DRAFT",
           quantity: quantityInBase, // siempre en unidad base
           unitCost: resolvedUnitCost,
-          totalCost: resolvedUnitCost.mul(quantityInBase),
+          // ADR-058 R-1: el costo TOTAL (monto de documento) a 2 decimales en origen; el costo
+          // unitario CPP es un factor y conserva sus 4 decimales.
+          totalCost: resolvedUnitCost.mul(quantityInBase).toDecimalPlaces(2, Decimal.ROUND_HALF_UP),
           unitId: resolvedUnitId,
           quantityInUnit: quantityDecimal, // cantidad tal como la ingresó el usuario
           conversionSnapshot, // snapshot inmutable del factor (ADR-018 D-3)

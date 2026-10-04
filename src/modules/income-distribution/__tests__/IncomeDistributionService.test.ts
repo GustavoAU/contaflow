@@ -535,6 +535,40 @@ describe("applyDistribution (mocked)", () => {
     expect(result.referenceNumber).toBe("DIST-000001");
   });
 
+  it("ADR-058: holgura ±0,01 de V-6 y montos con más decimales → asiento al céntimo, Σ = 0, residuo en la línea mayor, glRounding en la auditoría, sin noAbsorb", async () => {
+    const thirds = {
+      ...draftDist,
+      totalAmountVes: new Decimal("1000"),
+      lines: [1, 2, 3].map((n) => ({
+        ...draftDist.lines[0]!,
+        id: `l${n}`,
+        accountId: `acc-${n}`,
+        lineNumber: n,
+        amountVes: new Decimal("333.3333"),
+      })),
+    };
+    installFindFirst([], thirds);
+    const { applyDistribution } = await import("../services/IncomeDistributionService");
+    await applyDistribution("dist-1", COMPANY_ID, USER_ID);
+
+    const lines = (
+      vi.mocked(prisma.transaction.create).mock.calls.at(-1)![0] as unknown as {
+        data: { entries: { create: { accountId: string; amount: Decimal }[] } };
+      }
+    ).data.entries.create;
+    expect(lines).toHaveLength(4);
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const l of lines) {
+      expect(l.amount.equals(l.amount.toDecimalPlaces(2))).toBe(true);
+      expect("noAbsorb" in l).toBe(false);
+    }
+    // 333.3333 → 333.33 (×3 = 999.99); el origen 1000.00 absorbe el residuo de 0,01
+    expect(lines.find((l) => l.accountId === "acc-origin")!.amount.toFixed(2)).toBe("999.99");
+    expect(auditSummary()).toMatchObject({
+      glRounding: { residual: "0.01", absorbedIndex: 0, scale: 2 },
+    });
+  });
+
   it("lanza error si la distribución no existe", async () => {
     installFindFirst([], null);
     const { applyDistribution } = await import("../services/IncomeDistributionService");

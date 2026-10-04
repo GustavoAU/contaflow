@@ -19,7 +19,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import type { BenefitAdvanceReason, BenefitAdvanceStatus } from "@prisma/client";
 
 export interface BenefitAdvanceRow {
@@ -148,7 +148,8 @@ export const BenefitAdvanceService = {
     ipAddress: string | null = null,
     userAgent: string | null = null
   ): Promise<BenefitAdvanceRow> {
-    const amount = new Decimal(input.amount);
+    // ADR-058 (R-1): el monto del DOCUMENTO se redondea a 2 decimales en el origen.
+    const amount = new Decimal(input.amount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     if (amount.lte(0)) throw new Error("El monto del anticipo debe ser mayor a cero");
 
     const { employee: _employee, balance } = await loadAndValidateForAdvance(
@@ -164,7 +165,7 @@ export const BenefitAdvanceService = {
           companyId,
           employeeId: input.employeeId,
           benefitBalanceId: balance.id,
-          amount: amount.toFixed(4),
+          amount: amount.toFixed(2),
           reason: input.reason,
           status: "PENDING",
           notes: input.notes ?? null,
@@ -184,7 +185,7 @@ export const BenefitAdvanceService = {
           oldValue: { status: "none" },
           newValue: {
             employeeId: input.employeeId,
-            amount: amount.toFixed(4),
+            amount: amount.toFixed(2),
             reason: input.reason,
             status: "PENDING",
           },
@@ -216,7 +217,11 @@ export const BenefitAdvanceService = {
       );
     }
 
-    const amount = new Decimal(existing.amount.toString());
+    // ADR-058: anticipos previos pueden venir a 4 decimales; el asiento y el saldo usan 2.
+    const amount = new Decimal(existing.amount.toString()).toDecimalPlaces(
+      2,
+      Decimal.ROUND_HALF_UP
+    );
     const { employee, balance } = await loadAndValidateForAdvance(
       companyId,
       existing.employeeId,
@@ -245,18 +250,24 @@ export const BenefitAdvanceService = {
     if (newBalance.lt(0)) throw new Error("El anticipo excede el saldo de garantía acumulado");
 
     return prisma.$transaction(async (tx) => {
-      const advanceEntries = [
+      const rawAdvanceEntries = [
         {
           accountId: config.benefitsPayableAccountId!,
-          amount: amount.toDecimalPlaces(4),
+          amount,
           description: `Anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
         },
         {
           accountId: config.benefitsExpenseAccountId!,
-          amount: amount.negated().toDecimalPlaces(4),
+          amount: amount.negated(),
           description: `Pago anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
         },
       ];
+      // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+      const {
+        entries: advanceEntries,
+        residual: glResidual,
+        absorbedIndex: glAbsorbedIndex,
+      } = quantizeGLEntries(rawAdvanceEntries);
       assertBalancedGLEntries(advanceEntries); // N4: invariante partida doble
       const transaction = await tx.transaction.create({
         data: {
@@ -268,7 +279,11 @@ export const BenefitAdvanceService = {
           userId,
           type: "DIARIO",
           entries: {
-            create: advanceEntries,
+            create: advanceEntries.map((e) => ({
+              accountId: e.accountId,
+              amount: e.amount,
+              description: e.description,
+            })),
           },
         },
       });
@@ -300,9 +315,18 @@ export const BenefitAdvanceService = {
           oldValue: { status: "PENDING", currentBalance: balance.currentBalance.toString() },
           newValue: {
             status: "APPROVED",
-            amount: amount.toFixed(4),
+            amount: amount.toFixed(2),
             newBalance: newBalance.toFixed(4),
             transactionId: transaction.id,
+            ...(!glResidual.isZero()
+              ? {
+                  glRounding: {
+                    residual: glResidual.toString(),
+                    absorbedIndex: glAbsorbedIndex,
+                    scale: 2,
+                  },
+                }
+              : {}),
           },
         },
       });
@@ -370,7 +394,8 @@ export const BenefitAdvanceService = {
     ipAddress: string | null = null,
     userAgent: string | null = null
   ): Promise<BenefitAdvanceRow> {
-    const amount = new Decimal(input.amount);
+    // ADR-058 (R-1): el monto del DOCUMENTO se redondea a 2 decimales en el origen.
+    const amount = new Decimal(input.amount).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     if (amount.lte(0)) throw new Error("El monto del anticipo debe ser mayor a cero");
 
     const { employee, balance } = await loadAndValidateForAdvance(
@@ -398,18 +423,24 @@ export const BenefitAdvanceService = {
     }
 
     return prisma.$transaction(async (tx) => {
-      const advanceEntries = [
+      const rawAdvanceEntries = [
         {
           accountId: config.benefitsPayableAccountId!,
-          amount: new Decimal(amount).toDecimalPlaces(4),
+          amount,
           description: `Anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
         },
         {
           accountId: config.benefitsExpenseAccountId!,
-          amount: new Decimal(amount).negated().toDecimalPlaces(4),
+          amount: amount.negated(),
           description: `Pago anticipo prestaciones — ${employee.firstName} ${employee.lastName}`,
         },
       ];
+      // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+      const {
+        entries: advanceEntries,
+        residual: glResidual,
+        absorbedIndex: glAbsorbedIndex,
+      } = quantizeGLEntries(rawAdvanceEntries);
       assertBalancedGLEntries(advanceEntries); // N4: invariante partida doble
       const transaction = await tx.transaction.create({
         data: {
@@ -421,7 +452,11 @@ export const BenefitAdvanceService = {
           userId,
           type: "DIARIO",
           entries: {
-            create: advanceEntries,
+            create: advanceEntries.map((e) => ({
+              accountId: e.accountId,
+              amount: e.amount,
+              description: e.description,
+            })),
           },
         },
       });
@@ -439,7 +474,7 @@ export const BenefitAdvanceService = {
           companyId,
           employeeId: input.employeeId,
           benefitBalanceId: balance.id,
-          amount: amount.toFixed(4),
+          amount: amount.toFixed(2),
           reason: input.reason,
           status: "APPROVED",
           notes: input.notes ?? null,
@@ -462,9 +497,18 @@ export const BenefitAdvanceService = {
           oldValue: { currentBalance: balance.currentBalance.toString() },
           newValue: {
             employeeId: input.employeeId,
-            amount: amount.toFixed(4),
+            amount: amount.toFixed(2),
             reason: input.reason,
             newBalance: newBalance.toFixed(4),
+            ...(!glResidual.isZero()
+              ? {
+                  glRounding: {
+                    residual: glResidual.toString(),
+                    absorbedIndex: glAbsorbedIndex,
+                    scale: 2,
+                  },
+                }
+              : {}),
           },
         },
       });

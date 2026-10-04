@@ -259,3 +259,102 @@ describe("ExchangeDifferentialService.calculate — resolución de tercero por v
     expect(summary.lines[0].vendorId).toBeUndefined();
   });
 });
+
+// ADR-058 / SPEC-004 lote 2: el diferencial se redondea a 2 decimales en origen y el asiento cuadra.
+describe("ExchangeDifferentialService — ADR-058 diferencial al centimo", () => {
+  const dbCalc = (invoices: unknown[]) =>
+    ({
+      invoice: { findMany: vi.fn().mockResolvedValue(invoices) },
+      customer: { findMany: vi.fn().mockResolvedValue([]) },
+      vendor: { findMany: vi.fn().mockResolvedValue([]) },
+    }) as unknown as import("@prisma/client").Prisma.TransactionClient;
+
+  const row = (id: string, type: string, totalVes: string, rate: string, customerId?: string) => ({
+    id,
+    invoiceNumber: id,
+    type,
+    totalAmountVes: new Decimal(totalVes),
+    customerId: type === "SALE" ? (customerId ?? null) : null,
+    vendorId: type === "PURCHASE" ? "vend-1" : null,
+    counterpartRif: null,
+    exchangeRate: { rate: new Decimal(rate) },
+    invoicePayments: [],
+  });
+
+  it("vesAtOriginal/vesAtReval a 2 decimales y differential = su resta exacta", async () => {
+    // 12345.67 / 779.9522 = 15.828... USD (6 dec.) ; reval 812.3377
+    const db = dbCalc([row("F-1", "SALE", "12345.67", "779.9522", "c1")]);
+    const summary = await ExchangeDifferentialService.calculate(
+      "co-1",
+      "USD",
+      new Decimal("812.3377"),
+      db
+    );
+    const l = summary.lines[0];
+    expect(l.vesAtOriginal.decimalPlaces()).toBeLessThanOrEqual(2);
+    expect(l.vesAtReval.decimalPlaces()).toBeLessThanOrEqual(2);
+    expect(l.differential.equals(l.vesAtReval.minus(l.vesAtOriginal))).toBe(true);
+    expect(l.differential.mul(100).isInteger()).toBe(true);
+  });
+
+  it("el saldo pendiente en divisa (outstandingForeign) va a 2 decimales HALF_UP, no a 6 (contadora 2026-10-04)", async () => {
+    // 12345.67 / 779.9522 = 15.828752... USD -> HALF_UP a 2 decimales = 15.83 (antes 15.828752)
+    // 78283.80 / 779.9522 = 100.369997... USD -> 100.37 (el monto de una factura emitida en USD)
+    const db = dbCalc([
+      row("F-1", "SALE", "12345.67", "779.9522", "c1"),
+      row("F-2", "SALE", "78283.80", "779.9522", "c2"),
+    ]);
+    const summary = await ExchangeDifferentialService.calculate(
+      "co-1",
+      "USD",
+      new Decimal("812.3377"),
+      db
+    );
+    const byId = Object.fromEntries(summary.lines.map((l) => [l.invoiceId, l]));
+    expect(byId["F-1"].outstandingForeign.toString()).toBe("15.83");
+    expect(byId["F-2"].outstandingForeign.toString()).toBe("100.37");
+    for (const l of summary.lines) {
+      expect(l.outstandingForeign.decimalPlaces()).toBeLessThanOrEqual(2);
+      // el diferencial se calcula sobre el saldo ya a 2 decimales y sigue siendo múltiplo de 0,01
+      expect(l.differential.mul(100).isInteger()).toBe(true);
+    }
+  });
+
+  it("post(): varias facturas con tasas de 4 decimales -> Σ = 0 exacto y multiplos de 0,01", async () => {
+    const db = dbCalc([
+      row("F-1", "SALE", "12345.67", "779.9522", "c1"),
+      row("F-2", "SALE", "9876.54", "779.9522", "c2"),
+      row("F-3", "PURCHASE", "4321.09", "779.9522"),
+      row("F-4", "PURCHASE", "777.77", "770.1234"),
+    ]);
+    const summary = await ExchangeDifferentialService.calculate(
+      "co-1",
+      "USD",
+      new Decimal("812.3377"),
+      db
+    );
+    const create = vi.fn().mockResolvedValue({ id: "gl-fx" });
+    const postDb = {
+      transaction: { create },
+    } as unknown as import("@prisma/client").Prisma.TransactionClient;
+
+    await ExchangeDifferentialService.post(
+      summary,
+      { arAccountId: "ar", apAccountId: "ap", fxGainAccountId: "gain", fxLossAccountId: "loss" },
+      "co-1",
+      "user-1",
+      new Date("2026-06-30"),
+      "period-1",
+      postDb
+    );
+
+    const lines = create.mock.calls[0][0].data.entries.create as {
+      amount: Decimal;
+      accountId: string;
+    }[];
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines.reduce((a, x) => a.plus(x.amount), new Decimal(0)).isZero()).toBe(true);
+    expect(lines.every((x) => x.amount.mul(100).isInteger())).toBe(true);
+    for (const x of lines) expect("noAbsorb" in x).toBe(false);
+  });
+});

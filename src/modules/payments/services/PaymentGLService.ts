@@ -9,7 +9,7 @@
 
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { normalizeRifOrNull } from "@/lib/tax-config";
 import { resolvePartyIdByLinkOrRif, batchResolvePartyIdsByRif } from "@/lib/party-resolver";
 import { PeriodService } from "@/modules/accounting/services/PeriodService";
@@ -67,6 +67,15 @@ export type GLPostingResult = {
 };
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
+
+/** ADR-058: monto de documento/asiento en Bs. a 2 decimales (ROUND_HALF_UP) en el ORIGEN. */
+const toCents = (d: Decimal): Decimal => d.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+
+/** ADR-058 D-8: residuo de cuantización para el payload del AuditLog (solo si ≠ 0). */
+const glRoundingPayload = (residual: Decimal, absorbedIndex: number | null) =>
+  residual.isZero()
+    ? {}
+    : { glRounding: { residual: residual.toString(), absorbedIndex, scale: 2 } };
 
 /**
  * Genera un número de asiento para el mes dado.
@@ -176,8 +185,9 @@ export class PaymentGLService {
     const customerId = await this.resolveInvoicePartyId(tx, companyId, input.invoiceId, "customer");
 
     // Construir líneas de asiento (Débito = positivo, Crédito = negativo — convención R-1)
-    const amountVes = new Decimal(input.amountVes.toString());
-    const igtfAmount = input.igtfAmount ? new Decimal(input.igtfAmount.toString()) : null;
+    // ADR-058: montos del documento a 2 decimales en el origen, antes de armar líneas.
+    const amountVes = toCents(new Decimal(input.amountVes.toString()));
+    const igtfAmount = input.igtfAmount ? toCents(new Decimal(input.igtfAmount.toString())) : null;
 
     // Descripción enriquecida para asientos en divisa (Rec 2 auditoría ADR-030)
     let richDescription = description;
@@ -189,11 +199,12 @@ export class PaymentGLService {
       }
     }
 
-    const entries: {
+    const rawEntries: {
       accountId: string;
       amount: Decimal;
       description: string;
       customerId?: string;
+      noAbsorb?: boolean;
     }[] = [];
 
     // ── IVA Retenido por Cobrar (Riesgo-6 / Prov. 0049) ─────────────────────
@@ -201,7 +212,7 @@ export class PaymentGLService {
     // Asiento: Dr. Banco (neto) + Dr. IVA Ret. x Cobrar = Cr. CxC (total factura).
     // Nota: cuando hay retención IVA saltamos diferencial cambiario (complejidad).
     const ivaRet = input.ivaRetentionAmount
-      ? new Decimal(input.ivaRetentionAmount.toString())
+      ? toCents(new Decimal(input.ivaRetentionAmount.toString()))
       : new Decimal(0);
     const hasIvaRetention = ivaRet.greaterThan(0) && !!settings.ivaRetentionReceivableAccountId;
 
@@ -229,7 +240,11 @@ export class PaymentGLService {
       });
       if (inv?.exchangeRate) {
         const invoiceRate = new Decimal(inv.exchangeRate.rate.toString());
-        const invoiceAmountVes = new Decimal(input.amountOriginal.toString()).times(invoiceRate);
+        // ADR-058 R-3: la CxC en Bs. a la tasa de la factura se redondea a 2 decimales ANTES de
+        // calcular el diferencial, para que fxDiff sea explícito y exacto (múltiplo de 0,01).
+        const invoiceAmountVes = toCents(
+          new Decimal(input.amountOriginal.toString()).times(invoiceRate)
+        );
         fxDiff = amountVes.minus(invoiceAmountVes);
 
         // Solo ajustar si la diferencia es significativa (> 0.01 Bs.)
@@ -247,41 +262,44 @@ export class PaymentGLService {
     }
 
     // Dr. Banco (monto neto recibido en VES)
-    entries.push({
+    rawEntries.push({
       accountId: bankAcc.accountId,
       amount: amountVes, // positivo = Débito
       description: richDescription,
+      noAbsorb: true, // monto real que entró al banco
     });
 
     // Dr. IVA Retenido por Cobrar (si aplica Riesgo-6)
     if (hasIvaRetention) {
-      entries.push({
+      rawEntries.push({
         accountId: settings.ivaRetentionReceivableAccountId!,
         amount: ivaRet, // Débito
         description: `${richDescription} — IVA retenido (Prov. 0049)`,
+        noAbsorb: true, // crédito fiscal: no diverge de la declaración
       });
     }
 
     // Cr. CxC (a la tasa de la factura original; si VES o sin datos → amountVes; si retención → total)
-    entries.push({
+    rawEntries.push({
       accountId: settings.arAccountId,
       amount: cxcCreditAmount.negated(), // negativo = Crédito
       description: richDescription,
       customerId, // ADR-054
+      noAbsorb: true, // auxiliar de CxC
     });
 
     // Diferencial cambiario (NIC 21) — solo si hay diff significativo y cuentas configuradas
     if (fxDiff.abs().greaterThan("0.01")) {
       if (fxDiff.greaterThan(0)) {
         // Ganancia cambiaria: VES cobrados > VES causados → Cr. Ganancia Cambiaria
-        entries.push({
+        rawEntries.push({
           accountId: settings.fxGainAccountId!,
           amount: fxDiff.negated(), // Crédito
           description: `${richDescription} — Ganancia cambiaria NIC 21`,
         });
       } else {
         // Pérdida cambiaria: VES cobrados < VES causados → Dr. Pérdida Cambiaria
-        entries.push({
+        rawEntries.push({
           accountId: settings.fxLossAccountId!,
           amount: fxDiff.abs(), // Débito
           description: `${richDescription} — Pérdida cambiaria NIC 21`,
@@ -294,22 +312,31 @@ export class PaymentGLService {
     if (igtfAmount && igtfAmount.greaterThan(0)) {
       if (settings.igtfPayableAccountId) {
         // Dr. Banco (IGTF percibido del cliente — ya incluido en amountVes)
-        entries.push({
+        rawEntries.push({
           accountId: bankAcc.accountId,
           amount: igtfAmount,
           description: `${richDescription} — IGTF`,
+          noAbsorb: true,
         });
         // Cr. IGTF por pagar
-        entries.push({
+        rawEntries.push({
           accountId: settings.igtfPayableAccountId,
           amount: igtfAmount.negated(),
           description: `${richDescription} — IGTF`,
+          noAbsorb: true, // IGTF por pagar: obligación fiscal
         });
       } else {
         igtfSkipped = true;
       }
     }
 
+    // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir (sin residuo si el origen
+    // ya viene redondeado; si hubiera residuo y todo es noAbsorb, lanza: falta redondear en origen).
+    const {
+      entries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(rawEntries);
     // N4: invariante de partida doble — lanza si Σ(amount) ≠ 0
     assertBalancedGLEntries(entries);
 
@@ -357,6 +384,7 @@ export class PaymentGLService {
           transactionId: txRecord.id,
           journalEntriesCount: entries.length,
           ...(igtfSkipped ? { igtfGlSkipped: true } : {}),
+          ...glRoundingPayload(glResidual, glAbsorbedIndex),
         },
       },
     });
@@ -415,42 +443,52 @@ export class PaymentGLService {
     const period = await PeriodService.assertDateInOpenPeriod(companyId, date, tx);
 
     const number = await generateTxNumber(tx, companyId, date);
-    const amountVes = new Decimal(input.amountVes.toString());
-    const igtfAmount = input.igtfAmount ? new Decimal(input.igtfAmount.toString()) : null;
+    // ADR-058: montos del documento a 2 decimales en el origen.
+    const amountVes = toCents(new Decimal(input.amountVes.toString()));
+    const igtfAmount = input.igtfAmount ? toCents(new Decimal(input.igtfAmount.toString())) : null;
 
     // ADR-054: tercero de la línea CxP (Vendor) — resuelto desde la factura vinculada.
     const vendorId = await this.resolveInvoicePartyId(tx, companyId, input.invoiceId, "vendor");
 
-    const entries: {
+    const rawEntries: {
       accountId: string;
       amount: Decimal;
       description: string;
       vendorId?: string;
+      noAbsorb?: boolean;
     }[] = [
-      // Dr. CxP (cancela la deuda con el proveedor)
-      { accountId: settings.apAccountId, amount: amountVes, description, vendorId },
-      // Cr. Banco (salida de fondos)
-      { accountId: bankAcc.accountId, amount: amountVes.negated(), description },
+      // Dr. CxP (cancela la deuda con el proveedor) — auxiliar de CxP (tercero): noAbsorb
+      { accountId: settings.apAccountId, amount: amountVes, description, vendorId, noAbsorb: true },
+      // Cr. Banco (salida de fondos) — monto real que salió: noAbsorb
+      { accountId: bankAcc.accountId, amount: amountVes.negated(), description, noAbsorb: true },
     ];
 
     let igtfSkipped = false;
     if (igtfAmount && igtfAmount.greaterThan(0)) {
       if (settings.igtfPayableAccountId) {
-        entries.push({
+        rawEntries.push({
           accountId: settings.igtfPayableAccountId,
           amount: igtfAmount,
           description: `${description} — IGTF`,
+          noAbsorb: true, // IGTF por pagar
         });
-        entries.push({
+        rawEntries.push({
           accountId: bankAcc.accountId,
           amount: igtfAmount.negated(),
           description: `${description} — IGTF`,
+          noAbsorb: true,
         });
       } else {
         igtfSkipped = true;
       }
     }
 
+    // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+    const {
+      entries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(rawEntries);
     // N4: invariante de partida doble
     assertBalancedGLEntries(entries);
 
@@ -496,6 +534,7 @@ export class PaymentGLService {
           journalEntriesCount: entries.length,
           direction: "PAGO",
           ...(igtfSkipped ? { igtfGlSkipped: true } : {}),
+          ...glRoundingPayload(glResidual, glAbsorbedIndex),
         },
       },
     });
@@ -618,17 +657,19 @@ export class PaymentGLService {
     });
 
     // Construir todas las JournalEntries del batch (un asiento por batch, no por línea)
-    const entries: {
+    const rawEntries: {
       accountId: string;
       amount: Decimal;
       description: string;
       vendorId?: string;
+      noAbsorb?: boolean;
     }[] = [];
     let igtfSkipped = false;
 
     for (const line of enrichedLines) {
-      const amountVes = new Decimal(line.amountVes.toString());
-      const igtfAmount = line.igtfAmount ? new Decimal(line.igtfAmount.toString()) : null;
+      // ADR-058: montos de cada línea a 2 decimales en el origen.
+      const amountVes = toCents(new Decimal(line.amountVes.toString()));
+      const igtfAmount = line.igtfAmount ? toCents(new Decimal(line.igtfAmount.toString())) : null;
 
       // Descripción enriquecida por línea: Proveedor — Factura Nro. (Art. 91 COT)
       const lineDesc =
@@ -639,32 +680,36 @@ export class PaymentGLService {
             : description;
 
       // Dr. CxP (apAccountId)
-      entries.push({
+      rawEntries.push({
         accountId: settings.apAccountId,
         amount: amountVes, // positivo = Débito
         description: lineDesc,
         vendorId: line.vendorId, // ADR-054
+        noAbsorb: true, // auxiliar de CxP
       });
       // Cr. Banco
-      entries.push({
+      rawEntries.push({
         accountId: bankAcc.accountId,
         amount: amountVes.negated(), // negativo = Crédito
         description: lineDesc,
+        noAbsorb: true, // monto real que salió del banco
       });
 
       if (igtfAmount && igtfAmount.greaterThan(0)) {
         if (settings.igtfPayableAccountId) {
           // Dr. IGTF por pagar
-          entries.push({
+          rawEntries.push({
             accountId: settings.igtfPayableAccountId,
             amount: igtfAmount,
             description: `${lineDesc} — IGTF`,
+            noAbsorb: true, // IGTF por pagar
           });
           // Cr. Banco (salida adicional)
-          entries.push({
+          rawEntries.push({
             accountId: bankAcc.accountId,
             amount: igtfAmount.negated(),
             description: `${lineDesc} — IGTF`,
+            noAbsorb: true,
           });
         } else {
           igtfSkipped = true;
@@ -672,6 +717,12 @@ export class PaymentGLService {
       }
     }
 
+    // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+    const {
+      entries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(rawEntries);
     // N4: invariante de partida doble
     assertBalancedGLEntries(entries);
 
@@ -720,6 +771,7 @@ export class PaymentGLService {
           journalEntriesCount: entries.length,
           lineCount: input.lines.length,
           ...(igtfSkipped ? { igtfGlSkipped: true } : {}),
+          ...glRoundingPayload(glResidual, glAbsorbedIndex),
         },
       },
     });
@@ -786,7 +838,7 @@ export class PaymentGLService {
 
     // Crear asiento de reverso (cada línea invierte su signo)
     // Riesgo-9: preservar el tipo del asiento original (COBRO para CxC, PAGO para CxP — ADR-032 F2)
-    const reverseEntries = originalTx.entries.map((e) => ({
+    const rawReverseEntries = originalTx.entries.map((e) => ({
       accountId: e.accountId,
       amount: new Decimal(e.amount.toString()).negated(),
       description: reverseDesc,
@@ -798,6 +850,8 @@ export class PaymentGLService {
       partnerId: e.partnerId ?? undefined,
       employeeId: e.employeeId ?? undefined,
     }));
+    // ADR-058 B2: el reverso deriva de lo ya guardado → negación EXACTA (sin cuantizar).
+    const { entries: reverseEntries } = quantizeGLEntries(rawReverseEntries, { mode: "exact" });
     // N4: invariante de partida doble (reverso de asiento balanceado siempre es balanceado)
     assertBalancedGLEntries(reverseEntries);
     const reverseTx = await tx.transaction.create({
@@ -872,7 +926,7 @@ export class PaymentGLService {
     const reverseDesc = `Reverso — ${originalTx.description}`;
 
     // Riesgo-9: preservar tipo PAGO del asiento original
-    const reverseBatchEntries = originalTx.entries.map((e) => ({
+    const rawReverseBatchEntries = originalTx.entries.map((e) => ({
       accountId: e.accountId,
       amount: new Decimal(e.amount.toString()).negated(),
       description: reverseDesc,
@@ -882,6 +936,10 @@ export class PaymentGLService {
       partnerId: e.partnerId ?? undefined,
       employeeId: e.employeeId ?? undefined,
     }));
+    // ADR-058 B2: reverso derivado de lo guardado → negación EXACTA (sin cuantizar).
+    const { entries: reverseBatchEntries } = quantizeGLEntries(rawReverseBatchEntries, {
+      mode: "exact",
+    });
     // N4: invariante de partida doble
     assertBalancedGLEntries(reverseBatchEntries);
     const reverseTx = await tx.transaction.create({

@@ -197,6 +197,48 @@ describe("PaymentBatchService.createBatch", () => {
     );
   });
 
+  // ADR-058 / SPEC-004 PC-1: IGTF del lote = round(total del lote x 3%, 2) ROUND_HALF_UP; el
+  // prorrateo por linea tambien a 2 decimales y la ULTIMA linea cuadra el total del lote.
+  it("ADR-058: IGTF del lote a 2 decimales sobre el total; la suma de lineas = total EXACTO", async () => {
+    vi.mocked(prisma.invoice.findFirst)
+      .mockResolvedValueOnce({ id: INV_A, paymentStatus: "UNPAID" } as never)
+      .mockResolvedValueOnce({ id: INV_B, paymentStatus: "UNPAID" } as never)
+      .mockResolvedValueOnce({ id: "invoice-c", paymentStatus: "UNPAID" } as never);
+    vi.mocked(prisma.company.findFirst).mockResolvedValue({ isSpecialContributor: true } as never);
+    vi.mocked(prisma.paymentBatch.create).mockResolvedValue(BASE_BATCH as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await PaymentBatchService.createBatch({
+      companyId: COMPANY_ID,
+      method: "TRANSFERENCIA",
+      totalAmountVes: new Decimal("1000.50"),
+      currency: "USD",
+      date: DATE,
+      createdBy: USER_ID,
+      idempotencyKey: "idem-key-igtf",
+      lines: [
+        { invoiceId: INV_A, amountVes: new Decimal("300.15") },
+        { invoiceId: INV_B, amountVes: new Decimal("300.15") },
+        { invoiceId: "invoice-c", amountVes: new Decimal("400.20") },
+      ],
+    });
+
+    const data = vi.mocked(prisma.paymentBatch.create).mock.calls[0][0].data as {
+      totalIgtfAmount: Decimal;
+      lines: { create: { igtfAmount: Decimal }[] };
+    };
+    // 1000.50 x 3% = 30.015 -> HALF_UP a 2 decimales = 30.02 (a 4 decimales habria sido 30.015)
+    expect(data.totalIgtfAmount.toString()).toBe("30.02");
+    const lineIgtf = data.lines.create.map((l) => l.igtfAmount);
+    // Contadora (2026-10-04): el reparto por línea es HALF_UP (antes ROUND_DOWN).
+    // 300.15/1000.50 x 30.02 = 9.006 -> HALF_UP a 2 = 9.01 (ROUND_DOWN daba 9.00) ;
+    // la ultima cuadra el total: 30.02 - (9.01 + 9.01) = 12.00
+    expect(lineIgtf.map((d) => d.toString())).toEqual(["9.01", "9.01", "12"]);
+    const sum = lineIgtf.reduce((a, d) => a.plus(d), new Decimal(0));
+    expect(sum.equals(data.totalIgtfAmount)).toBe(true);
+    for (const d of lineIgtf) expect(d.mul(100).isInteger()).toBe(true);
+  });
+
   it("RECHAZA si la cuenta bancaria del lote no pertenece a esta empresa", async () => {
     vi.mocked(prisma.bankAccount.findMany).mockResolvedValue([]);
 

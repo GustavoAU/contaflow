@@ -444,3 +444,115 @@ describe("autoPostMovementInTx — OM-01: contabilización inline en factura", (
     expect(tx.inventoryItem.update).not.toHaveBeenCalled();
   });
 });
+
+// ─── ADR-058 / SPEC-004 lote 2 — cuantizacion al centimo ─────────────────────
+
+describe("ADR-058 — InventoryAccountingService cuantiza al centimo", () => {
+  type L = { accountId: string; amount: Decimal };
+  const linesOf = (tx: ReturnType<typeof makeTx>) =>
+    tx.transaction.create.mock.calls[0]![0].data.entries.create as L[];
+  const runPost = async (movement: ReturnType<typeof makeMockMovement>) => {
+    const tx = makeTx(movement);
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
+    await postMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID);
+    return tx;
+  };
+
+  it("SALIDA con totalCost a 4 decimales: asiento y movimiento a 2 decimales, Σ = 0", async () => {
+    const tx = await runPost(
+      makeMockMovement({
+        type: "SALIDA",
+        quantity: new Decimal("3"),
+        unitCost: new Decimal("411.5226"),
+        totalCost: new Decimal("1234.5678"),
+      })
+    );
+    const lines = linesOf(tx);
+    // 1234.5678 -> 1234.57
+    expect(lines.map((l) => l.amount.toString())).toEqual(["1234.57", "-1234.57"]);
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+    // El DOCUMENTO se persiste a 2 decimales; el costo unitario CPP (factor) no se toca.
+    const movUpdate = tx.inventoryMovement.update.mock.calls[0]![0];
+    expect(movUpdate.data.totalCost.toString()).toBe("1234.57");
+    expect(movUpdate.data.unitCost.toString()).toBe("411.5226");
+  });
+
+  it("ENTRADA con contrapartida: 2 lineas a 2 decimales y Σ = 0", async () => {
+    const tx = await runPost(
+      makeMockMovement({
+        type: "ENTRADA",
+        quantity: new Decimal("7"),
+        unitCost: new Decimal("33.3333"),
+        totalCost: new Decimal("233.3331"),
+        ...({ counterpartAccountId: "acc-cxp" } as object),
+      })
+    );
+    const lines = linesOf(tx);
+    expect(lines.map((l) => l.amount.toString())).toEqual(["233.33", "-233.33"]);
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+  });
+
+  it("ADR-058 B1: ENTRADA standalone conserva su asiento de UNA linea (se redondea, no se exige Σ = 0)", async () => {
+    const tx = await runPost(
+      makeMockMovement({
+        type: "ENTRADA",
+        quantity: new Decimal("7"),
+        unitCost: new Decimal("33.3333"),
+        totalCost: new Decimal("233.3376"),
+      })
+    );
+    const lines = linesOf(tx);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].accountId).toBe("acc-inv");
+    expect(lines[0].amount.toString()).toBe("233.34");
+    expect("noAbsorb" in lines[0]).toBe(false);
+  });
+
+  it("anulacion de un movimiento historico a 4 decimales: negacion EXACTA (no cuantiza)", async () => {
+    const movement = makeMockMovement({
+      status: "POSTED",
+      type: "SALIDA",
+      quantity: new Decimal("3"),
+      totalCost: new Decimal("1234.5678"),
+    });
+    const tx = makeTx(movement);
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (t: typeof tx) => unknown) =>
+      fn(tx)) as never);
+
+    await voidPostedMovement({ movementId: "mov-001", companyId: COMPANY_ID }, USER_ID);
+
+    const lines = linesOf(tx);
+    expect(lines.map((l) => l.amount.toString())).toEqual(["-1234.5678", "1234.5678"]);
+    expect(lines.reduce((a, l) => a.plus(l.amount), new Decimal(0)).isZero()).toBe(true);
+  });
+
+  it("autoPostMovementInTx SALIDA con totalCost a 4 decimales: asiento COGS a 2 decimales, Σ = 0", async () => {
+    const movement = makeMockMovement({
+      type: "SALIDA",
+      quantity: new Decimal("5"),
+      unitCost: new Decimal("246.9136"),
+      totalCost: new Decimal("1234.5678"),
+      item: { ...mockItem, trackingType: "NONE" } as never,
+    });
+    const tx = {
+      inventoryMovement: {
+        findFirst: vi.fn().mockResolvedValue(movement),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      inventoryItem: { update: vi.fn().mockResolvedValue({}) },
+      transaction: {
+        count: vi.fn().mockResolvedValue(3),
+        create: vi.fn().mockResolvedValue({ id: "tx-auto-001" }),
+      },
+    };
+
+    await autoPostMovementInTx(tx as never, "mov-001", COMPANY_ID, USER_ID, null);
+
+    const lines = tx.transaction.create.mock.calls[0]![0].data.entries.create as L[];
+    expect(lines.map((l) => l.amount.toString())).toEqual(["1234.57", "-1234.57"]);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+    expect(tx.inventoryMovement.update.mock.calls[0]![0].data.totalCost.toString()).toBe("1234.57");
+  });
+});

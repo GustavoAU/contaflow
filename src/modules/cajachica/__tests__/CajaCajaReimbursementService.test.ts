@@ -509,3 +509,68 @@ describe("voidReimbursement", () => {
     );
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADR-058 — cuantización del asiento al céntimo
+// ─────────────────────────────────────────────────────────────────────────────
+describe("postReimbursement — ADR-058 asiento al céntimo", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("movimientos con muchos decimales: líneas múltiplos de 0,01, Σ = 0 exacto, residuo en la línea mayor y glRounding en el AuditLog", async () => {
+    const { txCreate, auditCreate } = makePostTx({
+      cajaCajaReimbursement: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "reimb-1",
+          status: "DRAFT",
+          reimbursementNumber: "REIMB-2026-00001",
+          totalExpensesVes: new Decimal("20.01"),
+          monthYear: MONTH,
+          cajaCaja: { accountId: CAJA_ACCOUNT },
+          movements: [
+            {
+              expenseAccountId: ACC_A,
+              amount: new Decimal("10.004"),
+              expenseAccount: { id: ACC_A },
+            },
+            {
+              expenseAccountId: ACC_B,
+              amount: new Decimal("10.004"),
+              expenseAccount: { id: ACC_B },
+            },
+          ],
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: "reimb-1",
+          cajaCajaId: CAJA_ID,
+          monthYear: MONTH,
+          reimbursementNumber: "REIMB-2026-00001",
+          totalExpensesVes: new Decimal("20.01"),
+          status: "POSTED",
+          transactionId: "tx-1",
+          postedAt: new Date("2026-06-21"),
+          postedBy: USER_ID,
+          createdAt: new Date("2026-06-21"),
+          voidedAt: null,
+          movements: [],
+        }),
+      },
+    });
+
+    await postReimbursement(postInput, USER_ID);
+
+    const entries = txCreate.mock.calls[0][0].data.entries.create as Array<{
+      accountId: string;
+      amount: Decimal;
+    }>;
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of entries) {
+      expect(e.amount.equals(e.amount.toDecimalPlaces(2))).toBe(true);
+      expect("noAbsorb" in e).toBe(false);
+    }
+    // 10.004 → 10.00 (×2); caja −20.01 absorbe el residuo de −0,01 → −20.00
+    expect(entries.find((e) => e.accountId === CAJA_ACCOUNT)!.amount.toFixed(2)).toBe("-20.00");
+
+    const audit = auditCreate.mock.calls[0][0].data.newValue;
+    expect(audit.glRounding).toMatchObject({ residual: "-0.01", absorbedIndex: 2, scale: 2 });
+  });
+});

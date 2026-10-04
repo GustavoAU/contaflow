@@ -452,3 +452,54 @@ describe("VacationService — moneda del sueldo", () => {
     });
   });
 });
+
+// ─── ADR-058: redondeo al céntimo en el origen ───────────────────────────────
+
+describe("VacationService.create — ADR-058 (montos a 2 decimales)", () => {
+  it("vacaciones y bono se redondean a 2 decimales y el asiento suma 0 con montos múltiplos de 0,01", async () => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue({
+      ...BASE_EMPLOYEE,
+      // 1000,01 / 30 = 33,33366666… por día
+      salaryHistory: [{ ...BASE_EMPLOYEE.salaryHistory[0], amount: new Decimal("1000.01") }],
+    } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.vacationRecord.create).mockResolvedValue({
+      id: "vac-1",
+      companyId: COMPANY,
+      employeeId: EMP_ID,
+      periodYear: 2026,
+      vacationDays: new Decimal("15"),
+      bonusDays: new Decimal("7"),
+      dailyNormalWage: new Decimal("33.3337"),
+      vacationAmount: new Decimal("500.01"),
+      bonusAmount: new Decimal("233.34"),
+      startDate: new Date("2026-04-01"),
+      endDate: new Date("2026-04-15"),
+      isFractional: false,
+      transactionId: "tx-1",
+      createdByUserId: USER,
+      createdAt: new Date(),
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await VacationService.create(COMPANY, USER, EMP_ID, VAC_INPUT as never);
+
+    // 33,3336667 x 15 = 500,005 -> 500,01 ; x 7 = 233,3356 -> 233,34 (ROUND_HALF_UP)
+    const recordData = vi.mocked(prisma.vacationRecord.create).mock.calls[0]?.[0]?.data as {
+      vacationAmount: string;
+      bonusAmount: string;
+    };
+    expect(recordData.vacationAmount).toBe("500.01");
+    expect(recordData.bonusAmount).toBe("233.34");
+
+    const txData = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0]?.data;
+    const entries = (txData?.entries?.create ?? []) as Array<{ amount: Decimal }>;
+    expect(entries.map((e) => e.amount.toFixed(2))).toEqual(["733.35", "-733.35"]);
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of entries) expect(e.amount.mul(100).isInteger()).toBe(true);
+  });
+});

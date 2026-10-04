@@ -275,3 +275,61 @@ describe("ISLR códigos 3% y 8%", () => {
     expect(result!.islrRetentionPct).toBe(8);
   });
 });
+
+// ADR-058 / SPEC-004 lote 2: el asiento de enteramiento se cuantiza al centimo.
+describe("enterRetention — ADR-058 cuantizacion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
+      fn({
+        retencion: prisma.retencion,
+        accountingPeriod: prisma.accountingPeriod,
+        account: prisma.account,
+        transaction: prisma.transaction,
+        auditLog: prisma.auditLog,
+      })) as never);
+  });
+
+  it("monto a enterar con 4 decimales: 120.0049 + 1.0031 -> 121.01; Σ = 0 y multiplos de 0,01", async () => {
+    vi.mocked(prisma.retencion.findFirst).mockResolvedValue({
+      ...mockRetention,
+      totalRetention: { toString: () => "120.0049" },
+      incesAmount: { toString: () => "1.0031" },
+    } as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue(mockPeriod as never);
+    vi.mocked(prisma.account.findFirst)
+      .mockResolvedValueOnce(mockLiabilityAccount as never)
+      .mockResolvedValueOnce(mockBankAccount as never);
+    vi.mocked(prisma.retencion.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue(mockTransaction as never);
+    vi.mocked(prisma.retencion.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await enterRetention(
+      {
+        retentionId: "ret-1",
+        companyId: "comp-1",
+        liabilityAccountId: "acc-liab-1",
+        bankAccountId: "acc-bank-1",
+        enterDate: new Date("2026-05-12"),
+      },
+      "user-1"
+    );
+
+    const data = vi.mocked(prisma.transaction.create).mock.calls[0][0].data as {
+      entries: {
+        create: { amount: { toString(): string; mul(n: number): { isInteger(): boolean } } }[];
+      };
+    };
+    const lines = data.entries.create;
+    // 120.0049 + 1.0031 = 121.0080 -> 121.01 (HALF_UP)
+    expect(lines.map((l) => l.amount.toString())).toEqual(["121.01", "-121.01"]);
+    expect(lines.every((l) => l.amount.mul(100).isInteger())).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+    const audit = vi.mocked(prisma.auditLog.create).mock.calls[0][0] as {
+      data: { newValue: Record<string, unknown> };
+    };
+    expect(audit.data.newValue.enterAmount).toBe("121.01");
+    expect(audit.data.newValue).not.toHaveProperty("glRounding");
+  });
+});

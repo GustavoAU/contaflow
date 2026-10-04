@@ -17,7 +17,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 import type { PrestacionesBasis, TerminationReason, TerminationStatus } from "@prisma/client";
 import { countCompleteMonths, VacationService } from "./VacationService";
@@ -251,8 +251,14 @@ export const TerminationService = {
 
     const dailyNormalWage = monthlyWageVes.div(30);
 
-    const vacationFractionalAmount = vacFracDays.mul(dailyNormalWage).toDecimalPlaces(4);
-    const vacationBonusFractionalAmount = vacBonusFracDays.mul(dailyNormalWage).toDecimalPlaces(4);
+    // ADR-058 (R-1): los montos del DOCUMENTO se redondean a 2 decimales donde se calculan
+    // (ROUND_HALF_UP); el asiento de finalize se arma con estos mismos valores.
+    const vacationFractionalAmount = vacFracDays
+      .mul(dailyNormalWage)
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    const vacationBonusFractionalAmount = vacBonusFracDays
+      .mul(dailyNormalWage)
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     // ── 3. Utilidades fraccionadas ────────────────────────────────────────
     const currentFiscalYear = terminationDate.getUTCFullYear();
@@ -293,7 +299,7 @@ export const TerminationService = {
 
       profitSharingFractionalAmount = profitSharingFractionalDays
         .mul(avgSalary.div(30))
-        .toDecimalPlaces(4);
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     }
 
     // ── 3-bis. Art. 142(d): el régimen es DUAL y hay que pagar el MAYOR ────
@@ -323,7 +329,7 @@ export const TerminationService = {
     let benefitsRetroactiveAmount = integralDailyWage
       .mul(30)
       .mul(computableYears)
-      .toDecimalPlaces(4);
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
     let benefitsBasisApplied: PrestacionesBasis = benefitsRetroactiveAmount.greaterThan(
       benefitsAccumulatedAmount
     )
@@ -339,7 +345,10 @@ export const TerminationService = {
           (terminationDate.getTime() - employee.hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
         )
       );
-      benefitsRetroactiveAmount = integralDailyWage.mul(5).mul(monthsOrFraction).toDecimalPlaces(4);
+      benefitsRetroactiveAmount = integralDailyWage
+        .mul(5)
+        .mul(monthsOrFraction)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
       benefitsBasisApplied = "PRIMEROS_TRES_MESES";
     }
 
@@ -367,7 +376,9 @@ export const TerminationService = {
       terminationDate,
       input.reason
     );
-    const noticePeriodAmount = noticePeriodDays.mul(dailyNormalWage).toDecimalPlaces(4);
+    const noticePeriodAmount = noticePeriodDays
+      .mul(dailyNormalWage)
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     // ── 6. Otros conceptos pendientes (usuario ajusta en DRAFT) ────────────
     const pendingConceptsAmount = input.pendingConceptsAmount
@@ -625,8 +636,12 @@ export const TerminationService = {
       // Entradas de débito (eliminación de pasivos) + crédito (pago neto + deducciones)
       const empName = termination.employeeId.slice(-6);
       const liqDate = terminationDate.toISOString().split("T")[0];
-      const journalEntries: Array<{ accountId: string; amount: Decimal; description?: string }> =
-        [];
+      const rawJournalEntries: Array<{
+        accountId: string;
+        amount: Decimal;
+        description?: string;
+        noAbsorb?: boolean;
+      }> = [];
 
       // Art. 142(d): el pasivo de prestaciones solo se acredito con la GARANTIA
       // acumulada. Si gana la rama retroactiva, el exceso nunca se provisiono:
@@ -640,30 +655,30 @@ export const TerminationService = {
       const unprovisionedPart = benefitsTotal.sub(provisionedPart);
 
       if (provisionedPart.gt(0) && config.benefitsPayableAccountId) {
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.benefitsPayableAccountId,
-          amount: provisionedPart.toDecimalPlaces(4), // Débito — cancela el pasivo
+          amount: provisionedPart, // Débito — cancela el pasivo
           description: `Liquidación final — prestaciones sociales — ${empName} — ${liqDate}`,
         });
       }
       if (unprovisionedPart.gt(0) && config.benefitsExpenseAccountId) {
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.benefitsExpenseAccountId,
-          amount: unprovisionedPart.toDecimalPlaces(4), // Débito — gasto del ejercicio
+          amount: unprovisionedPart, // Débito — gasto del ejercicio
           description: `Liquidación final — diferencia Art.142(c) no provisionada — ${empName} — ${liqDate}`,
         });
       }
       if (vacTotal.gt(0) && config.vacationPayableAccountId) {
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.vacationPayableAccountId,
-          amount: vacTotal.toDecimalPlaces(4),
+          amount: vacTotal,
           description: `Liquidación final — vacaciones fraccionadas — ${empName} — ${liqDate}`,
         });
       }
       if (profitTotal.gt(0) && config.profitSharingPayableAccountId) {
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.profitSharingPayableAccountId,
-          amount: profitTotal.toDecimalPlaces(4),
+          amount: profitTotal,
           description: `Liquidación final — utilidades fraccionadas — ${empName} — ${liqDate}`,
         });
       }
@@ -671,46 +686,54 @@ export const TerminationService = {
         // Indemnización Art. 92 LOTTT — nace AL despedir, nunca se provisionó:
         // es gasto del ejercicio, no cancelación de un pasivo. Iba contra
         // benefitsPayable y lo dejaba en saldo deudor por su importe completo.
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.benefitsExpenseAccountId,
-          amount: indemTotal.toDecimalPlaces(4),
+          amount: indemTotal,
           description: `Liquidación final — indemnización Art.92 LOTTT — ${empName} — ${liqDate}`,
         });
       }
       if (noticeTotal.gt(0) && config.benefitsExpenseAccountId) {
         // Preaviso Art. 86 LOTTT — gasto laboral (no hay pasivo previo)
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.benefitsExpenseAccountId,
-          amount: noticeTotal.toDecimalPlaces(4),
+          amount: noticeTotal,
           description: `Liquidación final — preaviso Art.86 LOTTT — ${empName} — ${liqDate}`,
         });
       }
       if (pendingTotal.gt(0) && config.benefitsExpenseAccountId) {
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.benefitsExpenseAccountId,
-          amount: pendingTotal.toDecimalPlaces(4),
+          amount: pendingTotal,
           description: `Liquidación final — conceptos pendientes — ${empName} — ${liqDate}`,
         });
       }
 
       // Crédito neto — cuenta por pagar al trabajador (payableAccountId del config)
       if (totalNet.gt(0)) {
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.payableAccountId!,
-          amount: totalNet.negated().toDecimalPlaces(4),
+          amount: totalNet.negated(),
           description: `Liquidación final — neto a pagar — ${empName} — ${liqDate}`,
         });
       }
 
       // Crédito deducciones (IVSS, INCES, etc. por pagar a organismos)
       if (deductions.gt(0) && config.ivssPayableAccountId) {
-        journalEntries.push({
+        rawJournalEntries.push({
           accountId: config.ivssPayableAccountId,
-          amount: deductions.negated().toDecimalPlaces(4),
+          amount: deductions.negated(),
           description: `Liquidación final — retenciones legales — ${empName} — ${liqDate}`,
+          noAbsorb: true, // obligación por pagar a organismos (ADR-058)
         });
       }
 
+      // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir (los saldos de
+      // BenefitBalance anteriores a ADR-058 pueden traer 4 decimales).
+      const {
+        entries: journalEntries,
+        residual: glResidual,
+        absorbedIndex: glAbsorbedIndex,
+      } = quantizeGLEntries(rawJournalEntries);
       assertBalancedGLEntries(journalEntries); // N4: invariante partida doble
       const liquidationTx = await tx.transaction.create({
         data: {
@@ -721,7 +744,13 @@ export const TerminationService = {
           description: `Liquidación final — empleado ${termination.employeeId.slice(-6)}`,
           userId,
           type: "DIARIO",
-          entries: { create: journalEntries },
+          entries: {
+            create: journalEntries.map((e) => ({
+              accountId: e.accountId,
+              amount: e.amount,
+              description: e.description,
+            })),
+          },
         },
       });
 
@@ -767,6 +796,15 @@ export const TerminationService = {
             status: "FINALIZED",
             transactionId: liquidationTx.id,
             totalNetAmount: totalNet.toFixed(4),
+            ...(!glResidual.isZero()
+              ? {
+                  glRounding: {
+                    residual: glResidual.toString(),
+                    absorbedIndex: glAbsorbedIndex,
+                    scale: 2,
+                  },
+                }
+              : {}),
           },
         },
       });
