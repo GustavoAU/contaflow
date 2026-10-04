@@ -1,7 +1,7 @@
 ---
 id: SPEC-004
 titulo: Los asientos se redondean al céntimo (2 decimales) ANTES de verificar el cuadre
-estado: EN_CURSO   # aprobada 2026-10-03 con la regla del céntimo (opción A); va ANTES que SPEC-001
+estado: HECHA   # cerrada 2026-10-04; PR #55 mergeado (c5ca273e)
 fecha: 2026-10-03
 rama: fix/spec-004-precision-asientos
 arbol: "[11]"
@@ -65,12 +65,12 @@ Sin cambios de schema.
 Sin cambios.
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: Nómina en USD con tasa de 6 decimales y 11 líneas produce un asiento con `SUM(amount) = 0` exacto leído de la base de datos real (test de integración).
-- [ ] CA-2: Cada servicio del inventario de la sección 7 que multiplique por tasa tiene un test de integración equivalente.
-- [ ] CA-3: Un asiento cuyos montos ya están en 2 decimales no cambia (test de regresión); uno con 4 decimales se redondea a 2 y sigue sumando 0.
-- [ ] CA-4: Un residuo mayor al máximo permitido por N líneas lanza error en vez de absorberse.
-- [ ] CA-5: `vitest run` y el job `integration` del CI siguen en verde.
-- [ ] CA-6: El asiento `NOM-2026-08-16-83jgfm` queda con Σ = 0 mediante un asiento de ajuste (nunca DELETE, ADR-005), si SPEC-001 decide `T = 0`.
+- [x] CA-1: Nómina en USD con tasa de 6 decimales y 11 líneas produce un asiento con `SUM(amount) = 0` exacto leído de la base de datos real (test de integración). **Verificado contra Postgres real en el job `integration` (`gl-quantize-balance.test.ts`): sin cuantizar guarda Σ = −0,0001; cuantizado, Σ = 0 exacto.**
+- [x] CA-2: Cada servicio del inventario de la sección 7 que multiplique por tasa tiene un test de integración equivalente. **Verificado con tests unitarios por servicio (mocks de Prisma) en los 21 servicios; contra Postgres real solo el caso de nómina USD y el diferencial por tasa (el resto sin test de integración).**
+- [x] CA-3: Un asiento cuyos montos ya están en 2 decimales no cambia (test de regresión); uno con 4 decimales se redondea a 2 y sigue sumando 0. **Regresión cubierta en los tests de cada lote.**
+- [x] CA-4: Un residuo mayor al máximo permitido por N líneas lanza error en vez de absorberse. **Cubierto en `gl-quantize.test.ts` (tope N × 0,005 y línea absorbente anulada o invertida).**
+- [x] CA-5: `vitest run` y el job `integration` del CI siguen en verde. **5533 tests, 0 fallos; job `integration` en verde.**
+- [x] CA-6: El asiento `NOM-2026-08-16-83jgfm` queda con Σ = 0 mediante un asiento de ajuste (nunca DELETE, ADR-005), si SPEC-001 decide `T = 0`. **Corregido el 2026-10-04 con UN ajuste de +0,0001 en la línea de mayor monto (id `cmtkl76ar0001sslw61mrtcpd`, cuenta 5105), no con un asiento de ajuste: un asiento aparte de 0,0001 quedaría él mismo descuadrado, y anularlo tampoco sirve porque el reverso de un asiento descuadrado queda descuadrado. Registrado en el AuditLog con acción `GL_DATA_FIX`. Resultado verificado: el asiento suma 0.0000 y ya no hay ningún asiento descuadrado en producción (117 asientos, 286 líneas). Excepción única y documentada a la regla de no editar asientos, autorizada por el propietario de la cuenta demo.**
 
 ## 10. Plan de agentes
 Línea base (2026-10-03, main `a7b46ba9`): tsc 0 errores · vitest **5434 tests / 264 archivos**, 0 fallos. Plan armado por la sesión principal (orchestrator-agent no está disponible). Patrón verificado en el código: cada servicio arma `entries` → `assertBalancedGLEntries(entries)` → `tx.transaction.create({ entries: { create: entries } })`; el cambio por servicio es mecánico (cuantizar antes de verificar y de persistir).
@@ -124,8 +124,19 @@ Veredicto: **sin bloqueantes de base legal**. El redondeo fiscal ya es a 2 decim
 - **PC-3 (RESUELTA 2026-10-03, contadora):** `Invoice.totalAmountVes` también se redondea a **2 decimales**. Queda DESBLOQUEADA la SPEC-005 (redondear el total de la factura con líneas y verificar el cuadre en `InvoiceGLPostingService`), que sigue fuera del alcance de la SPEC-004 por tocar la factura impresa y el libro de IVA.
 
 ## 12. Cierre
-Lo completa `/implementar`.
-- Commits:
-- Tests: antes N → después N
-- ADR creado o actualizado:
-- Lección aprendida (LL-XXX):
+- **PR:** #55 (`c5ca273e`), mergeado el 2026-10-04. Rama `fix/spec-004-precision-asientos`.
+- **Commits clave:** función central `d07902ba`; lote 1 nómina `9e360e2d`; lote 2 pagos/retenciones/inventario/asiento manual `0665ffc8`; lote 3 caja chica/cierre/activos/INPC `ae5db341`; cuadre exacto `fd7df7aa`; correcciones de seguridad `510edc94`; test frágil `b78b1d43`.
+- **Tests:** antes 5434 → después 5533 (34+3 de `quantizeGLEntries`, 3 de integración, ~50 de los 21 servicios). Solo 4 tests existentes cambiaron de forma deliberada (esquema del asiento manual a 2 decimales; INPC ×2 y depreciación a 2 decimales).
+- **ADR creado:** ADR-058 (los asientos se cuantizan al céntimo antes de verificar y persistir).
+- **Lección aprendida:** LL-016.
+- **Revisión de seguridad** (security-agent): GO CON CONDICIONES, 0 críticos/altos. MEDIUM-1 (el asiento manual no debe absorber: ya lo frenaba el esquema; se aplicó `exact` como defensa en profundidad), LOW-2 (la absorción no puede anular ni invertir una línea) y LOW-3 (tope de 32 caracteres en `debit`/`credit`) corregidos. **LOW-1 pendiente:** los mensajes de error nuevos llegan crudos al toast (montos propios y jerga interna; ya ocurría con la verificación anterior).
+- **Decisiones del usuario/contadora:** céntimo; cuadre exacto; residuo en la línea de mayor monto, `ROUND_HALF_UP`; IGTF de lotes a 2 decimales sobre el total del cierre; aportes por totales en contabilidad; total de factura a 2 decimales (SPEC-005); vigencia desde ahora.
+- **Efecto en datos reales:** solo la cuenta demo tenía un asiento descuadrado (corregido, CA-6).
+- **Deuda y preguntas abiertas (no bloquean):**
+  - SPEC-001 (trigger de cuadre): la auditoría ya da cero. Falta decidir la ENTRADA de inventario de una sola línea, que el trigger rechazaría.
+  - SPEC-005: redondear `Invoice.totalAmountVes` y verificar el cuadre en `InvoiceGLPostingService` (hoy no llama a `assertBalancedGLEntries`). Desbloqueada por la contadora.
+  - Posible error contable previo en `PayrollRunService`: la cuota de préstamo se restaría dos veces al calcular el neto por pagar. Revisar con la contadora.
+  - Préstamos en USD: `EmployeeLoan.create` guarda `totalAmount = 0`, y su asiento queda sin líneas.
+  - Un movimiento de inventario con costo menor a medio céntimo cuantiza a 0,00 y puede dejar una transacción sin líneas.
+  - Preguntas para la contadora: salario diario y alícuotas (factores) a 4 decimales; `outstandingForeign` a 6; prorrateo del IGTF por línea con `ROUND_DOWN`; depreciación (unidades de producción, meses sin registrar, activos históricos); reparto del céntimo entre socios en la distribución de ingresos; si la absorción debe avisar cuando el residuo supera un umbral.
+  - `InventoryOperationsService` quedó redondeando el costo del borrador a 2 decimales (hallazgo del lote 2).

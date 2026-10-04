@@ -9,7 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
-**Ninguna** — branch `main` limpio (2026-10-03). SPEC-002 HECHA (CI de integración contra Neon + a11y + Prettier); SPEC-001 (trigger de cuadre) APROBADA sin implementar; SPEC-003 (a11y de formularios) BORRADOR. Ver `.claude/specs/`.
+**Ninguna** — branch `main` limpio (2026-10-04). SPEC-002 HECHA (CI de integración contra Neon + a11y + Prettier); SPEC-004 HECHA (asientos al céntimo y cuadre exacto, ADR-058, 21 servicios; producción sin asientos descuadrados); SPEC-001 (trigger de cuadre en BD) APROBADA, pendiente decidir la ENTRADA de inventario de una línea; SPEC-003 (a11y de formularios) y SPEC-005 (total de factura a 2 decimales) pendientes. Ver `.claude/specs/`.
 
 ### ⚠️ PENDIENTES PRÓXIMA SESIÓN
 - **(menor) keying lecturas:** unificar keying de lecturas en `limiters.read` (algunas usan `userId` puro, otras `fiscalKey(companyId,userId)`) — cosmético, sin impacto de aislamiento (LOW de auditoría).

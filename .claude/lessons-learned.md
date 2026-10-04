@@ -161,3 +161,14 @@
 - **Fix applied**: la duplicada pasó a no-op; el `UPDATE` se movió a `20260511_contra_asset_backfill`. Verificado: 165/165 desde BD vacía, 94 tablas = 94 modelos.
 - **Golden rule**: toda migración debe poder aplicarse sobre una base vacía; el job `integration` del CI lo comprueba en cada PR. Un `ADD VALUE` de enum y cualquier uso de ese valor van en migraciones separadas. Lo que nunca se ejecuta no se puede dar por verificado: probar los flujos manuales de despliegue desde cero en CI.
 - **Regression test**: job `integration` de `.github/workflows/ci.yml` (aplica `prisma migrate deploy` a un branch vacío de `contaflow-ci`)
+
+---
+
+## LL-016 — La verificación de cuadre se hacía sobre valores distintos de los que se guardan (2026-10-04)
+
+- **Phase detected**: auditoría de solo lectura de producción para la SPEC-001; causa raíz en SPEC-004 / ADR-058
+- **Context**: `assertBalancedGLEntries` (N4) en 38 call-sites de 21 servicios; columna `JournalEntry.amount Decimal(19,4)`
+- **Error**: los servicios calculan en precisión alta de `Decimal.js` (~20 dígitos), multiplican por la tasa BCV y verifican el cuadre SIN redondear; Postgres luego redondea CADA línea por separado al guardar. Un asiento de nómina en USD (tasa 779,9522, 11 líneas) quedó con Σ = −0,0001 aunque la verificación pasó. Además la verificación toleraba ±0,01, lo que escondía el defecto, y ningún test tocaba una base real.
+- **Fix applied**: función central `quantizeGLEntries` (redondea al céntimo, absorbe el residuo en la línea mayor que no sea `noAbsorb`, modo `exact` para derivados de saldos guardados), redondeo de cada documento en su origen, y cuadre exacto en `assertBalancedGLEntries`.
+- **Golden rule**: se verifica lo que SE GUARDA, no lo que se calculó: cuantizar a la precisión de persistencia ANTES de verificar y de persistir, y persistir el resultado cuantizado. Un asiento derivado de saldos ya guardados (anulación, cierre, liquidación) se niega EXACTO, sin redondear. Una tolerancia en una invariante contable esconde defectos reales. Un test de arquitectura exige que todo archivo que llame `assertBalancedGLEntries` llame `quantizeGLEntries`.
+- **Regression test**: `src/lib/__tests__/gl-quantize.test.ts`, `src/__tests__/architecture/gl-quantize-coverage.test.ts` y `src/__tests__/integration/gl-quantize-balance.test.ts` (corre contra Postgres real en el job `integration`)
