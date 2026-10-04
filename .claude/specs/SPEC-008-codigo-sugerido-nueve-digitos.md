@@ -1,7 +1,7 @@
 ---
 id: SPEC-008
 titulo: Una cuenta de movimiento es de 9 dígitos y siempre cuelga de un título padre (sugerencia de código + validación)
-estado: APROBADA   # aprobada por el dueño 2026-10-05; preguntas resueltas (ver §2 y §11)
+estado: EN_CURSO   # aprobada por el dueño 2026-10-05; plan en §10 pendiente de confirmación
 fecha: 2026-10-05
 rama: feat/spec-008-codigo-sugerido-nueve-digitos
 arbol: "[3]+[10]"  # Server Actions (lectura + alta/edición) + formulario de cuentas + importador
@@ -165,10 +165,23 @@ export async function getNextAccountCodeAction(
 - [ ] CA-limpieza: no queda ninguna referencia a `nextAccountCode`/`deducirPaso` ni a `RANGES` para sugerir códigos.
 
 ## 10. Plan de agentes
-Lo completa `/implementar`.
+Sin cambios de schema → se omite el paso ARCH GATE. Línea base (2026-10-05): tsc 0 · **5638 tests** en verde
+(1 timeout intermitente de `audit.actions.test.ts` por import dinámico en frío; pasa al repetir, ajeno a esta spec).
 
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | test-agent | Tests en RED de CA-1..CA-14, CA-tenant y CA-limpieza: `account-code` (`parentCodeOf`, `isTitleParentCode`, `MOVEMENT_CODE_REGEX`), `nextChildCode` (huecos, eliminadas, 999, propiedad RN-1), validación de padre (RN-2/RN-3, un test por caso de CA-5/CA-6), `getNextAccountCodeAction` (CA-7), `createAccountAction`/`updateAccountAction` (CA-9..CA-13) e `importAccounts` (CA-14). Ajustar los tests existentes que crean cuentas de 9 dígitos sin padre. | RED |
+| 2 | ledger-agent | `account-code.ts` + `nextChildCode` (reescribe `next-account-code.ts`, borra `nextAccountCode`/`deducirPaso` y `RANGES` para sugerir) + validación de padre compartida (función pura con lookup inyectable: BD en create/update, BD **o** títulos del mismo archivo en import) + `getNextAccountCodeAction(type, companyId, parentId)` con Zod + reglas RN-9/RN-10 en `createAccountAction`/`updateAccountAction` + RN-11 en `ImportService.importAccounts` (`missing_parent`, sin abortar el lote). | GREEN |
+| 3 | test-agent | Auditoría de cobertura de lo nuevo (servicios 100 %, actions 90 %, schemas 100 %); cierra huecos MUST-FIX. | — |
+| 4 | ui-agent | `AccountsTable`: selector "Cuenta padre (título)" (títulos de 6 dígitos del tipo, RN-14), sugerencia al elegir padre, estados cargando/vacío/error/éxito, `aria-busy`/`aria-live`, copy exacto de §8; mensaje `missing_parent` en el importador (`AccountsImporter`). Test jsdom de CA-UI. | GREEN |
+| 5 | security-agent | Auditoría (trigger: Server Actions modificadas + input de usuario → DB): IDOR del padre (`companyId` del contexto), validación Zod de `parentId`, no filtración de códigos de otra empresa, regresión del H-1 (el chequeo solo si el código cambia), rate limit. CRITICAL/HIGH bloquean. | — |
+| 6 | (sesión principal) | Gates: `tsc`, `vitest` (6 shards), `pnpm lint`, `format:check`; CA marcados `[x]`; sección 12; ADR-059 actualizado (sugerencia de 9 dígitos y padre obligatorio); línea en Estado Activo; LL si aparece un patrón nuevo. Commits por capa. **Sin merge.** | — |
+
+Notas de diseño para el paso 2:
+- Sin migración y sin tocar producción en toda esta spec.
+- La función de validación de padre es pura (recibe un `lookup(code) => título | null`); así el importador valida
+  contra la base **y** contra los títulos del mismo archivo sin duplicar la regla ni acoplar módulos (DDD).
+- `existingCodes` para la sugerencia incluye las cuentas eliminadas (RN-5); el padre excluye eliminadas (RN-2).
 
 ## 11. Riesgos y preguntas abiertas
 **Resueltas (dueño, 2026-10-05):** estructura 1/1/2/2/3 fija en todos los planes · cuenta de movimiento sin título
