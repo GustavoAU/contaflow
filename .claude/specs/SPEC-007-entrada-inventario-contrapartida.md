@@ -1,7 +1,7 @@
 ---
 id: SPEC-007
 titulo: Toda entrada de inventario lleva contrapartida (nunca un asiento de una sola línea)
-estado: APROBADA   # aprobada por el usuario 2026-10-04; PA-1 resuelta; PA-2 (barrer llamadores) se resuelve al implementar
+estado: EN_CURSO   # plan escrito 2026-10-04; pendiente de confirmación del usuario (PA-3 y PA-4)
 fecha: 2026-10-04
 rama: feat/spec-007-entrada-inventario-contrapartida
 arbol: "[3]"
@@ -46,6 +46,12 @@ Conclusión: **toda entrada tiene contrapartida**; lo que varía es cuál.
 ## 5. Asientos contables
 | Caso | Cuenta | Débito | Crédito |
 |---|---|---|---|
+| 1 | test-agent | RED en `InventoryAccountingService.test.ts`: CA-1 (sin contrapartida → error y no se crea asiento), CA-2 (Banco, 2 líneas Σ=0), CA-3 (Capital/EQUITY), CA-4 (cuenta de otra empresa), tipos rechazados (Ingreso, Contra-activo, la cuenta de inventario del propio ítem), CA-5 y PA-3 (con factura: sin asiento nuevo y enlaza al de la factura; factura sin asiento → error), CA-tenant, CA-período. Test en `createDraftMovement`: falla temprano sin contrapartida. | Sí, RED por la razón correcta |
+| 2 | test-agent | CA-6: test de arquitectura que falla si `InventoryAccountingService.ts` contiene `expectBalanced: false`. | Sí, RED |
+| 3 | ledger-agent | GREEN en `InventoryAccountingService.postMovement` y `InventoryOperationsService.createDraftMovement`: contrapartida obligatoria en ENTRADA sin factura; helper de validación (misma empresa con `assertAccountsBelongToCompany`, tipo ASSET/LIABILITY/EQUITY/EXPENSE, distinta de la cuenta de inventario del ítem); rama con factura según PA-3; se elimina la rama de una línea, `expectBalanced:false` y el comentario `ADR-058 B1`; `assertBalancedGLEntries` siempre. | GREEN |
+| 4 | ui-agent | `MovementForm`: selector obligatorio solo en ENTRADA sin factura, con ayuda de la contadora (Banco/Caja o CxP para compras; Capital solo si es aporte de socios), `label`/`id`, `aria-busy` y `disabled={isPending}`. `inventory/page.tsx`: añadir `EQUITY` a los tipos ofrecidos (hoy solo ASSET/EXPENSE/LIABILITY, por lo que Capital no se podía elegir). | Test jsdom del formulario |
+| 5 | security-agent | Revisión de `postMovementAction` y `createDraftMovement`: aislamiento de empresa, cuenta ajena, mensajes que no filtran errores crudos, rol ACCOUNTING. CRITICAL/HIGH bloquean. | n/a |
+| 6 | (yo) | Gates: `tsc`, `vitest`, `lint`, `format:check`; marcar CA-1..CA-período; cerrar §12; actualizar Estado Activo de `contaflow-context-v3.md`. Sin merge. | n/a |
 | Compra de contado | Inventario de mercancía | costo total | |
 | | Banco o Caja | | costo total |
 | Compra a crédito | Inventario de mercancía | costo total | |
@@ -86,7 +92,10 @@ Lo completa `/implementar`.
 
 ## 11. Riesgos y preguntas abiertas
 - **PA-1 (RESUELTA 2026-10-04, contadora + confirmación del usuario):** la contrapartida puede ser **Pasivo** (cuentas por pagar al proveedor, o al socio), **Patrimonio** (capital, aporte de socios), **Activo** (Banco o Caja si es al contado; la frase "no activo" de la transcripción fue un lapsus de dictado, el usuario confirmó que el Activo también se admite) o **Costo/Gasto**. Se **rechazan** las de **Ingreso** y la propia cuenta de inventario. Regla a implementar: tipos permitidos = Activo (excepto la cuenta de inventario del ítem), Pasivo, Patrimonio y Gasto/Costo.
-- **PA-2 (usuario):** ¿hay entradas "standalone" que hoy se creen a propósito sin contrapartida (importaciones, flujos de nómina o de fabricación) que se rompan? Hay que barrer los llamadores de `postMovement` antes de implementar.
+- **PA-2 (RESUELTA 2026-10-04, barrido de llamadores):** `postMovement` tiene UN solo llamador: `postMovementAction` (`inventory-accounting.actions.ts`), usado por el formulario de movimientos y por `PendingMovementsList`. Las facturas y los pedidos NO lo usan: llaman a `autoPostMovementInTx`, que para ENTRADA reutiliza el asiento de la factura y no crea líneas. No hay importación, nómina ni fabricación que cree entradas sin contrapartida. Datos de producción (solo lectura): 1 ENTRADA en DRAFT (con contrapartida), 8 ENTRADA POSTED sin factura, sin contrapartida y **sin asiento** (`transactionId` nulo), 1 SALIDA POSTED con factura y asiento. Ningún asiento de una línea.
+- **PA-3 (DECISIÓN TÉCNICA, necesita confirmación del usuario):** `postMovement` no mira `invoiceId`. Una ENTRADA ligada a factura que llega a `postMovement` (ítems LOT/SERIAL, que `autoPostMovementInTx` deja en DRAFT, o una factura sin asiento) hoy crea un asiento de UNA línea Dr Inventario. Si la factura ya tenía su asiento (Dr Inventario), el Libro Mayor queda con el débito **duplicado**. RN-4 ("sin cambios") y RN-5 ("ninguna línea suelta") chocan en ese camino. Propuesta: con `invoiceId`, `postMovement` NO crea asiento y enlaza el movimiento al asiento de la factura, igual que `autoPostMovementInTx`; si la factura aún no tiene asiento, rechaza con mensaje de negocio. Corrige la duplicación y respeta la intención de la spec ("no se duplica el débito").
+- **PA-4 (hallazgo fuera de alcance, necesita decisión):** el formulario exige contrapartida también en AJUSTE, pero el servicio la ignora (siempre Dr COGS / Cr Inventario) y la guarda sin usarla. El usuario elige "Mermas" y el asiento usa la cuenta de costo del ítem. No toca el cuadre; propongo corregirlo en una spec aparte.
+- **PA-5 (hallazgo fuera de alcance, SIN VERIFICAR):** `InventoryMovement.transactionId` es `@unique`. Una factura de compra con 2 o más líneas de inventario haría que `autoPostMovementInTx` enlace dos movimientos al MISMO asiento de factura, lo que violaría el único. Los tests mockean Prisma y no lo ven. Hay que comprobarlo con una prueba de integración en Postgres real antes de afirmar nada.
 - **R-1:** el formulario de movimiento hoy puede no pedir la contrapartida; hay que revisarlo y es un cambio de UI (ui-agent).
 - **R-2:** es prerrequisito de SPEC-001 (el trigger rechazaría el asiento de una línea).
 
