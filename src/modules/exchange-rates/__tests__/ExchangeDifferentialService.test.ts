@@ -297,6 +297,29 @@ describe("ExchangeDifferentialService — ADR-058 diferencial al centimo", () =>
     expect(l.differential.mul(100).isInteger()).toBe(true);
   });
 
+  it("el saldo pendiente en divisa (outstandingForeign) va a 2 decimales HALF_UP, no a 6 (contadora 2026-10-04)", async () => {
+    // 12345.67 / 779.9522 = 15.828752... USD -> HALF_UP a 2 decimales = 15.83 (antes 15.828752)
+    // 78283.80 / 779.9522 = 100.369997... USD -> 100.37 (el monto de una factura emitida en USD)
+    const db = dbCalc([
+      row("F-1", "SALE", "12345.67", "779.9522", "c1"),
+      row("F-2", "SALE", "78283.80", "779.9522", "c2"),
+    ]);
+    const summary = await ExchangeDifferentialService.calculate(
+      "co-1",
+      "USD",
+      new Decimal("812.3377"),
+      db
+    );
+    const byId = Object.fromEntries(summary.lines.map((l) => [l.invoiceId, l]));
+    expect(byId["F-1"].outstandingForeign.toString()).toBe("15.83");
+    expect(byId["F-2"].outstandingForeign.toString()).toBe("100.37");
+    for (const l of summary.lines) {
+      expect(l.outstandingForeign.decimalPlaces()).toBeLessThanOrEqual(2);
+      // el diferencial se calcula sobre el saldo ya a 2 decimales y sigue siendo múltiplo de 0,01
+      expect(l.differential.mul(100).isInteger()).toBe(true);
+    }
+  });
+
   it("post(): varias facturas con tasas de 4 decimales -> Σ = 0 exacto y multiplos de 0,01", async () => {
     const db = dbCalc([
       row("F-1", "SALE", "12345.67", "779.9522", "c1"),

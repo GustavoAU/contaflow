@@ -126,13 +126,17 @@ export class ExchangeDifferentialService {
         }
       }
 
-      const outstandingForeign = totalForeign.minus(paidForeign).toDecimalPlaces(6);
+      // ADR-058 + contadora (2026-10-04): el saldo pendiente en divisa es un MONTO y también va a
+      // 2 decimales (HALF_UP), no a 6. Las tasas siguen con sus decimales: son factores.
+      const outstandingForeign = totalForeign
+        .minus(paidForeign)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
       if (outstandingForeign.lessThanOrEqualTo(0)) continue;
 
       // ADR-058: los montos en Bs. se redondean a 2 decimales (HALF_UP) en el ORIGEN; el
       // diferencial es la resta de dos montos ya a 2 decimales, así que es exacto (múltiplo de
-      // 0,01) y cada par línea/contrapartida del asiento cuadra sin residuo. Las tasas y la
-      // cantidad en divisa (6 dec.) son factores y no se redondean aquí.
+      // 0,01) y cada par línea/contrapartida del asiento cuadra sin residuo. Las tasas son
+      // factores y no se redondean aquí.
       const vesAtOriginal = outstandingForeign
         .times(originalRate)
         .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);

@@ -230,8 +230,10 @@ describe("PaymentBatchService.createBatch", () => {
     // 1000.50 x 3% = 30.015 -> HALF_UP a 2 decimales = 30.02 (a 4 decimales habria sido 30.015)
     expect(data.totalIgtfAmount.toString()).toBe("30.02");
     const lineIgtf = data.lines.create.map((l) => l.igtfAmount);
-    // 300.15/1000.50 x 30.02 = 9.0060 -> ROUND_DOWN a 2 = 9.00 ; la ultima cuadra: 30.02 - 18.00
-    expect(lineIgtf.map((d) => d.toString())).toEqual(["9", "9", "12.02"]);
+    // Contadora (2026-10-04): el reparto por línea es HALF_UP (antes ROUND_DOWN).
+    // 300.15/1000.50 x 30.02 = 9.006 -> HALF_UP a 2 = 9.01 (ROUND_DOWN daba 9.00) ;
+    // la ultima cuadra el total: 30.02 - (9.01 + 9.01) = 12.00
+    expect(lineIgtf.map((d) => d.toString())).toEqual(["9.01", "9.01", "12"]);
     const sum = lineIgtf.reduce((a, d) => a.plus(d), new Decimal(0));
     expect(sum.equals(data.totalIgtfAmount)).toBe(true);
     for (const d of lineIgtf) expect(d.mul(100).isInteger()).toBe(true);

@@ -253,7 +253,9 @@ export class PaymentBatchService {
             const proportional = linesWithIgtf[i].amountVes
               .div(input.totalAmountVes)
               .mul(computedTotalIgtf)
-              .toDecimalPlaces(2, Decimal.ROUND_DOWN); // ADR-058: prorrateo a 2 decimales; la última línea cuadra
+              // ADR-058 + contadora (2026-10-04): el reparto por línea es HALF_UP (mitad hacia
+              // arriba), no hacia abajo; la última línea cuadra el total del lote.
+              .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
             linesWithIgtf[i].computedIgtf = proportional;
             accumulated = accumulated.plus(proportional);
           }
