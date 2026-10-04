@@ -5,7 +5,7 @@ import { withSerializableRetry } from "@/lib/tx-helpers";
 import { PeriodSnapshotService } from "@/modules/accounting/services/PeriodSnapshotService";
 import { FiscalYearService } from "@/modules/accounting/services/FiscalYearService";
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import type { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 
@@ -220,7 +220,8 @@ export class FiscalYearCloseService {
               // Débito a cuentas REVENUE (saldo era crédito → lo cerramos con débito = montos positivos)
               // Crédito a cuentas EXPENSE (saldo era débito → lo cerramos con crédito = montos negativos)
               // El neto va a la cuenta Resultado del Ejercicio
-              const closingEntries: Prisma.JournalEntryCreateManyTransactionInput[] = [];
+              const closingEntries: { accountId: string; amount: Decimal; description: string }[] =
+                [];
 
               for (const { accountId, account, balance } of Object.values(revenueByAccount)) {
                 if (!balance.isZero()) {
@@ -246,7 +247,7 @@ export class FiscalYearCloseService {
 
               // Contrapartida en Resultado del Ejercicio
               // Si ganancia: Crédito (negativo). Si pérdida: Débito (positivo).
-              const resultEntry: Prisma.JournalEntryCreateManyTransactionInput = {
+              const resultEntry = {
                 accountId: company.resultAccountId,
                 amount: netResult.negated().toDecimalPlaces(4), // ganancia = crédito (negativo)
                 description: `Resultado del ejercicio ${year}`,
@@ -255,9 +256,11 @@ export class FiscalYearCloseService {
 
               // ── 7. Persistir el asiento de cierre ─────────────────────────────────
               // N4: invariante partida doble (amount tipado por Prisma → normalizar a Decimal)
-              assertBalancedGLEntries(
-                closingEntries.map((e) => ({ amount: new Decimal(e.amount.toString()) }))
-              );
+              // ADR-058 B2: derivado de saldos guardados → exact, sin cuantizar
+              const { entries: closingEntriesExact } = quantizeGLEntries(closingEntries, {
+                mode: "exact",
+              });
+              assertBalancedGLEntries(closingEntriesExact);
               const closingTx = await tx.transaction.create({
                 data: {
                   number: closingNumber,
@@ -268,7 +271,15 @@ export class FiscalYearCloseService {
                   type: "CIERRE",
                   status: "POSTED",
                   periodId: lastPeriod.id,
-                  entries: { createMany: { data: closingEntries } },
+                  entries: {
+                    createMany: {
+                      data: closingEntriesExact.map((e) => ({
+                        accountId: e.accountId,
+                        amount: e.amount,
+                        description: e.description,
+                      })),
+                    },
+                  },
                 },
                 select: { id: true },
               });
@@ -440,7 +451,7 @@ export class FiscalYearCloseService {
               // Débito: Resultado del Ejercicio (cierra la cuenta resultado)
               // Crédito: Utilidades Retenidas (si ganancia) o Pérdidas Acumuladas (si pérdida)
               // En nuestro sistema: Débito = positivo, Crédito = negativo
-              const appEntries: Prisma.JournalEntryCreateManyTransactionInput[] = [
+              const appEntries: { accountId: string; amount: Decimal; description: string }[] = [
                 {
                   accountId: company.resultAccountId,
                   amount: netResult.toDecimalPlaces(4), // débito si ganancia, crédito si pérdida
@@ -454,9 +465,11 @@ export class FiscalYearCloseService {
               ];
 
               // N4: invariante partida doble (amount tipado por Prisma → normalizar a Decimal)
-              assertBalancedGLEntries(
-                appEntries.map((e) => ({ amount: new Decimal(e.amount.toString()) }))
-              );
+              // ADR-058 B2: derivado de saldos guardados → exact, sin cuantizar
+              const { entries: appEntriesExact } = quantizeGLEntries(appEntries, {
+                mode: "exact",
+              });
+              assertBalancedGLEntries(appEntriesExact);
               const appTx = await tx.transaction.create({
                 data: {
                   number: appNumber,
@@ -466,7 +479,15 @@ export class FiscalYearCloseService {
                   date: appDate,
                   type: "CIERRE",
                   status: "POSTED",
-                  entries: { createMany: { data: appEntries } },
+                  entries: {
+                    createMany: {
+                      data: appEntriesExact.map((e) => ({
+                        accountId: e.accountId,
+                        amount: e.amount,
+                        description: e.description,
+                      })),
+                    },
+                  },
                 },
                 select: { id: true },
               });

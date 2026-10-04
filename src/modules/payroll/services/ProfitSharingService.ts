@@ -18,7 +18,7 @@
 
 import prisma from "@/lib/prisma";
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { Prisma } from "@prisma/client";
 import { countCompleteMonths } from "./VacationService";
 import { bcvRateAt, salaryAmountToVes } from "./payroll-currency";
@@ -215,7 +215,11 @@ export const ProfitSharingService = {
       .div(12)
       .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
-    const profitAmount = fractionalDays.mul(avgSalary.div(30)).toDecimalPlaces(4);
+    // ADR-058 (R-1): el monto del DOCUMENTO se redondea a 2 decimales donde se calcula,
+    // y el asiento se arma con ese mismo valor (el auxiliar coincide con el mayor).
+    const profitAmount = fractionalDays
+      .mul(avgSalary.div(30))
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
     // ── Retención INCES del trabajador (Ley INCES Art. 50) ───────────────────
     // Aquí es donde vive este aporte. Hasta 2026-08 se descontaba 0,5% MENSUAL
@@ -241,7 +245,7 @@ export const ProfitSharingService = {
     }
 
     const incesRetention = incesApplies
-      ? profitAmount.mul(INCES_WORKER_RATE).toDecimalPlaces(4)
+      ? profitAmount.mul(INCES_WORKER_RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
       : new Decimal(0);
 
     const isFractional = input.isFractional ?? false;
@@ -268,26 +272,38 @@ export const ProfitSharingService = {
         async (tx) => {
           // Asiento contable de causación (VEN-NIF / NIC 19)
           // Convención: positivo = Débito, negativo = Crédito
-          const profitEntries = [
+          const rawProfitEntries: Array<{
+            accountId: string;
+            amount: Decimal;
+            description: string;
+            noAbsorb?: boolean;
+          }> = [
             {
               accountId: config.benefitsExpenseAccountId!,
-              amount: profitAmount.toDecimalPlaces(4), // Débito
+              amount: profitAmount, // Débito
               description: `Accrual utilidades LOTTT Art.131 — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
             },
             {
               accountId: config.profitSharingPayableAccountId!,
               // El trabajador cobra el neto: el pasivo con él baja por la retención.
-              amount: profitAmount.minus(incesRetention).negated().toDecimalPlaces(4), // Crédito
+              amount: profitAmount.minus(incesRetention).negated(), // Crédito
               description: `Pasivo utilidades — ${input.fiscalYear}${isFractional ? " fraccionadas" : ""} — ${employee.firstName} ${employee.lastName}`,
             },
           ];
           if (incesRetention.greaterThan(0)) {
-            profitEntries.push({
+            rawProfitEntries.push({
               accountId: config.incesPayableAccountId!,
-              amount: incesRetention.negated().toDecimalPlaces(4), // Crédito
+              amount: incesRetention.negated(), // Crédito
               description: `Retención INCES 0,5% s/utilidades (Art. 50) — ${input.fiscalYear} — ${employee.firstName} ${employee.lastName}`,
+              noAbsorb: true, // obligación parafiscal (ADR-058)
             });
           }
+          // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+          const {
+            entries: profitEntries,
+            residual: glResidual,
+            absorbedIndex: glAbsorbedIndex,
+          } = quantizeGLEntries(rawProfitEntries);
           assertBalancedGLEntries(profitEntries); // N4: invariante partida doble
           const transaction = await tx.transaction.create({
             data: {
@@ -299,7 +315,11 @@ export const ProfitSharingService = {
               userId,
               type: "DIARIO",
               entries: {
-                create: profitEntries,
+                create: profitEntries.map((e) => ({
+                  accountId: e.accountId,
+                  amount: e.amount,
+                  description: e.description,
+                })),
               },
             },
           });
@@ -314,8 +334,8 @@ export const ProfitSharingService = {
               fractionalDays: fractionalDays.toFixed(2),
               monthsWorked,
               baseSalarySnapshot: avgSalary.toFixed(4),
-              profitAmount: profitAmount.toFixed(4),
-              incesRetention: incesRetention.toFixed(4),
+              profitAmount: profitAmount.toFixed(2),
+              incesRetention: incesRetention.toFixed(2),
               isFractional,
               transactionId: transaction.id,
               createdByUserId: userId,
@@ -338,8 +358,17 @@ export const ProfitSharingService = {
                 profitDays: profitDays.toFixed(2),
                 fractionalDays: fractionalDays.toFixed(2),
                 monthsWorked,
-                profitAmount: profitAmount.toFixed(4),
+                profitAmount: profitAmount.toFixed(2),
                 isFractional,
+                ...(!glResidual.isZero()
+                  ? {
+                      glRounding: {
+                        residual: glResidual.toString(),
+                        absorbedIndex: glAbsorbedIndex,
+                        scale: 2,
+                      },
+                    }
+                  : {}),
                 ...(input.netProfitVes
                   ? {
                       netProfitVes: input.netProfitVes,

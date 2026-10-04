@@ -235,6 +235,19 @@ describe("createDraftMovement", () => {
     expect(createCall.data.totalCost.toString()).toBe("600"); // 5 × 120
   });
 
+  it("ADR-058 R-1: totalCost a 2 decimales HALF_UP en origen; el costo unitario (factor) conserva 4", async () => {
+    await createDraftMovement({ ...BASE, quantity: 3, unitCost: "33.3333" }, USER_ID);
+    const createCall = currentTx.inventoryMovement.create.mock.calls[0]![0];
+    expect(createCall.data.unitCost.toString()).toBe("33.3333");
+    // 3 × 33.3333 = 99.9999 → 100 (antes se guardaba 99.9999)
+    expect(createCall.data.totalCost.toFixed(2)).toBe("100.00");
+    expect(createCall.data.totalCost.decimalPlaces()).toBeLessThanOrEqual(2);
+    // mitad se aleja de cero: 3 × 0.0150 = 0.045 → 0.05
+    await createDraftMovement({ ...BASE, quantity: 3, unitCost: "0.015" }, USER_ID);
+    const second = currentTx.inventoryMovement.create.mock.calls[1]![0];
+    expect(second.data.totalCost.toFixed(2)).toBe("0.05");
+  });
+
   it("MEDIUM-2: para SALIDA usa CPP del ítem — ignora unitCost del cliente", async () => {
     await createDraftMovement({ ...BASE, type: "SALIDA", unitCost: "999" }, USER_ID);
     const createCall = currentTx.inventoryMovement.create.mock.calls[0]![0];

@@ -15,7 +15,7 @@ import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
 import { normalizeRifOrNull } from "@/lib/tax-config";
 import { batchResolvePartyIdsByRif } from "@/lib/party-resolver";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 
 export interface FxDiffLine {
   invoiceId: string;
@@ -129,9 +129,17 @@ export class ExchangeDifferentialService {
       const outstandingForeign = totalForeign.minus(paidForeign).toDecimalPlaces(6);
       if (outstandingForeign.lessThanOrEqualTo(0)) continue;
 
-      const vesAtOriginal = outstandingForeign.times(originalRate).toDecimalPlaces(4);
-      const vesAtReval = outstandingForeign.times(revalRate).toDecimalPlaces(4);
-      const differential = vesAtReval.minus(vesAtOriginal).toDecimalPlaces(4);
+      // ADR-058: los montos en Bs. se redondean a 2 decimales (HALF_UP) en el ORIGEN; el
+      // diferencial es la resta de dos montos ya a 2 decimales, así que es exacto (múltiplo de
+      // 0,01) y cada par línea/contrapartida del asiento cuadra sin residuo. Las tasas y la
+      // cantidad en divisa (6 dec.) son factores y no se redondean aquí.
+      const vesAtOriginal = outstandingForeign
+        .times(originalRate)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      const vesAtReval = outstandingForeign
+        .times(revalRate)
+        .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+      const differential = vesAtReval.minus(vesAtOriginal);
 
       if (differential.isZero()) continue;
 
@@ -238,12 +246,13 @@ export class ExchangeDifferentialService {
     const yyyy = revaluationDate.getUTCFullYear();
     const desc = `Revaluación diferencial cambiario ${mm}/${yyyy} (NIC 21)`;
 
-    const entries: Array<{
+    const rawEntries: Array<{
       accountId: string;
       amount: Decimal;
       description: string;
       customerId?: string;
       vendorId?: string;
+      noAbsorb?: boolean;
     }> = [];
 
     // ADR-054: una línea CxC por CLIENTE (no un neto agregado sin tercero) — necesario para
@@ -251,11 +260,12 @@ export class ExchangeDifferentialService {
     // líneas es exactamente netCxCMovement (los grupos particionan todas las líneas SALE).
     for (const { partyId, netMovement } of summary.cxcByParty) {
       if (netMovement.isZero()) continue;
-      entries.push({
+      rawEntries.push({
         accountId: config.arAccountId,
         amount: netMovement,
         description: `${desc} — CxC`,
         customerId: partyId,
+        noAbsorb: true, // auxiliar de CxC (tercero)
       });
     }
 
@@ -263,16 +273,17 @@ export class ExchangeDifferentialService {
     for (const { partyId, netMovement } of summary.cxpByParty) {
       if (netMovement.isZero()) continue;
       // CxP is a liability: movement > 0 means liability increases = Credit (negative)
-      entries.push({
+      rawEntries.push({
         accountId: config.apAccountId,
         amount: netMovement.negated(),
         description: `${desc} — CxP`,
         vendorId: partyId,
+        noAbsorb: true, // auxiliar de CxP (tercero)
       });
     }
 
     if (summary.totalFxGain.greaterThan(0)) {
-      entries.push({
+      rawEntries.push({
         accountId: config.fxGainAccountId,
         amount: summary.totalFxGain.negated(), // income = Credit
         description: `${desc} — ganancia cambiaria`,
@@ -280,13 +291,17 @@ export class ExchangeDifferentialService {
     }
 
     if (summary.totalFxLoss.greaterThan(0)) {
-      entries.push({
+      rawEntries.push({
         accountId: config.fxLossAccountId,
         amount: summary.totalFxLoss, // expense = Debit
         description: `${desc} — pérdida cambiaria`,
       });
     }
 
+    // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir. Con el origen ya a
+    // 2 decimales no hay residuo; si lo hubiera, solo puede absorberse en ganancia/pérdida
+    // cambiaria (las líneas CxC/CxP son auxiliares de tercero, noAbsorb).
+    const { entries } = quantizeGLEntries(rawEntries);
     // N4: invariante de partida doble
     assertBalancedGLEntries(entries);
 

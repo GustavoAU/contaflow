@@ -4,7 +4,7 @@
 // Métodos: Línea Recta, Suma de Dígitos, Unidades de Producción
 
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { PrismaClient, DepreciationMethod } from "@prisma/client";
 import type {
@@ -126,10 +126,12 @@ export class FixedAssetService {
     // Hallazgo #8: asiento de adquisición GL — Dr Activos Fijos Brutos / Cr Origen
     // Solo si se proporcionó acquisitionCounterpartAccountId (campo opcional).
     // Evita que la cuenta de Activos Fijos Brutos quede en cero en el Balance General.
+    let acqGlResidual = new Decimal(0);
+    let acqGlAbsorbedIndex: number | null = null;
     if (input.acquisitionCounterpartAccountId) {
       const acqCost = new Decimal(input.acquisitionCost);
       const txCount = await tx.transaction.count({ where: { companyId: input.companyId } });
-      const acqEntries = [
+      const rawAcqEntries = [
         {
           accountId: input.assetAccountId,
           amount: acqCost,
@@ -141,6 +143,17 @@ export class FixedAssetService {
           description: `Origen adquisición — ${input.name}`,
         },
       ];
+      // ADR-058: cuantizar al céntimo antes de verificar y persistir.
+      const {
+        entries: acqEntries,
+        residual: acqResidual,
+        absorbedIndex: acqAbsorbedIndex,
+      } = quantizeGLEntries(rawAcqEntries);
+      acqGlResidual = acqResidual;
+      acqGlAbsorbedIndex = acqAbsorbedIndex;
+      if (acqEntries.length === 0) {
+        throw new Error("El costo de adquisición es inferior a un céntimo (0,01)");
+      }
       assertBalancedGLEntries(acqEntries); // N4: invariante partida doble
       await tx.transaction.create({
         data: {
@@ -151,7 +164,11 @@ export class FixedAssetService {
           type: "DIARIO",
           userId,
           entries: {
-            create: acqEntries,
+            create: acqEntries.map((e) => ({
+              accountId: e.accountId,
+              amount: e.amount,
+              description: e.description,
+            })),
           },
         },
       });
@@ -170,6 +187,15 @@ export class FixedAssetService {
           companyId: input.companyId,
           depreciationMethod: input.depreciationMethod,
           acquisitionCounterpartAccountId: input.acquisitionCounterpartAccountId ?? null,
+          ...(!acqGlResidual.isZero()
+            ? {
+                glRounding: {
+                  residual: acqGlResidual.toString(),
+                  absorbedIndex: acqGlAbsorbedIndex,
+                  scale: 2,
+                },
+              }
+            : {}),
         },
       },
     });
@@ -444,7 +470,7 @@ export class FixedAssetService {
     });
     const alreadyRestatementSet = new Set(existingRestatements.map((r) => r.assetId));
 
-    const glEntries: { accountId: string; amount: Decimal; description: string }[] = [];
+    const rawGlEntries: { accountId: string; amount: Decimal; description: string }[] = [];
     // N3: datos para los registros históricos por activo
     const restatementRecords: {
       assetId: string;
@@ -491,13 +517,13 @@ export class FixedAssetService {
       const factor = new Decimal(restatement.factor);
 
       // DEBE: Activo (ajuste al costo histórico)
-      glEntries.push({
+      rawGlEntries.push({
         accountId: asset.assetAccountId,
         amount: adjustment, // positivo = débito
         description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
       });
       // HABER: Actualización de Patrimonio
-      glEntries.push({
+      rawGlEntries.push({
         accountId: patrimonioAccountId,
         amount: adjustment.negated(), // negativo = crédito
         description: `Reajuste INPC ${periodYear}/${String(periodMonth).padStart(2, "0")}: ${asset.name}`,
@@ -514,13 +540,19 @@ export class FixedAssetService {
       processed++;
     }
 
-    if (glEntries.length === 0) {
+    if (rawGlEntries.length === 0) {
       return { processed: 0, skipped, totalAdjustment: new Decimal(0) };
     }
 
     const txCount = await tx.transaction.count({ where: { companyId } });
     const txNumber = `INF-AF-${periodYear}${String(periodMonth).padStart(2, "0")}-${String(txCount + 1).padStart(4, "0")}`;
 
+    // ADR-058: los ajustes ya vienen a 2 decimales (computeAssetRestatement); se cuantiza igual.
+    const {
+      entries: glEntries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(rawGlEntries);
     assertBalancedGLEntries(glEntries); // N4: invariante partida doble
     const createdTx = await tx.transaction.create({
       data: {
@@ -530,7 +562,13 @@ export class FixedAssetService {
         description: `Reajuste por Inflación INPC — Activos Fijos ${periodYear}/${String(periodMonth).padStart(2, "0")} (Art. 173 ISLR)`,
         type: "AJUSTE",
         userId,
-        entries: { create: glEntries },
+        entries: {
+          create: glEntries.map((e) => ({
+            accountId: e.accountId,
+            amount: e.amount,
+            description: e.description,
+          })),
+        },
       },
     });
 
@@ -567,6 +605,15 @@ export class FixedAssetService {
           skipped,
           totalAdjustment: totalAdjust.toFixed(2),
           txNumber,
+          ...(!glResidual.isZero()
+            ? {
+                glRounding: {
+                  residual: glResidual.toString(),
+                  absorbedIndex: glAbsorbedIndex,
+                  scale: 2,
+                },
+              }
+            : {}),
         },
       },
     });

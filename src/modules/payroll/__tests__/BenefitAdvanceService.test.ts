@@ -467,3 +467,63 @@ describe("BenefitAdvanceService.listPendingAdvances (F-04)", () => {
     );
   });
 });
+
+// ─── ADR-058: redondeo al céntimo en el origen ───────────────────────────────
+
+describe("BenefitAdvanceService — ADR-058 (montos a 2 decimales)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(ACTIVE_EMPLOYEE as never);
+    vi.mocked(prisma.benefitBalance.findUnique).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(OPEN_PERIOD as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.benefitBalance.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitAdvance.create).mockResolvedValue(ADVANCE_ROW as never);
+    vi.mocked(prisma.benefitAdvance.update).mockResolvedValue(ADVANCE_ROW as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  function glEntries() {
+    const data = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0]?.data;
+    return (data?.entries?.create ?? []) as Array<{ amount: Decimal }>;
+  }
+
+  it("registerAdvance: 1234.56789 se redondea a 1234.57 en documento, asiento y saldo", async () => {
+    await BenefitAdvanceService.registerAdvance(COMPANY, USER, {
+      employeeId: EMP_ID,
+      amount: "1234.56789",
+      reason: "HOUSING",
+    });
+
+    const entries = glEntries();
+    expect(entries.map((e) => e.amount.toFixed(2))).toEqual(["1234.57", "-1234.57"]);
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of entries) expect(e.amount.mul(100).isInteger()).toBe(true);
+    expect(vi.mocked(prisma.benefitAdvance.create).mock.calls[0]?.[0]?.data).toMatchObject({
+      amount: "1234.57",
+    });
+    // 100000 - 1234.57 = 98765.43 : el saldo baja exactamente lo que se asentó
+    expect(vi.mocked(prisma.benefitBalance.update).mock.calls[0]?.[0]?.data).toMatchObject({
+      currentBalance: "98765.4300",
+    });
+  });
+
+  it("approveAdvance: un anticipo PENDING guardado a 4 decimales se asienta a 2 (1234.5678 -> 1234.57)", async () => {
+    vi.mocked(prisma.benefitAdvance.findFirst).mockResolvedValue({
+      ...ADVANCE_ROW,
+      status: "PENDING",
+      amount: new Decimal("1234.5678"),
+    } as never);
+
+    await BenefitAdvanceService.approveAdvance(COMPANY, USER, "adv-1");
+
+    const entries = glEntries();
+    expect(entries.map((e) => e.amount.toFixed(2))).toEqual(["1234.57", "-1234.57"]);
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    expect(vi.mocked(prisma.benefitBalance.update).mock.calls[0]?.[0]?.data).toMatchObject({
+      currentBalance: "98765.4300",
+    });
+  });
+});

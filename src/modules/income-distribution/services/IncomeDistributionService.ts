@@ -3,7 +3,7 @@
 import { createHash } from "crypto";
 import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import { Decimal } from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import prisma from "@/lib/prisma";
 import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import type { IncomeDistributionStatus } from "@prisma/client";
@@ -360,7 +360,7 @@ export async function applyDistribution(
           const referenceNumber = `${PREFIX}${String((Number.isFinite(lastSeq) ? lastSeq : 0) + 1).padStart(6, "0")}`;
 
           // Asiento contable: Débito origen, Crédito cada línea (ADR-023 D-3)
-          const distEntries = [
+          const rawDistEntries = [
             // Débito: cuenta origen
             {
               accountId: dist.originAccountId,
@@ -374,6 +374,14 @@ export async function applyDistribution(
               description: l.lineDescription ?? `${referenceNumber} — ${l.recipientCompany.name}`,
             })),
           ];
+          // ADR-058: cuantizar al céntimo. Los montos ya vienen a 2 decimales; la holgura ±0,01 de
+          // V-6 (arriba, sin cambios) se absorbe en la línea de mayor valor. Ninguna línea de este
+          // asiento lleva tercero (customerId/vendorId/partnerId), por eso no hay noAbsorb.
+          const {
+            entries: distEntries,
+            residual: glResidual,
+            absorbedIndex: glAbsorbedIndex,
+          } = quantizeGLEntries(rawDistEntries);
           assertBalancedGLEntries(distEntries); // N4: invariante partida doble
           const transaction = await tx.transaction.create({
             data: {
@@ -384,7 +392,11 @@ export async function applyDistribution(
               type: "DIARIO",
               userId,
               entries: {
-                create: distEntries,
+                create: distEntries.map((e) => ({
+                  accountId: e.accountId,
+                  amount: e.amount,
+                  description: e.description,
+                })),
               },
             },
           });
@@ -410,6 +422,15 @@ export async function applyDistribution(
                 referenceNumber,
                 transactionId: transaction.id,
                 totalAmountVes: totalVes.toFixed(2),
+                ...(!glResidual.isZero()
+                  ? {
+                      glRounding: {
+                        residual: glResidual.toString(),
+                        absorbedIndex: glAbsorbedIndex,
+                        scale: 2,
+                      },
+                    }
+                  : {}),
               },
             },
           });

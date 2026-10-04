@@ -636,6 +636,140 @@ describe("voidTransaction", () => {
   });
 });
 
+// ─── ADR-058 / SPEC-004 lote 2 — asiento manual y anulacion ────────────────
+
+describe("ADR-058 — TransactionService cuantizacion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.fiscalYearClose.findUnique).mockResolvedValue(null as never);
+  });
+
+  it("asiento manual con montos a 2 decimales: persiste los mismos montos, Σ = 0, sin noAbsorb", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([
+      { id: "acc-1" },
+      { id: "acc-2" },
+      { id: "acc-3" },
+    ] as never);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+      fiscalYear: { status: "OPEN" },
+    } as never);
+    vi.mocked(prisma.transaction.findFirst).mockResolvedValue(null);
+    const createMock = vi.fn().mockResolvedValue({ id: "tx-1", entries: [] });
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
+      fn({
+        ...prisma,
+        transaction: { ...prisma.transaction, create: createMock },
+        auditLog: { create: vi.fn() },
+      } as never)
+    );
+
+    await TransactionService.createBalancedTransaction({
+      ...BASE_INPUT,
+      entries: [
+        { accountId: "acc-1", debit: "0.10", credit: "0" },
+        { accountId: "acc-2", debit: "0.20", credit: "0" },
+        { accountId: "acc-3", debit: "0", credit: "0.30" },
+      ],
+    });
+
+    const lines = createMock.mock.calls[0][0].data.entries.create as {
+      amount: import("decimal.js").Decimal;
+    }[];
+    expect(lines.map((l) => l.amount.toString())).toEqual(["0.1", "0.2", "-0.3"]);
+    expect(
+      lines.reduce((a, l) => a.plus(l.amount), lines[0].amount.minus(lines[0].amount)).isZero()
+    ).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+  });
+
+  it("asiento manual con mas de 2 decimales: Zod lo rechaza con mensaje claro (no redondea en silencio)", async () => {
+    await expect(
+      TransactionService.createBalancedTransaction({
+        ...BASE_INPUT,
+        entries: [
+          { accountId: "acc-1", debit: "1000.123", credit: "0" },
+          { accountId: "acc-2", debit: "0", credit: "1000.123" },
+        ],
+      })
+    ).rejects.toThrow(/más de 2 decimales/);
+  });
+
+  it("asiento manual descuadrado por 1 centimo (Dr 100,01 / Cr 100,00): se RECHAZA, no se 'arregla' en silencio", async () => {
+    // Defensa en capas (revisión de seguridad MEDIUM-1): el schema compara débitos y créditos con
+    // igualdad EXACTA y rechaza antes de llegar al servicio; además el servicio llama a
+    // quantizeGLEntries en modo exact (sin absorber) para que, aunque el schema cambiara algún
+    // día, un descuadre de céntimos nunca se "arregle" restándolo a la línea mayor.
+    await expect(
+      TransactionService.createBalancedTransaction({
+        ...BASE_INPUT,
+        entries: [
+          { accountId: "acc-1", debit: "100.01", credit: "0" },
+          { accountId: "acc-2", debit: "0", credit: "100.00" },
+        ],
+      })
+    ).rejects.toThrow(/desbalanceado/);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("anulacion de un asiento historico a 4 decimales: espejo EXACTO, sin cuantizar", async () => {
+    vi.mocked(prisma.transaction.findFirst)
+      .mockResolvedValueOnce({
+        id: "tx-original",
+        number: "2026-03-000001",
+        companyId: "company-1",
+        userId: "user-1",
+        description: "Historico",
+        reference: null,
+        date: new Date("2026-03-10"),
+        type: "DIARIO",
+        status: "POSTED",
+        periodId: "period-1",
+        entries: [
+          { id: "e1", accountId: "acc-1", amount: { toString: () => "1000.1234" } },
+          { id: "e2", accountId: "acc-2", amount: { toString: () => "-1000.1234" } },
+        ],
+      } as never)
+      .mockResolvedValueOnce(null);
+    vi.mocked(prisma.accountingPeriod.findUnique).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+      year: 2026,
+      month: 3,
+      fiscalYear: { status: "OPEN" },
+    } as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      id: "period-1",
+      status: "OPEN",
+    } as never);
+    const createMock = vi.fn().mockResolvedValue({ id: "tx-void", entries: [] });
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn) =>
+      fn({
+        ...prisma,
+        transaction: {
+          ...prisma.transaction,
+          create: createMock,
+          update: vi.fn().mockResolvedValue({}),
+        },
+        auditLog: { create: vi.fn() },
+      } as never)
+    );
+
+    await TransactionService.voidTransaction(
+      { transactionId: "tx-original", userId: "user-1", reason: "Error en el monto" },
+      "company-1"
+    );
+
+    const lines = createMock.mock.calls[0][0].data.entries.create as {
+      amount: import("decimal.js").Decimal;
+    }[];
+    expect(lines.map((l) => l.amount.toString())).toEqual(["-1000.1234", "1000.1234"]);
+  });
+});
+
 // ─── getTransactionsByCompany ─────────────────────────────────────────────────
 
 describe("getTransactionsByCompany", () => {

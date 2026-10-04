@@ -5,7 +5,7 @@
 import prisma from "@/lib/prisma";
 import Decimal from "decimal.js";
 import type { Prisma } from "@prisma/client";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import type { PostMovementInput, VoidMovementInput } from "../schemas/inventory-movement.schema";
 import {
   resolveLotAllocations,
@@ -101,7 +101,9 @@ export async function postMovement(
         const txNumber = `INV-${dateTag}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
         // ── Generar asiento contable ──────────────────────────────────────────
-        const totalCost = new Decimal(movement.totalCost);
+        // ADR-058 (R-1): el costo total del movimiento (cantidad × CPP) se redondea a 2 decimales
+        // en el origen del POST y se persiste así; el costo unitario CPP es un factor y se queda.
+        const totalCost = new Decimal(movement.totalCost).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
         // ENTRADA: Débito Inventario / Crédito contrapartida (CxP/Caja si está configurada)
         // SALIDA:  Débito COGS / Crédito Inventario (asiento autosuficiente)
@@ -113,7 +115,12 @@ export async function postMovement(
         // asiento via InvoiceGLPostingService), se crea solo el DR Inventario para actualizar
         // el saldo del Libro Mayor de la cuenta de inventario.
         const baseDesc = `${movement.type} inventario — ${item.name} × ${qty}`;
-        const journalEntries =
+        const rawJournalEntries: {
+          accountId: string;
+          amount: Decimal;
+          description: string;
+          noAbsorb?: boolean;
+        }[] =
           movement.type === "ENTRADA"
             ? movement.counterpartAccountId
               ? [
@@ -122,6 +129,7 @@ export async function postMovement(
                     accountId: item.accountId,
                     amount: totalCost,
                     description: `${baseDesc} — inventario`,
+                    noAbsorb: true, // auxiliar de inventario = kardex
                   },
                   {
                     accountId: movement.counterpartAccountId,
@@ -136,6 +144,7 @@ export async function postMovement(
                     accountId: item.accountId,
                     amount: totalCost,
                     description: `${baseDesc} — inventario`,
+                    noAbsorb: true,
                   },
                 ]
             : [
@@ -149,8 +158,21 @@ export async function postMovement(
                   accountId: item.accountId,
                   amount: totalCost.negated(),
                   description: `${baseDesc}`,
+                  noAbsorb: true, // auxiliar de inventario = kardex
                 },
               ];
+
+        // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir.
+        // ADR-058 B1: asiento incompleto a propósito (SPEC-001 lo decidirá): la ENTRADA standalone
+        // tiene UNA sola línea (Dr Inventario sin contrapartida) → expectBalanced:false (redondea
+        // pero no absorbe ni exige Σ = 0).
+        const {
+          entries: journalEntries,
+          residual: glResidual,
+          absorbedIndex: glAbsorbedIndex,
+        } = rawJournalEntries.length >= 2
+          ? quantizeGLEntries(rawJournalEntries)
+          : quantizeGLEntries(rawJournalEntries, { expectBalanced: false });
 
         // N4: solo asientos completos (2+ entradas). Standalone ENTRADA omite el Cr
         // porque InvoiceGLPostingService lo genera vía su propio asiento de factura.
@@ -163,7 +185,13 @@ export async function postMovement(
             description: `Inventario ${movement.type}: ${item.name} × ${qty}`,
             type: "DIARIO",
             userId,
-            entries: { create: journalEntries },
+            entries: {
+              create: journalEntries.map((e) => ({
+                accountId: e.accountId,
+                amount: e.amount,
+                description: e.description,
+              })),
+            },
           },
         });
 
@@ -286,6 +314,15 @@ export async function postMovement(
               stockAfter: newStock.toString(),
               avgCostAfter: newAvgCost.toString(),
               transactionId: journalTx.id,
+              ...(!glResidual.isZero()
+                ? {
+                    glRounding: {
+                      residual: glResidual.toString(),
+                      absorbedIndex: glAbsorbedIndex,
+                      scale: 2,
+                    },
+                  }
+                : {}),
               // fefoOverridden: trazabilidad de bypass FEFO para ítems LOT (ADR-021 MEDIUM-1)
               ...(fefoOverridden !== null && { fefoOverridden }),
             },
@@ -361,13 +398,17 @@ export async function voidPostedMovement(
         const txCount = await tx.transaction.count({ where: { companyId } });
         const txNumber = `INV-VOID-${String(txCount + 1).padStart(6, "0")}`;
 
-        const counterEntries =
+        const rawCounterEntries =
           movement.type === "ENTRADA"
             ? [{ accountId: item.accountId!, amount: totalCost.negated() }]
             : [
                 { accountId: item.cogsAccountId!, amount: totalCost.negated() },
                 { accountId: item.accountId!, amount: totalCost },
               ];
+        // ADR-058 B2: la anulación deriva de lo ya guardado → negación EXACTA (sin cuantizar).
+        const { entries: counterEntries } = quantizeGLEntries(rawCounterEntries, {
+          mode: "exact",
+        });
 
         // N4: asientos completos de SALIDA/AJUSTE; ENTRADA solo 1 entrada (Dr inv reversal)
         if (counterEntries.length >= 2) assertBalancedGLEntries(counterEntries);
@@ -518,7 +559,11 @@ export async function autoPostMovementInTx(
 
   const qty = new Decimal(movement.quantity.toString());
   const unitCost = new Decimal(movement.unitCost.toString());
-  const totalCost = new Decimal(movement.totalCost.toString());
+  // ADR-058 (R-1): costo total del documento a 2 decimales en el origen del POST.
+  const totalCost = new Decimal(movement.totalCost.toString()).toDecimalPlaces(
+    2,
+    Decimal.ROUND_HALF_UP
+  );
   const currentStock = new Decimal(item.stockQuantity.toString());
   const currentAvgCost = new Decimal(item.averageCost.toString());
 
@@ -549,7 +594,7 @@ export async function autoPostMovementInTx(
     const txCount = await tx.transaction.count({ where: { companyId } });
     const txNumber = `INV-${String(txCount + 1).padStart(6, "0")}`;
 
-    const cogsEntries = [
+    const rawCogsEntries = [
       {
         accountId: item.cogsAccountId,
         amount: totalCost,
@@ -559,8 +604,11 @@ export async function autoPostMovementInTx(
         accountId: item.accountId,
         amount: totalCost.negated(),
         description: `Inventario salida — ${item.name} × ${qty.toFixed(4)} u.`,
+        noAbsorb: true, // auxiliar de inventario = kardex
       },
     ];
+    // ADR-058: cuantizar al céntimo ANTES de verificar y de persistir (sin residuo: ±mismo monto).
+    const { entries: cogsEntries } = quantizeGLEntries(rawCogsEntries);
     // N4: invariante de partida doble
     assertBalancedGLEntries(cogsEntries);
     const journalTx = await tx.transaction.create({
@@ -571,7 +619,13 @@ export async function autoPostMovementInTx(
         description: `COGS — Salida inventario ${item.name} × ${qty.toFixed(4)}`,
         type: "DIARIO",
         userId,
-        entries: { create: cogsEntries },
+        entries: {
+          create: cogsEntries.map((e) => ({
+            accountId: e.accountId,
+            amount: e.amount,
+            description: e.description,
+          })),
+        },
       },
     });
     glTransactionId = journalTx.id;

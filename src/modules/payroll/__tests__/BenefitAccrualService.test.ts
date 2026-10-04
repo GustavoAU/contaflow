@@ -635,3 +635,107 @@ describe("BenefitAccrualService.getQuarterlyHistory (F-05)", () => {
     expect(vi.mocked(prisma.benefitAccrualLine.findMany)).not.toHaveBeenCalled();
   });
 });
+
+// ─── ADR-058: redondeo al céntimo en el origen ───────────────────────────────
+
+describe("BenefitAccrualService — ADR-058 (montos a 2 decimales)", () => {
+  function glEntriesOf(callIndex: number) {
+    const data = vi.mocked(prisma.transaction.create).mock.calls[callIndex]?.[0]?.data;
+    return (data?.entries?.create ?? []) as Array<{ amount: Decimal }>;
+  }
+  function expectCentsAndBalanced(entries: Array<{ amount: Decimal }>) {
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.reduce((a, e) => a.plus(e.amount), new Decimal(0)).isZero()).toBe(true);
+    for (const e of entries) expect(e.amount.mul(100).isInteger()).toBe(true);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(BASE_CONFIG as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.exchangeRate.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-q" } as never);
+    vi.mocked(prisma.benefitAccrualLine.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitBalance.update).mockResolvedValue(BASE_BALANCE as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.benefitBalance.create).mockResolvedValue(BASE_BALANCE as never);
+  });
+
+  it("accrueQuarter: sueldo 3333,33 -> acumulación 1874,998125 se asienta y guarda como 1875.00", async () => {
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      {
+        ...BASE_EMPLOYEE,
+        hireDate: new Date("2026-01-15"), // sin días adicionales
+        salaryHistory: [{ ...BASE_EMPLOYEE.salaryHistory[0], amount: new Decimal("3333.33") }],
+      },
+    ] as never);
+
+    const result = await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
+
+    // integral diario 124,999875 x 15 días = 1874,998125 -> 1875,00
+    expect(result.totalAccrued).toBe("1875.0000");
+    const entries = glEntriesOf(0);
+    expect(entries.map((e) => e.amount.toFixed(2))).toEqual(["1875.00", "-1875.00"]);
+    expectCentsAndBalanced(entries);
+    expect(vi.mocked(prisma.benefitAccrualLine.create).mock.calls[0]?.[0]?.data).toMatchObject({
+      accrualAmount: "1875.0000",
+      runningBalance: "1875.0000",
+    });
+  });
+
+  it("postBenefitInterest: 1000,25 x 2% mensual = 20,005 -> 20,01 (ROUND_HALF_UP) en asiento y línea", async () => {
+    vi.mocked(prisma.bcvBenefitRate.findUnique).mockResolvedValue({
+      id: "bcv-1",
+      companyId: COMPANY,
+      year: 2026,
+      month: 3,
+      annualRate: new Decimal("24"),
+      source: "BCV",
+    } as never);
+    vi.mocked(prisma.benefitBalance.findMany).mockResolvedValue([
+      {
+        ...BASE_BALANCE,
+        currentBalance: new Decimal("1000.25"),
+        interestBalance: new Decimal("0"),
+      },
+    ] as never);
+    vi.mocked(prisma.benefitAccrualLine.findMany).mockResolvedValue([] as never);
+
+    const result = await BenefitAccrualService.postBenefitInterest(COMPANY, USER, 2026, 3);
+
+    expect(result.totalInterest).toBe("20.0100");
+    const entries = glEntriesOf(0);
+    expect(entries.map((e) => e.amount.toFixed(2))).toEqual(["20.01", "-20.01"]);
+    expectCentsAndBalanced(entries);
+    expect(vi.mocked(prisma.benefitAccrualLine.create).mock.calls[0]?.[0]?.data).toMatchObject({
+      accrualAmount: "20.0100",
+    });
+  });
+
+  it("backfillAllQuarters: todos los asientos retroactivos suman 0 y son múltiplos de 0,01", async () => {
+    const currentYear = new Date().getFullYear();
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      {
+        ...BASE_EMPLOYEE,
+        hireDate: new Date(`${currentYear}-01-15`),
+        benefitBalance: null,
+        salaryHistory: [
+          {
+            ...BASE_EMPLOYEE.salaryHistory[0],
+            effectiveFrom: new Date(`${currentYear}-01-01`),
+            amount: new Decimal("3333.33"),
+          },
+        ],
+      },
+    ] as never);
+
+    const result = await BenefitAccrualService.backfillAllQuarters(COMPANY, USER);
+
+    expect(result.quartersProcessed).toBeGreaterThanOrEqual(1);
+    const calls = vi.mocked(prisma.transaction.create).mock.calls.length;
+    expect(calls).toBe(result.quartersProcessed);
+    for (let i = 0; i < calls; i++) expectCentsAndBalanced(glEntriesOf(i));
+  });
+});

@@ -13,7 +13,7 @@
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import * as Sentry from "@sentry/nextjs";
 import { sendEmail } from "@/lib/email";
 import { signEmployeeToken } from "@/lib/employee-portal-jwt";
@@ -1387,7 +1387,15 @@ export const PayrollRunService = {
           const glRpePatTotal = rpePatTotal.mul(glMultiplier);
           const glPensionesPatTotal = pensionesPatTotal.mul(glMultiplier);
 
-          const nominaEntries = [
+          // noAbsorb (ADR-058): obligaciones parafiscales por pagar (IVSS/FAOV/INCES/RPE/pensiones,
+          // obrero y patronal) y la recuperación de préstamos (auxiliar EmployeeLoan) no absorben
+          // el residuo: debe caer en gasto de personal o en Sueldos por Pagar.
+          const rawNominaEntries: Array<{
+            accountId: string;
+            amount: Decimal;
+            description: string;
+            noAbsorb?: boolean;
+          }> = [
             // DÉBITO — Gastos de Personal (solo componente salarial, sin cuotas de préstamo)
             {
               accountId: expenseAccountId,
@@ -1407,6 +1415,7 @@ export const PayrollRunService = {
                     accountId: config.ivssPayableAccountId,
                     amount: glIvssTotal.negated(),
                     description: `Nómina ${nomPeriod} — retención IVSS obrero${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1417,6 +1426,7 @@ export const PayrollRunService = {
                     accountId: config.faovPayableAccountId,
                     amount: glFaovTotal.negated(),
                     description: `Nómina ${nomPeriod} — retención FAOV obrero${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1427,6 +1437,7 @@ export const PayrollRunService = {
                     accountId: config.incesPayableAccountId,
                     amount: glIncesTotal.negated(),
                     description: `Nómina ${nomPeriod} — retención INCES obrero${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1437,6 +1448,7 @@ export const PayrollRunService = {
                     accountId: config.rpePayableAccountId,
                     amount: glRpeTotal.negated(),
                     description: `Nómina ${nomPeriod} — retención paro forzoso obrero${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1447,6 +1459,7 @@ export const PayrollRunService = {
                     accountId: config.loanReceivableAccountId,
                     amount: glLoanTotal.negated(),
                     description: `Nómina ${nomPeriod} — recuperación cuotas préstamos empleados${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1467,6 +1480,7 @@ export const PayrollRunService = {
                     accountId: config.ivssPatronalAccountId,
                     amount: glIvssPatTotal.negated(),
                     description: `Nómina ${nomPeriod} — IVSS patronal 9%${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1476,6 +1490,7 @@ export const PayrollRunService = {
                     accountId: config.incesPatronalAccountId,
                     amount: glIncesPatTotal.negated(),
                     description: `Nómina ${nomPeriod} — INCES patronal 2%${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1485,6 +1500,7 @@ export const PayrollRunService = {
                     accountId: config.faovPatronalAccountId,
                     amount: glFaovPatTotal.negated(),
                     description: `Nómina ${nomPeriod} — FAOV patronal 2%${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1494,6 +1510,7 @@ export const PayrollRunService = {
                     accountId: config.rpePatronalAccountId,
                     amount: glRpePatTotal.negated(),
                     description: `Nómina ${nomPeriod} — RPE patronal 2%${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
@@ -1503,10 +1520,18 @@ export const PayrollRunService = {
                     accountId: config.pensionesPatronalAccountId,
                     amount: glPensionesPatTotal.negated(),
                     description: `Nómina ${nomPeriod} — Protección de Pensiones patronal 9%${fxNote}`,
+                    noAbsorb: true,
                   },
                 ]
               : []),
           ];
+          // ADR-058: cuantizar DESPUÉS de multiplicar por glMultiplier (la tasa BCV trae 6
+          // decimales) y ANTES de verificar y de persistir: lo verificado es lo guardado.
+          const {
+            entries: nominaEntries,
+            residual: glResidual,
+            absorbedIndex: glAbsorbedIndex,
+          } = quantizeGLEntries(rawNominaEntries);
           assertBalancedGLEntries(nominaEntries); // N4: invariante partida doble
           const asiento = await tx.transaction.create({
             data: {
@@ -1522,7 +1547,11 @@ export const PayrollRunService = {
               periodId: openPeriod.id,
               type: "DIARIO",
               entries: {
-                create: nominaEntries,
+                create: nominaEntries.map((e) => ({
+                  accountId: e.accountId,
+                  amount: e.amount,
+                  description: e.description,
+                })),
               },
             },
           });
@@ -1651,7 +1680,13 @@ export const PayrollRunService = {
               if (!perHour) continue;
               await tx.overtimeEntry.update({
                 where: { id: e.id },
-                data: { paidAmount: perHour.mul(e.hours.toString()).toDecimalPlaces(4).toFixed(4) },
+                data: {
+                  // ADR-058 (R-1): monto del documento a 2 decimales.
+                  paidAmount: perHour
+                    .mul(e.hours.toString())
+                    .toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+                    .toFixed(2),
+                },
               });
             }
           }
@@ -1681,6 +1716,13 @@ export const PayrollRunService = {
                 ...(payCurrency !== "VES" && {
                   fxRateAtApproval: glMultiplier.toString(),
                   payCurrency,
+                }),
+                ...(!glResidual.isZero() && {
+                  glRounding: {
+                    residual: glResidual.toString(),
+                    absorbedIndex: glAbsorbedIndex,
+                    scale: 2,
+                  },
                 }),
               },
             },

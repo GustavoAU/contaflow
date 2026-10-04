@@ -6,7 +6,7 @@ import { CreateTransactionSchema, VoidTransactionSchema } from "../schemas/trans
 import type { CreateTransactionInput, VoidTransactionInput } from "../schemas/transaction.schema";
 import { FiscalYearCloseService } from "@/modules/fiscal-close/services/FiscalYearCloseService";
 import { PeriodService } from "./PeriodService";
-import { assertBalancedGLEntries } from "@/lib/gl-assertions";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 import { TX_STATUS, MAX_PAGE_SIZE } from "../constants";
 
 // Cliente de Prisma dentro de $transaction — igual al patrón de PeriodSnapshotService.
@@ -116,7 +116,7 @@ export class TransactionService {
 
     // 2. Mapear debit/credit del formulario → amount con convención de signos
     //    debit > 0 → amount positivo | credit > 0 → amount negativo (negated)
-    const entries = validated.entries.map((entry) => ({
+    const rawEntries = validated.entries.map((entry) => ({
       accountId: entry.accountId,
       description: entry.description || undefined,
       // ADR-054: tercero de la línea — a lo sumo uno, validado más abajo.
@@ -129,6 +129,14 @@ export class TransactionService {
           ? new Decimal(entry.debit)
           : new Decimal(entry.credit || "0").negated(),
     }));
+
+    // ADR-058 (decisión 10 + hallazgo de seguridad MEDIUM-1): el asiento MANUAL lo escribe el
+    // usuario y el schema ya rechaza más de 2 decimales, así que NO hay redondeo que hacer. Por
+    // eso va en modo "exact": sin redondear y SIN absorber. En modo absorb, un asiento que el
+    // usuario descuadra por unos céntimos (Dr 100,01 / Cr 100,00) se "arreglaría" en silencio
+    // restándole el residuo a la línea mayor, que puede llevar un tercero. Aquí cualquier
+    // descuadre debe RECHAZARSE, y de eso se encarga assertBalancedGLEntries (cuadre exacto).
+    const { entries } = quantizeGLEntries(rawEntries, { mode: "exact" });
 
     // N4: invariante de partida doble — lanza si Σ(amount) ≠ 0
     assertBalancedGLEntries(entries);
@@ -270,7 +278,15 @@ export class TransactionService {
             type: validated.type,
             periodId: activePeriod.id,
             entries: {
-              create: entries,
+              create: entries.map((e) => ({
+                accountId: e.accountId,
+                description: e.description,
+                customerId: e.customerId,
+                vendorId: e.vendorId,
+                partnerId: e.partnerId,
+                employeeId: e.employeeId,
+                amount: e.amount,
+              })),
             },
           },
           include: {
@@ -377,7 +393,7 @@ export class TransactionService {
           tx
         );
         // Crear asiento espejo con montos invertidos
-        const voidEntries = original.entries.map((entry) => ({
+        const rawVoidEntries = original.entries.map((entry) => ({
           accountId: entry.accountId,
           amount: new Decimal(entry.amount.toString()).negated(),
           description: entry.description ? `ANULACIÓN: ${entry.description}` : undefined,
@@ -389,6 +405,9 @@ export class TransactionService {
           partnerId: entry.partnerId ?? undefined,
           employeeId: entry.employeeId ?? undefined,
         }));
+        // ADR-058 B2 / RN-5: la anulación deriva de lo ya guardado → negación EXACTA, sin
+        // cuantizar (el espejo de un asiento histórico a 4 decimales debe cuadrar al céntimo).
+        const { entries: voidEntries } = quantizeGLEntries(rawVoidEntries, { mode: "exact" });
         assertBalancedGLEntries(voidEntries); // N4: invariante partida doble
         const voidTx = await tx.transaction.create({
           data: {

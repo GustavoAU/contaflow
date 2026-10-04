@@ -1022,5 +1022,8 @@ describe("Meta: integridad del enmascarado", () => {
       broken,
       `El enmascarado descuadra estos archivos — el análisis por balanceo no es fiable en ellos:\n${broken.join("\n")}`
     ).toHaveLength(0);
-  });
+    // Recorre y enmascara TODO el repo: ~2-3 s en aislamiento, pero 7 s o más cuando la suite
+    // corre en paralelo (falló 2 veces por superar el tope por defecto de 5 s, sin que ningún
+    // archivo estuviera mal). El tope explícito evita ese falso rojo.
+  }, 30_000);
 });

@@ -36,19 +36,29 @@ describe("assertBalancedGLEntries", () => {
   });
 
   // ------------------------------------------------------------------ //
-  // 4. Diferencia <= tolerancia default (0.01) → no lanza
+  // 4. Tolerancia por defecto = 0 (ADR-058): cualquier diferencia lanza
   // ------------------------------------------------------------------ //
-  it("no lanza con diferencia <= tolerancia default: [+100, -100.005] (|diff|=0.005)", () => {
-    // |100 + (-100.005)| = 0.005 ≤ 0.01
-    expect(() => assertBalancedGLEntries([entry(100), entry("-100.005")])).not.toThrow();
+  it("el defecto es EXACTO: [+100, -100.005] (|diff|=0.005) lanza", () => {
+    expect(() => assertBalancedGLEntries([entry(100), entry("-100.005")])).toThrow(/descuadrado/);
+  });
+
+  it("el defecto es EXACTO: una diferencia de 0.0001 lanza (el caso real de producción)", () => {
+    expect(() => assertBalancedGLEntries([entry(100), entry("-99.9999")])).toThrow(/descuadrado/);
+  });
+
+  it("el defecto es EXACTO: un asiento que suma 0 exacto con 4 decimales no lanza", () => {
+    expect(() => assertBalancedGLEntries([entry("1234.5678"), entry("-1234.5678")])).not.toThrow();
   });
 
   // ------------------------------------------------------------------ //
-  // 5. Diferencia = 0.011 → lanza (supera tolerancia 0.01)
+  // 5. Una tolerancia explícita sigue funcionando para quien la pida
   // ------------------------------------------------------------------ //
-  it("lanza con diferencia = 0.011: [+100, -99.989]", () => {
-    // |100 + (-99.989)| = 0.011 > 0.01
-    expect(() => assertBalancedGLEntries([entry(100), entry("-99.989")])).toThrow(/descuadrado/);
+  it("tolerancia explícita 0.01: [+100, -100.005] no lanza, [+100, -99.989] sí", () => {
+    const tol = new Decimal("0.01");
+    expect(() => assertBalancedGLEntries([entry(100), entry("-100.005")], tol)).not.toThrow();
+    expect(() => assertBalancedGLEntries([entry(100), entry("-99.989")], tol)).toThrow(
+      /descuadrado/
+    );
   });
 
   // ------------------------------------------------------------------ //

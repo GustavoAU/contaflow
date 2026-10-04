@@ -512,6 +512,63 @@ describe("createRetentionAction", () => {
       (callArgs?.data as { entries?: { create?: { accountId: string }[] } })?.entries?.create ?? [];
     expect(entries.some((e) => e.accountId === "acc-ret-iva")).toBe(false);
   });
+
+  // ADR-058 / SPEC-004 lote 2: el asiento de emision se cuantiza al centimo.
+  it("GL-3 (ADR-058): AMBAS con importes a 4 decimales -> Σ = 0, multiplos de 0,01, sin noAbsorb hacia Prisma", async () => {
+    vi.mocked(prisma.companySettings.findUnique).mockResolvedValue({
+      apAccountId: "acc-cxp",
+      ivaRetentionPayableAccountId: "acc-ret-iva",
+      islrRetentionPayableAccountId: "acc-ret-islr",
+    } as never);
+    const { RetentionService } = await import("../services/RetentionService");
+    vi.mocked(RetentionService.calculate).mockReturnValueOnce({
+      taxBase: "1000.00",
+      ivaAmount: "160.00",
+      ivaRetention: "120.0049",
+      ivaRetentionPct: 75,
+      islrAmount: "30.0051",
+      islrRetentionPct: 3,
+      incesAmount: null,
+      incesRetentionPct: null,
+      fatAmount: null,
+      fatRetentionPct: null,
+      totalRetention: "150.0100",
+    } as never);
+    const mockRetAmbas = { ...mockRetention, type: "AMBAS" };
+    vi.mocked(prisma.retencion.create).mockResolvedValue(mockRetAmbas as never);
+    vi.mocked(prisma.retencion.update).mockResolvedValue(mockRetAmbas as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-gl-ambas" } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    const result = await createRetentionAction({
+      ...VALID_INPUT,
+      type: "AMBAS",
+      islrCode: "HONORARIOS_PN",
+    });
+
+    expect(result.success).toBe(true);
+    const args = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    const lines = (
+      args?.data as {
+        entries: { create: { accountId: string; amount: import("decimal.js").Decimal }[] };
+      }
+    ).entries.create;
+    const byAcc = Object.fromEntries(lines.map((l) => [l.accountId, l.amount.toString()]));
+    // 120.0049 -> 120 ; 30.0051 -> 30.01 ; CxP = 150.01
+    expect(byAcc).toEqual({ "acc-cxp": "150.01", "acc-ret-iva": "-120", "acc-ret-islr": "-30.01" });
+    expect(
+      lines.reduce((a, l) => a.plus(l.amount), lines[0].amount.minus(lines[0].amount)).isZero()
+    ).toBe(true);
+    for (const l of lines) expect("noAbsorb" in l).toBe(false);
+    // Sin residuo: no se crea el AuditLog extra GL_ROUNDING
+    expect(
+      vi
+        .mocked(prisma.auditLog.create)
+        .mock.calls.some(
+          (c) => (c[0] as { data: { action: string } }).data.action === "GL_ROUNDING"
+        )
+    ).toBe(false);
+  });
 });
 
 // ─── getRetentionsAction ──────────────────────────────────────────────────────

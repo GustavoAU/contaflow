@@ -1,7 +1,7 @@
 ---
 id: SPEC-004
 titulo: Los asientos se redondean al céntimo (2 decimales) ANTES de verificar el cuadre
-estado: APROBADA   # aprobada 2026-10-03 con la regla del céntimo (opción A); va ANTES que SPEC-001
+estado: EN_CURSO   # aprobada 2026-10-03 con la regla del céntimo (opción A); va ANTES que SPEC-001
 fecha: 2026-10-03
 rama: fix/spec-004-precision-asientos
 arbol: "[11]"
@@ -73,10 +73,23 @@ Sin cambios.
 - [ ] CA-6: El asiento `NOM-2026-08-16-83jgfm` queda con Σ = 0 mediante un asiento de ajuste (nunca DELETE, ADR-005), si SPEC-001 decide `T = 0`.
 
 ## 10. Plan de agentes
-Lo completa `/implementar`. Dejar vacío al escribir la spec.
+Línea base (2026-10-03, main `a7b46ba9`): tsc 0 errores · vitest **5434 tests / 264 archivos**, 0 fallos. Plan armado por la sesión principal (orchestrator-agent no está disponible). Patrón verificado en el código: cada servicio arma `entries` → `assertBalancedGLEntries(entries)` → `tx.transaction.create({ entries: { create: entries } })`; el cambio por servicio es mecánico (cuantizar antes de verificar y de persistir).
+
+**Invariante de orden (R-2 de la spec):** `assertBalancedGLEntries` conserva su tolerancia de 0,01 hasta que TODOS los call-sites cuantizan; solo entonces (paso 8) pasa a exacto. Así ningún flujo real se rompe a mitad del trabajo.
 
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | fiscal-agent | Revisión de solo lectura de los 21 servicios (sección 7): cuáles calculan IVA/ISLR/IGTF/retenciones y si su redondeo legal ya es a 2 decimales. Reporta `BLOQUEANTE` si algún monto fiscal debe conservar 4 decimales (R-4a) | no |
+| 2 | arch-agent | ADR-058 de precisión de asientos (R-4b): escala 2, `ROUND_HALF_UP`, absorción en la línea de mayor valor absoluto, residuo en el payload del AuditLog, y orden de la tolerancia | no |
+| 3 | test-agent | Tests en RED: unitarios de `quantizeGLEntries`; test de arquitectura "todo servicio que llama `assertBalancedGLEntries` cuantiza antes" (RED con la lista de los 38 pendientes); test de integración nómina USD (tasa 779,9522, 11 líneas) para el CI | sí |
+| 4 | ledger-agent | Implementar `quantizeGLEntries` en `src/lib/gl-assertions.ts` hasta GREEN en los unitarios | — |
+| 5 | ledger-agent | Lote 1 — nómina: PayrollRunService, ProfitSharingService, TerminationService, VacationService, BenefitAccrualService, BenefitAdvanceService, EmployeeLoanService (+ residuo en AuditLog) | sí |
+| 6 | ledger-agent | Lote 2 — pagos y fiscales: PaymentGLService (5 sitios), retention.actions, RetentionService, ExchangeDifferentialService, InventoryAccountingService (3), TransactionService (2) | sí |
+| 7 | ledger-agent | Lote 3 — resto: CajaCajaService/Deposit/Reimbursement, FixedAssetService/Depreciation, INPCService, FiscalYearCloseService, IncomeDistributionService | sí |
+| 8 | sesión principal | Flip: tolerancia por defecto de `assertBalancedGLEntries` de 0,01 a 0; el test de arquitectura del paso 3 pasa a GREEN | — |
+| 9 | sesión principal | PR a `main`; aprobar `neon-ci`: el test de integración de nómina USD corre contra Postgres real | no |
+| 10 | sesión principal | **Decisión al llegar:** corrección del asiento demo `NOM-2026-08-16-83jgfm` (Σ = −0,0001) con la regla de SPEC-001; la escritura en producción se hace solo con confirmación del usuario | no |
+| 11 | sesión principal | Gates finales, `/revisar`, sección 12, LL-016. security-agent: no aplica (sin acciones, rutas ni modelos nuevos) salvo que cambie el contrato del AuditLog | no |
 
 ## 11. Riesgos y preguntas abiertas
 - **PA-1 (RESUELTA 2026-10-03):** la contadora pidió cuadre exacto "hasta en decimales" (SPEC-001 `T = 0`), así que esta spec es **OBLIGATORIA y va ANTES** del trigger. Pregunta original: ¿esta spec es obligatoria? Depende de SPEC-001 PA-1. Con `T = 0.01` es una mejora (el libro derivaría 0,0001 por nómina en USD pero la base no lo rechazaría); con `T = 0` es **prerrequisito**, o una nómina nueva en USD fallaría al aprobarse.
@@ -88,6 +101,27 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 
 - **PA-3 (RESUELTA 2026-10-03, decisión del usuario: opción A):** unidad contable = céntimo (2 decimales); el residuo de redondeo se absorbe en la línea de mayor monto del mismo asiento, visible en reportes y trazable en el AuditLog. Razón del usuario: "la gente para pagar siempre utiliza 2 decimales, no 4". Descartada la cuenta propia "Diferencias de redondeo" (opción B). Se mantiene: los asientos históricos a 4 decimales no se tocan y el trigger exacto de SPEC-001 vale sobre lo guardado.
 - **Flujos de diferencias reales (fuera de alcance, a revisar):** cierre de caja con faltante (descuento al cajero) y pagos emitidos por un monto distinto del esperado ya existen en el sistema (CajaCaja, PaymentGLService); con el trigger exacto deberán registrar la diferencia de forma explícita. Se revisarán al implementar SPEC-001.
+
+### Hallazgos del paso 1 (fiscal-agent, 2026-10-03; los 3 marcados ✔ fueron VERIFICADOS por la sesión principal)
+Veredicto: **sin bloqueantes de base legal**. El redondeo fiscal ya es a 2 decimales en el origen en retenciones (`RetentionCalculator`), nómina (`PayrollCalculatorService`), `InvoiceTaxLine` e IGTF de pagos sueltos. Los montos de documentos con 4 decimales son: IGTF de lotes de pago, depreciación, prestaciones (acumulación y adelantos), liquidación, utilidades, vacaciones, costo de inventario, ajuste INPC y diferencial cambiario.
+- **B1 ✔ Asientos de UNA línea:** `InventoryAccountingService` (ENTRADA "standalone", líneas 120-135 y 157/373) crea un asiento solo con Dr Inventario; el Cr "se genera" en el asiento de la factura. Σ ≠ 0 por diseño: `quantizeGLEntries` no debe intentar absorber ahí, y un trigger por asiento (SPEC-001) los rechazaría. **Pendiente de decisión del usuario para SPEC-001** (exigir contrapartida o generar una).
+- **B2 Anulaciones, cierres y liquidaciones derivados de lo guardado** (TransactionService void, CajaCaja, PaymentGLService reverso, FiscalYearClose): deben usar **negación exacta (modo `exact`)**, sin cuantizar, o el espejo de un asiento histórico a 4 decimales deja centésimas.
+- **B3 Absorción del residuo:** las líneas de obligaciones fiscales (IVA, retenciones por enterar, IGTF, IVSS/FAOV/INCES/RPE/pensiones) y las líneas con tercero (CxC/CxP) se marcan `noAbsorb`; el residuo cae en la mayor de las restantes; si no hay candidata, error.
+- **B4 ✔ IGTF de lotes a 4 decimales** (`PaymentBatchService`, líneas ~237 y ~255): redondear a 2 en el origen, con la última línea cuadrando el total.
+- **R-1 Documento a 4, asiento a 2:** el monto del DOCUMENTO se redondea a 2 en el origen (donde se calcula) y el asiento se arma con ese valor; así los auxiliares coinciden con el mayor y el residuo solo cubre multiplicaciones por tasa (nómina USD, diferencial).
+- **R-2 Asiento manual:** Zod con `decimalPlaces ≤ 2` (como `zMoneyPositive`): rechazar en vez de redondear en silencio; descartar líneas de monto 0 tras cuantizar.
+- **R-3 Diferencial en `PaymentGLService`:** redondear `invoiceAmountVes` a 2 ANTES de calcular `fxDiff`, para que el diferencial sea explícito y exacto.
+- **R-4 ✔ `InvoiceGLPostingService`** crea asientos sin `assertBalancedGLEntries` y no está en la lista de la spec. Sus asientos cuadran por construcción, pero no cumplen RN-1 (múltiplos de 0,01) porque `Invoice.totalAmountVes` se guarda sin redondear en facturas con líneas. **Fuera de alcance de esta spec:** redondear el total de la factura toca la factura impresa y el libro de IVA (SENIAT) → candidato a SPEC-005, depende de la PC-3.
+- **R-5 Modo de redondeo:** `ROUND_HALF_UP` de `Decimal.js` es "mitad alejándose de cero" (simétrico en Dr/Cr), no "mitad hacia arriba" literal. El ADR debe decirlo.
+- **Hueco de funcionalidad (fuera de alcance):** NO existe flujo de faltante/sobrante de caja chica (`closeCajaCaja` manda el saldo GL a una cuenta de retorno sin cuenta de diferencia). Es lo que la contadora describe ("descuento al cajero"): candidato a spec propia.
+- **Paso 8 (tolerancia a 0):** antes, revisar que ningún flujo (reembolso de caja, diferencial) dependiera de la holgura de 0,01: hoy cualquier diferencia hasta 0,01 pasa en silencio.
+- **Comparaciones documento↔asiento:** ninguna usa igualdad exacta ni tolerancia menor a 0,01 (verificado por el agente en los consumidores de `journalEntry`); las tolerancias de conciliación son 0,01 a 1,00 Bs.
+- Impacto estimado en tests: 5 a 15 (nómina y depreciación); la cifra real sale del test de arquitectura en RED (paso 3).
+
+### Preguntas para la contadora (surgidas del paso 1; no bloquean el núcleo, sí lotes concretos)
+- **PC-1 (RESUELTA 2026-10-03, contadora):** el IGTF se redondea a **2 decimales** y se calcula **por lote, sobre el total del cierre del día** (no por línea). Implementación: `total = round(totalLote × 3%, 2)`; el prorrateo por línea también a 2 decimales con la última línea cuadrando el total (ya es el patrón de `PaymentBatchService`, solo cambia la precisión de 4 a 2). Modo de redondeo: el mismo `ROUND_HALF_UP` del resto del sistema.
+- **PC-2 (RESUELTA en lo principal, 2026-10-03, contadora):** en la **contabilidad** los aportes parafiscales (IVSS, FAOV, INCES, RPE, pensiones) van **por totales**; en la **nómina** se reflejan **trabajador por trabajador**. Es exactamente el diseño actual: cada trabajador ya está a 2 decimales (`PayrollCalculatorService`) y el asiento suma esos montos. Consecuencia: el total del asiento = Σ de los montos por trabajador a 2 decimales, y así la planilla y el mayor coinciden al céntimo en nóminas en VES; en USD el total en Bs. se cuantiza una sola vez. **Vigencia (RESUELTA 2026-10-03, usuario):** nadie ha usado la app todavía (la contadora será la primera usuaria real), así que no hay saldos reales acumulados a 4 decimales que proteger: el redondeo a 2 decimales rige **desde ahora**, sin recalcular saldos históricos (solo existen los de la cuenta demo, que no se tocan). Aplica al lote 1 (BenefitAccrual/BenefitAdvance/Termination/Vacation/ProfitSharing).
+- **PC-3 (RESUELTA 2026-10-03, contadora):** `Invoice.totalAmountVes` también se redondea a **2 decimales**. Queda DESBLOQUEADA la SPEC-005 (redondear el total de la factura con líneas y verificar el cuadre en `InvoiceGLPostingService`), que sigue fuera del alcance de la SPEC-004 por tocar la factura impresa y el libro de IVA.
 
 ## 12. Cierre
 Lo completa `/implementar`.
