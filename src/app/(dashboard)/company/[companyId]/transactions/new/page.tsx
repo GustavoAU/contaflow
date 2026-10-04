@@ -17,7 +17,7 @@ export default async function NewTransactionPage({ params }: Props) {
   if (!user) redirect("/sign-in");
 
   const [accountsResult, periodResult] = await Promise.all([
-    getAccountsAction(companyId),
+    getAccountsAction(companyId, { onlyPostable: true }),
     getActivePeriodAction(companyId),
   ]);
 

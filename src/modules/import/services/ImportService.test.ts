@@ -159,15 +159,15 @@ describe("ImportService.parseAccountsExcel", () => {
     expect(rows[2].isPostable).toBe(true); // M — "Ter."="SI" se ignora, no debe romper nada
   });
 
-  it("[RED 2] plantilla simple actual sin columna G/M → isPostable default true", async () => {
+  it("[RED 2] sin columna G/M: isPostable lo decide la longitud del código (ADR-059)", async () => {
     const buffer = await makeExcelBuffer([
       { codigo: "1105", nombre: "Caja General", tipo: "ASSET", descripcion: "Efectivo" },
-      { codigo: "2105", nombre: "Proveedores", tipo: "LIABILITY" },
+      { codigo: "1.1.01.01.001", nombre: "Caja Principal", tipo: "ASSET" },
     ]);
 
     const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithPostable[];
-    expect(rows[0].isPostable).toBe(true);
-    expect(rows[1].isPostable).toBe(true);
+    expect(rows[0].isPostable).toBe(false); // 4 dígitos → título
+    expect(rows[1].isPostable).toBe(true); // 9 dígitos → movimiento
   });
 
   it("[RED 3] inferencia de tipo por dígito cuando falta la columna 'tipo' (y nombre viene de 'descripcion')", async () => {
@@ -214,24 +214,38 @@ describe("ImportService.parseAccountsExcel", () => {
     await expect(ImportService.parseAccountsExcel(buffer)).rejects.toThrow(/ABC/);
   });
 
-  it("[RED 6] G/M en minúscula o con espacios ('m', ' M ') sigue siendo movimiento (isPostable true)", async () => {
+  it("[RED 6] la columna G/M se IGNORA: manda el código (ADR-059)", async () => {
     const buffer = await makeExcelBufferFromRows(
       ["codigo", "nombre", "tipo", "G/M"],
       [
-        ["1105", "Caja", "ASSET", "m"],
-        ["1110", "Banco", "ASSET", " M "],
+        ["1.1.01.01.001", "Caja Principal", "ASSET", "G"], // 9 dígitos marcada G → movimiento
+        ["1.1.01", "CAJAS", "ASSET", " M "], // 4 dígitos marcada M → título
       ]
     );
 
     const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithPostable[];
     expect(rows[0].isPostable).toBe(true);
-    expect(rows[1].isPostable).toBe(true);
+    expect(rows[1].isPostable).toBe(false);
+  });
+
+  it("[ADR-059] títulos y subtítulos con el mismo nombre se importan sin chocar (el nombre no es único)", async () => {
+    const buffer = await makeExcelBufferFromRows(
+      ["codigo", "descripcion"],
+      [
+        ["3.2.01", "UTILIDADES ACUMULADAS"],
+        ["3.2.01.01", "UTILIDADES ACUMULADAS"],
+        ["3.2.01.01.001", "Utilidades Acumuladas"],
+      ]
+    );
+
+    const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithPostable[];
+    expect(rows.map((r) => r.isPostable)).toEqual([false, false, true]);
   });
 
   it("[GUARDA/RED 7] columnas Nivel/Pre./Ter./C-C/Clase/Tipo(O-C) en blanco no rompen la importación", async () => {
     const buffer = await makeExcelBufferFromRows(
       ["codigo", "nombre", "G/M", "Nivel", "Pre.", "Ter.", "C/C", "Clase", "Tipo"],
-      [["1201", "Cuentas por Cobrar Comerciales", "M", "", "", "", "", "", ""]]
+      [["1.2.01.01.001", "Cuentas por Cobrar Comerciales", "M", "", "", "", "", "", ""]]
     );
 
     const rows = (await ImportService.parseAccountsExcel(buffer)) as RowWithPostable[];
@@ -609,34 +623,19 @@ describe("ImportService.importAccounts", () => {
     });
   }
 
-  it("[RED — P2002 nombre] choque de nombre entre dos cuentas de MOVIMIENTO → mensaje de negocio con el nombre", async () => {
+  it("[ADR-059] el servidor deriva isPostable del código, ignora lo que mande el cliente", async () => {
     vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.account.create).mockRejectedValue(p2002(["companyId", "name"]));
+    vi.mocked(prisma.account.create).mockResolvedValue({} as never);
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
-    const result = await ImportService.importAccounts("company-1", "user-1", [
-      { codigo: "1105", nombre: "Caja General", tipo: "ASSET" },
+    await ImportService.importAccounts("company-1", "user-1", [
+      { codigo: "1.1.01", nombre: "CAJAS", tipo: "ASSET", isPostable: true },
+      { codigo: "1.1.01.01.001", nombre: "Caja Principal", tipo: "ASSET", isPostable: false },
     ]);
 
-    expect(result.created).toBe(0);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0].reason).toBe("duplicate_name");
-    expect(result.errors[0].message).toContain("Caja General");
-    // Feedback del dueño 2026-10-01: el mensaje debe sugerir la acción al usuario
-    // (cambiar el nombre), no solo describir el choque.
-    expect(result.errors[0].message).toContain("cámbiale el nombre");
-    expect(result.errors[0].message).not.toBe("Fila 1105: error al importar");
-    // Feedback del dueño 2026-10-01: el row completo viaja en el error para que el
-    // cliente pueda ofrecer "renombrar y reintentar esta fila sola" sin reconstruirlo.
-    expect(result.errors[0].row).toEqual({
-      codigo: "1105",
-      nombre: "Caja General",
-      tipo: "ASSET",
-      descripcion: undefined,
-      isPostable: true,
-      isBudgetable: false,
-      requiresThirdParty: false,
-    });
+    const calls = vi.mocked(prisma.account.create).mock.calls;
+    expect(calls[0][0].data.isPostable).toBe(false);
+    expect(calls[1][0].data.isPostable).toBe(true);
   });
 
   it("[RED — P2002 código] choque de código que el pre-check findUnique no vio (carrera) → mensaje de negocio", async () => {

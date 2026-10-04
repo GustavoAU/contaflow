@@ -25,6 +25,9 @@ vi.mock("@/lib/prisma", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    journalEntry: {
+      count: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -158,54 +161,82 @@ describe("createAccountAction", () => {
     if (!result.success) expect(result.error).toContain("1105");
   });
 
-  it("rechaza nombre duplicado en la misma empresa (contra otra cuenta de MOVIMIENTO)", async () => {
-    // findUnique (código) → null; findFirst (nombre, solo isPostable:true) → existente
+  // ADR-059: el nombre NO es único. Títulos, subtítulos y cuentas de movimiento repiten
+  // nombre ("CAJAS" / "CAJAS" / "Caja Principal"); solo el código no se repite.
+  it("permite nombre repetido: no consulta por nombre, solo por código", async () => {
     vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
-    vi.mocked(prisma.account.findFirst).mockResolvedValueOnce(BASE_ACCOUNT as never);
-
-    const result = await createAccountAction({
-      companyId: "company-1",
-      name: "Caja General",
-      code: "1999",
-      type: "ASSET",
-      isMonetary: false,
-      isCurrent: false,
-    });
-
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.error).toContain("Caja General");
-  });
-
-  // ADR-056: el único de (companyId, name) es PARCIAL en BD (WHERE isPostable=true) —
-  // una cuenta de título puede repetir nombre con otra cuenta sin bloquear nada. El
-  // check de la action debe filtrar por isPostable:true explícitamente, nunca comparar
-  // contra TODAS las cuentas de la empresa.
-  it("permite nombre duplicado contra una cuenta de TÍTULO — el check solo mira cuentas de movimiento", async () => {
-    vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
-    // findFirst con isPostable:true no encuentra nada (la única coincidencia de
-    // nombre es una cuenta de título, fuera del alcance del check)
-    vi.mocked(prisma.account.findFirst).mockResolvedValueOnce(null);
     vi.mocked(prisma.account.create).mockResolvedValue(BASE_ACCOUNT as never);
 
     const result = await createAccountAction({
       companyId: "company-1",
-      name: "CIRCULANTE",
-      code: "1.2",
+      name: "Caja General",
+      code: "1.1.01.01.002",
       type: "ASSET",
       isMonetary: false,
       isCurrent: false,
     });
 
     expect(result.success).toBe(true);
-    expect(prisma.account.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          companyId: "company-1",
-          name: "CIRCULANTE",
-          isPostable: true,
-        }),
-      })
+    expect(prisma.account.findFirst).not.toHaveBeenCalled();
+  });
+
+  // ADR-059: ≥ 9 dígitos = movimiento; menos = título/subtítulo.
+  it("código de 9 dígitos → se crea como cuenta de movimiento (isPostable true)", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(prisma.account.create).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await createAccountAction({
+      companyId: "company-1",
+      name: "Caja Principal",
+      code: "1.1.01.01.001",
+      type: "ASSET",
+      isMonetary: false,
+      isCurrent: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isPostable: true }) })
     );
+    // M-1: un código de movimiento válido NO debe disparar el aviso de "fuera de rango" (4 dígitos)
+    if (result.success) expect(result.warning).toBeUndefined();
+  });
+
+  it("código de 9 dígitos que no empieza por el dígito de su tipo → aviso de primer dígito", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(prisma.account.create).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await createAccountAction({
+      companyId: "company-1",
+      name: "Cuenta rara",
+      code: "2.1.01.01.001",
+      type: "ASSET",
+      isMonetary: false,
+      isCurrent: false,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.warning).toContain("dígito");
+  });
+
+  it("código de menos de 9 dígitos → se crea como título (isPostable false) con aviso", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(prisma.account.create).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await createAccountAction({
+      companyId: "company-1",
+      name: "CAJAS",
+      code: "1.1.01",
+      type: "ASSET",
+      isMonetary: false,
+      isCurrent: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.account.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isPostable: false }) })
+    );
+    if (result.success) expect(result.warning).toContain("9 dígitos");
   });
 
   it("rechaza codigo con formato invalido", async () => {
@@ -267,17 +298,17 @@ describe("createAccountAction", () => {
     expect(result.success).toBe(true);
   });
 
-  it("retorna warning si el codigo esta fuera del rango estandar", async () => {
+  it("retorna warning si el primer dígito del código no corresponde al tipo", async () => {
     vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.account.create).mockResolvedValue({
       ...BASE_ACCOUNT,
-      code: "9999",
+      code: "9.9.99.99.999",
     } as never);
 
     const result = await createAccountAction({
       companyId: "company-1",
       name: "Cuenta Especial",
-      code: "9999",
+      code: "9.9.99.99.999",
       type: "ASSET",
       isMonetary: false,
       isCurrent: false,
@@ -286,7 +317,7 @@ describe("createAccountAction", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.warning).toBeDefined();
-      expect(result.warning).toContain("rango estandar");
+      expect(result.warning).toContain("dígito estándar");
     }
   });
 });
@@ -299,7 +330,11 @@ describe("updateAccountAction", () => {
     vi.mocked(auth).mockResolvedValue({ userId: "user-1" } as never);
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "ACCOUNTANT" } as never);
     vi.mocked(prisma.$transaction).mockImplementation(((fn: (tx: unknown) => unknown) =>
-      fn({ account: prisma.account, auditLog: prisma.auditLog })) as never);
+      fn({
+        account: prisma.account,
+        auditLog: prisma.auditLog,
+        journalEntry: prisma.journalEntry,
+      })) as never);
   });
 
   it("actualiza una cuenta correctamente en el happy path", async () => {
@@ -375,6 +410,91 @@ describe("updateAccountAction", () => {
     expect(result.success).toBe(true);
   });
 
+  // ADR-059 / H-1 del security-agent: el formulario de edición reenvía SIEMPRE el `code`.
+  // Editar el nombre de una cuenta heredada de 4 dígitos (movimiento) NO debe degradarla a
+  // título ni bloquearse por tener asientos — solo importa si el código CRUZA el umbral.
+  it("[H-1] edita nombre reenviando el MISMO código de 4 dígitos con asientos → éxito, isPostable intacto", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(BASE_ACCOUNT as never);
+    vi.mocked(prisma.account.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.journalEntry.count).mockResolvedValue(5 as never);
+    vi.mocked(prisma.account.update).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await updateAccountAction({
+      id: "acc-1",
+      name: "Caja Renombrada",
+      code: "1105",
+    });
+
+    expect(result.success).toBe(true);
+    const data = vi.mocked(prisma.account.update).mock.calls[0][0].data as Record<string, unknown>;
+    expect(data).not.toHaveProperty("isPostable");
+    expect(prisma.journalEntry.count).not.toHaveBeenCalled();
+  });
+
+  it("[H-1] cambio 4→4 dígitos en cuenta heredada → isPostable intacto", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(BASE_ACCOUNT as never);
+    vi.mocked(prisma.account.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.account.update).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await updateAccountAction({ id: "acc-1", code: "1106" });
+
+    expect(result.success).toBe(true);
+    const data = vi.mocked(prisma.account.update).mock.calls[0][0].data as Record<string, unknown>;
+    expect(data).not.toHaveProperty("isPostable");
+  });
+
+  it("cambio <9 → ≥9 dígitos → se promueve a movimiento (isPostable true)", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue(BASE_ACCOUNT as never);
+    vi.mocked(prisma.account.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.account.update).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await updateAccountAction({ id: "acc-1", code: "1.1.01.01.001" });
+
+    expect(result.success).toBe(true);
+    expect(prisma.account.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isPostable: true }) })
+    );
+  });
+
+  it("cambio ≥9 → <9 dígitos sin asientos → pasa a título (isPostable false) y queda en el AuditLog", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue({
+      ...BASE_ACCOUNT,
+      code: "1.1.01.01.001",
+    } as never);
+    vi.mocked(prisma.account.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.journalEntry.count).mockResolvedValue(0 as never);
+    vi.mocked(prisma.account.update).mockResolvedValue(BASE_ACCOUNT as never);
+
+    const result = await updateAccountAction({ id: "acc-1", code: "1.1.01" });
+
+    expect(result.success).toBe(true);
+    expect(prisma.account.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isPostable: false }) })
+    );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          newValue: expect.objectContaining({ isPostable: false }),
+        }),
+      })
+    );
+  });
+
+  it("cambio ≥9 → <9 dígitos con asientos → se bloquea con mensaje de negocio", async () => {
+    vi.mocked(prisma.account.findUnique).mockResolvedValue({
+      ...BASE_ACCOUNT,
+      code: "1.1.01.01.001",
+    } as never);
+    vi.mocked(prisma.account.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.journalEntry.count).mockResolvedValue(3 as never);
+
+    const result = await updateAccountAction({ id: "acc-1", code: "1.1.01" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain("9 dígitos");
+    expect(prisma.account.update).not.toHaveBeenCalled();
+  });
+
   it("no verifica unicidad de codigo si no se esta cambiando el codigo", async () => {
     vi.mocked(prisma.account.findUnique).mockResolvedValue(BASE_ACCOUNT as never);
     vi.mocked(prisma.account.update).mockResolvedValue({
@@ -419,6 +539,18 @@ describe("getAccountsAction", () => {
     expect(prisma.account.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { companyId: "company-1", deletedAt: null },
+      })
+    );
+  });
+
+  it("onlyPostable → filtra solo cuentas de movimiento (selectores, ADR-059)", async () => {
+    vi.mocked(prisma.account.findMany).mockResolvedValue([BASE_ACCOUNT] as never);
+
+    await getAccountsAction("company-1", { onlyPostable: true });
+
+    expect(prisma.account.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { companyId: "company-1", deletedAt: null, isPostable: true },
       })
     );
   });

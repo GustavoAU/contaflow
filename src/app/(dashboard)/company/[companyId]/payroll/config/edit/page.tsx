@@ -28,7 +28,7 @@ export default async function PayrollConfigEditPage({ params }: Props) {
   const [config, accounts] = await Promise.all([
     PayrollConfigService.getConfig(companyId),
     prisma.account.findMany({
-      where: { companyId, deletedAt: null },
+      where: { companyId, deletedAt: null, isPostable: true },
       select: { id: true, code: true, name: true },
       orderBy: { code: "asc" },
     }),

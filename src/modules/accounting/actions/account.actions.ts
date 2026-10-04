@@ -9,6 +9,7 @@ import { withCompanyContext } from "@/lib/prisma-rls";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { limiters } from "@/lib/ratelimit";
+import { isPostableCode } from "@/lib/account-code";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
 
@@ -62,10 +63,24 @@ const RANGES: Record<string, { start: number; end: number }> = {
   EXPENSE: { start: 5000, end: 5999 },
 };
 
+// Primer dígito del código según el tipo (convención venezolana: 1 Activo, 2 Pasivo, 3 Patrimonio,
+// 4 Ingresos, 5-9 Costos/Gastos/Cuentas de orden — ContaFlow no los distingue, todo es EXPENSE).
+const LEADING_DIGITS: Record<string, string> = {
+  ASSET: "1",
+  CONTRA_ASSET: "1",
+  LIABILITY: "2",
+  EQUITY: "3",
+  REVENUE: "4",
+  EXPENSE: "56789",
+};
+
 // ─── Obtener todas las cuentas ────────────────────────────────────────────────
 
+// `onlyPostable` (ADR-059): los selectores de cuenta de los formularios piden solo las de
+// movimiento (≥ 9 dígitos); el plan de cuentas y los reportes siguen viendo títulos y subtítulos.
 export async function getAccountsAction(
-  companyId: string
+  companyId: string,
+  opts: { onlyPostable?: boolean } = {}
 ): Promise<ActionResult<Awaited<ReturnType<typeof prisma.account.findMany>>>> {
   try {
     const ctx = await requireCompanyAction(companyId, {
@@ -74,7 +89,7 @@ export async function getAccountsAction(
     });
     if (!ctx.ok) return ctx.error;
     const accounts = await prisma.account.findMany({
-      where: { companyId, deletedAt: null },
+      where: { companyId, deletedAt: null, ...(opts.onlyPostable ? { isPostable: true } : {}) },
       orderBy: { code: "asc" },
     });
     return { success: true, data: accounts };
@@ -116,31 +131,16 @@ export async function createAccountAction(
       };
     }
 
-    // Verificar que el nombre no exista en esta empresa — solo entre cuentas de
-    // MOVIMIENTO (ADR-056): el índice único en BD es parcial (WHERE isPostable=true),
-    // así que una cuenta creada aquí (siempre postable, este form no tiene G/M) puede
-    // coincidir en nombre con una cuenta de título sin problema. findFirst en vez de
-    // findUnique porque ya no existe un @@unique compuesto (companyId, name) que
-    // Prisma pueda generar como índice compuesto.
-    const existingName = await prisma.account.findFirst({
-      where: {
-        companyId: validated.companyId,
-        name: validated.name,
-        isPostable: true,
-      },
-    });
+    // ADR-059: el nombre NO es único — títulos, subtítulos y cuentas de movimiento repiten
+    // nombre en un plan real ("CAJAS" / "CAJAS" / "Caja Principal"). Solo el código no se repite.
+    // Título o movimiento lo decide la longitud del código (9 dígitos = movimiento).
+    const isPostable = isPostableCode(validated.code);
 
-    if (existingName) {
-      return {
-        success: false,
-        error: `Ya existe una cuenta con el nombre "${validated.name}" (codigo: ${existingName.code})`,
-      };
-    }
-
-    // Verificar si el codigo esta fuera del rango de su tipo
-    const codeNum = Number(validated.code);
-    const range = RANGES[validated.type];
-    const outOfRange = isNaN(codeNum) || codeNum < range.start || codeNum > range.end;
+    // Un código de movimiento (>= 9 dígitos, ej. 1.1.01.01.001) se valida por su PRIMER dígito
+    // (convención 1-5; 6-9 también son Gasto). Los códigos de < 9 dígitos son títulos y ya
+    // reciben su propio aviso, así que no se comparan contra ningún rango.
+    const firstDigit = validated.code.replace(/\D/g, "")[0] ?? "";
+    const outOfRange = isPostable && !LEADING_DIGITS[validated.type].includes(firstDigit);
 
     const account = await prisma.$transaction(async (tx) =>
       withCompanyContext(validated.companyId, tx, async (tx) => {
@@ -152,6 +152,7 @@ export async function createAccountAction(
             description: validated.description,
             isMonetary: validated.isMonetary,
             isCurrent: validated.isCurrent,
+            isPostable,
             companyId: validated.companyId,
           },
         });
@@ -165,7 +166,12 @@ export async function createAccountAction(
             userId,
             ipAddress,
             userAgent,
-            newValue: { code: validated.code, name: validated.name, type: validated.type },
+            newValue: {
+              code: validated.code,
+              name: validated.name,
+              type: validated.type,
+              isPostable,
+            },
           },
         });
 
@@ -175,11 +181,19 @@ export async function createAccountAction(
 
     revalidatePath(`/company/${validated.companyId}/accounts`);
 
+    if (!isPostable) {
+      return {
+        success: true,
+        data: { id: account.id, name: account.name },
+        warning: `El código ${validated.code} tiene menos de 9 dígitos: la cuenta se creó como título/subtítulo y no se podrá seleccionar en asientos. Las cuentas de movimiento llevan 9 dígitos (ej: 1.1.01.01.001).`,
+      };
+    }
+
     if (outOfRange) {
       return {
         success: true,
         data: { id: account.id, name: account.name },
-        warning: `Advertencia: El codigo ${validated.code} esta fuera del rango estandar para cuentas de tipo ${validated.type} (${range.start}-${range.end}). La cuenta fue creada de todas formas.`,
+        warning: `Advertencia: El codigo ${validated.code} no empieza por el dígito estándar de las cuentas de tipo ${validated.type} (${LEADING_DIGITS[validated.type].split("").join(", ")}). La cuenta fue creada de todas formas.`,
       };
     }
 
@@ -191,6 +205,10 @@ export async function createAccountAction(
 
 // ─── Editar cuenta ────────────────────────────────────────────────────────────
 
+// Error de negocio lanzado dentro del $transaction de updateAccountAction; se captura abajo
+// para devolver el mensaje tal cual (toActionError no debe tragarlo ni filtrarlo).
+class AccountInUseError extends Error {}
+
 export async function updateAccountAction(
   input: z.infer<typeof UpdateAccountSchema>
 ): Promise<ActionResult<{ id: string; name: string }>> {
@@ -200,7 +218,7 @@ export async function updateAccountAction(
 
     const before = await prisma.account.findUnique({
       where: { id },
-      select: { code: true, name: true, type: true, companyId: true },
+      select: { code: true, name: true, type: true, companyId: true, isPostable: true },
     });
     if (!before) return { success: false, error: "Cuenta no encontrada" };
 
@@ -231,9 +249,34 @@ export async function updateAccountAction(
       }
     }
 
+    // ADR-059: título/movimiento solo se recalcula si el código CRUZA el umbral de 9 dígitos.
+    // El formulario de edición reenvía siempre el `code`, así que "vino un code" no significa
+    // "cambió" — comparar contra el valor previo. Una cuenta heredada de 4 dígitos que sigue en
+    // 4 dígitos conserva su isPostable (no se degrada a título en silencio).
+    const crossesThreshold =
+      data.code !== undefined && isPostableCode(data.code) !== isPostableCode(before.code);
+    const newIsPostable = crossesThreshold ? isPostableCode(data.code as string) : undefined;
+
     const account = await prisma.$transaction(async (tx) =>
       withCompanyContext(before.companyId, tx, async (tx) => {
-        const updated = await tx.account.update({ where: { id }, data });
+        // Pasar a título una cuenta con asientos dejaría movimientos colgando de un título.
+        // El conteo va DENTRO de la transacción, justo antes del update, para acortar la
+        // ventana frente a un asiento concurrente.
+        if (newIsPostable === false) {
+          const enUso = await tx.journalEntry.count({
+            where: { accountId: id, account: { companyId: before.companyId } },
+          });
+          if (enUso > 0) {
+            throw new AccountInUseError(
+              `La cuenta tiene ${enUso} ${enUso === 1 ? "asiento" : "asientos"}: su código debe mantener 9 dígitos para seguir siendo una cuenta de movimiento.`
+            );
+          }
+        }
+
+        const updated = await tx.account.update({
+          where: { id },
+          data: newIsPostable === undefined ? data : { ...data, isPostable: newIsPostable },
+        });
 
         await tx.auditLog.create({
           data: {
@@ -245,7 +288,9 @@ export async function updateAccountAction(
             ipAddress,
             userAgent,
             oldValue: before as object,
-            newValue: data as object,
+            newValue: (newIsPostable === undefined
+              ? data
+              : { ...data, isPostable: newIsPostable }) as object,
           },
         });
 
@@ -257,6 +302,7 @@ export async function updateAccountAction(
 
     return { success: true, data: { id: account.id, name: account.name } };
   } catch (error) {
+    if (error instanceof AccountInUseError) return { success: false, error: error.message };
     return toActionError(error);
   }
 }

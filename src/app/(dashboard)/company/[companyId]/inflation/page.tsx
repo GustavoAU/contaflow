@@ -24,13 +24,13 @@ export default async function InflationPage({ params }: Props) {
     }),
     INPCService.getRates(companyId, prisma),
     prisma.account.findMany({
-      where: { companyId, type: "EQUITY", deletedAt: null },
+      where: { companyId, type: "EQUITY", deletedAt: null, isPostable: true },
       select: { id: true, code: true, name: true },
       orderBy: { code: "asc" },
     }),
     // Cuentas de Ingreso/Gasto para registrar el REPOMO (VEN-NIF 3 §36.4)
     prisma.account.findMany({
-      where: { companyId, type: { in: ["REVENUE", "EXPENSE"] }, deletedAt: null },
+      where: { companyId, type: { in: ["REVENUE", "EXPENSE"] }, deletedAt: null, isPostable: true },
       select: { id: true, code: true, name: true },
       orderBy: { code: "asc" },
     }),

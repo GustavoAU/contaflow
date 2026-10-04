@@ -1,6 +1,6 @@
 # ADR-056 — Unicidad de nombre de cuenta, solo entre cuentas de movimiento
 
-**Estado:** Aceptado
+**Estado:** Revertido por ADR-059 (2026-10-04: el nombre deja de ser único; el hallazgo de `p2002TargetIncludes` sigue vigente)
 **Fecha:** 2026-10-01
 **Relacionados:** ADR-053 (isPostable/G-M), ADR-035 (precedente de índice único parcial), CLAUDE.md → "DROP CONSTRAINT vs DROP INDEX", `scripts/verify-schema-drift.mjs`
 
