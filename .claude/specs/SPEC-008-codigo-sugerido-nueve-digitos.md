@@ -177,6 +177,34 @@ Sin cambios de schema → se omite el paso ARCH GATE. Línea base (2026-10-05): 
 | 5 | security-agent | Auditoría (trigger: Server Actions modificadas + input de usuario → DB): IDOR del padre (`companyId` del contexto), validación Zod de `parentId`, no filtración de códigos de otra empresa, regresión del H-1 (el chequeo solo si el código cambia), rate limit. CRITICAL/HIGH bloquean. | — |
 | 6 | (sesión principal) | Gates: `tsc`, `vitest` (6 shards), `pnpm lint`, `format:check`; CA marcados `[x]`; sección 12; ADR-059 actualizado (sugerencia de 9 dígitos y padre obligatorio); línea en Estado Activo; LL si aparece un patrón nuevo. Commits por capa. **Sin merge.** | — |
 
+**Estado de ejecución (2026-10-05, checkpoint al 92 % de tokens):**
+- Paso 1 **HECHO** (test-agent, RED): 224 tests nuevos en rojo, cada uno por su razón (verificado por la sesión
+  principal: 224 failed / 153 passed en los 7 archivos tocados; tsc 0; producción sin tocar). Archivos:
+  `src/lib/account-code.test.ts`, `src/modules/accounting/__tests__/{next-account-code,parent-title}.test.ts`,
+  `src/modules/accounting/actions/account.actions.test.ts`, `src/modules/import/{services/ImportService,schemas/import.schema}.test.ts`
+  y el helper `src/__tests__/helpers/in-memory-account-db.ts` (tabla `Account` en memoria detrás de `prisma.account.*`
+  para que un `where` sin `companyId`/`deletedAt` haga fallar el test). El agente validó los tests contra una
+  implementación de referencia descartable (38/38 mutantes muertos).
+- Pasos 2-6 **PENDIENTES**. Contrato exacto que usaron los tests (el ledger-agent debe implementarlo tal cual):
+  `parentCodeOf`, `isTitleParentCode`, `MOVEMENT_CODE_REGEX` en `src/lib/account-code.ts`; `nextChildCode` en
+  `src/modules/accounting/utils/next-account-code.ts`; `checkMovementParent` y `parentCheckMessage` en
+  `src/modules/accounting/utils/parent-title.ts` (pura: recibe `parent` ya cargado, no un lookup);
+  `getNextAccountCodeAction(type, companyId, parentId)`.
+- **Decisiones del dueño pendientes antes del paso 2** (ambigüedades del test-agent):
+  1. `getNextAccountCodeAction` con padre inválido: los tests exigen el mensaje genérico "La cuenta padre no es válida
+     para este tipo de cuenta." para TODA causa (incluido tipo incompatible); §8 define además "El título padre {código}
+     es de otro tipo de cuenta." (ese lo usa `parentCheckMessage` en alta/edición/import). Recomendación: dejarlo así.
+  2. RN-3: los tests aceptan CONTRA_ASSET bajo padre CONTRA_ASSET y rechazan ASSET bajo padre CONTRA_ASSET.
+     Irrelevante en la práctica (los títulos son ASSET), recomendación: dejarlo.
+  3. Importador: re-importar una cuenta de movimiento que ya existe sin padre en la BD se **omite** (`skipped`), sin
+     error (RN-12). El motivo de error por código mal formado no se fija (`reason` libre entre los permitidos).
+  4. `tsc` se rompe entre el paso 2 y el 4: `AccountsTable.tsx` llama a `getNextAccountCodeAction` con 2 argumentos
+     (líneas ~162 y ~207) y el paso 2 exige `parentId`. Recomendación: que el ledger-agent adapte esas dos llamadas de
+     forma mínima (p. ej. pasar el padre elegido o no sugerir hasta elegir padre) para no dejar la rama en rojo de tipos;
+     el ui-agent rehace el formulario completo en el paso 4.
+- La spec §7 describe `services/assertValidParentTitle` (async); los tests siguen la versión pura `utils/parent-title.ts`
+  (más simple y suficiente). Alinear §7 al cerrar.
+
 Notas de diseño para el paso 2:
 - Sin migración y sin tocar producción en toda esta spec.
 - La función de validación de padre es pura (recibe un `lookup(code) => título | null`); así el importador valida

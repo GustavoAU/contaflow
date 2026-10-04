@@ -3,10 +3,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import ExcelJS from "exceljs";
 import { Prisma } from "@prisma/client";
 
+// SPEC-008 RN-11: el importador valida el título padre de cada cuenta de movimiento. Puede
+// consultarlo con `findMany` (por lote) o `findFirst` (por fila); el mock expone ambos para no
+// atar los tests a una forma de consulta — lo que se verifica es el RESULTADO, evaluado contra una
+// BD en memoria (ver src/__tests__/helpers/in-memory-account-db.ts).
 vi.mock("@/lib/prisma", () => ({
   default: {
     account: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
     },
     auditLog: {
@@ -18,6 +24,32 @@ vi.mock("@/lib/prisma", () => ({
 import prisma from "@/lib/prisma";
 import { ImportService } from "./ImportService";
 import type { ImportAccountRow } from "../schemas/import.schema";
+import {
+  accountRow,
+  createAccountDb,
+  type AccountDb,
+} from "@/__tests__/helpers/in-memory-account-db";
+
+// `mockClear` no restablece implementaciones: lo que un test conecta no debe filtrarse al siguiente.
+function resetAccountMocks() {
+  for (const fn of [
+    prisma.account.findUnique,
+    prisma.account.findFirst,
+    prisma.account.findMany,
+    prisma.account.create,
+    prisma.auditLog.create,
+  ]) {
+    vi.mocked(fn).mockReset();
+  }
+}
+
+/** Conecta una BD en memoria a `prisma.account.*` (cada consulta se evalúa contra filas reales). */
+function mountAccountDb(db: AccountDb) {
+  vi.mocked(prisma.account.findUnique).mockImplementation(db.findUnique as never);
+  vi.mocked(prisma.account.findFirst).mockImplementation(db.findFirst as never);
+  vi.mocked(prisma.account.findMany).mockImplementation(db.findMany as never);
+  vi.mocked(prisma.account.create).mockImplementation(db.create as never);
+}
 
 async function makeExcelBuffer(rows: object[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
@@ -520,7 +552,12 @@ describe("ImportService.parseAccountsExcel", () => {
 });
 
 describe("ImportService.importAccounts", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Por defecto, una BD vacía: las consultas de padre que añade SPEC-008 no devuelven `undefined`.
+    resetAccountMocks();
+    mountAccountDb(createAccountDb([]));
+  });
 
   it("crea cuentas nuevas correctamente", async () => {
     vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
@@ -624,12 +661,14 @@ describe("ImportService.importAccounts", () => {
   }
 
   it("[ADR-059] el servidor deriva isPostable del código, ignora lo que mande el cliente", async () => {
-    vi.mocked(prisma.account.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.account.create).mockResolvedValue({} as never);
+    // SPEC-008 RN-11: la cuenta de movimiento necesita su título padre (6 dígitos). Viene en el
+    // mismo archivo; la BD en memoria hace que también sea visible si el importador lo consulta
+    // después de crearlo.
+    mountAccountDb(createAccountDb([]));
     vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
 
     await ImportService.importAccounts("company-1", "user-1", [
-      { codigo: "1.1.01", nombre: "CAJAS", tipo: "ASSET", isPostable: true },
+      { codigo: "1.1.01.01", nombre: "CAJAS", tipo: "ASSET", isPostable: true },
       { codigo: "1.1.01.01.001", nombre: "Caja Principal", tipo: "ASSET", isPostable: false },
     ]);
 
@@ -662,6 +701,283 @@ describe("ImportService.importAccounts", () => {
 
     expect(result.errors[0].reason).toBe("unknown");
     expect(result.errors[0].message).toBe("Fila 1105: error al importar");
+  });
+});
+
+// ─── SPEC-008 RN-11: una cuenta de movimiento solo se importa si existe su título padre ─────────
+
+type ImportRows = Parameters<typeof ImportService.importAccounts>[2];
+type ImportRow = ImportRows[number];
+
+const fila = (
+  codigo: string,
+  nombre = `Cuenta ${codigo}`,
+  tipo: ImportRow["tipo"] = "ASSET"
+): ImportRow => ({ codigo, nombre, tipo });
+
+describe("ImportService.importAccounts — título padre obligatorio (SPEC-008 RN-11)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetAccountMocks();
+    mountAccountDb(createAccountDb([]));
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  const codigosCreados = () =>
+    vi
+      .mocked(prisma.account.create)
+      .mock.calls.map(([args]) => (args.data as { code: string }).code)
+      .sort();
+
+  // ─── CA-14: el padre viene en el MISMO archivo, en cualquier orden ──────────────────────────
+  it("CA-14: el título padre viene DESPUÉS de su cuenta de movimiento en el archivo → ambas se importan", async () => {
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"),
+      fila("1.1.01.01", "CAJAS"),
+    ]);
+
+    expect(result).toEqual({ created: 2, skipped: 0, errors: [] });
+    expect(codigosCreados()).toEqual(["1.1.01.01", "1.1.01.01.001"]);
+  });
+
+  it("CA-14: el título padre viene ANTES de su cuenta de movimiento → ambas se importan", async () => {
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01", "CAJAS"),
+      fila("1.1.01.01.001", "Caja Principal"),
+    ]);
+
+    expect(result).toEqual({ created: 2, skipped: 0, errors: [] });
+  });
+
+  it("CA-14: varias cuentas de movimiento de familias distintas con sus títulos al final del archivo", async () => {
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"),
+      fila("1.1.01.01.002", "Caja Chica"),
+      fila("2.1.05.02.001", "Proveedores Nacionales", "LIABILITY"),
+      fila("1.1.01.01", "CAJAS"),
+      fila("2.1.05.02", "PROVEEDORES", "LIABILITY"),
+    ]);
+
+    expect(result).toEqual({ created: 5, skipped: 0, errors: [] });
+  });
+
+  // ─── CA-14: padre inexistente → error de fila, el resto sigue ───────────────────────────────
+  it("CA-14: padre inexistente → esa fila falla con missing_parent y las demás se importan", async () => {
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"), // su padre 1.1.01.01 NO está en el archivo ni en la BD
+      fila("2.1.01.01", "PASIVOS CORRIENTES", "LIABILITY"),
+      fila("2.1.01.01.001", "Proveedores", "LIABILITY"), // este sí tiene padre en el archivo
+    ]);
+
+    expect(result.created).toBe(2);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].reason).toBe("missing_parent");
+    expect(result.errors[0].message).toBe("Fila 1.1.01.01.001: falta el título padre 1.1.01.01.");
+    expect(result.errors[0].row.codigo).toBe("1.1.01.01.001");
+    // La fila rechazada no se creó; las otras dos sí.
+    expect(codigosCreados()).toEqual(["2.1.01.01", "2.1.01.01.001"]);
+  });
+
+  it("CA-14: un fallo de padre NO aborta el lote: filas buenas ANTES y DESPUÉS del error se importan", async () => {
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01", "CAJAS Y BANCOS"),
+      fila("1.1.05.09.001", "Cuenta huérfana"),
+      fila("1.1.01.01", "CAJAS"),
+      fila("1.1.01.01.001", "Caja Principal"),
+      fila("1.1.07.03.001", "Otra huérfana"),
+      fila("1.1.01.01.002", "Caja Chica"),
+    ]);
+
+    expect(result.created).toBe(4);
+    expect(result.errors.map((e) => e.row.codigo)).toEqual(["1.1.05.09.001", "1.1.07.03.001"]);
+    expect(result.errors.map((e) => e.message)).toEqual([
+      "Fila 1.1.05.09.001: falta el título padre 1.1.05.09.",
+      "Fila 1.1.07.03.001: falta el título padre 1.1.07.03.",
+    ]);
+    // `reason` se compara como string: hasta que ImportErrorReason incluya "missing_parent" (modo RED),
+    // el tipo estrecho de TypeScript no admite esa comparación.
+    expect(result.errors.every((e) => (e.reason as string) === "missing_parent")).toBe(true);
+  });
+
+  it("CA-14: el error de fila conserva el resto de la fila (nombre, tipo e isPostable derivado del código)", async () => {
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("2.1.05.02.001", "Proveedores Nacionales", "LIABILITY"),
+    ]);
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].row).toMatchObject({
+      codigo: "2.1.05.02.001",
+      nombre: "Proveedores Nacionales",
+      tipo: "LIABILITY",
+      isPostable: true,
+    });
+  });
+
+  it("el error missing_parent queda en el AuditLog de la importación junto con los contadores", async () => {
+    await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01", "CAJAS"),
+      fila("1.1.01.01.001", "Caja Principal"),
+      fila("1.1.09.09.001", "Huérfana"),
+    ]);
+
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: "company-1",
+          action: "IMPORT",
+          newValue: expect.objectContaining({
+            created: 2,
+            skipped: 0,
+            errors: [expect.objectContaining({ reason: "missing_parent" })],
+          }),
+        }),
+      })
+    );
+  });
+
+  // ─── CA-14: el padre ya existe en la BASE ───────────────────────────────────────────────────
+  it("CA-14: el título padre ya existe en la BD (no viene en el archivo) → la cuenta se importa", async () => {
+    mountAccountDb(
+      createAccountDb([accountRow({ id: "t-cajas", code: "1.1.01.01", name: "CAJAS" })])
+    );
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"),
+      fila("1.1.01.01.002", "Caja Chica"),
+    ]);
+
+    expect(result).toEqual({ created: 2, skipped: 0, errors: [] });
+    expect(codigosCreados()).toEqual(["1.1.01.01.001", "1.1.01.01.002"]);
+  });
+
+  it("CA-tenant: el padre de la BD se busca en la empresa verificada — un título de OTRA empresa no sirve", async () => {
+    mountAccountDb(
+      createAccountDb([
+        accountRow({ id: "t-ajeno", code: "1.1.01.01", name: "CAJAS", companyId: "company-2" }),
+      ])
+    );
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"),
+    ]);
+
+    expect(result.created).toBe(0);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].reason).toBe("missing_parent");
+    expect(prisma.account.create).not.toHaveBeenCalled();
+  });
+
+  it("CA-tenant: toda consulta de padre va acotada a la empresa (companyId)", async () => {
+    mountAccountDb(
+      createAccountDb([accountRow({ id: "t-cajas", code: "1.1.01.01", name: "CAJAS" })])
+    );
+
+    await ImportService.importAccounts("company-1", "user-1", [fila("1.1.01.01.001", "Caja")]);
+
+    const consultas = [
+      ...vi.mocked(prisma.account.findFirst).mock.calls,
+      ...vi.mocked(prisma.account.findMany).mock.calls,
+    ].map(([args]) => (args as { where?: Record<string, unknown> }).where ?? {});
+    expect(consultas.length).toBeGreaterThan(0); // el padre se consulta en la BD (no está en el archivo)
+    for (const where of consultas) {
+      expect(where.companyId).toBe("company-1");
+    }
+  });
+
+  it("CA-5: el título padre de la BD está ELIMINADO → missing_parent", async () => {
+    mountAccountDb(
+      createAccountDb([
+        accountRow({
+          id: "t-cajas",
+          code: "1.1.01.01",
+          name: "CAJAS",
+          deletedAt: new Date("2026-09-01"),
+        }),
+      ])
+    );
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"),
+    ]);
+
+    expect(result.created).toBe(0);
+    expect(result.errors[0]?.reason).toBe("missing_parent");
+  });
+
+  // ─── CA-11 aplicado al importador: los títulos no necesitan padre ───────────────────────────
+  it("CA-11: títulos de < 9 dígitos sin ningún padre en el archivo ni en la BD → se importan", async () => {
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1", "ACTIVOS"),
+      fila("1.1", "ACTIVOS CORRIENTES"),
+      fila("1.1.01", "EFECTIVO"),
+      fila("1.1.01.01", "CAJAS"),
+      fila("1105", "Caja heredada"),
+    ]);
+
+    expect(result).toEqual({ created: 5, skipped: 0, errors: [] });
+    expect(
+      vi.mocked(prisma.account.create).mock.calls.every(([a]) => a.data.isPostable === false)
+    ).toBe(true);
+  });
+
+  // ─── RN-1 en el importador: forma inválida ─────────────────────────────────────────────────
+  it.each([
+    ["sin puntos (9 dígitos planos)", "110101001"],
+    ["10 dígitos", "1.1.01.01.0010"],
+    ["separador guion", "1-1-01-01-001"],
+  ])(
+    "RN-1: un código de movimiento mal formado (%s) NO se importa aunque exista un título que parezca su padre",
+    async (_label, codigo) => {
+      const result = await ImportService.importAccounts("company-1", "user-1", [
+        fila("1.1.01.01", "CAJAS"),
+        fila(codigo, "Caja Principal"),
+      ]);
+
+      expect(result.created).toBe(1); // solo el título
+      expect(codigosCreados()).toEqual(["1.1.01.01"]);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].row.codigo).toBe(codigo);
+      expect(result.errors[0].reason).not.toBe("duplicate_code");
+    }
+  );
+
+  // ─── RN-12: lo existente no se toca ────────────────────────────────────────────────────────
+  it("RN-12: reimportar una cuenta de movimiento que YA existe (sin título padre, empresa demo) → se omite, no es un error", async () => {
+    mountAccountDb(
+      createAccountDb([
+        accountRow({ id: "acc-vieja", code: "1.1.01.01.001", name: "Caja Principal" }),
+      ])
+    );
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"),
+    ]);
+
+    expect(result).toEqual({ created: 0, skipped: 1, errors: [] });
+    expect(prisma.account.create).not.toHaveBeenCalled();
+  });
+
+  // ─── Regresión: el choque de código sigue siendo duplicate_code ────────────────────────────
+  it("un P2002 de código con padre válido sigue reportándose como duplicate_code (no como missing_parent)", async () => {
+    mountAccountDb(
+      createAccountDb([accountRow({ id: "t-cajas", code: "1.1.01.01", name: "CAJAS" })])
+    );
+    vi.mocked(prisma.account.create).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "7.0.0",
+        meta: { target: ["companyId", "code"] },
+      })
+    );
+
+    const result = await ImportService.importAccounts("company-1", "user-1", [
+      fila("1.1.01.01.001", "Caja Principal"),
+    ]);
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].reason).toBe("duplicate_code");
   });
 });
 

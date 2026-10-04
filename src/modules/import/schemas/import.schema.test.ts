@@ -9,7 +9,11 @@
 // `undefined`, no `true`. Implementar agregando `isPostable: z.boolean().default(true)`
 // al schema (ver propuesta en el informe del test-agent).
 import { describe, it, expect } from "vitest";
-import { ImportAccountRowSchema, type ImportAccountRow } from "./import.schema";
+import {
+  ImportAccountRowSchema,
+  ImportErrorReasonSchema,
+  type ImportAccountRow,
+} from "./import.schema";
 
 describe("ImportAccountRowSchema — compatibilidad con la plantilla actual (4 columnas)", () => {
   it("fila con tipo explícito (ASSET) y SIN columna G/M sigue aceptándose — isPostable default true", () => {
@@ -75,4 +79,29 @@ describe("ImportAccountRowSchema — requiresThirdParty (columna 'Ter.')", () =>
     const withThirdParty = parsed as ImportAccountRow & { requiresThirdParty?: boolean };
     expect(withThirdParty.requiresThirdParty).toBe(false);
   });
+});
+
+// ---------------------------------------------------------------------------
+// SPEC-008 RN-11: una cuenta de movimiento sin su título padre es un error de FILA
+// (`reason: "missing_parent"`) que no aborta el lote. El enum de razones debe aceptarlo.
+// ---------------------------------------------------------------------------
+describe("ImportErrorReasonSchema — razones de error de fila (SPEC-008)", () => {
+  it.each(["duplicate_code", "missing_parent", "unknown"])("acepta la razón %s", (reason) => {
+    expect(ImportErrorReasonSchema.safeParse(reason).success).toBe(true);
+  });
+
+  it("el enum contiene EXACTAMENTE duplicate_code, missing_parent y unknown", () => {
+    expect([...ImportErrorReasonSchema.options].sort()).toEqual([
+      "duplicate_code",
+      "missing_parent",
+      "unknown",
+    ]);
+  });
+
+  it.each(["name_conflict", "bad_format", "not_a_title", "", "MISSING_PARENT"])(
+    "rechaza la razón inventada %j",
+    (reason) => {
+      expect(ImportErrorReasonSchema.safeParse(reason).success).toBe(false);
+    }
+  );
 });
