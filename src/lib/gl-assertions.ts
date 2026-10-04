@@ -8,12 +8,14 @@ import { Decimal } from "decimal.js";
  * Convención de signos: DEBE (positivo) + HABER (negativo) = 0.
  *
  * @param entries  Arreglo de entradas con campo `amount` (Decimal, positivo o negativo).
- * @param tolerance Tolerancia máxima de desvío (default 0.01 Bs.).
+ * @param tolerance Tolerancia máxima de desvío. Por defecto 0: CUADRE EXACTO (ADR-058, decisión de la
+ *   contadora 2026-10-03: "todo, hasta en los decimales"). Los servicios cuantizan con
+ *   `quantizeGLEntries` ANTES de verificar, así que lo que se verifica es lo que se guarda.
  * @throws Error si |Σ(amount)| > tolerance — asiento descuadrado.
  */
 export function assertBalancedGLEntries(
   entries: { amount: Decimal }[],
-  tolerance = new Decimal("0.01")
+  tolerance = new Decimal(0)
 ): void {
   const sum = entries.reduce((acc, e) => acc.plus(e.amount), new Decimal(0));
   if (sum.abs().greaterThan(tolerance)) {

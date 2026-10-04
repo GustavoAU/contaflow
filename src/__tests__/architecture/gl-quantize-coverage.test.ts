@@ -5,10 +5,10 @@
 // `quantizeGLEntries(`. Verificar sin cuantizar deja pasar un asiento que se guarda
 // con Σ != 0 a 4 decimales (bug de produccion: Σ = -0.0001).
 //
-// TRINQUETE (ratchet): PENDING_ADOPTION es la lista de trabajo de los lotes de migracion
-// (SPEC-004). Solo puede ENCOGERSE: al migrar un archivo hay que quitarlo de la lista
-// (si no, el test falla pidiendolo), y un archivo nuevo que verifique sin cuantizar falla
-// siempre. Al terminar el ultimo lote la lista queda vacia y el test es estricto.
+// Regla ESTRICTA desde 2026-10-03 (SPEC-004 completa: los 21 servicios migrados): ningun
+// archivo de produccion puede verificar un asiento sin cuantizarlo. Un servicio nuevo que
+// llame assertBalancedGLEntries( debe llamar tambien quantizeGLEntries( (modo "exact" si el
+// asiento deriva de saldos ya guardados: anulaciones, cierres, liquidaciones).
 //
 // Nota: no se importa el enmascarador de idempotency-key-tenant-scope.test.ts porque
 // importar un archivo de test re-registraria todas sus suites aqui. Este enmascarador
@@ -23,12 +23,6 @@ import { describe, it, expect } from "vitest";
 const ROOT = path.resolve(process.cwd());
 const SRC = path.join(ROOT, "src");
 const GL_ASSERTIONS_FILE = "src/lib/gl-assertions.ts";
-
-/**
- * Archivos que aun NO cuantizan (inventario del 2026-10-03: 21). SPEC-004, lotes 1-3.
- * Quitar cada uno en el MISMO commit que lo migra. Meta: lista vacia.
- */
-const PENDING_ADOPTION: string[] = [];
 
 // Ratchet: nº minimo de archivos que llaman assertBalancedGLEntries (medir antes de bajarlo).
 const MIN_EXPECTED_CALLERS = 15;
@@ -107,37 +101,18 @@ describe("Architecture: todo asiento verificado se cuantiza (ADR-058)", () => {
     ).toBeGreaterThanOrEqual(MIN_EXPECTED_CALLERS);
   });
 
-  it("ningun archivo NUEVO verifica asientos sin cuantizar (los pendientes estan en PENDING_ADOPTION)", () => {
+  it("todo archivo que llama assertBalancedGLEntries( tambien llama quantizeGLEntries( (ADR-058)", () => {
     const offenders = CALLERS.filter((f) => !callsFunction(f.code, "quantizeGLEntries")).map(
       (f) => f.rel
     );
-    const unexpected = offenders.filter((f) => !PENDING_ADOPTION.includes(f));
 
     expect(
-      unexpected,
-      `Archivos que llaman assertBalancedGLEntries( sin quantizeGLEntries( y que NO estan en ` +
-        `PENDING_ADOPTION (ADR-058). Cuantiza antes de verificar y persistir:\n` +
-        unexpected.map((f) => `  - ${f}`).join("\n")
+      offenders,
+      `${offenders.length} de ${CALLERS.length} archivos verifican asientos con ` +
+        `assertBalancedGLEntries( sin cuantizar con quantizeGLEntries( (ADR-058). Cuantiza antes de ` +
+        `verificar y persistir (modo exact si deriva de saldos guardados):\n` +
+        offenders.map((f) => `  - ${f}`).join("\n")
     ).toHaveLength(0);
-  });
-
-  it("PENDING_ADOPTION solo contiene archivos que de verdad siguen sin cuantizar (trinquete)", () => {
-    const stillPending = new Set(
-      CALLERS.filter((f) => !callsFunction(f.code, "quantizeGLEntries")).map((f) => f.rel)
-    );
-    const migrated = PENDING_ADOPTION.filter((f) => !stillPending.has(f));
-
-    expect(
-      migrated,
-      `Estos archivos YA cuantizan (o dejaron de verificar): quitalos de PENDING_ADOPTION ` +
-        `en el mismo commit que los migra:\n` +
-        migrated.map((f) => `  - ${f}`).join("\n")
-    ).toHaveLength(0);
-  });
-
-  it("avance de la migracion: archivos pendientes de cuantizar", () => {
-    // Informativo en el log: cuando llegue a 0, borrar PENDING_ADOPTION y este test.
-    expect(PENDING_ADOPTION.length).toBeLessThanOrEqual(21);
   });
 
   it("los helpers del detector distinguen llamadas reales de menciones", () => {
