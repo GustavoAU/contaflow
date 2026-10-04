@@ -40,6 +40,7 @@ import {
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import "dotenv/config";
+import { buildTitleAccounts } from "./seed-account-titles";
 
 const connectionString = process.env.DATABASE_URL;
 const pool = new pg.Pool({ connectionString });
@@ -106,6 +107,15 @@ async function main() {
     { code: "5.1.25.01.001", name: "Servicios Públicos", type: "EXPENSE" },
     { code: "5.1.30.01.001", name: "Compras de Mercancías", type: "EXPENSE" },
   ];
+
+  // Títulos padre (ADR-059): una cuenta de movimiento siempre cuelga de un título.
+  for (const t of buildTitleAccounts(accountDefs)) {
+    await prisma.account.upsert({
+      where: { companyId_code: { companyId: cId, code: t.code } },
+      update: {},
+      create: { companyId: cId, code: t.code, name: t.name, type: t.type, isPostable: false },
+    });
+  }
 
   const accounts: Record<string, string> = {}; // code → id
   for (const acc of accountDefs) {

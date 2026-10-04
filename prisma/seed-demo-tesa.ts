@@ -50,6 +50,7 @@ import {
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import "dotenv/config";
+import { buildTitleAccounts } from "./seed-account-titles";
 import { Decimal } from "decimal.js";
 import { InvoiceGLPostingService } from "../src/modules/invoices/services/InvoiceGLPostingService";
 
@@ -156,6 +157,15 @@ async function main() {
     { code: "5.1.30.01.001", name: "Gastos de Oficina y Papelería", type: "EXPENSE" },
     { code: "5.1.35.01.001", name: "IGTF — Impuesto Grandes Transacciones", type: "EXPENSE" },
   ];
+
+  // Títulos padre (ADR-059): una cuenta de movimiento siempre cuelga de un título.
+  for (const t of buildTitleAccounts(accountDefs)) {
+    await prisma.account.upsert({
+      where: { companyId_code: { companyId: cId, code: t.code } },
+      update: {},
+      create: { companyId: cId, code: t.code, name: t.name, type: t.type, isPostable: false },
+    });
+  }
 
   const accounts: Record<string, string> = {};
   for (const acc of accountDefs) {

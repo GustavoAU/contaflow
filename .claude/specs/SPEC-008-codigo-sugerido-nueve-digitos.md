@@ -174,9 +174,9 @@ Lo completa `/implementar`.
 **Resueltas (dueño, 2026-10-05):** estructura 1/1/2/2/3 fija en todos los planes · cuenta de movimiento sin título
 padre **no** se permite.
 
-- Riesgo (consecuencia directa de la decisión): las dos **empresas demo** ya renumeradas a 9 dígitos (PR #59) no tienen
-  títulos; sus cuentas siguen funcionando (RN-12), pero para crear una cuenta de movimiento nueva ahí habría que crear
-  antes los títulos. Opción: tarea aparte que cree el esqueleto de títulos de las demos. No bloquea esta spec.
+- Riesgo resuelto (2026-10-05): las dos **empresas demo** renumeradas a 9 dígitos no tenían títulos. Se les creó la
+  jerarquía completa (migración `20261005_demo_account_titles`, 169 títulos) y los seeds la generan; para ellas ya
+  se puede crear una cuenta de movimiento nueva eligiendo un título padre.
 - Riesgo: el importador pasa a rechazar filas de movimiento sin padre. Un archivo que traiga solo cuentas de 9 dígitos
   y ningún título (formato plano) ya no se importará completo; el mensaje de fila dice qué título falta. El plan real
   de la tester (títulos incluidos, 242 cuentas) cumple la regla al 100 %.
