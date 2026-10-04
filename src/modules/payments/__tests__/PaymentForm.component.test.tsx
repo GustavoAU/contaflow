@@ -62,7 +62,7 @@ function methodSelect(): HTMLSelectElement {
 // el único input "0.00" visible es amountVes; ivaRetentionAmount solo aparece
 // con bankAccountId seleccionado y aquí mockeamos 0 cuentas).
 function fillPagomovil(amount = "1500.00") {
-  fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: amount } });
+  fireEvent.change(screen.getByPlaceholderText("0,00"), { target: { value: amount } });
   fireEvent.change(screen.getByPlaceholderText("REF-12345678"), { target: { value: "REF-001" } });
   fireEvent.change(screen.getByPlaceholderText("0414-1234567"), {
     target: { value: "0414-1234567" },
@@ -197,13 +197,13 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     expect(getLatestRateAction).toHaveBeenCalledWith("company-1", "USD");
 
     // En Zelle hay dos inputs "0.00": [0]=Monto USD (editable), [1]=Equivalente VES (readOnly)
-    const [usdInput, vesInput] = screen.getAllByPlaceholderText("0.00") as HTMLInputElement[];
+    const [usdInput, vesInput] = screen.getAllByPlaceholderText("0,00") as HTMLInputElement[];
     expect(vesInput.readOnly).toBe(true);
     expect(usdInput.readOnly).toBe(false);
 
     fireEvent.change(usdInput, { target: { value: "50" } });
     // H-003: 50 × 600 = 30000.00 auto-calculado (el servidor lo recalcula al guardar)
-    await waitFor(() => expect(vesInput.value).toBe("30000.00"));
+    await waitFor(() => expect(vesInput.value).toBe("30.000,00"));
 
     fireEvent.change(screen.getByPlaceholderText(/Pago factura proveedor/), {
       target: { value: "Cobro Zelle" },
@@ -229,7 +229,7 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
 
     // Todo lleno MENOS el monto (amountVes no tiene `required` nativo en PagoMóvil)
     fillPagomovil();
-    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "" } });
+    fireEvent.change(screen.getByPlaceholderText("0,00"), { target: { value: "" } });
     fireEvent.click(submitBtn());
 
     expect(await screen.findByText("El monto debe ser mayor a Bs.D 0,00")).toBeTruthy();
@@ -255,7 +255,7 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
     render(<PaymentForm {...BASE_PROPS} onSuccess={onSuccess} />);
     // Cambiamos de método para verificar que reset() lo devuelve al default
     fireEvent.change(methodSelect(), { target: { value: "TRANSFERENCIA" } });
-    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "500.00" } });
+    fireEvent.change(screen.getByPlaceholderText("0,00"), { target: { value: "500.00" } });
     fireEvent.change(screen.getByPlaceholderText("REF-00123456"), { target: { value: "REF-T-1" } });
     fireEvent.change(screen.getByPlaceholderText(/Pago factura proveedor/), {
       target: { value: "Transferencia prueba" },
@@ -267,7 +267,7 @@ describe("PaymentForm — smoke del refactor RHF (H6 + payloads por método)", (
 
     // reset(makeDefaultValues()): método de vuelta a PAGOMOVIL y campos limpios
     expect(methodSelect().value).toBe("PAGOMOVIL");
-    expect((screen.getByPlaceholderText("0.00") as HTMLInputElement).value).toBe("");
+    expect((screen.getByPlaceholderText("0,00") as HTMLInputElement).value).toBe("");
     expect((screen.getByPlaceholderText("REF-12345678") as HTMLInputElement).value).toBe("");
     expect((screen.getByPlaceholderText(/Pago factura proveedor/) as HTMLInputElement).value).toBe(
       ""

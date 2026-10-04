@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createDepositAction } from "../actions/cajachica.actions";
 import { todayLocalISO } from "@/lib/today";
+import { MoneyInput } from "@/components/ui/money-input";
 
 type Account = { id: string; code: string; name: string; type: string };
 
@@ -79,13 +80,10 @@ export function CajaCajaDepositForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Monto {currency} *</Label>
-          <Input
-            type="number"
-            step="0.01"
-            min="0.01"
+          <MoneyInput
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
+            onValueChange={setAmount}
+            placeholder="0,00"
             required
             disabled={isPending}
           />

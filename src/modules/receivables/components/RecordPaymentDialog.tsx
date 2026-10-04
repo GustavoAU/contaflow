@@ -32,6 +32,8 @@ import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-r
 import type { ReceivableRow } from "../services/ReceivableService";
 import { Decimal } from "decimal.js";
 import { todayLocalISO } from "@/lib/today";
+import { MoneyInput } from "@/components/ui/money-input";
+import { formatMoneyVE, parseMoneyInput } from "@/lib/money-input";
 
 type Props = {
   companyId: string;
@@ -68,7 +70,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
   const [bankAccountId, setBankAccountId] = useState<string>("");
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   // Tasa BCV para cobros en divisa (el servidor recalcula el VES autoritativo al guardar)
-  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [bcvRate, setBcvRate] = useState<Decimal | null>(null);
   const [bcvLoading, setBcvLoading] = useState(false);
 
   useEffect(() => {
@@ -92,7 +94,10 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
     setBcvRate(null);
     getLatestRateAction(companyId, selectedCurrency).then((res) => {
       if (cancelled) return;
-      if (res.success && res.data) setBcvRate(parseFloat(res.data.rate));
+      if (res.success && res.data) {
+        const rate = parseMoneyInput(res.data.rate);
+        setBcvRate(rate.gt(0) ? rate : null);
+      }
       setBcvLoading(false);
     });
     return () => {
@@ -129,7 +134,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
       if (result.success) {
         const currencyLabel = CURRENCY_LABELS[selectedCurrency];
         toast.success(
-          `Pago registrado: ${currencyLabel} ${Number(amount).toLocaleString("es-VE", { minimumFractionDigits: 2 })}`
+          `Pago registrado: ${currencyLabel} ${formatMoneyVE(parseMoneyInput(amount))}`
         );
         setOpen(false);
         onSuccess?.();
@@ -139,8 +144,9 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
     });
   }
 
-  const maxAmount = parseFloat(row.pendingAmountVes);
-  const enteredAmount = parseFloat(amount) || 0;
+  // R-5: Decimal, nunca number, para importes.
+  const maxAmount = parseMoneyInput(row.pendingAmountVes);
+  const enteredAmount = parseMoneyInput(amount);
   const isForeign = selectedCurrency !== "VES";
   const rateMissing = isForeign && !bcvLoading && !bcvRate;
 
@@ -155,11 +161,11 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
       return new Decimal(0);
     }
   })();
-  const vesEquivalent = vesEquivalentDec.toNumber();
+  const vesEquivalent = vesEquivalentDec;
 
   // Validación contra el saldo pendiente (VES): se compara el equivalente en Bs.D.
   const isAmountValid =
-    enteredAmount > 0 && vesEquivalent > 0 && vesEquivalent <= maxAmount && !rateMissing;
+    enteredAmount.gt(0) && vesEquivalent.gt(0) && vesEquivalent.lte(maxAmount) && !rateMissing;
 
   // IGTF preview (3% del equivalente en Bs.D) — Decimal.js; servidor recalcula al guardar.
   const igtfPreview =
@@ -182,8 +188,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
             <br />
             Saldo pendiente:{" "}
             <span className="text-foreground font-semibold">
-              Bs.{" "}
-              {Number(row.pendingAmountVes).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+              Bs. {formatMoneyVE(parseMoneyInput(row.pendingAmountVes))}
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -194,14 +199,11 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
               Monto (
               {selectedCurrency === "VES" ? "Bs.D" : selectedCurrency === "USD" ? "USD" : "EUR"})
             </Label>
-            <Input
+            <MoneyInput
               id="amount"
-              type="number"
-              min="0.01"
-              {...(isForeign ? {} : { max: maxAmount })}
-              step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onValueChange={setAmount}
+              placeholder="0,00"
               className="font-[tabular-nums]"
             />
             {/* H-003 follow-up: en divisa se muestra el equivalente en Bs.D (el servidor lo recalcula) */}
@@ -210,11 +212,11 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
                 {bcvLoading
                   ? "Cargando tasa BCV..."
                   : bcvRate
-                    ? `Equivalente: Bs. ${vesEquivalent.toLocaleString("es-VE", { minimumFractionDigits: 2 })} (tasa BCV ${bcvRate.toLocaleString("es-VE", { minimumFractionDigits: 2 })})`
+                    ? `Equivalente: Bs. ${formatMoneyVE(vesEquivalent)} (tasa BCV ${formatMoneyVE(bcvRate, 4)})`
                     : "Sin tasa BCV registrada — regístrela antes de cobrar en divisa."}
               </p>
             )}
-            {vesEquivalent > maxAmount && (
+            {vesEquivalent.gt(maxAmount) && (
               <p className="text-destructive text-xs">
                 {isForeign
                   ? "El equivalente en Bs.D excede el saldo pendiente"
@@ -309,7 +311,7 @@ export function RecordPaymentDialog({ companyId, row, onSuccess }: Props) {
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               IGTF 3% (pago en {selectedCurrency}) — se aplicará automáticamente:
               <span className="ml-1 font-mono font-semibold">
-                Bs.D {Number(igtfPreview).toLocaleString("es-VE", { minimumFractionDigits: 2 })}
+                Bs.D {formatMoneyVE(igtfPreview)}
               </span>
             </div>
           )}

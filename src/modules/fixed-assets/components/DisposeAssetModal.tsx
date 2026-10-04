@@ -19,6 +19,7 @@ import {
 } from "../services/disposal-preview";
 import { formatAmount } from "@/lib/format";
 import { todayLocalISO } from "@/lib/today";
+import { MoneyInput } from "@/components/ui/money-input";
 import { zMoneyAmount } from "@/lib/zod-helpers";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -282,14 +283,12 @@ export function DisposeAssetModal({
           {reason === "SALE" && (
             <div>
               <label className={lc}>Precio de venta (Bs.)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
+              <MoneyInput
+                bare
                 value={proceeds}
-                onChange={(e) => setProceeds(e.target.value)}
+                onValueChange={setProceeds}
                 className={fc}
-                placeholder="0.00"
+                placeholder="0,00"
               />
             </div>
           )}

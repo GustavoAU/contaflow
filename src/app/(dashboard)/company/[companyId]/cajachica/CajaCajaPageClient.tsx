@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/money-input";
 import { CajaCajaList } from "@/modules/cajachica/components/CajaCajaList";
 import {
   listCajasCajasAction,
@@ -155,14 +156,11 @@ function CreateCajaForm({
           <Label htmlFor="caja-max" className="text-xs">
             Saldo máximo
           </Label>
-          <Input
+          <MoneyInput
             id="caja-max"
-            type="number"
-            step="0.01"
-            min="1"
             value={maxBalance}
-            onChange={(e) => setMaxBalance(e.target.value)}
-            placeholder="50000000"
+            onValueChange={setMaxBalance}
+            placeholder="50.000.000,00"
             required
             disabled={isPending}
           />

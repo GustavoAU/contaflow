@@ -15,6 +15,8 @@ import { VENEZUELA_BANKS } from "../constants/venezuela-banks";
 import { listBankAccountsAction, type BankAccountOption } from "../actions/payment.actions";
 import { genIdempotencyKey } from "../utils/idempotency";
 import { todayLocalISO } from "@/lib/today";
+import { MoneyInput } from "@/components/ui/money-input";
+import { formatMoneyVE, parseMoneyInput } from "@/lib/money-input";
 
 type Props = {
   companyId: string;
@@ -28,13 +30,13 @@ type Line = {
   amountVes: string;
 };
 
+// R-5: formateo sin number nativo (Decimal → es-VE).
 function fmtVes(v: string) {
-  const n = parseFloat(v);
-  return isNaN(n)
-    ? v
-    : new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
-        n
-      );
+  try {
+    return formatMoneyVE(new Decimal(v));
+  } catch {
+    return v;
+  }
 }
 
 let lineKeySeq = 0;
@@ -58,7 +60,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
 
   // Zelle — monto en USD + tasa BCV (#4)
   const [zelleUsd, setZelleUsd] = useState("");
-  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [bcvRate, setBcvRate] = useState<Decimal | null>(null);
   const [bcvLoading, setBcvLoading] = useState(false);
 
   // Cashea — comisión (#11)
@@ -103,7 +105,10 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
       setBcvLoading(true);
       try {
         const res = await getLatestRateAction(companyId, "USD");
-        if (res.success && res.data) setBcvRate(parseFloat(res.data.rate));
+        if (res.success && res.data) {
+          const rate = parseMoneyInput(res.data.rate);
+          setBcvRate(rate.gt(0) ? rate : null);
+        }
       } finally {
         setBcvLoading(false);
       }
@@ -113,11 +118,11 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
   // Auto-calcular total VES cuando zelleUsd + bcvRate están disponibles
   useEffect(() => {
     if (method !== "ZELLE" || !bcvRate || !zelleUsd) return;
-    const usd = parseFloat(zelleUsd);
-    if (!isNaN(usd) && usd > 0) {
+    const usd = parseMoneyInput(zelleUsd);
+    if (usd.gt(0)) {
       // Distribuir el monto VES auto-calculado a todas las líneas de forma proporcional
       // Por ahora actualiza solo si hay una línea vacía
-      const totalVes = (usd * bcvRate).toFixed(2);
+      const totalVes = usd.times(bcvRate).toDecimalPlaces(2).toFixed(2);
       if (lines.length === 1 && lines[0].amountVes === "") {
         setLines((prev) =>
           prev.map((l) => (l.key === prev[0].key ? { ...l, amountVes: totalVes } : l))
@@ -177,7 +182,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
     }
   }, new Decimal(0));
 
-  const commPct = parseFloat(commissionPct) || 0;
+  const commPct = parseMoneyInput(commissionPct);
   const commAmount = totalVes.gt(0)
     ? totalVes.mul(commPct).div(100).toDecimalPlaces(2).toString()
     : "0.00";
@@ -354,7 +359,7 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
               )}
               {!bcvLoading && bcvRate && (
                 <span className="ml-2 text-xs font-normal text-zinc-400">
-                  Tasa BCV: {formatAmount(bcvRate)} Bs.D/USD
+                  Tasa BCV: {formatAmount(bcvRate.toString())} Bs.D/USD
                 </span>
               )}
               {!bcvLoading && !bcvRate && (
@@ -363,13 +368,11 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
                 </span>
               )}
             </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
+            <MoneyInput
+              bare
               value={zelleUsd}
-              onChange={(e) => setZelleUsd(e.target.value)}
-              placeholder="0.00"
+              onValueChange={setZelleUsd}
+              placeholder="0,00"
               required
               className={`${inputCls} font-mono`}
             />
@@ -496,13 +499,11 @@ export function PaymentBatchForm({ companyId, invoices, onSuccess }: Props) {
                     )}
                   </div>
                   <div className="w-36">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
+                    <MoneyInput
+                      bare
                       value={line.amountVes}
-                      onChange={(e) => updateLine(line.key, "amountVes", e.target.value)}
-                      placeholder="0.00"
+                      onValueChange={(v) => updateLine(line.key, "amountVes", v)}
+                      placeholder="0,00"
                       required
                       className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                     />

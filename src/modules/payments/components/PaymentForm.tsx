@@ -27,9 +27,11 @@ import {
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../schemas/payment.schema";
 import { getLatestRateAction } from "@/modules/exchange-rates/actions/exchange-rate.actions";
 import { formatAmount } from "@/lib/format";
+import { parseMoneyInput } from "@/lib/money-input";
 import { VENEZUELA_BANKS } from "../constants/venezuela-banks";
 import { genIdempotencyKey } from "../utils/idempotency";
 import { todayLocalISO } from "@/lib/today";
+import { MoneyField } from "@/components/ui/money-field";
 
 type Props = {
   companyId: string;
@@ -116,10 +118,10 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   // Vive FUERA de RHF a propósito: reset() del form no debe tocarla.
   const [idempotencyKey, setIdempotencyKey] = useState(genIdempotencyKey);
 
-  const [bcvRate, setBcvRate] = useState<number | null>(null);
+  const [bcvRate, setBcvRate] = useState<Decimal | null>(null);
   const [bcvLoading, setBcvLoading] = useState(false);
 
-  const { register, handleSubmit, watch, setValue, reset } = useForm<PaymentFormValues>({
+  const { register, control, handleSubmit, watch, setValue, reset } = useForm<PaymentFormValues>({
     defaultValues: makeDefaultValues(),
   });
 
@@ -132,14 +134,16 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   const casheaIgtf = watch("casheaIgtf");
   const bankAccountId = watch("bankAccountId");
 
-  const vesNum = parseFloat(amountVes) || 0;
-  const commPct = parseFloat(commissionPct) || 0;
+  // R-5: importes como Decimal, nunca number. Los valores del formulario ya son canónicos
+  // ("1234.56") porque MoneyField normaliza lo que teclea el usuario.
+  const vesDec = parseMoneyInput(amountVes);
+  const hasVes = vesDec.gt(0);
+  const commPct = parseMoneyInput(commissionPct);
 
   const igtfZelle = method === "ZELLE" && amountVes ? calcIgtf(amountVes) : "0.00";
   const igtfEfectivo = efectivoCurrency === "USD" && amountVes ? calcIgtf(amountVes) : "0.00";
   const igtfCashea = casheaIgtf && amountVes ? calcIgtf(amountVes) : "0.00";
-  const commAmount =
-    vesNum > 0 ? new Decimal(vesNum).mul(commPct).div(100).toDecimalPlaces(2).toString() : "0.00";
+  const commAmount = hasVes ? vesDec.mul(commPct).div(100).toDecimalPlaces(2).toString() : "0.00";
 
   const needsBcv = method === "ZELLE" || (method === "EFECTIVO" && efectivoCurrency === "USD");
 
@@ -159,7 +163,10 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
       setBcvLoading(true);
       try {
         const res = await getLatestRateAction(companyId, "USD");
-        if (res.success && res.data) setBcvRate(parseFloat(res.data.rate));
+        if (res.success && res.data) {
+          const rate = parseMoneyInput(res.data.rate);
+          setBcvRate(rate.gt(0) ? rate : null);
+        }
       } finally {
         setBcvLoading(false);
       }
@@ -170,8 +177,8 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
   // H-003: el campo mostrado es solo-lectura; el servidor recalcula al guardar.
   useEffect(() => {
     if (!needsBcv || !bcvRate || !amountUsd) return;
-    const usdNum = parseFloat(amountUsd);
-    if (!isNaN(usdNum) && usdNum > 0) setValue("amountVes", (usdNum * bcvRate).toFixed(2));
+    const usd = parseMoneyInput(amountUsd);
+    if (usd.gt(0)) setValue("amountVes", usd.times(bcvRate).toDecimalPlaces(2).toFixed(2));
   }, [amountUsd, bcvRate, needsBcv, setValue]);
 
   // ─── Limpiar campos al cambiar método (#9) ────────────────────────────────
@@ -202,8 +209,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
     setSuccess(false);
 
     // Validación de monto en español (#7) — único mensaje client-side, intacto.
-    const vesFloat = parseFloat(values.amountVes);
-    if (!values.amountVes || isNaN(vesFloat) || vesFloat < 0.01) {
+    if (parseMoneyInput(values.amountVes).lt("0.01")) {
       setError("El monto debe ser mayor a Bs.D 0,00");
       return;
     }
@@ -255,7 +261,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
       }
 
       // Riesgo-6: IVA retenido por cliente CE (Prov. 0049) — solo si se ingresó
-      if (values.ivaRetentionAmount && parseFloat(values.ivaRetentionAmount) > 0) {
+      if (parseMoneyInput(values.ivaRetentionAmount).gt(0)) {
         payload.ivaRetentionAmount = values.ivaRetentionAmount;
       }
 
@@ -306,14 +312,12 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <label className="mb-1 block text-sm font-medium text-zinc-700">
               Monto en USD <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="0.00"
+            <MoneyField
+              control={control}
+              name="amountUsd"
+              placeholder="0,00"
               required
               className={`${inputCls} font-mono`}
-              {...register("amountUsd")}
             />
           </div>
           <div>
@@ -325,7 +329,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               )}
               {!bcvLoading && bcvRate && (
                 <span className="ml-2 text-xs font-normal text-zinc-400">
-                  Tasa BCV: {fmtNum(bcvRate)} Bs.D/USD
+                  Tasa BCV: {fmtNum(bcvRate.toString())} Bs.D/USD
                 </span>
               )}
               {!bcvLoading && !bcvRate && (
@@ -335,17 +339,17 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               )}
             </label>
             {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
-            <input
-              type="number"
+            <MoneyField
+              control={control}
+              name="amountVes"
               readOnly
               tabIndex={-1}
-              placeholder="0.00"
+              placeholder="0,00"
               title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
               className={`${inputCls} bg-zinc-100 font-mono text-zinc-600`}
-              {...register("amountVes")}
             />
           </div>
-          {vesNum > 0 && (
+          {hasVes && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               IGTF 3% (aplica por ser pago en USD):
               <span className="ml-1 font-mono font-semibold">Bs.D {fmtNum(igtfZelle)}</span>
@@ -390,14 +394,12 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
                   Monto en USD <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
+                <MoneyField
+                  control={control}
+                  name="amountUsd"
+                  placeholder="0,00"
                   required
                   className={`${inputCls} font-mono`}
-                  {...register("amountUsd")}
                 />
               </div>
               <div>
@@ -411,7 +413,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
                   )}
                   {!bcvLoading && bcvRate && (
                     <span className="ml-2 text-xs font-normal text-zinc-400">
-                      Tasa: {fmtNum(bcvRate)}
+                      Tasa: {fmtNum(bcvRate.toString())}
                     </span>
                   )}
                   {!bcvLoading && !bcvRate && (
@@ -421,17 +423,17 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
                   )}
                 </label>
                 {/* H-003: solo-lectura — el servidor recalcula amountVes = USD × tasa BCV oficial */}
-                <input
-                  type="number"
+                <MoneyField
+                  control={control}
+                  name="amountVes"
                   readOnly
                   tabIndex={-1}
-                  placeholder="0.00"
+                  placeholder="0,00"
                   title="Calculado con la tasa BCV; el servidor lo recalcula al guardar"
                   className={`${inputCls} bg-zinc-100 font-mono text-zinc-600`}
-                  {...register("amountVes")}
                 />
               </div>
-              {vesNum > 0 && (
+              {hasVes && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   IGTF 3%:{" "}
                   <span className="font-mono font-semibold">Bs.D {fmtNum(igtfEfectivo)}</span>
@@ -449,13 +451,11 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             Monto <span className="font-mono text-xs text-zinc-500">Bs.D (VES)</span>{" "}
             <span className="text-red-500">*</span>
           </label>
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            placeholder="0.00"
+          <MoneyField
+            control={control}
+            name="amountVes"
+            placeholder="0,00"
             className={`${inputCls} font-mono`}
-            {...register("amountVes")}
           />
         </div>
       )}
@@ -467,13 +467,11 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             Monto <span className="font-mono text-xs text-zinc-500">Bs.D</span>{" "}
             <span className="text-red-500">*</span>
           </label>
-          <input
-            type="number"
-            min="0.01"
-            step="0.01"
-            placeholder="0.00"
+          <MoneyField
+            control={control}
+            name="amountVes"
+            placeholder="0,00"
             className={`${inputCls} font-mono`}
-            {...register("amountVes")}
           />
         </div>
       )}
@@ -609,7 +607,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
                 className="w-28 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 {...register("commissionPct")}
               />
-              {vesNum > 0 && (
+              {hasVes && (
                 <span className="text-sm text-zinc-600">
                   = <span className="font-mono font-semibold">Bs.D {fmtNum(commAmount)}</span>
                 </span>
@@ -620,7 +618,7 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
             <input type="checkbox" className="rounded" {...register("casheaIgtf")} />
             Cashea liquida en USD (aplica IGTF 3%)
           </label>
-          {casheaIgtf && vesNum > 0 && (
+          {casheaIgtf && hasVes && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               IGTF 3%: <span className="font-mono font-semibold">Bs.D {fmtNum(igtfCashea)}</span>
             </div>
@@ -677,13 +675,11 @@ export function PaymentForm({ companyId, userId, onSuccess }: Props) {
               (Prov. 0049 — solo CE) — opcional
             </span>
           </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="0.00"
+          <MoneyField
+            control={control}
+            name="ivaRetentionAmount"
+            placeholder="0,00"
             className="block w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            {...register("ivaRetentionAmount")}
           />
           <p className="text-xs text-zinc-400">
             Si el cliente es Contribuyente Especial y retuvo el IVA (75%/100%), ingrese el monto

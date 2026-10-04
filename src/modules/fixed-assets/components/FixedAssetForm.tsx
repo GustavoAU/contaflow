@@ -35,6 +35,7 @@ import {
 } from "../actions/fixed-asset.actions";
 import type { ExpenseForAssetImport } from "../actions/fixed-asset.actions";
 import { formatAmount } from "@/lib/format";
+import { MoneyField } from "@/components/ui/money-field";
 
 type AccountOption = { id: string; code: string; name: string; type: string };
 
@@ -139,47 +140,48 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
   const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
   const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
 
-  const { register, handleSubmit, watch, setValue, getValues } = useForm<FixedAssetFormValues>({
-    // defaultValues se evalúa una sola vez al montar — misma semántica que los
-    // useState(() => findBestMatch(...)) anteriores.
-    defaultValues: {
-      name: "",
-      description: "",
-      location: "",
-      responsible: "",
-      acquisitionDate: "",
-      acquisitionCurrency: "VES",
-      acquisitionCost: "",
-      bcvRateAtAcquisition: "",
-      residualValue: "0",
-      usefulLifeMonths: "",
-      depreciationMethod: "LINEA_RECTA",
-      totalUnits: "",
-      assetAccountId: findBestMatch(assetAccounts, [
-        "propiedad",
-        "planta",
-        "equipo",
-        "inmueble",
-        "vehiculo",
-        "vehículo",
-        "maquinaria",
-        "mobiliario",
-        "activo fijo",
-      ]),
-      depreciationAccountId: findBestMatch(expenseAccounts, ["depreci", "amortiz"]),
-      accDepreciationAccountId: findBestMatch(contraAssetAccounts, [
-        "acumul",
-        "depreci",
-        "amortiz",
-      ]),
-      acquisitionCounterpartAccountId: "",
-      invoiceNumber: "",
-      providerRif: "",
-      serialNumber: "",
-      internalCode: "",
-      serviceStartDate: "",
-    },
-  });
+  const { register, control, handleSubmit, watch, setValue, getValues } =
+    useForm<FixedAssetFormValues>({
+      // defaultValues se evalúa una sola vez al montar — misma semántica que los
+      // useState(() => findBestMatch(...)) anteriores.
+      defaultValues: {
+        name: "",
+        description: "",
+        location: "",
+        responsible: "",
+        acquisitionDate: "",
+        acquisitionCurrency: "VES",
+        acquisitionCost: "",
+        bcvRateAtAcquisition: "",
+        residualValue: "0",
+        usefulLifeMonths: "",
+        depreciationMethod: "LINEA_RECTA",
+        totalUnits: "",
+        assetAccountId: findBestMatch(assetAccounts, [
+          "propiedad",
+          "planta",
+          "equipo",
+          "inmueble",
+          "vehiculo",
+          "vehículo",
+          "maquinaria",
+          "mobiliario",
+          "activo fijo",
+        ]),
+        depreciationAccountId: findBestMatch(expenseAccounts, ["depreci", "amortiz"]),
+        accDepreciationAccountId: findBestMatch(contraAssetAccounts, [
+          "acumul",
+          "depreci",
+          "amortiz",
+        ]),
+        acquisitionCounterpartAccountId: "",
+        invoiceNumber: "",
+        providerRif: "",
+        serialNumber: "",
+        internalCode: "",
+        serviceStartDate: "",
+      },
+    });
 
   // Campos observados: alimentan render condicional y el filtro de contrapartida.
   const method = watch("depreciationMethod");
@@ -435,14 +437,13 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
             Costo de adquisición{" "}
             <span className="font-normal text-zinc-400">({acquisitionCurrency})</span> *
           </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
+          <MoneyField
+            bare
+            control={control}
+            name="acquisitionCost"
             required
             className={fieldClass}
-            placeholder="0.00"
-            {...register("acquisitionCost")}
+            placeholder="0,00"
           />
         </div>
 
@@ -471,13 +472,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
           <label className={labelClass}>
             Valor residual <span className="font-normal text-zinc-400">(Bs.)</span>
           </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            className={fieldClass}
-            {...register("residualValue")}
-          />
+          <MoneyField bare control={control} name="residualValue" className={fieldClass} />
         </div>
 
         <div>

@@ -86,7 +86,7 @@ function fillBase() {
     target: { value: "Vehículo Hilux" },
   });
   fireEvent.change(dateInputs()[0]!, { target: { value: "2026-06-01" } });
-  fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "25000.00" } });
+  fireEvent.change(screen.getByPlaceholderText("0,00"), { target: { value: "25000.00" } });
   fireEvent.change(screen.getByPlaceholderText("Ej: 60"), { target: { value: "60" } });
 }
 
@@ -122,7 +122,7 @@ describe("FixedAssetForm — smoke del refactor RHF (FC-03 + paridad FormData + 
 
     // Campos base visibles
     expect(screen.getByPlaceholderText("Ej: Vehículo Toyota Hilux 2026")).toBeTruthy();
-    expect(screen.getByPlaceholderText("0.00")).toBeTruthy(); // costo
+    expect(screen.getByPlaceholderText("0,00")).toBeTruthy(); // costo
     expect(screen.getByPlaceholderText("Ej: 60")).toBeTruthy(); // vida útil
     expect(dateInputs()).toHaveLength(1); // solo acquisitionDate (legal colapsada)
     expect(currencySelect().value).toBe("VES");
@@ -324,7 +324,7 @@ describe("FixedAssetForm — smoke del refactor RHF (FC-03 + paridad FormData + 
     fireEvent.change(expenseSelect, { target: { value: "exp-1" } });
 
     // Pre-llenado desde el gasto
-    expect((screen.getByPlaceholderText("0.00") as HTMLInputElement).value).toBe("1200.00");
+    expect((screen.getByPlaceholderText("0,00") as HTMLInputElement).value).toBe("1.200,00");
     expect(dateInputs()[0]!.value).toBe("2026-05-10");
     expect(currencySelect().value).toBe("USD"); // moneda del gasto (N2)
     // Sección legal auto-expandida con los datos SENIAT del gasto
