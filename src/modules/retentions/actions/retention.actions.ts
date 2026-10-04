@@ -724,6 +724,7 @@ export async function getAccountsForEnteramientoAction(
     const accounts = await prisma.account.findMany({
       where: {
         companyId,
+        isPostable: true,
         type: { in: ["ASSET", "LIABILITY"] },
       },
       select: { id: true, code: true, name: true, type: true },

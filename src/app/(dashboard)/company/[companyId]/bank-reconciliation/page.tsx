@@ -30,7 +30,7 @@ export default async function BankReconciliationPage({ params, searchParams }: P
   const [accounts, chartAccounts] = await Promise.all([
     BankAccountService.list(companyId),
     prisma.account.findMany({
-      where: { companyId, deletedAt: null },
+      where: { companyId, deletedAt: null, isPostable: true },
       orderBy: { code: "asc" },
       select: { id: true, code: true, name: true },
     }),

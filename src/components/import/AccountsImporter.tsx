@@ -5,7 +5,6 @@ import { useState, useTransition, useRef } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   UploadIcon,
   DownloadIcon,
@@ -14,7 +13,6 @@ import {
   XCircleIcon,
   AlertCircleIcon,
   Loader2Icon,
-  PencilIcon,
 } from "lucide-react";
 import {
   importAccountsAction,
@@ -55,15 +53,6 @@ export function AccountsImporter({ companyId, userId }: Props) {
   const [preview, setPreview] = useState<ImportAccountRow[] | null>(null);
   const [parseError, setParseError] = useState<string>("");
   const [result, setResult] = useState<ImportResult | null>(null);
-  // Feedback del dueño 2026-10-01: un choque de NOMBRE entre cuentas de movimiento
-  // (ADR-056) se corrige ahí mismo, sin reeditar el Excel — un input por fila +
-  // "Crear" que reintenta SOLO esa cuenta con el nombre nuevo. `editedNames` guarda
-  // el borrador por código de cuenta; `retryingCode` acota el spinner/disabled a la
-  // fila que se está reintentando, no a toda la lista.
-  const [editedNames, setEditedNames] = useState<Record<string, string>>({});
-  const [retryingCode, setRetryingCode] = useState<string | null>(null);
-  const [isRetrying, startRetryTransition] = useTransition();
-
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -155,65 +144,6 @@ export function AccountsImporter({ companyId, userId }: Props) {
     });
   }
 
-  function handleRetryRename(err: ImportAccountRowError) {
-    const nuevoNombre = (editedNames[err.row.codigo] ?? "").trim();
-    if (!nuevoNombre) {
-      toast.error("Escribe el nombre nuevo para esta cuenta");
-      return;
-    }
-    if (nuevoNombre === err.row.nombre) {
-      toast.error("Ese es el mismo nombre que ya está en uso — cámbialo");
-      return;
-    }
-
-    setRetryingCode(err.row.codigo);
-    startRetryTransition(async () => {
-      const res = await importAccountsAction(companyId, userId, [
-        { ...err.row, nombre: nuevoNombre },
-      ]);
-      setRetryingCode(null);
-
-      if (!res.success) {
-        toast.error(res.error);
-        return;
-      }
-
-      if (res.data.created === 1) {
-        setResult((prev) =>
-          prev
-            ? {
-                ...prev,
-                created: prev.created + 1,
-                errors: prev.errors.filter((e) => e.row.codigo !== err.row.codigo),
-              }
-            : prev
-        );
-        toast.success(`Cuenta "${nuevoNombre}" creada correctamente`);
-        return;
-      }
-
-      if (res.data.errors.length > 0) {
-        // Sigue chocando (p.ej. el nombre nuevo también está en uso) — se reemplaza
-        // el error en la lista con el nuevo mensaje en vez de solo mostrar un toast,
-        // para que el contador vea por qué sin perder su lugar en la lista.
-        const nuevoError = res.data.errors[0];
-        setResult((prev) =>
-          prev
-            ? {
-                ...prev,
-                errors: prev.errors.map((e) => (e.row.codigo === err.row.codigo ? nuevoError : e)),
-              }
-            : prev
-        );
-        toast.error(nuevoError.message);
-        return;
-      }
-
-      // res.data.skipped === 1: el código ya existe (carrera con otra importación)
-      toast.error(`Ya existe una cuenta con el código ${err.row.codigo}`);
-    });
-  }
-
   function handleDownloadTemplate() {
     startDownload(async () => {
       const res = await downloadTemplateAction();
@@ -254,14 +184,19 @@ export function AccountsImporter({ companyId, userId }: Props) {
               Los tipos válidos son: Activo, Pasivo, Patrimonio, Ingreso, Gasto (las cuentas de
               Costo también se marcan como Gasto — ContaFlow no las distingue como tipo aparte)
             </li>
+            <li>
+              Solo las cuentas de <strong>9 dígitos</strong> (ej: 1.1.01.01.001) reciben
+              movimientos; las de menos dígitos se importan como títulos y subtítulos y no se pueden
+              seleccionar en un asiento
+            </li>
             <li>Sube el archivo y confirma la importación</li>
           </ol>
           <p className="mt-2 text-xs text-blue-600">
             ¿Ya tienes tu plan de cuentas en Excel de otro sistema? También puedes subirlo
-            directamente: se acepta &quot;Código&quot;/&quot;Descripción&quot; con tilde, columna
-            &quot;G/M&quot; (G = cuenta de título, sin movimientos) y &quot;Ter.&quot; =
-            &quot;SI&quot; para marcar cuentas que exigen indicar cliente/proveedor en cada asiento.
-            No debe haber título ni filas en blanco antes de la fila de encabezados.
+            directamente: se acepta &quot;Código&quot;/&quot;Descripción&quot; con tilde, y la
+            columna &quot;Ter.&quot; = &quot;SI&quot; para marcar cuentas que exigen indicar
+            cliente/proveedor en cada asiento. No debe haber título ni filas en blanco antes de la
+            fila de encabezados.
           </p>
           <Button
             variant="outline"
@@ -404,37 +339,6 @@ export function AccountsImporter({ companyId, userId }: Props) {
                         <XCircleIcon className="mt-0.5 h-3 w-3 shrink-0" />
                         <span>{err.message}</span>
                       </div>
-                      {err.reason === "duplicate_name" && (
-                        <div className="mt-2 flex items-center gap-2 pl-5">
-                          <PencilIcon className="h-3 w-3 shrink-0 text-zinc-400" />
-                          <Input
-                            value={editedNames[err.row.codigo] ?? ""}
-                            onChange={(e) =>
-                              setEditedNames((prev) => ({
-                                ...prev,
-                                [err.row.codigo]: e.target.value,
-                              }))
-                            }
-                            placeholder="Nombre nuevo para esta cuenta"
-                            disabled={isRetrying && retryingCode === err.row.codigo}
-                            aria-label={`Nuevo nombre para la cuenta ${err.row.codigo}`}
-                            className="h-8 flex-1 text-xs"
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleRetryRename(err)}
-                            disabled={isRetrying && retryingCode === err.row.codigo}
-                            aria-busy={isRetrying && retryingCode === err.row.codigo}
-                            className="h-8 gap-1 text-xs"
-                          >
-                            {isRetrying && retryingCode === err.row.codigo ? (
-                              <Loader2Icon className="h-3 w-3 animate-spin" />
-                            ) : null}
-                            Crear con este nombre
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
