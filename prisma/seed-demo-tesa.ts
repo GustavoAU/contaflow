@@ -110,51 +110,51 @@ async function main() {
   console.log("\n📊 Plan de cuentas...");
   const accountDefs: { code: string; name: string; type: AccountType; isMonetary?: boolean }[] = [
     // ACTIVOS
-    { code: "1105", name: "Caja General", type: "ASSET" },
-    { code: "1110", name: "BNC — Cuenta de Ahorro VES ***9550", type: "ASSET", isMonetary: true },
-    { code: "1112", name: "BNC — Cuenta Corriente USD", type: "ASSET", isMonetary: true },
-    { code: "1115", name: "Inventario de Mercancías", type: "ASSET" },
-    { code: "1120", name: "IVA Crédito Fiscal", type: "ASSET", isMonetary: true },
-    { code: "1305", name: "Cuentas por Cobrar — Clientes", type: "ASSET", isMonetary: true },
-    { code: "1310", name: "Anticipo a Proveedores", type: "ASSET", isMonetary: true },
-    { code: "1315", name: "Préstamos a Empleados", type: "ASSET", isMonetary: true },
-    { code: "1505", name: "Servidores y Equipos de Red", type: "ASSET" },
-    { code: "1510", name: "Dep. Acum. — Servidores y Equipos", type: "CONTRA_ASSET" },
-    { code: "1520", name: "Vehículos", type: "ASSET" },
-    { code: "1521", name: "Dep. Acum. — Vehículos", type: "CONTRA_ASSET" },
+    { code: "1.1.05.01.001", name: "Caja General", type: "ASSET" },
+    { code: "1.1.10.01.001", name: "BNC — Cuenta de Ahorro VES ***9550", type: "ASSET", isMonetary: true },
+    { code: "1.1.12.01.001", name: "BNC — Cuenta Corriente USD", type: "ASSET", isMonetary: true },
+    { code: "1.1.15.01.001", name: "Inventario de Mercancías", type: "ASSET" },
+    { code: "1.1.20.01.001", name: "IVA Crédito Fiscal", type: "ASSET", isMonetary: true },
+    { code: "1.3.05.01.001", name: "Cuentas por Cobrar — Clientes", type: "ASSET", isMonetary: true },
+    { code: "1.3.10.01.001", name: "Anticipo a Proveedores", type: "ASSET", isMonetary: true },
+    { code: "1.3.15.01.001", name: "Préstamos a Empleados", type: "ASSET", isMonetary: true },
+    { code: "1.5.05.01.001", name: "Servidores y Equipos de Red", type: "ASSET" },
+    { code: "1.5.10.01.001", name: "Dep. Acum. — Servidores y Equipos", type: "CONTRA_ASSET" },
+    { code: "1.5.20.01.001", name: "Vehículos", type: "ASSET" },
+    { code: "1.5.21.01.001", name: "Dep. Acum. — Vehículos", type: "CONTRA_ASSET" },
     // PASIVOS
-    { code: "2105", name: "IVA Débito Fiscal", type: "LIABILITY", isMonetary: true },
-    { code: "2110", name: "Retenciones IVA por Pagar", type: "LIABILITY", isMonetary: true },
-    { code: "2115", name: "Retenciones ISLR por Pagar", type: "LIABILITY", isMonetary: true },
-    { code: "2205", name: "Proveedores", type: "LIABILITY", isMonetary: true },
-    { code: "2210", name: "Nómina por Pagar", type: "LIABILITY", isMonetary: true },
-    { code: "2215", name: "IVSS por Pagar", type: "LIABILITY", isMonetary: true },
-    { code: "2220", name: "INCES por Pagar", type: "LIABILITY", isMonetary: true },
-    { code: "2225", name: "Vacaciones por Pagar", type: "LIABILITY", isMonetary: true },
-    { code: "2230", name: "Prestaciones Sociales por Pagar", type: "LIABILITY", isMonetary: true },
-    { code: "2235", name: "IGTF por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.1.05.01.001", name: "IVA Débito Fiscal", type: "LIABILITY", isMonetary: true },
+    { code: "2.1.10.01.001", name: "Retenciones IVA por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.1.15.01.001", name: "Retenciones ISLR por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.2.05.01.001", name: "Proveedores", type: "LIABILITY", isMonetary: true },
+    { code: "2.2.10.01.001", name: "Nómina por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.2.15.01.001", name: "IVSS por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.2.20.01.001", name: "INCES por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.2.25.01.001", name: "Vacaciones por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.2.30.01.001", name: "Prestaciones Sociales por Pagar", type: "LIABILITY", isMonetary: true },
+    { code: "2.2.35.01.001", name: "IGTF por Pagar", type: "LIABILITY", isMonetary: true },
     // PATRIMONIO
-    { code: "3105", name: "Capital Social", type: "EQUITY" },
-    { code: "3205", name: "Utilidades Retenidas", type: "EQUITY" },
-    { code: "3210", name: "Resultado del Ejercicio", type: "EQUITY" },
+    { code: "3.1.05.01.001", name: "Capital Social", type: "EQUITY" },
+    { code: "3.2.05.01.001", name: "Utilidades Retenidas", type: "EQUITY" },
+    { code: "3.2.10.01.001", name: "Resultado del Ejercicio", type: "EQUITY" },
     // INGRESOS
-    { code: "4110", name: "Ventas — Equipos y Tecnología", type: "REVENUE" },
-    { code: "4115", name: "Ventas — Equipos Médicos", type: "REVENUE" },
-    { code: "4120", name: "Servicios de Capacitación", type: "REVENUE" },
+    { code: "4.1.10.01.001", name: "Ventas — Equipos y Tecnología", type: "REVENUE" },
+    { code: "4.1.15.01.001", name: "Ventas — Equipos Médicos", type: "REVENUE" },
+    { code: "4.1.20.01.001", name: "Servicios de Capacitación", type: "REVENUE" },
     // PATRIMONIO — Corrección monetaria (VEN-NIF BA-5 / NIIF PYMES Sección 31)
-    { code: "3220", name: "Ajuste por Inflación Acumulado", type: "EQUITY" },
+    { code: "3.2.20.01.001", name: "Ajuste por Inflación Acumulado", type: "EQUITY" },
     // INGRESOS — Corrección monetaria
-    { code: "4220", name: "Ganancia Monetaria por Inflación", type: "REVENUE" },
+    { code: "4.2.20.01.001", name: "Ganancia Monetaria por Inflación", type: "REVENUE" },
     // GASTOS
-    { code: "5105", name: "Sueldos y Salarios", type: "EXPENSE" },
-    { code: "6110", name: "Pérdida Monetaria por Inflación", type: "EXPENSE" },
-    { code: "5107", name: "Beneficios Sociales y Prestaciones", type: "EXPENSE" },
-    { code: "5110", name: "Costo de Ventas", type: "EXPENSE" },
-    { code: "5115", name: "Depreciación de Activos", type: "EXPENSE" },
-    { code: "5120", name: "Alquiler de Locales", type: "EXPENSE" },
-    { code: "5125", name: "Servicios Públicos y Telecomunicaciones", type: "EXPENSE" },
-    { code: "5130", name: "Gastos de Oficina y Papelería", type: "EXPENSE" },
-    { code: "5135", name: "IGTF — Impuesto Grandes Transacciones", type: "EXPENSE" },
+    { code: "5.1.05.01.001", name: "Sueldos y Salarios", type: "EXPENSE" },
+    { code: "6.1.10.01.001", name: "Pérdida Monetaria por Inflación", type: "EXPENSE" },
+    { code: "5.1.07.01.001", name: "Beneficios Sociales y Prestaciones", type: "EXPENSE" },
+    { code: "5.1.10.01.001", name: "Costo de Ventas", type: "EXPENSE" },
+    { code: "5.1.15.01.001", name: "Depreciación de Activos", type: "EXPENSE" },
+    { code: "5.1.20.01.001", name: "Alquiler de Locales", type: "EXPENSE" },
+    { code: "5.1.25.01.001", name: "Servicios Públicos y Telecomunicaciones", type: "EXPENSE" },
+    { code: "5.1.30.01.001", name: "Gastos de Oficina y Papelería", type: "EXPENSE" },
+    { code: "5.1.35.01.001", name: "IGTF — Impuesto Grandes Transacciones", type: "EXPENSE" },
   ];
 
   const accounts: Record<string, string> = {};
@@ -171,7 +171,7 @@ async function main() {
   // Configurar cuentas de cierre fiscal
   await prisma.company.update({
     where: { id: cId },
-    data: { resultAccountId: accounts["3210"], retainedEarningsAccountId: accounts["3205"] },
+    data: { resultAccountId: accounts["3.2.10.01.001"], retainedEarningsAccountId: accounts["3.2.05.01.001"] },
   });
   console.log("  ✅ Cierre fiscal: 3210 + 3205");
 
@@ -180,14 +180,14 @@ async function main() {
   await prisma.companySettings.upsert({
     where: { companyId: cId },
     update: {
-      arAccountId:                   accounts["1305"],
-      apAccountId:                   accounts["2205"],
-      salesAccountId:                accounts["4110"],
-      purchaseExpenseAccountId:      accounts["5110"], // legacy periódico — no usado en causación perpetua
-      inventoryAccountId:            accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
-      ivaDFAccountId:                accounts["2105"],
-      ivaCFAccountId:                accounts["1120"],
-      ivaRetentionPayableAccountId:  accounts["2110"], // GAP-03: split retención IVA en GL compra
+      arAccountId:                   accounts["1.3.05.01.001"],
+      apAccountId:                   accounts["2.2.05.01.001"],
+      salesAccountId:                accounts["4.1.10.01.001"],
+      purchaseExpenseAccountId:      accounts["5.1.10.01.001"], // legacy periódico — no usado en causación perpetua
+      inventoryAccountId:            accounts["1.1.15.01.001"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
+      ivaDFAccountId:                accounts["2.1.05.01.001"],
+      ivaCFAccountId:                accounts["1.1.20.01.001"],
+      ivaRetentionPayableAccountId:  accounts["2.1.10.01.001"], // GAP-03: split retención IVA en GL compra
       // GAP-06: datos del Contador Público Colegiado para firma en reportes
       accountantName:      "Sofía Hernández",
       accountantTitle:     "Contador Público Colegiado",
@@ -195,14 +195,14 @@ async function main() {
     },
     create: {
       companyId:                     cId,
-      arAccountId:                   accounts["1305"],
-      apAccountId:                   accounts["2205"],
-      salesAccountId:                accounts["4110"],
-      purchaseExpenseAccountId:      accounts["5110"], // legacy periódico — no usado en causación perpetua
-      inventoryAccountId:            accounts["1115"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
-      ivaDFAccountId:                accounts["2105"],
-      ivaCFAccountId:                accounts["1120"],
-      ivaRetentionPayableAccountId:  accounts["2110"], // GAP-03: split retención IVA en GL compra
+      arAccountId:                   accounts["1.3.05.01.001"],
+      apAccountId:                   accounts["2.2.05.01.001"],
+      salesAccountId:                accounts["4.1.10.01.001"],
+      purchaseExpenseAccountId:      accounts["5.1.10.01.001"], // legacy periódico — no usado en causación perpetua
+      inventoryAccountId:            accounts["1.1.15.01.001"], // ASSET — inventario perpetuo (Error 4 dictamen SENIAT)
+      ivaDFAccountId:                accounts["2.1.05.01.001"],
+      ivaCFAccountId:                accounts["1.1.20.01.001"],
+      ivaRetentionPayableAccountId:  accounts["2.1.10.01.001"], // GAP-03: split retención IVA en GL compra
       // GAP-06: datos del Contador Público Colegiado para firma en reportes
       accountantName:      "Sofía Hernández",
       accountantTitle:     "Contador Público Colegiado",
@@ -369,7 +369,7 @@ async function main() {
           baseUnitName: item.unit, baseUnitAbbr: item.unit.substring(0, 10).toUpperCase(),
           trackingType: item.trackingType, averageCost: item.averageCost,
           stockQuantity: item.stockQuantity, minimumStock: item.minimumStock,
-          accountId: accounts["1115"], cogsAccountId: accounts["5110"], createdBy: USER_ID,
+          accountId: accounts["1.1.15.01.001"], cogsAccountId: accounts["5.1.10.01.001"], createdBy: USER_ID,
         },
       });
 
@@ -442,7 +442,7 @@ async function main() {
       data: {
         companyId: cId, name: "Servidor HPE ProLiant ML350 Gen11",
         description: "Servidor principal sede Caracas — host app interna + NAS",
-        assetAccountId: accounts["1505"], depreciationAccountId: accounts["5115"], accDepreciationAccountId: accounts["1510"],
+        assetAccountId: accounts["1.5.05.01.001"], depreciationAccountId: accounts["5.1.15.01.001"], accDepreciationAccountId: accounts["1.5.10.01.001"],
         acquisitionDate: dateOnly("2025-01-15"), acquisitionCost: "1935000.00",
         residualValue: "193500.00", usefulLifeMonths: 60,
         depreciationMethod: "LINEA_RECTA" as DepreciationMethod, status: "ACTIVE" as FixedAssetStatus, createdBy: USER_ID,
@@ -459,7 +459,7 @@ async function main() {
       data: {
         companyId: cId, name: "Camioneta Toyota Hilux DC 4x4 2024",
         description: "Vehículo de carga y distribución — placa AA-1234-BC",
-        assetAccountId: accounts["1520"], depreciationAccountId: accounts["5115"], accDepreciationAccountId: accounts["1521"],
+        assetAccountId: accounts["1.5.20.01.001"], depreciationAccountId: accounts["5.1.15.01.001"], accDepreciationAccountId: accounts["1.5.21.01.001"],
         acquisitionDate: dateOnly("2024-03-20"), acquisitionCost: "14350000.00",
         residualValue: "4305000.00", usefulLifeMonths: 60,
         depreciationMethod: "LINEA_RECTA" as DepreciationMethod, status: "ACTIVE" as FixedAssetStatus, createdBy: USER_ID,
@@ -515,18 +515,18 @@ async function main() {
     cestaTicketType: "CARD" as CestaTicketType, fideicomiso: "INTERNAL" as FideicomisoType,
     salaryMinimumVes: "130.00", utValue: "43.00",
     profitDays: 30, vacationBonusDays: 7,
-    expenseAccountId:              accounts["5105"],
-    payableAccountId:              accounts["2210"],
-    ivssPayableAccountId:          accounts["2215"],
-    incesPayableAccountId:         accounts["2220"],
-    faovPayableAccountId:          accounts["2215"],
-    rpePayableAccountId:           accounts["2210"],
-    benefitsExpenseAccountId:      accounts["5107"],
-    benefitsPayableAccountId:      accounts["2230"],
-    vacationPayableAccountId:      accounts["2225"],
-    profitSharingPayableAccountId: accounts["2225"],
-    loanReceivableAccountId:       accounts["1315"],
-    disbursementBankAccountId:     accounts["1110"],
+    expenseAccountId:              accounts["5.1.05.01.001"],
+    payableAccountId:              accounts["2.2.10.01.001"],
+    ivssPayableAccountId:          accounts["2.2.15.01.001"],
+    incesPayableAccountId:         accounts["2.2.20.01.001"],
+    faovPayableAccountId:          accounts["2.2.15.01.001"],
+    rpePayableAccountId:           accounts["2.2.10.01.001"],
+    benefitsExpenseAccountId:      accounts["5.1.07.01.001"],
+    benefitsPayableAccountId:      accounts["2.2.30.01.001"],
+    vacationPayableAccountId:      accounts["2.2.25.01.001"],
+    profitSharingPayableAccountId: accounts["2.2.25.01.001"],
+    loanReceivableAccountId:       accounts["1.3.15.01.001"],
+    disbursementBankAccountId:     accounts["1.1.10.01.001"],
   };
   if (!existingPayrollConfig) {
     await prisma.payrollConfig.create({ data: payrollConfigData });
@@ -534,7 +534,7 @@ async function main() {
   } else {
     await prisma.payrollConfig.update({
       where: { companyId: cId },
-      data: { loanReceivableAccountId: accounts["1315"], disbursementBankAccountId: accounts["1110"] },
+      data: { loanReceivableAccountId: accounts["1.3.15.01.001"], disbursementBankAccountId: accounts["1.1.10.01.001"] },
     });
     console.log("  ✅ PayrollConfig actualizada (cuentas préstamo)");
   }
@@ -720,7 +720,7 @@ async function main() {
   if (!bankAccountVes) {
     bankAccountVes = await prisma.bankAccount.create({
       data: {
-        companyId: cId, accountId: accounts["1110"],
+        companyId: cId, accountId: accounts["1.1.10.01.001"],
         name: "BNC — Cuenta de Ahorro VES ***9550",
         bankName: "Banco Nacional de Crédito (BNC)", accountNumber: "0105-0059-12-3195509550",
         currency: "VES", closingBalance: "0", isActive: true, createdBy: USER_ID,
@@ -735,7 +735,7 @@ async function main() {
   if (!bankAccountUsd) {
     bankAccountUsd = await prisma.bankAccount.create({
       data: {
-        companyId: cId, accountId: accounts["1112"],
+        companyId: cId, accountId: accounts["1.1.12.01.001"],
         name: "BNC — Cuenta Corriente USD",
         bankName: "Banco Nacional de Crédito (BNC)", accountNumber: "0105-0059-82-0019500001",
         currency: "USD", closingBalance: "0", isActive: true, createdBy: USER_ID,
@@ -940,10 +940,10 @@ async function main() {
           entries: {
             create: [
               // DR 5110 Costo de Ventas (positivo = débito)
-              { accountId: accounts["5110"], amount: salida.totalCost,
+              { accountId: accounts["5.1.10.01.001"], amount: salida.totalCost,
                 description: `COGS ${salida.ref}` },
               // CR 1115 Inventario de Mercancías (negativo = crédito)
-              { accountId: accounts["1115"], amount: `-${salida.totalCost}`,
+              { accountId: accounts["1.1.15.01.001"], amount: `-${salida.totalCost}`,
                 description: `Inventario ${salida.ref}` },
             ],
           },
@@ -1380,10 +1380,10 @@ async function main() {
   console.log("\n💸 Gastos...");
   // Categorías
   const catDefs = [
-    { name: "Alquiler de Locales",               accountId: accounts["5120"], isDefault: true  },
-    { name: "Servicios Públicos y Telecom",       accountId: accounts["5125"], isDefault: true  },
-    { name: "Gastos de Oficina",                  accountId: accounts["5130"], isDefault: true  },
-    { name: "Comisiones Bancarias",               accountId: accounts["5135"], isDefault: false },
+    { name: "Alquiler de Locales",               accountId: accounts["5.1.20.01.001"], isDefault: true  },
+    { name: "Servicios Públicos y Telecom",       accountId: accounts["5.1.25.01.001"], isDefault: true  },
+    { name: "Gastos de Oficina",                  accountId: accounts["5.1.30.01.001"], isDefault: true  },
+    { name: "Comisiones Bancarias",               accountId: accounts["5.1.35.01.001"], isDefault: false },
   ];
   const catIds: Record<string, string> = {};
   for (const cat of catDefs) {
@@ -1434,7 +1434,7 @@ async function main() {
     cajaCaja = await prisma.cajaCaja.create({
       data: {
         companyId: cId, name: "Caja Chica — Sede Caracas (Fondo Fijo)",
-        accountId: accounts["1105"], currency: "VES", maxBalance: "50000.0000",
+        accountId: accounts["1.1.05.01.001"], currency: "VES", maxBalance: "50000.0000",
         status: "ACTIVE", createdBy: USER_ID,
       },
     });
@@ -1453,9 +1453,9 @@ async function main() {
 
     // Movimientos de caja chica
     const movDefs = [
-      { voucher: "CC-2026-001", concept: "Taxi ejecutivo visita cliente (Distribuidora Orinoco)", account: accounts["5130"], amount: "8400.0000",  date: "2026-04-07" },
-      { voucher: "CC-2026-002", concept: "Almuerzo reunión directiva comercial Abr-14",           account: accounts["5130"], amount: "12500.0000", date: "2026-04-14" },
-      { voucher: "CC-2026-003", concept: "Impresión urgente propuestas comerciales x50 copias",   account: accounts["5130"], amount: "6800.0000",  date: "2026-04-21" },
+      { voucher: "CC-2026-001", concept: "Taxi ejecutivo visita cliente (Distribuidora Orinoco)", account: accounts["5.1.30.01.001"], amount: "8400.0000",  date: "2026-04-07" },
+      { voucher: "CC-2026-002", concept: "Almuerzo reunión directiva comercial Abr-14",           account: accounts["5.1.30.01.001"], amount: "12500.0000", date: "2026-04-14" },
+      { voucher: "CC-2026-003", concept: "Impresión urgente propuestas comerciales x50 copias",   account: accounts["5.1.30.01.001"], amount: "6800.0000",  date: "2026-04-21" },
     ];
     for (const mov of movDefs) {
       await prisma.cajaCajaMovement.create({
@@ -1481,32 +1481,32 @@ async function main() {
       number: "T-2026-001", date: d(1),
       description: "Apertura — Capital inicial TESA Abril 2026",
       entries: [
-        { code: "1110", amount: "5000000.00" },   // BNC VES +5,000,000
-        { code: "3105", amount: "-5000000.00" },  // Capital Social -5,000,000
+        { code: "1.1.10.01.001", amount: "5000000.00" },   // BNC VES +5,000,000
+        { code: "3.1.05.01.001", amount: "-5000000.00" },  // Capital Social -5,000,000
       ],
     },
     {
       number: "T-2026-002", date: d(30),
       description: "Depreciación mensual — Servidor HPE ProLiant ML350 Gen11",
       entries: [
-        { code: "5115", amount: "29025.00" },     // Dep. equip: (1,935,000 - 193,500) / 60 = 29,025
-        { code: "1510", amount: "-29025.00" },    // Dep. Acum. Servidores
+        { code: "5.1.15.01.001", amount: "29025.00" },     // Dep. equip: (1,935,000 - 193,500) / 60 = 29,025
+        { code: "1.5.10.01.001", amount: "-29025.00" },    // Dep. Acum. Servidores
       ],
     },
     {
       number: "T-2026-003", date: d(30),
       description: "Depreciación mensual — Camioneta Toyota Hilux DC 4x4 2024",
       entries: [
-        { code: "5115", amount: "167416.67" },    // (14,350,000 - 4,305,000) / 60 = 167,416.67
-        { code: "1521", amount: "-167416.67" },   // Dep. Acum. Vehículos
+        { code: "5.1.15.01.001", amount: "167416.67" },    // (14,350,000 - 4,305,000) / 60 = 167,416.67
+        { code: "1.5.21.01.001", amount: "-167416.67" },   // Dep. Acum. Vehículos
       ],
     },
     {
       number: "T-2026-004", date: d(1),
       description: "Pago alquiler oficina Torre Empresarial — Abril 2026",
       entries: [
-        { code: "5120", amount: "600000.00" },    // Alquiler +600,000
-        { code: "1110", amount: "-600000.00" },   // BNC VES -600,000
+        { code: "5.1.20.01.001", amount: "600000.00" },    // Alquiler +600,000
+        { code: "1.1.10.01.001", amount: "-600000.00" },   // BNC VES -600,000
       ],
     },
   ];
@@ -1591,7 +1591,7 @@ async function main() {
       if (!inv.transaction) continue;
       // Buscar si hay un débito incorrecto a 5110 (Costo de Ventas)
       const hasWrongDebit = inv.transaction.entries.some(
-        (e) => e.accountId === accounts["5110"] && parseFloat(e.amount.toString()) > 0
+        (e) => e.accountId === accounts["5.1.10.01.001"] && parseFloat(e.amount.toString()) > 0
       );
       if (!hasWrongDebit) continue;
       // Eliminar asiento incorrecto y resetear transactionId para re-causación
@@ -1860,11 +1860,11 @@ async function main() {
 
     const enterDefs = [
       // IVA retenciones — Dr 2110 Ret. IVA p.p. / Cr 1110 BNC
-      { voucher: "RIVA-2026-001", liabilityAccountId: accounts["2110"], bankAccountId: accounts["1110"], enterDate: d(20), txKey: "ENT-RIVA-2026-001" },
-      { voucher: "RIVA-2026-002", liabilityAccountId: accounts["2110"], bankAccountId: accounts["1110"], enterDate: d(20), txKey: "ENT-RIVA-2026-002" },
-      { voucher: "RIVA-2026-003", liabilityAccountId: accounts["2110"], bankAccountId: accounts["1110"], enterDate: d(24), txKey: "ENT-RIVA-2026-003" },
+      { voucher: "RIVA-2026-001", liabilityAccountId: accounts["2.1.10.01.001"], bankAccountId: accounts["1.1.10.01.001"], enterDate: d(20), txKey: "ENT-RIVA-2026-001" },
+      { voucher: "RIVA-2026-002", liabilityAccountId: accounts["2.1.10.01.001"], bankAccountId: accounts["1.1.10.01.001"], enterDate: d(20), txKey: "ENT-RIVA-2026-002" },
+      { voucher: "RIVA-2026-003", liabilityAccountId: accounts["2.1.10.01.001"], bankAccountId: accounts["1.1.10.01.001"], enterDate: d(24), txKey: "ENT-RIVA-2026-003" },
       // ISLR retención — Dr 2115 Ret. ISLR p.p. / Cr 1110 BNC
-      { voucher: "RISLR-2026-001", liabilityAccountId: accounts["2115"], bankAccountId: accounts["1110"], enterDate: d(20), txKey: "ENT-RISLR-2026-001" },
+      { voucher: "RISLR-2026-001", liabilityAccountId: accounts["2.1.15.01.001"], bankAccountId: accounts["1.1.10.01.001"], enterDate: d(20), txKey: "ENT-RISLR-2026-001" },
     ];
 
     for (const ent of enterDefs) {

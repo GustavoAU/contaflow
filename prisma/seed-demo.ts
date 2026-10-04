@@ -70,41 +70,41 @@ async function main() {
 
   const accountDefs: { code: string; name: string; type: AccountType; isCurrent?: boolean; isMonetary?: boolean }[] = [
     // ACTIVOS CORRIENTES (VEN-NIF BA-10 / IAS 1)
-    { code: "1105", name: "Caja General", type: "ASSET", isCurrent: true, isMonetary: true },
-    { code: "1110", name: "Bancos — Banesco CTA CTE", type: "ASSET", isCurrent: true, isMonetary: true },
-    { code: "1115", name: "Inventario de Mercancías", type: "ASSET", isCurrent: true },
-    { code: "1120", name: "IVA Crédito Fiscal", type: "ASSET", isCurrent: true, isMonetary: true },
-    { code: "1305", name: "Cuentas por Cobrar Clientes", type: "ASSET", isCurrent: true, isMonetary: true },
-    { code: "1310", name: "Anticipo a Proveedores", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1.1.05.01.001", name: "Caja General", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1.1.10.01.001", name: "Bancos — Banesco CTA CTE", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1.1.15.01.001", name: "Inventario de Mercancías", type: "ASSET", isCurrent: true },
+    { code: "1.1.20.01.001", name: "IVA Crédito Fiscal", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1.3.05.01.001", name: "Cuentas por Cobrar Clientes", type: "ASSET", isCurrent: true, isMonetary: true },
+    { code: "1.3.10.01.001", name: "Anticipo a Proveedores", type: "ASSET", isCurrent: true, isMonetary: true },
     // ACTIVOS NO CORRIENTES
-    { code: "1505", name: "Equipos de Computación", type: "ASSET" },
-    { code: "1510", name: "Dep. Acum. Equipos de Computación", type: "CONTRA_ASSET" },
-    { code: "1520", name: "Vehículos", type: "ASSET" },
-    { code: "1521", name: "Dep. Acum. Vehículos", type: "CONTRA_ASSET" },
-    { code: "1530", name: "Mobiliario y Equipo de Oficina", type: "ASSET" },
-    { code: "1531", name: "Dep. Acum. Mobiliario y Equipo", type: "CONTRA_ASSET" },
-    { code: "1540", name: "Maquinaria y Equipos", type: "ASSET" },
-    { code: "1541", name: "Dep. Acum. Maquinaria y Equipos", type: "CONTRA_ASSET" },
+    { code: "1.5.05.01.001", name: "Equipos de Computación", type: "ASSET" },
+    { code: "1.5.10.01.001", name: "Dep. Acum. Equipos de Computación", type: "CONTRA_ASSET" },
+    { code: "1.5.20.01.001", name: "Vehículos", type: "ASSET" },
+    { code: "1.5.21.01.001", name: "Dep. Acum. Vehículos", type: "CONTRA_ASSET" },
+    { code: "1.5.30.01.001", name: "Mobiliario y Equipo de Oficina", type: "ASSET" },
+    { code: "1.5.31.01.001", name: "Dep. Acum. Mobiliario y Equipo", type: "CONTRA_ASSET" },
+    { code: "1.5.40.01.001", name: "Maquinaria y Equipos", type: "ASSET" },
+    { code: "1.5.41.01.001", name: "Dep. Acum. Maquinaria y Equipos", type: "CONTRA_ASSET" },
     // PASIVOS CORRIENTES
-    { code: "2105", name: "IVA Débito Fiscal", type: "LIABILITY", isCurrent: true, isMonetary: true },
-    { code: "2110", name: "Retenciones IVA por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
-    { code: "2115", name: "Retenciones ISLR por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
-    { code: "2205", name: "Proveedores", type: "LIABILITY", isCurrent: true, isMonetary: true },
-    { code: "2210", name: "Nómina por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2.1.05.01.001", name: "IVA Débito Fiscal", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2.1.10.01.001", name: "Retenciones IVA por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2.1.15.01.001", name: "Retenciones ISLR por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2.2.05.01.001", name: "Proveedores", type: "LIABILITY", isCurrent: true, isMonetary: true },
+    { code: "2.2.10.01.001", name: "Nómina por Pagar", type: "LIABILITY", isCurrent: true, isMonetary: true },
     // PATRIMONIO
-    { code: "3105", name: "Capital Social", type: "EQUITY" },
-    { code: "3205", name: "Utilidades Retenidas", type: "EQUITY" },
-    { code: "3210", name: "Resultado del Ejercicio", type: "EQUITY" },
+    { code: "3.1.05.01.001", name: "Capital Social", type: "EQUITY" },
+    { code: "3.2.05.01.001", name: "Utilidades Retenidas", type: "EQUITY" },
+    { code: "3.2.10.01.001", name: "Resultado del Ejercicio", type: "EQUITY" },
     // INGRESOS
-    { code: "4110", name: "Prestación de Servicios", type: "REVENUE" },
-    { code: "4135", name: "Ventas de Mercancías", type: "REVENUE" },
+    { code: "4.1.10.01.001", name: "Prestación de Servicios", type: "REVENUE" },
+    { code: "4.1.35.01.001", name: "Ventas de Mercancías", type: "REVENUE" },
     // GASTOS
-    { code: "5105", name: "Gastos de Personal", type: "EXPENSE" },
-    { code: "5110", name: "Costo de Ventas", type: "EXPENSE" },
-    { code: "5115", name: "Depreciación de Activos", type: "EXPENSE" },
-    { code: "5120", name: "Alquileres", type: "EXPENSE" },
-    { code: "5125", name: "Servicios Públicos", type: "EXPENSE" },
-    { code: "5130", name: "Compras de Mercancías", type: "EXPENSE" },
+    { code: "5.1.05.01.001", name: "Gastos de Personal", type: "EXPENSE" },
+    { code: "5.1.10.01.001", name: "Costo de Ventas", type: "EXPENSE" },
+    { code: "5.1.15.01.001", name: "Depreciación de Activos", type: "EXPENSE" },
+    { code: "5.1.20.01.001", name: "Alquileres", type: "EXPENSE" },
+    { code: "5.1.25.01.001", name: "Servicios Públicos", type: "EXPENSE" },
+    { code: "5.1.30.01.001", name: "Compras de Mercancías", type: "EXPENSE" },
   ];
 
   const accounts: Record<string, string> = {}; // code → id
@@ -121,7 +121,7 @@ async function main() {
   // Pre-configurar cuentas de cierre fiscal
   await prisma.company.update({
     where: { id: cId },
-    data: { resultAccountId: accounts["3210"], retainedEarningsAccountId: accounts["3205"] },
+    data: { resultAccountId: accounts["3.2.10.01.001"], retainedEarningsAccountId: accounts["3.2.05.01.001"] },
   });
   console.log("  ✅ Cierre fiscal configurado: 3210 + 3205");
 
@@ -493,7 +493,7 @@ async function main() {
     bankAccount = await prisma.bankAccount.create({
       data: {
         companyId: cId,
-        accountId: accounts["1110"],
+        accountId: accounts["1.1.10.01.001"],
         name: "Banesco — Cuenta Corriente Principal",
         bankName: "Banesco",
         accountNumber: "0134-0055-18-5512345678",
@@ -664,21 +664,21 @@ async function main() {
   await prisma.companySettings.upsert({
     where: { companyId: cId },
     update: {
-      arAccountId: accounts["1305"],              // Cuentas por Cobrar Clientes
-      apAccountId: accounts["2205"],              // Proveedores
-      salesAccountId: accounts["4135"],           // Ventas de Mercancías
-      purchaseExpenseAccountId: accounts["5130"], // Compras de Mercancías
-      ivaDFAccountId: accounts["2105"],           // IVA Débito Fiscal
-      ivaCFAccountId: accounts["1120"],           // IVA Crédito Fiscal
+      arAccountId: accounts["1.3.05.01.001"],              // Cuentas por Cobrar Clientes
+      apAccountId: accounts["2.2.05.01.001"],              // Proveedores
+      salesAccountId: accounts["4.1.35.01.001"],           // Ventas de Mercancías
+      purchaseExpenseAccountId: accounts["5.1.30.01.001"], // Compras de Mercancías
+      ivaDFAccountId: accounts["2.1.05.01.001"],           // IVA Débito Fiscal
+      ivaCFAccountId: accounts["1.1.20.01.001"],           // IVA Crédito Fiscal
     },
     create: {
       companyId: cId,
-      arAccountId: accounts["1305"],
-      apAccountId: accounts["2205"],
-      salesAccountId: accounts["4135"],
-      purchaseExpenseAccountId: accounts["5130"],
-      ivaDFAccountId: accounts["2105"],
-      ivaCFAccountId: accounts["1120"],
+      arAccountId: accounts["1.3.05.01.001"],
+      apAccountId: accounts["2.2.05.01.001"],
+      salesAccountId: accounts["4.1.35.01.001"],
+      purchaseExpenseAccountId: accounts["5.1.30.01.001"],
+      ivaDFAccountId: accounts["2.1.05.01.001"],
+      ivaCFAccountId: accounts["1.1.20.01.001"],
     },
   });
   console.log(`  ✅ CompanySettings GL configurado`);
@@ -701,8 +701,8 @@ async function main() {
         salaryMinimumVes: "130.00",
         cestaTicketType: "CARD" as CestaTicketType,
         fideicomiso: "INTERNAL" as FideicomisoType,
-        expenseAccountId: accounts["5105"],
-        payableAccountId: accounts["2210"],
+        expenseAccountId: accounts["5.1.05.01.001"],
+        payableAccountId: accounts["2.2.10.01.001"],
       },
     });
     console.log(`  ✅ PayrollConfig creada`);
@@ -719,9 +719,9 @@ async function main() {
         companyId: cId,
         name: "Computadora Dell Inspiron 15",
         description: "Equipo de computación para uso administrativo",
-        assetAccountId: accounts["1505"],
-        depreciationAccountId: accounts["5115"],
-        accDepreciationAccountId: accounts["1510"],
+        assetAccountId: accounts["1.5.05.01.001"],
+        depreciationAccountId: accounts["5.1.15.01.001"],
+        accDepreciationAccountId: accounts["1.5.10.01.001"],
         acquisitionDate: dateOnly("2025-01-10"),
         acquisitionCost: "350000.00",  // ≈USD 700 × ~500 Bs/USD (tasa ene 2025)
         residualValue: "35000.00",
@@ -770,8 +770,8 @@ async function main() {
           averageCost: item.averageCost,
           stockQuantity: item.stockQuantity,
           minimumStock: item.minimumStock,
-          accountId: accounts["1115"],
-          cogsAccountId: accounts["5110"],
+          accountId: accounts["1.1.15.01.001"],
+          cogsAccountId: accounts["5.1.10.01.001"],
           createdBy: USER_ID,
         },
       });
@@ -1213,8 +1213,8 @@ async function main() {
       date: d(1),
       description: "Apertura: inversión inicial de capital",
       entries: [
-        { accountCode: "1110", amount: "1500000.00" },   // Bancos +1,500,000 (Débito)
-        { accountCode: "3105", amount: "-1500000.00" },  // Capital Social -1,500,000 (Crédito)
+        { accountCode: "1.1.10.01.001", amount: "1500000.00" },   // Bancos +1,500,000 (Débito)
+        { accountCode: "3.1.05.01.001", amount: "-1500000.00" },  // Capital Social -1,500,000 (Crédito)
       ],
     },
     {
@@ -1222,8 +1222,8 @@ async function main() {
       date: d(5),
       description: "Pago de alquiler de oficina — Abril 2026",
       entries: [
-        { accountCode: "5120", amount: "180000.00" },    // Alquileres +180,000 (Débito)
-        { accountCode: "1110", amount: "-180000.00" },   // Bancos -180,000 (Crédito)
+        { accountCode: "5.1.20.01.001", amount: "180000.00" },    // Alquileres +180,000 (Débito)
+        { accountCode: "1.1.10.01.001", amount: "-180000.00" },   // Bancos -180,000 (Crédito)
       ],
     },
     {
@@ -1231,8 +1231,8 @@ async function main() {
       date: d(20),
       description: "Pago de servicios públicos — internet y electricidad",
       entries: [
-        { accountCode: "5125", amount: "24000.00" },     // Servicios Públicos +24,000 (Débito)
-        { accountCode: "1110", amount: "-24000.00" },    // Bancos -24,000 (Crédito)
+        { accountCode: "5.1.25.01.001", amount: "24000.00" },     // Servicios Públicos +24,000 (Débito)
+        { accountCode: "1.1.10.01.001", amount: "-24000.00" },    // Bancos -24,000 (Crédito)
       ],
     },
     {
@@ -1240,8 +1240,8 @@ async function main() {
       date: d(30),
       description: "Depreciación mensual — Computadora Dell Inspiron 15",
       entries: [
-        { accountCode: "5115", amount: "9722.22" },      // Depreciación +9,722.22 (Débito)
-        { accountCode: "1510", amount: "-9722.22" },     // Dep. Acum. Equipos -9,722.22 (Crédito)
+        { accountCode: "5.1.15.01.001", amount: "9722.22" },      // Depreciación +9,722.22 (Débito)
+        { accountCode: "1.5.10.01.001", amount: "-9722.22" },     // Dep. Acum. Equipos -9,722.22 (Crédito)
       ],
     },
   ];

@@ -29,7 +29,7 @@ Los títulos y subtítulos comparten nombre en mayúsculas (`UTILIDADES ACUMULAD
 
 ## Consecuencias / límites
 
-- Las empresas con plan de 4 dígitos (demo) **no se migran**: sus cuentas siguen siendo de movimiento. Las cuentas nuevas que creen con < 9 dígitos serán títulos.
+- Las dos empresas demo con plan de 4 dígitos se migraron el 2026-10-05 (migración `20261005_demo_accounts_nine_digits`, esquema `1105 → 1.1.05.01.001`, con AuditLog) y los seeds (`prisma/seed*.ts`, `scripts/fix-demo-company.ts`) generan ya códigos de 9 dígitos. No se crearon cuentas de título en esas empresas (solo se renumeró). Cualquier otra empresa con códigos de 4 dígitos no se migra automáticamente; sus cuentas nuevas con < 9 dígitos serán títulos.
 - Dos cuentas de movimiento pueden tener el mismo nombre: la diferenciación en los selectores es por código (se muestra `código — nombre`).
 
 ## Pendiente (no bloqueante, decisión del dueño)
