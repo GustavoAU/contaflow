@@ -11,6 +11,8 @@ import {
 } from "../actions/legal-threshold.actions";
 import { computeSalMinAlert } from "../utils/sal-min-alert";
 import type { LegalThresholdRow } from "../services/LegalThresholdService";
+import { MoneyInput } from "@/components/ui/money-input";
+import { formatMoneyVE } from "@/lib/money-input";
 
 interface Props {
   companyId: string;
@@ -439,17 +441,17 @@ export default function LegalThresholdsPanel({ companyId, initialThresholds, isA
                     : "Valor (Bs)"}
               </label>
               <div className="relative">
-                <input
-                  type="text"
+                <MoneyInput
+                  bare
                   name="value"
                   value={form.value}
-                  onChange={handleChange}
+                  onValueChange={(v) => setForm((prev) => ({ ...prev, value: v }))}
                   placeholder={
                     RATE_TYPES.has(form.type)
-                      ? `Ej: ${TYPE_DEFAULTS[form.type] ?? "4.00"}`
+                      ? `Ej: ${formatMoneyVE(TYPE_DEFAULTS[form.type] || "4")}`
                       : USD_TYPES.has(form.type)
-                        ? "Ej: 240.00"
-                        : "Ej: 130.00"
+                        ? "Ej: 240,00"
+                        : "Ej: 130,00"
                   }
                   required
                   className="w-full rounded border px-3 py-2 pr-8 font-mono text-sm"

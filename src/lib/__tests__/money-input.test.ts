@@ -33,6 +33,20 @@ describe("normalizeMoneyInput", () => {
   });
 });
 
+describe("normalizeMoneyInput — opciones", () => {
+  it("el signo solo se respeta con allowNegative", () => {
+    expect(normalizeMoneyInput("-1.500,25")).toBe("1500.25");
+    expect(normalizeMoneyInput("-1.500,25", { allowNegative: true })).toBe("-1500.25");
+    expect(normalizeMoneyInput("-", { allowNegative: true })).toBe("");
+    expect(normalizeMoneyInput("-0", { allowNegative: true })).toBe("0");
+  });
+
+  it("recorta los decimales sobrantes, no redondea", () => {
+    expect(normalizeMoneyInput("10,999")).toBe("10.99");
+    expect(normalizeMoneyInput("10,12345", { decimals: 4 })).toBe("10.1234");
+  });
+});
+
 describe("parseMoneyInput", () => {
   it("vacío o basura → 0 sin lanzar", () => {
     expect(parseMoneyInput("").isZero()).toBe(true);

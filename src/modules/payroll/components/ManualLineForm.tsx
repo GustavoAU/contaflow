@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addManualPayrollLineAction } from "../actions/payroll-run.actions";
 import { currencySymbol } from "@/lib/format";
+import { MoneyInput } from "@/components/ui/money-input";
 
 export interface ManualLineEmployee {
   id: string;
@@ -134,11 +135,10 @@ export function ManualLineForm({ companyId, runId, currency, employees, concepts
           <span className="mb-1 block text-xs font-medium text-gray-700">
             Monto <span className="font-normal text-gray-400">({currencySymbol(currency)})</span>
           </span>
-          <input
-            type="text"
-            inputMode="decimal"
+          <MoneyInput
+            bare
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onValueChange={setAmount}
             required
             placeholder="0,00"
             className="block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-500"

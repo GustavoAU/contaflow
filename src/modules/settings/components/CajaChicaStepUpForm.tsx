@@ -9,6 +9,8 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { updateCajaChicaStepUpThresholdAction } from "../actions/cajachica-config.actions";
+import { MoneyInput } from "@/components/ui/money-input";
+import { formatMoneyVE, parseMoneyInput } from "@/lib/money-input";
 
 type Props = {
   companyId: string;
@@ -22,6 +24,7 @@ export function CajaChicaStepUpForm({ companyId, threshold, defaultThreshold }: 
   const [value, setValue] = useState<string>(threshold ?? "");
   const [isPending, startTransition] = useTransition();
 
+  const defaultThresholdLabel = formatMoneyVE(parseMoneyInput(defaultThreshold));
   const initial = threshold ?? "";
   const dirty = value.trim() !== initial.trim();
 
@@ -64,20 +67,19 @@ export function CajaChicaStepUpForm({ companyId, threshold, defaultThreshold }: 
         >
           Umbral para exigir 2FA en cierre/reapertura de caja chica (VES)
         </label>
-        <input
+        <MoneyInput
+          bare
           id="cajaChicaStepUpThreshold"
           name="cajaChicaStepUpThreshold"
-          type="text"
-          inputMode="decimal"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={defaultThreshold}
+          onValueChange={setValue}
+          placeholder={defaultThresholdLabel}
           aria-describedby="cajaChicaStepUpThreshold-help"
           className="w-full max-w-xs rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 tabular-nums focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
         />
         <p id="cajaChicaStepUpThreshold-help" className="text-xs text-zinc-600 dark:text-zinc-400">
           Por encima de este monto, cerrar o reabrir una caja exigirá verificación con segundo
-          factor. Vacío = usar el valor por defecto ({defaultThreshold} VES).
+          factor. Vacío = usar el valor por defecto ({defaultThresholdLabel} VES).
         </p>
       </div>
 

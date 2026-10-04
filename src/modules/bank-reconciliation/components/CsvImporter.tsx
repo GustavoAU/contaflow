@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { UploadIcon, CheckIcon, Loader2Icon } from "lucide-react";
 import { importStatementAction } from "../actions/banking.actions";
 import type { ColumnMap } from "../services/CsvParserService";
+import { MoneyInput } from "@/components/ui/money-input";
 
 type Step = "upload" | "map" | "balances" | "done";
 
@@ -300,14 +301,14 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
               <label htmlFor="csv-opening" className="mb-1 block text-sm font-medium text-zinc-700">
                 Saldo inicial
               </label>
-              <input
+              <MoneyInput
                 id="csv-opening"
-                type="text"
+                bare
+                allowNegative
                 value={openingBalance}
-                onChange={(e) => setOpeningBalance(e.target.value)}
-                placeholder="Ej. 1500.00"
+                onValueChange={setOpeningBalance}
+                placeholder="Ej. 1.500,00"
                 required
-                inputMode="decimal"
                 className="text-15 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               />
@@ -316,14 +317,14 @@ export function CsvImporter({ bankAccountId, companyId }: Props) {
               <label htmlFor="csv-closing" className="mb-1 block text-sm font-medium text-zinc-700">
                 Saldo final
               </label>
-              <input
+              <MoneyInput
                 id="csv-closing"
-                type="text"
+                bare
+                allowNegative
                 value={closingBalance}
-                onChange={(e) => setClosingBalance(e.target.value)}
-                placeholder="Ej. 3200.00"
+                onValueChange={setClosingBalance}
+                placeholder="Ej. 3.200,00"
                 required
-                inputMode="decimal"
                 className="text-15 w-full rounded-md border border-zinc-300 px-3 py-2 font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 style={{ fontVariantNumeric: "tabular-nums" }}
               />

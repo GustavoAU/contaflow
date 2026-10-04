@@ -8,6 +8,8 @@ import Decimal from "decimal.js";
  * sin miles), segura para `new Decimal(...)` y para el servidor. Devuelve "" si está
  * vacío o no hay ningún dígito.
  *
+ * `allowNegative` admite un "-" inicial (saldos bancarios); `decimals` (def. 2) recorta.
+ *
  * Reglas:
  *   - Una coma al final del número: es el decimal y los puntos son miles ("1.234,56", "100,99").
  *   - Ambos separadores y el punto va último ("1,234.56"): el punto es el decimal.
@@ -15,7 +17,11 @@ import Decimal from "decimal.js";
  *   - Sin coma, un solo punto: miles si le siguen exactamente 3 dígitos ("20.000"),
  *     decimal en caso contrario ("100.99", costumbre americana).
  */
-export function normalizeMoneyInput(text: string): string {
+export function normalizeMoneyInput(
+  text: string,
+  { decimals = 2, allowNegative = false }: { decimals?: number; allowNegative?: boolean } = {}
+): string {
+  const negative = allowNegative && /^\s*-/.test(text);
   const s = text.replace(/[^0-9.,]/g, "");
   if (!/\d/.test(s)) return "";
 
@@ -47,7 +53,10 @@ export function normalizeMoneyInput(text: string): string {
   }
 
   intPart = intPart.replace(/^0+(?=\d)/, "") || "0";
-  return decPart ? `${intPart}.${decPart}` : intPart;
+  // Más decimales de los permitidos se descartan al teclear (nunca se redondea en silencio).
+  decPart = decPart.slice(0, decimals);
+  const out = decPart ? `${intPart}.${decPart}` : intPart;
+  return negative && /[1-9]/.test(out) ? `-${out}` : out;
 }
 
 /** Decimal de un valor canónico; "" (o basura) → 0. Nunca lanza. */
