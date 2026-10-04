@@ -34,6 +34,13 @@ Hoy tampoco se representan las "retenciones acumuladas por descontar" (casilla 5
   - Sobre las retenciones que la **empresa paga** (las practicadas a sus proveedores): "son aparte del crédito o débito fiscal… no se disminuyen con nada, solo se pagan y ya". Refuerza RN-11 y la decisión D2. **No responde P1**, que es sobre las retenciones que los **clientes le hacen a la empresa** (casillas 54–67); la planilla real sí las descuenta de la cuota (planilla A: cuota 26.064,18, descontado 26.064,18, a pagar 0).
   - Mes de una retención que un cliente le hizo a la empresa: "se aprovecha en el próximo período a declarar si encaja en el período de la factura; si no, para el siguiente". Respuesta **parcial** (ver P2).
   - **Prorrata:** el restaurante la aplica **cada mes**; la persona natural no la usa. Reintegros, entes exonerados, exención y ajustes: solo cuando hace falta, "se evita lo más que se pueda" (raros). Ver RN-18, R-6 y P8.
+- **Tercera ronda de la contadora (2026-10-04):**
+  - **Retenciones de clientes (P1 y P6, RESPONDIDAS):** "del monto a pagar se resta lo que ya traes arrastrando más lo que tengas del período por descontar; si sobra, ese excedente pasa para el siguiente mes… siempre se descuenta todo; si da algo a pagar, esa es la diferencia". Confirma RN-6 a RN-9: se descuenta el **máximo posible**, se paga la diferencia y el sobrante se arrastra.
+  - **Mes de la retención (P2, RESPONDIDA):** no manda la fecha del comprobante sino **si el período ya se declaró**. Si el comprobante llega antes de declarar el período de la factura, la retención entra en ese período (se corrige y se declara); si ya se declaró, entra en el siguiente. Consecuencia de diseño: ver D5 y RN-4.
+  - **Notas de crédito (P4, RESPONDIDA):** deben emitirse en el **mismo mes** de la venta (no se puede emitir una del mes siguiente por algo del mes anterior); la declaración es global del mes, así que "nunca te va a dar más la nota de crédito que el monto de tus ventas". Si ocurriera, igualmente se resta. Ver RN-15 y R-10.
+  - **Nota de crédito de compra (P5, RESPONDIDA):** reduce el crédito fiscal; "las notas de crédito de ventas y de compras se reflejan en negativo en los libros". Confirma RN-13. Se aprovecha en el período que corresponda si aún no se declaró, y si no, en el siguiente.
+  - **Prorrata (P8, PARCIAL):** porcentaje = **ventas gravadas ÷ ventas totales del período**, aplicado al IVA de las compras **sujetas a prorrata** (gastos sin relación con la naturaleza del negocio: internet, electricidad, papelería); el resto del crédito es "totalmente deducible". La hoja de trabajo de ejemplo corresponde a una **quincena** (01/05/2026 al 15/05/2026). Ver R-6 y SPEC-010.
+  - **Periodicidad (dato nuevo, ver P9):** la contadora habla de declarar "la quincena del 16 al último de septiembre" siendo Contribuyente Especial, y de declarar el mes completo siendo contribuyente ordinario. Indica que la Forma 30 de un Contribuyente Especial es **quincenal**; hoy el sistema solo calcula meses completos. NO VERIFICADO; fuera del alcance de esta spec (SPEC-011).
 - **Artículos de la LIVA y de la Providencia 0049: el repo NO documenta base legal** para el excedente trasladable ni para el descuento de retenciones (revisión de `fiscal-agent`, 2026-10-04). Esta spec no cita artículos de memoria. El comentario del código "PA-0049 Art. 11-12: solo retenciones ya enteradas generan crédito fiscal" no tiene respaldo y se elimina junto con C2. El repo cita dos providencias distintas para retenciones ("0049" y "SNAT/2005/0056"); cuál rige es **NO VERIFICADO** y se pregunta a la contadora cuando se redacte el ADR.
 
 ## 3. Alcance
@@ -58,6 +65,8 @@ Hoy tampoco se representan las "retenciones acumuladas por descontar" (casilla 5
 - Casillas en cero y que no se ofrecen: ajustes a débitos y créditos (48, 38), certificados de entes exonerados (80, 82), reintegros (21, 81), cesión y recuperación de retenciones (72, 73), percepciones (57, 58, 68, 69, 75, 76, 77): la contadora los describe como raros. **La prorrata (70, 37) tampoco entra aquí, pero el restaurante la usa cada mes**: va en una spec propia (SPEC-010) y mientras tanto esta spec avisa (RN-18). Ver R-6 y R-7.
 - La declaración de retenciones practicadas (otra planilla y otro módulo).
 - Unificar el origen de las retenciones sufridas (factura vs. cobro): riesgo R-1, spec aparte.
+- Declarar por **quincena** (Contribuyentes Especiales): el sistema calcula meses completos. El algoritmo de esta spec no depende de la longitud del período, así que sirve igual para una quincena; el selector de período, los rangos de fechas y el arrastre entre quincenas van en SPEC-011.
+- Elegir **en qué período** se descuenta una retención cuyo comprobante llega tarde (D5): aquí se mantiene el criterio actual, la fecha de la factura de venta.
 - Rediseñar el PDF para replicar la planilla completa, y casillas de compras no gravadas / importaciones por alícuota (la Sección B no coincide 1 a 1 con 30–36; `fiscal-agent` lo marca como NO VERIFICADO).
 
 ## 4. Reglas de negocio
@@ -67,7 +76,7 @@ Notación: números = casillas de la planilla 99030. Todo con `Decimal`.
 - RN-1: Total créditos fiscales (39) = créditos fiscales deducibles del período (71, = total de la Sección B) + excedente de créditos fiscales del mes anterior (20).
 - RN-2: Cuota tributaria (53) = máx(0, total débitos fiscales (49) − 39).
 - RN-3: Excedente de crédito fiscal para el mes siguiente (60) = máx(0, 39 − 49). 53 y 60 nunca son ambos mayores que cero.
-- RN-4: Retenciones del período (66) = suma del IVA retenido por clientes en las facturas de **venta** del período (por fecha de factura hasta que se confirme P2), **sin importar** si la empresa es Contribuyente Especial. Las notas de crédito restan.
+- RN-4: Retenciones del período (66) = suma del IVA retenido por clientes en las facturas de **venta** del período (por fecha de factura, criterio actual; el control de "diferir al período siguiente" es la decisión D5), **sin importar** si la empresa es Contribuyente Especial. Las notas de crédito restan.
 - RN-5: Retenciones acumuladas por descontar (54) es una entrada manual: decimal ≥ 0, máximo 2 decimales, tope `MAX_INVOICE_AMOUNT` (ADR-006 D-2). Omitida = 0.
 - RN-6: Total retenciones (74) = 54 + 66.
 - RN-7: Retenciones soportadas y descontadas (55) = mín(53, 74). Nunca supera la cuota ni el total disponible.
@@ -78,7 +87,7 @@ Notación: números = casillas de la planilla 99030. Todo con `Decimal`.
 - RN-12: El crédito del mes anterior (20) conserva su validación actual (string decimal ≥ 0, 2 decimales, tope ADR-006 D-2).
 - RN-13: Las notas de crédito de compra restan de la casilla 71 (misma regla de signo que ya aplica a las ventas). Sujeto a P5.
 - RN-14: **Cuantización.** Cada casilla (49, 71, 66, 39, 53, 60, 74, 55, 67, 90) se redondea a 2 decimales con `ROUND_HALF_UP` y las siguientes se derivan de los valores ya redondeados, para que lo mostrado cuadre (`53 = 49 − 39` con las cifras visibles). Regla del céntimo de ADR-058, aplicada por analogía: ADR-058 trata asientos, no declaraciones.
-- RN-15: **Sin recorte silencioso.** Si el neto de débitos (49), créditos (71) o retenciones del período (66) resulta **negativo** (notas de crédito mayores que el movimiento del mes), la Forma 30 no se calcula y devuelve un error de negocio que dice cuál casilla quedó negativa. Se mantiene hasta que la contadora diga cómo se declara (P4).
+- RN-15: **Sin recorte silencioso.** Si el neto de débitos (49), créditos (71) o retenciones del período (66) resulta **negativo** (notas de crédito mayores que el movimiento del mes), la Forma 30 no se calcula y devuelve un error de negocio que dice cuál casilla quedó negativa y que revise con su contador. La contadora indica que este caso no debe ocurrir (la nota de crédito va en el mismo mes y el total es global); el bloqueo es una red de seguridad para un dato anómalo, no un flujo normal.
 - RN-16: Sin retenciones (66 = 0 y 54 = 0) y sin notas de crédito de compra, el resultado coincide con el cálculo anterior sin retenciones (regresión).
 - RN-17: En pantalla, PDF y Excel, cada cifra de este bloque lleva el nombre y el número de casilla de la planilla (p. ej. "Casilla 60 — Excedente de crédito fiscal para el mes siguiente").
 
@@ -177,20 +186,25 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 
 ## 11. Riesgos y preguntas abiertas
 
-**PREGUNTAS PARA CONTADOR** (la spec no se aprueba sin respuesta; bloquean P1, P2, P4 y P5):
-- P1 **(ABIERTA — la 1.ª respuesta contestó otra cosa)**: hablamos de las retenciones que los **clientes le hacen a la empresa** (no de las que la empresa paga). Con la planilla real como ejemplo: en enero la cuota era 26.064,18 y había 133.262,59 de retenciones; se descontó 26.064,18 y se pagó 0. Si la cuota hubiera sido 100.000 y solo hubiera 30.000 de retenciones, ¿se descuentan los 30.000 y se pagan 70.000?
-- P2 **(PARCIAL)**: la respuesta fue "se aprovecha en el próximo período a declarar si encaja en el período de la factura; si no, para el siguiente". Hipótesis de implementación, NO CONFIRMADA: la retención cuenta en el mes de la factura **si el comprobante llegó antes de declarar ese mes; si llegó después, en el mes siguiente** (equivale a usar la fecha del comprobante cuando es posterior a la factura; `Invoice.ivaRetentionDate` ya existe y es opcional). Confirmar con un ejemplo: factura de venta del 28 de septiembre, comprobante recibido el 8 de octubre y septiembre ya declarado → ¿va en octubre?
-- P3 **(RESPONDIDA)**: prorrata sí (restaurante, mensual); reintegros, entes exonerados, exención y ajustes son raros. Consecuencias: RN-18, SPEC-010 y R-6.
-- P4: Cuando las notas de crédito (de venta, de compra o de retenciones) **superan** el movimiento del mes y el resultado neto sale negativo, ¿cómo se declara? Hasta saberlo, el sistema se detiene con un aviso (RN-15).
-- P5: Una nota de crédito de **compra**, ¿reduce el crédito fiscal en su misma casilla o se declara aparte como ajuste?
-- P6: El descuento de retenciones (casilla 55), ¿es siempre el máximo posible o la empresa puede descontar menos?
-- P7 (dato): en la planilla A las retenciones del período (66 = 67.468,26) son **iguales** al débito fiscal (49). ¿Es real (retención del 100% sobre todas las ventas del mes) o hubo un dato digitado?
-- P8 (para SPEC-010, no bloquea esta spec): ¿cómo calculan la prorrata mensual del restaurante? Qué ventas entran en el porcentaje (solo gravadas y exentas, ¿y exportaciones?), qué compras se tratan como de uso común, cómo se redondea el porcentaje y si se ajusta al cierre del año.
+**PREGUNTAS PARA CONTADOR:**
+Estado de las preguntas tras la tercera ronda (2026-10-04):
+- P1 **(RESPONDIDA)**: se descuenta todo lo posible; se paga la diferencia; el sobrante pasa al mes siguiente. Ver sección 2.
+- P2 **(RESPONDIDA)**: manda si el período ya se declaró, no la fecha del comprobante. Genera la decisión D5.
+- P3 **(RESPONDIDA)**: prorrata sí (restaurante); reintegros, entes exonerados, exención y ajustes son raros ("se evita lo más que se pueda").
+- P4 **(RESPONDIDA)**: no debe ocurrir; si ocurriera, la nota de crédito se resta. RN-15 se mantiene como red de seguridad.
+- P5 **(RESPONDIDA)**: la nota de crédito de compra reduce el crédito fiscal.
+- P6 **(RESPONDIDA)**: se descuenta siempre el máximo.
+- P7 (dato, **abierta, no bloquea**): en la planilla A las retenciones del período (66 = 67.468,26) son **iguales** al débito fiscal (49). ¿Es real (retención del 100% sobre todas las ventas del mes) o hubo un dato digitado?
+- P8 **(PARCIAL, para SPEC-010)**: falta saber si las exportaciones entran en el denominador del porcentaje, cómo se redondea el porcentaje, si se ajusta al cierre del año y cómo se marca cada compra como "sujeta a prorrata".
+- P9 **(NUEVA, para SPEC-011)**: ¿la Forma 30 del restaurante, siendo Contribuyente Especial, se presenta por **quincena** (1–15 y 16–fin de mes) o solo las retenciones son quincenales? En la planilla de septiembre aparece "mes 09" con fecha de declaración 24/09: ¿era la primera quincena de septiembre?
+
+**Esta spec ya no tiene preguntas bloqueantes para el contador.** Queda por aprobar D1, D2 y D3 (Gustavo).
 
 **DECISIONES DE PRODUCTO** (Gustavo):
 - D1 — Arrastre de saldos: manual con dos entradas (recomendado ahora, mantiene ADR-009 D-1) frente a persistir la declaración presentada (spec futura; ADR-015-BORRADOR propone `Forma30Declaration` versionada).
 - D2 — Retenciones practicadas: retirarlas del resultado (recomendado; la contadora confirma que "solo se pagan y ya", YAGNI y evita confusión) frente a mostrarlas como dato informativo fuera de las casillas.
 - D3 — ZIP/CSV mensual (`ExportService`): omitir las casillas que dependen del arrastre (53, 60, 55, 67, 90) y publicar solo las independientes (49, 71, 66), o calcularlas encadenando mes a mes desde saldos iniciales. Recomendado: omitir.
+- D5 — Retención que llega después de declarar el período: la regla real es "si el período ya se declaró, se descuenta en el siguiente", pero ContaFlow no guarda qué períodos se declararon (D1), así que no puede decidirlo solo. Opciones: (a) mantener la fecha de la factura y dejar que el contador la lleve a mano a la casilla 54 del período siguiente (recomendado en esta spec: cero cambios de schema); (b) un control por factura "descontar en el período: este / siguiente" con campo nuevo en la factura (spec aparte; requiere schema y `arch-agent`).
 - D4 — Reintegro Art. 66 (bajas de activo fijo): `DisposeAssetModal` dice que "debe reflejarse en la declaración de IVA como ajuste a los créditos fiscales", pero la Forma 30 no tiene dónde recibirlo. Opciones: aviso en la Forma 30 cuando el período tenga un reintegro, o entrada manual para la casilla 38. Fuera de esta spec; hay que decidir si va en una spec aparte.
 
 **Riesgos:**
@@ -199,7 +213,9 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 - R-3 (cifras ya presentadas): quienes declararon con la cifra anterior pueden tener saldos arrastrados mal. Fase Alpha con parallel run; sin migración de datos.
 - R-4 (integridad de C1): `retention.actions.ts` busca la factura por número y RIF **sin filtrar el tipo**, y `linkRetentionToInvoice` tampoco filtra: una retención practicada podría vincularse a una factura de venta y sobrescribir su `ivaRetentionAmount`, que entra a la casilla 66. Además no hay tope "retención ≤ IVA de la factura de venta" en el schema de factura (mismo hueco que documentó ADR-048). Issue aparte.
 - R-5 (fuera de alcance): `vesRate` asume tasa 1 si una factura en divisa no tiene tasa (`DeclaracionIVAService.ts` ~L33), y la retención se suma sin conversión ("ya están en VES"); NO VERIFICADO qué envía el formulario para una venta en USD. Issue aparte.
-- R-6 (prorrata — **ahora es riesgo alto**): el restaurante aplica prorrata cada mes y ContaFlow no tiene lógica de prorrata; la Sección B trata el 100% del IVA de compras como deducible. En un mes con ventas gravadas y exentas el crédito fiscal (casilla 71) puede salir **sobrestimado**, y con él las casillas 39, 53 y 60. Mitigación en esta spec: aviso RN-18. Solución completa: SPEC-010 (casillas 70 y 37), antes de que el restaurante declare con ContaFlow.
+- R-6 (prorrata — **ahora es riesgo alto**): el restaurante aplica prorrata cada mes y ContaFlow no tiene lógica de prorrata; la Sección B trata el 100% del IVA de compras como deducible. En un mes con ventas gravadas y exentas el crédito fiscal (casilla 71) puede salir **sobrestimado**, y con él las casillas 39, 53 y 60. Mitigación en esta spec: aviso RN-18. Solución completa: SPEC-010 (casillas 70 y 37), antes de que el restaurante declare con ContaFlow. Definición operativa de la contadora: porcentaje = ventas gravadas ÷ ventas totales del período; se aplica solo al IVA de las compras sujetas a prorrata; casilla 71 = 70 + 37.
+- R-11 (periodicidad): si el restaurante declara por quincena, SPEC-009 sola no basta para que lo use; hace falta SPEC-011 (P9).
+- R-10 (nota de crédito en otro mes): la contadora indica que una nota de crédito debe emitirse en el mismo mes de la venta. `InvoiceCreditDebitNoteService` solo valida que el período de la nota no esté cerrado; **no compara con el mes de la factura original**. Validación candidata, pendiente de confirmar que la regla es absoluta (¿y en el caso de quincenas?). Issue aparte.
 - R-7 (casillas 80/82, 21/81, 72/73, percepciones, ajustes): la contadora los describe como raros ("se evita lo más que se pueda"); NO VERIFICADO qué hacen exactamente; se dejan en cero.
 - R-8 (fechas): el rango del período usa `new Date(year, month-1, 1)` en hora local; las fechas de negocio se guardan a medianoche UTC. Sin efecto en Vercel (UTC); en un servidor en VET las facturas del día 1 caerían en el mes anterior. Riesgo bajo.
 - R-9 (otros comentarios sin respaldo): `ExportService`/`DeclaracionIVAService` conservan comentarios con "Art." que el repo no sustenta; se retiran junto con C2.
