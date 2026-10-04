@@ -10,6 +10,7 @@ import Decimal from "decimal.js";
 import { registerBenefitAdvanceAction } from "../actions/nom-d.actions";
 import type { BenefitAdvanceRow } from "../services/BenefitAdvanceService";
 import { formatAmount } from "@/lib/format";
+import { MoneyInput } from "@/components/ui/money-input";
 
 const REASON_LABELS = {
   HOUSING: "Vivienda (adquisición / construcción / remodelación)",
@@ -78,14 +79,11 @@ export default function BenefitAdvanceForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-700">Monto</label>
-          <input
-            type="number"
+          <MoneyInput
+            bare
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            min={0.01}
-            max={limit75}
-            step={0.01}
-            placeholder={`Máx ${limit75}`}
+            onValueChange={setAmount}
+            placeholder={`Máx ${limit75Fmt}`}
             required
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />

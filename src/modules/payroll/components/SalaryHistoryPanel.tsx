@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import { addSalaryAction } from "../actions/employee.actions";
 import type { SalaryHistoryRow } from "../services/EmployeeService";
+import { MoneyInput } from "@/components/ui/money-input";
 
 interface Props {
   companyId: string;
@@ -70,14 +71,12 @@ export default function SalaryHistoryPanel({ companyId, employeeId, history, can
             </div>
             <div>
               <label className="mb-1 block text-xs text-gray-600">Monto *</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
+              <MoneyInput
+                bare
                 value={form.amount}
-                onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
+                onValueChange={(v) => setForm((p) => ({ ...p, amount: v }))}
                 className="w-full rounded border px-2 py-1.5 text-sm"
-                placeholder="0.00"
+                placeholder="0,00"
               />
             </div>
             <div>

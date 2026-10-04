@@ -7,6 +7,7 @@ import Decimal from "decimal.js";
 import { Loader2Icon } from "lucide-react";
 import { calculateProfitSharingAction } from "../actions/nom-d.actions";
 import type { ProfitSharingRecordRow } from "../services/ProfitSharingService";
+import { MoneyInput } from "@/components/ui/money-input";
 
 function fmt(v: string | number) {
   return Number(v).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -261,12 +262,11 @@ export default function ProfitSharingPanel({
                   <label className="mb-1 block text-xs font-medium text-gray-700">
                     Utilidad neta del ejercicio (Bs.)
                   </label>
-                  <input
-                    type="number"
-                    min="0"
+                  <MoneyInput
+                    bare
                     value={form.netProfitVes}
-                    onChange={(e) => setForm((f) => ({ ...f, netProfitVes: e.target.value }))}
-                    placeholder="0.00"
+                    onValueChange={(v) => setForm((f) => ({ ...f, netProfitVes: v }))}
+                    placeholder="0,00"
                     className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -274,14 +274,11 @@ export default function ProfitSharingPanel({
                   <label className="mb-1 block text-xs font-medium text-gray-700">
                     Nómina anual total (Bs.)
                   </label>
-                  <input
-                    type="number"
-                    min="1"
+                  <MoneyInput
+                    bare
                     value={form.totalAnnualPayrollVes}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, totalAnnualPayrollVes: e.target.value }))
-                    }
-                    placeholder="0.00"
+                    onValueChange={(v) => setForm((f) => ({ ...f, totalAnnualPayrollVes: v }))}
+                    placeholder="0,00"
                     className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>

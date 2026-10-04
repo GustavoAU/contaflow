@@ -6,6 +6,8 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { TerminationRow } from "../services/TerminationService";
+import { MoneyInput } from "@/components/ui/money-input";
+import { parseMoneyInput } from "@/lib/money-input";
 import { updateTerminationAction, finalizeTerminationAction } from "../actions/nom-d.actions";
 
 const REASON_LABELS: Record<string, string> = {
@@ -64,9 +66,10 @@ export default function TerminationDetail({
     e.preventDefault();
     startTransition(async () => {
       const result = await updateTerminationAction(companyId, t.id, {
-        pendingConceptsAmount: parseFloat(pendingConceptsAmount),
+        // R-5: string canónico vía Decimal (zMoneyAmount del servidor lo valida).
+        pendingConceptsAmount: parseMoneyInput(pendingConceptsAmount).toFixed(2),
         pendingConceptsNotes: pendingConceptsNotes || undefined,
-        deductionsAmount: parseFloat(deductionsAmount),
+        deductionsAmount: parseMoneyInput(deductionsAmount).toFixed(2),
       });
       if (result.success) {
         setT(result.data);
@@ -265,12 +268,11 @@ export default function TerminationDetail({
                   <label className="mb-1 block text-xs font-medium text-gray-700">
                     Conceptos pendientes
                   </label>
-                  <input
-                    type="number"
+                  <MoneyInput
+                    bare
                     value={pendingConceptsAmount}
-                    onChange={(e) => setPendingConceptsAmount(e.target.value)}
-                    min={0}
-                    step={0.01}
+                    onValueChange={setPendingConceptsAmount}
+                    placeholder="0,00"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -278,12 +280,11 @@ export default function TerminationDetail({
                   <label className="mb-1 block text-xs font-medium text-gray-700">
                     Deducciones
                   </label>
-                  <input
-                    type="number"
+                  <MoneyInput
+                    bare
                     value={deductionsAmount}
-                    onChange={(e) => setDeductionsAmount(e.target.value)}
-                    min={0}
-                    step={0.01}
+                    onValueChange={setDeductionsAmount}
+                    placeholder="0,00"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>

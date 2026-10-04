@@ -7,6 +7,7 @@ import { Loader2Icon } from "lucide-react";
 import { createEmployeeAction, updateEmployeeAction } from "../actions/employee.actions";
 import type { EmployeeRow } from "../services/EmployeeService";
 import { VENEZUELA_BANKS } from "../../payments/constants/venezuela-banks";
+import { MoneyInput } from "@/components/ui/money-input";
 
 interface Props {
   companyId: string;
@@ -532,13 +533,11 @@ export default function EmployeeForm({ companyId, initial, onSaved }: Props) {
           </p>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
+              <MoneyInput
+                bare
                 value={form.initialSalaryAmount}
-                onChange={(e) => set("initialSalaryAmount", e.target.value)}
-                placeholder="0.00"
+                onValueChange={(v) => set("initialSalaryAmount", v)}
+                placeholder="0,00"
                 className="w-full rounded border px-3 py-2 text-sm"
               />
             </div>

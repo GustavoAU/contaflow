@@ -11,6 +11,7 @@ import type { EmployeeLoanRow } from "../services/EmployeeLoanService";
 import { Decimal } from "decimal.js";
 import { formatAmount } from "@/lib/format";
 import { parseMoneyInput } from "@/lib/money-input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { calcInstallment } from "../services/loan-installment";
 
 interface EmployeeOption {
@@ -132,14 +133,12 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Monto total (Bs.)
             </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
+            <MoneyInput
+              bare
               value={totalAmount}
-              onChange={(e) => setTotalAmount(e.target.value)}
+              onValueChange={setTotalAmount}
               required
-              placeholder="0.00"
+              placeholder="0,00"
               className={INPUT}
             />
           </div>
@@ -149,14 +148,12 @@ export default function CreateLoanForm({ companyId, employees, onCreated, onCanc
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Monto total (USD)
             </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
+            <MoneyInput
+              bare
               value={amountUsd}
-              onChange={(e) => setAmountUsd(e.target.value)}
+              onValueChange={setAmountUsd}
               required
-              placeholder="0.00"
+              placeholder="0,00"
               className={INPUT}
             />
           </div>

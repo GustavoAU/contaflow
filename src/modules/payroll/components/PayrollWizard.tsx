@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { savePayrollConfigAction } from "../actions/payroll-config.actions";
 import type { PayrollConfigRow } from "../services/PayrollConfigService";
 import { formatMoneyVE, parseMoneyInput } from "@/lib/money-input";
+import { MoneyInput } from "@/components/ui/money-input";
 
 type Step = 1 | 2 | 3;
 
@@ -416,13 +417,11 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                 Requerido para aplicar los topes de cotización: IVSS hasta 5 salarios mínimos
                 (Reglamento LSS Art. 98) y RPE entre 1 y 10 (LRPE Art. 46). El FAOV no tiene tope.
               </p>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="ej. 130.00"
+              <MoneyInput
+                bare
+                placeholder="ej. 130,00"
                 value={form.salaryMinimumVes}
-                onChange={(e) => set("salaryMinimumVes", e.target.value)}
+                onValueChange={(v) => set("salaryMinimumVes", v)}
                 className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
               />
             </div>

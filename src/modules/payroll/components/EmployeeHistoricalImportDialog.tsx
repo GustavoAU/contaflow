@@ -8,6 +8,7 @@ import { useState, useTransition } from "react";
 import { ArchiveIcon, XIcon } from "lucide-react";
 import { setInitialVacationBalanceAction } from "../actions/vacation-request.actions";
 import { setInitialBenefitBalanceAction } from "../actions/nom-d.actions";
+import { MoneyInput } from "@/components/ui/money-input";
 
 type Props = {
   companyId: string;
@@ -136,13 +137,11 @@ export function EmployeeHistoricalImportDialog({
                   <label className="mb-1 block text-xs font-medium text-zinc-600">
                     Prestaciones sociales acumuladas en Bs. (del sistema anterior)
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                  <MoneyInput
+                    bare
                     value={prestacionesVES}
-                    onChange={(e) => setPrestacionesVES(e.target.value)}
-                    placeholder="ej. 15000.00"
+                    onValueChange={setPrestacionesVES}
+                    placeholder="ej. 15.000,00"
                     className="w-full rounded border px-3 py-2 text-sm"
                   />
                 </div>
