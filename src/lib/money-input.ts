@@ -68,10 +68,10 @@ export function parseMoneyInput(canonical: string): Decimal {
   }
 }
 
-/** "1234567.5" → "1.234.567,50" (2 decimales, punto de miles, coma decimal). */
-export function formatMoneyVE(value: Decimal.Value): string {
-  const d = new Decimal(value).toDecimalPlaces(2);
-  const [int, dec] = d.abs().toFixed(2).split(".");
+/** "1234567.5" → "1.234.567,50" (punto de miles, coma decimal; `decimals` por defecto 2). */
+export function formatMoneyVE(value: Decimal.Value, decimals = 2): string {
+  const d = new Decimal(value).toDecimalPlaces(decimals);
+  const [int, dec] = d.abs().toFixed(decimals).split(".");
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${d.isNegative() && !d.isZero() ? "-" : ""}${grouped},${dec}`;
+  return `${d.isNegative() && !d.isZero() ? "-" : ""}${grouped}${dec ? `,${dec}` : ""}`;
 }

@@ -71,3 +71,11 @@ describe("formatMoneyVE", () => {
     expect(formatMoneyVE(input)).toBe(expected);
   });
 });
+
+describe("formatMoneyVE — decimales", () => {
+  it("admite 4 decimales para tasas y 0 para enteros", () => {
+    expect(formatMoneyVE("36.4567", 4)).toBe("36,4567");
+    expect(formatMoneyVE("1234.5", 4)).toBe("1.234,5000");
+    expect(formatMoneyVE("1234.5", 0)).toBe("1.235");
+  });
+});
