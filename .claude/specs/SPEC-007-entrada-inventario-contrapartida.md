@@ -85,7 +85,7 @@ Lo completa `/implementar`.
 |---|---|---|---|
 
 ## 11. Riesgos y preguntas abiertas
-- **PA-1 (usuario / contadora):** ¿se restringe el tipo de cuenta de contrapartida (Activo corriente tipo Banco/Caja, Pasivo tipo Cuentas por pagar, Patrimonio tipo Capital) o se acepta cualquier cuenta de balance? Recomendación: aceptar solo Activo, Pasivo y Patrimonio, y rechazar Gasto e Ingreso.
+- **PA-1 (RESUELTA en lo esencial, 2026-10-04, contadora):** la contrapartida puede ser **Pasivo** (cuentas por pagar al proveedor si es a crédito, o cuenta por pagar al socio si el aporte se acredita así), **Patrimonio** (capital, aporte de socios) o **Activo de efectivo** (Banco o Caja, si se paga al contado). Dijo también que "se tienen que admitir contrapartidas de costo, de gasto" y que **no** se admiten de **ingreso**. Regla a implementar: se aceptan cuentas de Activo (excepto la propia cuenta de inventario), Pasivo, Patrimonio y Costo/Gasto; se rechazan las de Ingreso. **Frase por confirmar:** la transcripción dice "no contrapartidas de activo", pero sus propios ejemplos usan Banco/Caja (Activo) como contrapartida; se interpreta como un lapsus de dictado.
 - **PA-2 (usuario):** ¿hay entradas "standalone" que hoy se creen a propósito sin contrapartida (importaciones, flujos de nómina o de fabricación) que se rompan? Hay que barrer los llamadores de `postMovement` antes de implementar.
 - **R-1:** el formulario de movimiento hoy puede no pedir la contrapartida; hay que revisarlo y es un cambio de UI (ui-agent).
 - **R-2:** es prerrequisito de SPEC-001 (el trigger rechazaría el asiento de una línea).
