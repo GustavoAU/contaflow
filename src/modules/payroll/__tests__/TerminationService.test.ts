@@ -205,6 +205,24 @@ describe("TerminationService.create", () => {
     );
   });
 
+  it("SPEC-006: el promedio salarial de utilidades (profitSharingBaseSalary) conserva todos sus decimales", async () => {
+    // (1000,01 + 1000,01 + 1000,02) / 3 = 1000,013333333... ; antes se redondeaba a 4 decimales
+    // (1000.0133) incluso dentro del cálculo; ahora se guarda con 8 y el monto sigue a 2 decimales.
+    const row = BASE_EMPLOYEE.salaryHistory[0];
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      { ...row, amount: new Decimal("1000.01") },
+      { ...row, amount: new Decimal("1000.01") },
+      { ...row, amount: new Decimal("1000.02") },
+    ] as never);
+
+    await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
+
+    const data = vi.mocked(prisma.termination.create).mock.calls[0]![0]!.data as {
+      profitSharingBaseSalary: string | null;
+    };
+    expect(data.profitSharingBaseSalary).toBe("1000.01333333");
+  });
+
   it("RESIGNATION has zero indemnification and zero notice period", async () => {
     await TerminationService.create(COMPANY, USER, EMP_ID, CREATE_INPUT);
 

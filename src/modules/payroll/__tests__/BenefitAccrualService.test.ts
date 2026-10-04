@@ -685,6 +685,33 @@ describe("BenefitAccrualService — ADR-058 (montos a 2 decimales)", () => {
     });
   });
 
+  it("SPEC-006: el salario diario y las alícuotas se guardan con TODOS sus decimales (9,25925 tal cual, no 9,2593)", async () => {
+    // Contadora (2026-10-04): "las alícuotas ... se deben dejar con todos los decimales que da
+    // (ej. 0,12353 tal cual)". Sueldo 3333,33 -> diario normal 111,111; utilidades 30 días/360 =
+    // 9,25925 (5 decimales); bono vacacional 15 días/360 = 4,629625; integral = 124,999875.
+    // Antes se guardaban con toFixed(4): 9.2593 / 4.6296 / 125.0000.
+    vi.mocked(prisma.employee.findMany).mockResolvedValue([
+      {
+        ...BASE_EMPLOYEE,
+        hireDate: new Date("2026-01-15"),
+        salaryHistory: [{ ...BASE_EMPLOYEE.salaryHistory[0], amount: new Decimal("3333.33") }],
+      },
+    ] as never);
+
+    await BenefitAccrualService.accrueQuarter(COMPANY, USER, 2026, 1);
+
+    const line = vi.mocked(prisma.benefitAccrualLine.create).mock.calls[0]?.[0]?.data as Record<
+      string,
+      unknown
+    >;
+    expect(line.dailyNormalWage).toBe("111.11100000");
+    expect(line.profitDaysAliquot).toBe("9.25925000");
+    expect(line.vacationBonusDaysAliquot).toBe("4.62962500");
+    expect(line.integralDailyWage).toBe("124.99987500");
+    // el MONTO sigue a 2 decimales (ADR-058): la regla de las alícuotas no lo toca (RN-3)
+    expect(line.accrualAmount).toBe("1875.0000");
+  });
+
   it("postBenefitInterest: 1000,25 x 2% mensual = 20,005 -> 20,01 (ROUND_HALF_UP) en asiento y línea", async () => {
     vi.mocked(prisma.bcvBenefitRate.findUnique).mockResolvedValue({
       id: "bcv-1",

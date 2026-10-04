@@ -333,7 +333,7 @@ export const ProfitSharingService = {
               profitDays: profitDays.toFixed(2),
               fractionalDays: fractionalDays.toFixed(2),
               monthsWorked,
-              baseSalarySnapshot: avgSalary.toFixed(4),
+              baseSalarySnapshot: avgSalary.toFixed(8),
               profitAmount: profitAmount.toFixed(2),
               incesRetention: incesRetention.toFixed(2),
               isFractional,

@@ -492,4 +492,38 @@ describe("ProfitSharingService.calculate — ADR-058 (montos a 2 decimales)", ()
       expect(Object.keys(e)).not.toContain("noAbsorb");
     }
   });
+
+  it("SPEC-006: el promedio salarial (baseSalarySnapshot) se guarda con todos sus decimales", async () => {
+    vi.clearAllMocks();
+    mockTx();
+    vi.mocked(prisma.employee.findFirst).mockResolvedValue(BASE_EMPLOYEE as never);
+    vi.mocked(prisma.employee.count).mockResolvedValue(8 as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue({
+      ...BASE_CONFIG,
+      incesEnabled: true,
+      incesPayableAccountId: "acc-inces",
+    } as never);
+    // (1000,01 + 1000,01 + 1000,02) / 3 = 1000,013333333... : antes toFixed(4) daba 1000.0133
+    vi.mocked(prisma.salaryHistory.findMany).mockResolvedValue([
+      { ...BASE_SALARY_ROWS[0], amount: new Decimal("1000.01") },
+      { ...BASE_SALARY_ROWS[0], amount: new Decimal("1000.01") },
+      { ...BASE_SALARY_ROWS[0], amount: new Decimal("1000.02") },
+    ] as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue(BASE_PERIOD as never);
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.profitSharingRecord.create).mockResolvedValue(BASE_RECORD as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+
+    await ProfitSharingService.calculate(COMPANY, USER, EMP_ID, {
+      fiscalYear: 2026,
+      isFractional: true,
+      periodStart: "2026-01-01",
+      periodEnd: "2026-04-01",
+    });
+
+    const recordData = vi.mocked(prisma.profitSharingRecord.create).mock.calls[0]?.[0]?.data as {
+      baseSalarySnapshot: string;
+    };
+    expect(recordData.baseSalarySnapshot).toBe("1000.01333333");
+  });
 });
