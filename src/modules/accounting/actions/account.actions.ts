@@ -4,14 +4,16 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, type AccountType } from "@prisma/client";
 import { withCompanyContext } from "@/lib/prisma-rls";
 import { ROLES } from "@/lib/auth-helpers";
 import { requireCompanyAction } from "@/lib/action-guard";
 import { limiters } from "@/lib/ratelimit";
-import { isPostableCode } from "@/lib/account-code";
+import { isPostableCode, parentCodeOf, MOVEMENT_CODE_REGEX } from "@/lib/account-code";
 import type { ActionResult } from "../types/action-result";
 import { toActionError } from "../utils/action-errors";
+import { nextChildCode } from "../utils/next-account-code";
+import { checkMovementParent, checkParentTitle, parentCheckMessage } from "../utils/parent-title";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -42,29 +44,21 @@ const UpdateAccountSchema = CreateAccountSchema.omit({ companyId: true })
     id: z.string().min(1, "ID es requerido"),
   });
 
-// ─── Rangos por tipo ──────────────────────────────────────────────────────────
+// Sugerencia de código (getNextAccountCodeAction): SPEC-008 — código de 9 dígitos dentro de un título
+// padre. Ya no hay rangos numéricos por tipo: eso proponía códigos de 4 dígitos que nacen como título.
 
-// Clasificación de códigos de cuenta según el Plan de Cuentas VEN-NIF.
-// Fuente: DPC-0 (Declaración de Principios de Contabilidad) + VEN-NIF Marco Conceptual §4.4.
-//   1xxx → Activo (ASSET y CONTRA_ASSET comparten el rango; ej: 1105 Bancos, 1199 Dep. Acum.)
-//   2xxx → Pasivo
-//   3xxx → Patrimonio
-//   4xxx → Ingreso
-//   5xxx → Gasto
-// Los códigos fuera de rango son válidos (el sistema crea la cuenta con advertencia).
-import { nextAccountCode } from "../utils/next-account-code";
-
-const RANGES: Record<string, { start: number; end: number }> = {
-  ASSET: { start: 1000, end: 1999 },
-  CONTRA_ASSET: { start: 1000, end: 1999 },
-  LIABILITY: { start: 2000, end: 2999 },
-  EQUITY: { start: 3000, end: 3999 },
-  REVENUE: { start: 4000, end: 4999 },
-  EXPENSE: { start: 5000, end: 5999 },
-};
+const NextCodeInput = z.object({
+  type: z.enum(["ASSET", "CONTRA_ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"], {
+    error: "Tipo de cuenta invalido",
+  }),
+  companyId: z.string().min(1, "Company ID es requerido"),
+  // RN-7: no existe sugerencia sin padre.
+  parentId: z.string().min(1, "La cuenta padre es requerida"),
+});
 
 // Primer dígito del código según el tipo (convención venezolana: 1 Activo, 2 Pasivo, 3 Patrimonio,
 // 4 Ingresos, 5-9 Costos/Gastos/Cuentas de orden — ContaFlow no los distingue, todo es EXPENSE).
+// Los códigos que no empiezan por ese dígito son válidos (la cuenta se crea con advertencia).
 const LEADING_DIGITS: Record<string, string> = {
   ASSET: "1",
   CONTRA_ASSET: "1",
@@ -96,6 +90,29 @@ export async function getAccountsAction(
   } catch (error) {
     return toActionError(error);
   }
+}
+
+// ─── Título padre de una cuenta de movimiento (SPEC-008 RN-9 / RN-10) ─────────────────────────────
+
+// Devuelve el mensaje de negocio si `code` (de movimiento) no tiene forma válida o su título padre no
+// existe / no sirve; `null` si todo está bien. El padre se busca en la empresa VERIFICADA por el guard
+// (nunca en una que venga del input) y sin eliminadas (RN-2). Va ANTES del $transaction: un rechazo no
+// crea nada. Se llama solo cuando el código es de movimiento y se crea o cambia.
+async function movementParentError(
+  companyId: string,
+  code: string,
+  type: AccountType
+): Promise<string | null> {
+  const parentCode = parentCodeOf(code);
+  const parent =
+    parentCode === null
+      ? null
+      : await prisma.account.findFirst({
+          where: { companyId, code: parentCode, deletedAt: null },
+          select: { code: true, type: true, isPostable: true },
+        });
+  const check = checkMovementParent({ code, type, parent });
+  return check.ok ? null : parentCheckMessage(check, code);
 }
 
 // ─── Crear cuenta ─────────────────────────────────────────────────────────────
@@ -135,6 +152,17 @@ export async function createAccountAction(
     // nombre en un plan real ("CAJAS" / "CAJAS" / "Caja Principal"). Solo el código no se repite.
     // Título o movimiento lo decide la longitud del código (9 dígitos = movimiento).
     const isPostable = isPostableCode(validated.code);
+
+    // SPEC-008 RN-9: una cuenta de movimiento solo se crea si existe su título padre (con tipo
+    // compatible). Un código de < 9 dígitos sigue creándose como título, sin padre obligatorio.
+    if (isPostable) {
+      const parentError = await movementParentError(
+        validated.companyId,
+        validated.code,
+        validated.type
+      );
+      if (parentError) return { success: false, error: parentError };
+    }
 
     // Un código de movimiento (>= 9 dígitos, ej. 1.1.01.01.001) se valida por su PRIMER dígito
     // (convención 1-5; 6-9 también son Gasto). Los códigos de < 9 dígitos son títulos y ya
@@ -224,6 +252,7 @@ export async function updateAccountAction(
 
     const ctx = await requireCompanyAction(before.companyId, {
       roles: ROLES.ACCOUNTING,
+      limiter: limiters.fiscal,
       captureNet: true,
     });
     if (!ctx.ok) return ctx.error;
@@ -247,6 +276,20 @@ export async function updateAccountAction(
           error: `El codigo ${data.code} ya esta en uso por la cuenta "${existing.name}"`,
         };
       }
+    }
+
+    // SPEC-008 RN-10: si el código CAMBIA y el nuevo es de movimiento, aplica el mismo chequeo de
+    // título padre que el alta. El formulario reenvía siempre `code` (ver H-1 abajo), así que solo se
+    // consulta cuando difiere del guardado: editar el nombre u otros campos con el mismo código NO
+    // dispara el chequeo (RN-12: una cuenta heredada sin título padre sigue siendo editable). El tipo a
+    // validar es el que quedará (`data.type`) o, si no cambia, el actual.
+    if (data.code !== undefined && data.code !== before.code && isPostableCode(data.code)) {
+      const parentError = await movementParentError(
+        before.companyId,
+        data.code,
+        data.type ?? before.type
+      );
+      if (parentError) return { success: false, error: parentError };
     }
 
     // ADR-059: título/movimiento solo se recalcula si el código CRUZA el umbral de 9 dígitos.
@@ -309,35 +352,62 @@ export async function updateAccountAction(
 
 // ─── Generar codigo automatico ────────────────────────────────────────────────
 
+// SPEC-008 (RN-4..RN-8, RN-13): propone el siguiente código de 9 dígitos dentro de un título padre.
+// Es de LECTURA (MEMBER_ANY + limiters.read, sin AuditLog) y solo una propuesta editable: lo que
+// manda es la validación del servidor en createAccountAction/updateAccountAction.
 export async function getNextAccountCodeAction(
-  type: "ASSET" | "CONTRA_ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE",
-  companyId: string
+  type: AccountType,
+  companyId: string,
+  parentId: string
 ): Promise<ActionResult<{ code: string }>> {
   try {
-    const ctx = await requireCompanyAction(companyId, {
+    // safeParse ANTES del guard: un `companyId` undefined llegaría a Prisma como "sin filtro" y el
+    // lookup de membresía/las consultas de cuentas abarcarían a todas las empresas (ADR-004/ADR-044).
+    const parsed = NextCodeInput.safeParse({ type, companyId, parentId });
+    if (!parsed.success) return toActionError(parsed.error);
+    const input = parsed.data;
+
+    const ctx = await requireCompanyAction(input.companyId, {
       roles: "MEMBER_ANY",
       limiter: limiters.read,
     });
     if (!ctx.ok) return ctx.error;
-    const range = RANGES[type];
 
+    // RN-2: el padre es de la empresa verificada, no está eliminado, es un título de 6 dígitos y su
+    // tipo es compatible (RN-3). Un solo mensaje genérico para toda causa: no confirma a un usuario
+    // si un id de otra empresa existe, ni qué código tiene.
+    const parent = await prisma.account.findFirst({
+      where: { id: input.parentId, companyId: input.companyId, deletedAt: null },
+      select: { code: true, type: true, isPostable: true },
+    });
+    // `${padre}.001` debe tener la forma de una cuenta de movimiento (RN-1): un título de 6 dígitos
+    // sin puntos (`110101`) no es un padre válido — su sugerido sería rechazado al guardar.
+    if (
+      !parent ||
+      checkParentTitle(parent, input.type) !== null ||
+      !MOVEMENT_CODE_REGEX.test(`${parent.code}.001`)
+    ) {
+      return { success: false, error: "La cuenta padre no es válida para este tipo de cuenta." };
+    }
+
+    // RN-5: "ocupado" se decide contra TODAS las filas de la empresa, INCLUIDAS las eliminadas
+    // (sin filtrar `deletedAt`): el @@unique([companyId, code]) las cuenta.
     const accounts = await prisma.account.findMany({
-      where: { companyId, deletedAt: null },
+      where: { companyId: input.companyId },
       select: { code: true },
     });
 
-    // La regla vive en utils/next-account-code.ts, pura y testeada. Antes se
-    // arrancaba en el inicio del rango y se paraba en el primer salto, lo que en
-    // un plan real —pasivos que empiezan en 2105— proponía `2000`: libre, pero
-    // ninguna empresa pone ahí una cuenta de movimiento.
-    const code = nextAccountCode({
-      existing: accounts.map((a) => a.code),
-      rangeStart: range.start,
-      rangeEnd: range.end,
+    const code = nextChildCode({
+      parentCode: parent.code,
+      existingCodes: accounts.map((a) => a.code),
     });
 
+    // RN-6: el título ya tiene los 999 hijos — no se inventa otro padre.
     if (!code) {
-      return { success: false, error: "Rango de codigos agotado para este tipo de cuenta" };
+      return {
+        success: false,
+        error: `El título ${parent.code} ya tiene 999 cuentas; elige otro título.`,
+      };
     }
 
     return { success: true, data: { code } };

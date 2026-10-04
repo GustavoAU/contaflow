@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { PlusIcon, PencilIcon, Loader2Icon, Trash2Icon, FileSpreadsheetIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -46,9 +47,11 @@ import {
   getAccountsAction,
   createAccountAction,
   updateAccountAction,
-  getNextAccountCodeAction,
   deleteAccountAction,
+  getNextAccountCodeAction,
 } from "@/modules/accounting/actions/account.actions";
+import { checkParentTitle } from "@/modules/accounting/utils/parent-title";
+import { MOVEMENT_CODE_REGEX, isPostableCode } from "@/lib/account-code";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -78,9 +81,30 @@ const AccountFormSchema = z.object({
   description: z.string().optional(),
   isMonetary: z.boolean(),
   isCurrent: z.boolean(),
+  // SPEC-008: solo sirve para pedir la sugerencia de código en el alta; NO se envía al servidor
+  // (el padre de una cuenta es el prefijo de su código, no una columna). "" = sin cuenta padre.
+  parentId: z.string(),
 });
 
 type AccountFormValues = z.infer<typeof AccountFormSchema>;
+
+const EMPTY_FORM: AccountFormValues = {
+  name: "",
+  code: "",
+  type: "ASSET",
+  description: "",
+  isMonetary: false,
+  isCurrent: false,
+  parentId: "",
+};
+
+// Radix Select no admite `value=""` en un ítem: la opción "Sin cuenta padre" usa este centinela.
+const NO_PARENT = "__no_parent__";
+
+const compareByCode = (a: { code: string }, b: { code: string }) =>
+  a.code.localeCompare(b.code, undefined, { numeric: true });
+
+type CodeSuggestion = { parentId: string; ok: boolean };
 
 const TYPE_LABELS: Record<AccountType, string> = {
   ASSET: "Activo",
@@ -120,19 +144,41 @@ export function AccountsTable({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  // SPEC-008: sugerencia de código al elegir el título padre. El estado de carga es explícito (no el
+  // `isPending` de la transición) para que una respuesta obsoleta no deje el input bloqueado.
+  const [, startSuggestion] = useTransition();
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestion, setSuggestion] = useState<CodeSuggestion | null>(null);
+  // Contador de peticiones: solo la última respuesta se aplica (RN-8: es una propuesta, no una verdad).
+  const suggestionRequestRef = useRef(0);
+
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(AccountFormSchema),
-    defaultValues: {
-      name: "",
-      code: "",
-      type: "ASSET",
-      description: "",
-      isMonetary: false,
-      isCurrent: false,
-    },
+    defaultValues: EMPTY_FORM,
   });
 
   const watchedType = useWatch({ control: form.control, name: "type" });
+  const watchedParentId = useWatch({ control: form.control, name: "parentId" });
+
+  // RN-14: solo se ofrecen como padre los títulos de 6 dígitos del tipo elegido. La regla de
+  // título/tipo es `checkParentTitle` (la misma del servidor); `.001` comprueba además que el título
+  // tenga forma `A.B.CC.DD`, porque un `110101` sin puntos nunca produciría un código válido.
+  const parentCandidates = useMemo(
+    () =>
+      accounts
+        .filter(
+          (a) =>
+            a.isPostable === false &&
+            MOVEMENT_CODE_REGEX.test(`${a.code}.001`) &&
+            checkParentTitle({ code: a.code, type: a.type, isPostable: false }, watchedType) ===
+              null
+        )
+        .sort(compareByCode),
+    [accounts, watchedType]
+  );
+  const selectedParent = watchedParentId
+    ? (accounts.find((a) => a.id === watchedParentId) ?? null)
+    : null;
 
   const loadAccounts = async () => {
     const result = await getAccountsAction(companyId);
@@ -147,20 +193,79 @@ export function AccountsTable({
     }
   };
 
-  async function openCreate() {
+  // Invalida cualquier sugerencia en vuelo: su respuesta ya no corresponde al formulario actual.
+  function cancelSuggestion() {
+    suggestionRequestRef.current += 1;
+    setIsSuggesting(false);
+    setSuggestion(null);
+  }
+
+  function handleDialogOpenChange(open: boolean) {
+    if (!open) cancelSuggestion();
+    setDialogOpen(open);
+  }
+
+  // SPEC-008: el alta arranca con el código vacío; la sugerencia llega al elegir el título padre.
+  function openCreate() {
+    cancelSuggestion();
     setEditing(null);
-    form.reset({
-      name: "",
-      code: "",
-      type: "ASSET",
-      description: "",
-      isMonetary: false,
-      isCurrent: false,
-    });
+    form.reset(EMPTY_FORM);
     setDialogOpen(true);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const result = await getNextAccountCodeAction("ASSET", companyId);
-    if (result.success) form.setValue("code", result.data.code);
+  }
+
+  // Al cambiar el tipo, el padre elegido y el código que salió de él dejan de valer (RN-3). En
+  // edición no hay padre ni sugerencia: el código que ya tiene la cuenta no se toca.
+  function handleTypeChange(value: AccountType, onChange: (value: AccountType) => void) {
+    onChange(value);
+    if (editing) return;
+    cancelSuggestion();
+    if (form.getValues("parentId")) {
+      form.setValue("code", "");
+      form.clearErrors("code");
+    }
+    form.setValue("parentId", "");
+  }
+
+  function handleParentChange(value: string, onChange: (value: string) => void) {
+    const nextParentId = value === NO_PARENT ? "" : value;
+    const hadParent = form.getValues("parentId") !== "";
+    cancelSuggestion();
+    const requestId = suggestionRequestRef.current;
+    onChange(nextParentId);
+
+    if (!nextParentId) {
+      // Sin padre solo se crean títulos: el código que venía de un padre ya no aplica.
+      if (hadParent) {
+        form.setValue("code", "");
+        form.clearErrors("code");
+      }
+      return;
+    }
+
+    setIsSuggesting(true);
+    startSuggestion(async () => {
+      try {
+        const result = await getNextAccountCodeAction(watchedType, companyId, nextParentId);
+        // Respuesta obsoleta: otra elección (o cambiar de tipo / cerrar el diálogo) ya la reemplazó.
+        if (requestId !== suggestionRequestRef.current) return;
+        if (result.success) {
+          form.setValue("code", result.data.code, { shouldValidate: true });
+          setSuggestion({ parentId: nextParentId, ok: true });
+        } else {
+          // El código se deja como estaba; el usuario puede teclearlo o elegir otro título.
+          toast.error(result.error);
+          setSuggestion({ parentId: nextParentId, ok: false });
+        }
+      } catch {
+        // La llamada a la Server Action se rechazó (red/transporte): sin esto `isSuggesting`
+        // quedaría en true y bloquearía el código y el botón de guardar hasta cerrar el diálogo.
+        if (requestId !== suggestionRequestRef.current) return;
+        toast.error("No se pudo calcular el código sugerido. Inténtalo de nuevo o escríbelo.");
+        setSuggestion({ parentId: nextParentId, ok: false });
+      } finally {
+        if (requestId === suggestionRequestRef.current) setIsSuggesting(false);
+      }
+    });
   }
 
   function handleDelete(account: Account) {
@@ -190,6 +295,7 @@ export function AccountsTable({
   }
 
   function openEdit(account: Account) {
+    cancelSuggestion();
     setEditing(account);
     form.reset({
       name: account.name,
@@ -198,22 +304,25 @@ export function AccountsTable({
       description: account.description ?? "",
       isMonetary: account.isMonetary,
       isCurrent: account.isCurrent,
+      parentId: "",
     });
     setDialogOpen(true);
   }
 
-  async function handleTypeChange(type: string) {
-    if (!editing) {
-      const result = await getNextAccountCodeAction(type as AccountType, companyId);
-      if (result.success) form.setValue("code", result.data.code);
-    }
-  }
-
   function onSubmit(values: AccountFormValues) {
+    // `parentId` es solo de la UI (sugerencia de código): no viaja al servidor.
+    const payload: Omit<AccountFormValues, "parentId"> = {
+      name: values.name,
+      code: values.code,
+      type: values.type,
+      description: values.description,
+      isMonetary: values.isMonetary,
+      isCurrent: values.isCurrent,
+    };
     startTransition(async () => {
       const result = editing
-        ? await updateAccountAction({ id: editing.id, ...values })
-        : await createAccountAction({ ...values, companyId });
+        ? await updateAccountAction({ id: editing.id, ...payload })
+        : await createAccountAction({ ...payload, companyId });
 
       if (result.success) {
         if (result.warning) {
@@ -227,12 +336,13 @@ export function AccountsTable({
         if (!editing) {
           const optimistic: Account = {
             id: result.data.id,
-            name: values.name,
-            code: values.code,
-            type: values.type,
-            description: values.description ?? null,
-            isMonetary: values.isMonetary,
-            isCurrent: values.isCurrent,
+            name: payload.name,
+            code: payload.code,
+            type: payload.type,
+            description: payload.description ?? null,
+            isMonetary: payload.isMonetary,
+            isCurrent: payload.isCurrent,
+            isPostable: isPostableCode(payload.code),
             companyId,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -245,16 +355,33 @@ export function AccountsTable({
         } else {
           setAccounts((prev) =>
             prev
-              .map((a) => (a.id === editing.id ? { ...a, ...values, updatedAt: new Date() } : a))
+              .map((a) => (a.id === editing.id ? { ...a, ...payload, updatedAt: new Date() } : a))
               .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
           );
         }
+        // Guardar se bloquea mientras llega una sugerencia, y una respuesta antigua en vuelo se
+        // descarta sola al llegar (el contador ya no coincide). Por eso aquí basta `setDialogOpen`:
+        // `onSubmit` se pasa a `form.handleSubmit` durante el render y no debe tocar refs.
         setDialogOpen(false);
         await loadAccounts();
       } else {
         toast.error(result.error);
       }
     });
+  }
+
+  // Ayuda bajo el campo código (región aria-live): refleja el estado de la sugerencia (SPEC-008 §8).
+  const parentLabel = selectedParent ? `${selectedParent.code} — ${selectedParent.name}` : "";
+  let codeHelp: string;
+  if (isSuggesting) {
+    codeHelp = "Calculando el código sugerido…";
+  } else if (selectedParent && suggestion?.parentId === selectedParent.id && suggestion.ok) {
+    codeHelp = `Código sugerido dentro de ${parentLabel}. Puedes editarlo.`;
+  } else if (selectedParent) {
+    codeHelp = `No se pudo sugerir un código. Escríbelo dentro de ${parentLabel}.`;
+  } else {
+    codeHelp =
+      "Sin cuenta padre solo puedes crear títulos (menos de 9 dígitos). Para una cuenta de movimiento elige un título padre.";
   }
 
   return (
@@ -275,7 +402,7 @@ export function AccountsTable({
               </Link>
             </Button>
           )}
-          <Button onClick={() => void openCreate()} className="gap-2">
+          <Button onClick={() => openCreate()} className="gap-2">
             <PlusIcon className="h-4 w-4" />
             Nueva Cuenta
           </Button>
@@ -383,7 +510,7 @@ export function AccountsTable({
         </Table>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? "Editar Cuenta" : "Nueva Cuenta"}</DialogTitle>
@@ -398,10 +525,9 @@ export function AccountsTable({
                     <FormLabel>Tipo de Cuenta</FormLabel>
                     <Select
                       value={field.value}
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        void handleTypeChange(value);
-                      }}
+                      onValueChange={(value) =>
+                        handleTypeChange(value as AccountType, field.onChange)
+                      }
                     >
                       <FormControl>
                         <SelectTrigger className="w-full">
@@ -421,6 +547,45 @@ export function AccountsTable({
                   </FormItem>
                 )}
               />
+              {/* SPEC-008: el alta de una cuenta de movimiento exige su título padre. En edición el
+                  código ya existe y no se vuelve a sugerir. */}
+              {!editing && (
+                <FormField
+                  control={form.control}
+                  name="parentId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cuenta padre (título)</FormLabel>
+                      <Select
+                        value={field.value || NO_PARENT}
+                        onValueChange={(value) => handleParentChange(value, field.onChange)}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent position="popper" className="z-200">
+                          <SelectItem value={NO_PARENT}>
+                            Sin cuenta padre (crear un título)
+                          </SelectItem>
+                          {parentCandidates.map((parent) => (
+                            <SelectItem key={parent.id} value={parent.id}>
+                              {`${parent.code} — ${parent.name}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {parentCandidates.length === 0 && (
+                        <FormDescription>
+                          Aún no hay títulos de 6 dígitos para este tipo. Crea primero el título.
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="code"
@@ -431,8 +596,15 @@ export function AccountsTable({
                       <Input
                         placeholder="Ej: 1.1.01.01.001 (9 dígitos = cuenta de movimiento)"
                         {...field}
+                        disabled={isSuggesting}
+                        aria-busy={isSuggesting}
                       />
                     </FormControl>
+                    {!editing && (
+                      <FormDescription aria-live="polite" aria-atomic="true">
+                        {codeHelp}
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -516,10 +688,20 @@ export function AccountsTable({
                 />
               )}
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleDialogOpenChange(false)}
+                >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isPending} aria-busy={isPending} className="gap-2">
+                {/* Mientras llega la sugerencia el código aún no es el definitivo: no se puede guardar. */}
+                <Button
+                  type="submit"
+                  disabled={isPending || isSuggesting}
+                  aria-busy={isPending}
+                  className="gap-2"
+                >
                   {isPending && <Loader2Icon className="h-4 w-4 animate-spin" />}
                   {isPending ? "Guardando..." : editing ? "Guardar Cambios" : "Crear Cuenta"}
                 </Button>

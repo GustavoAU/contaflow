@@ -1,7 +1,7 @@
 ---
 id: SPEC-008
 titulo: Una cuenta de movimiento es de 9 dígitos y siempre cuelga de un título padre (sugerencia de código + validación)
-estado: APROBADA   # aprobada por el dueño 2026-10-05; preguntas resueltas (ver §2 y §11)
+estado: HECHA   # aprobada 2026-10-05; implementada en la rama, pendiente de merge (lo decide el dueño)
 fecha: 2026-10-05
 rama: feat/spec-008-codigo-sugerido-nueve-digitos
 arbol: "[3]+[10]"  # Server Actions (lectura + alta/edición) + formulario de cuentas + importador
@@ -139,36 +139,77 @@ export async function getNextAccountCodeAction(
   - Importador, fila: "Fila {código}: falta el título padre {padre}."
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: Dado el plan real (`1.1.01.01.001`, `…002`), con padre `1.1.01.01` devuelve `1.1.01.01.003`.
-- [ ] CA-2: Dado un hueco (`…001`, `…003`), devuelve `…002`.
-- [ ] CA-3: Dado que `1.1.01.01.003` existe **eliminada**, no se sugiere ese código (RN-5).
-- [ ] CA-4: Padre con los 999 hijos → error RN-6, no un código.
-- [ ] CA-5: Padre de otra empresa, eliminado, con 9 dígitos, con 4 dígitos o con `isPostable = true` → error (un test
+- [x] CA-1: Dado el plan real (`1.1.01.01.001`, `…002`), con padre `1.1.01.01` devuelve `1.1.01.01.003`.
+- [x] CA-2: Dado un hueco (`…001`, `…003`), devuelve `…002`.
+- [x] CA-3: Dado que `1.1.01.01.003` existe **eliminada**, no se sugiere ese código (RN-5).
+- [x] CA-4: Padre con los 999 hijos → error RN-6, no un código.
+- [x] CA-5: Padre de otra empresa, eliminado, con 9 dígitos, con 4 dígitos o con `isPostable = true` → error (un test
       por caso).
-- [ ] CA-6: `CONTRA_ASSET` con padre `ASSET` es válido; `LIABILITY` con padre `ASSET` se rechaza (RN-3).
-- [ ] CA-7: `getNextAccountCodeAction` sin `parentId` → error de validación (RN-7).
-- [ ] CA-8: Todo código sugerido cumple `MOVEMENT_CODE_REGEX` e `isPostableCode` (propiedad).
-- [ ] CA-9: `createAccountAction` con `1.1.01.01.050` y el padre `1.1.01.01` existente → crea; sin el padre → rechaza y
+- [x] CA-6: `CONTRA_ASSET` con padre `ASSET` es válido; `LIABILITY` con padre `ASSET` se rechaza (RN-3).
+- [x] CA-7: `getNextAccountCodeAction` sin `parentId` → error de validación (RN-7).
+- [x] CA-8: Todo código sugerido cumple `MOVEMENT_CODE_REGEX` e `isPostableCode` (propiedad).
+- [x] CA-9: `createAccountAction` con `1.1.01.01.050` y el padre `1.1.01.01` existente → crea; sin el padre → rechaza y
       **no llama a `account.create`**.
-- [ ] CA-10: `createAccountAction` con `110101001` (sin puntos) o `1.1.01.01.0010` (10 dígitos) → rechaza por forma.
-- [ ] CA-11: `createAccountAction` con un título (`1.1.01`) sigue creándose sin padre.
-- [ ] CA-12: `updateAccountAction` editando solo el nombre de una cuenta con el mismo código → no consulta el padre.
-- [ ] CA-13: `updateAccountAction` cambiando el código a uno de movimiento sin padre → rechaza.
-- [ ] CA-14: Importación con una fila de movimiento cuyo padre viene **después** en el archivo → importa; con padre
+- [x] CA-10: `createAccountAction` con `110101001` (sin puntos) o `1.1.01.01.0010` (10 dígitos) → rechaza por forma.
+- [x] CA-11: `createAccountAction` con un título (`1.1.01`) sigue creándose sin padre.
+- [x] CA-12: `updateAccountAction` editando solo el nombre de una cuenta con el mismo código → no consulta el padre.
+- [x] CA-13: `updateAccountAction` cambiando el código a uno de movimiento sin padre → rechaza.
+- [x] CA-14: Importación con una fila de movimiento cuyo padre viene **después** en el archivo → importa; con padre
       inexistente → esa fila falla con `missing_parent` y las demás se importan.
-- [ ] CA-15: Una empresa con cuentas de movimiento ya existentes sin título padre (demo) no se ve afectada al editar
+- [x] CA-15: Una empresa con cuentas de movimiento ya existentes sin título padre (demo) no se ve afectada al editar
       su nombre ni al leer el plan (RN-12).
-- [ ] CA-tenant: un usuario de otra empresa no obtiene sugerencias ni valida padres de la empresa ajena (`companyId`
+- [x] CA-tenant: un usuario de otra empresa no obtiene sugerencias ni valida padres de la empresa ajena (`companyId`
       sale del contexto).
-- [ ] CA-UI: al elegir padre se rellena el código; con `isPending` el input queda `aria-busy`; con error el valor
+- [x] CA-UI: al elegir padre se rellena el código; con `isPending` el input queda `aria-busy`; con error el valor
       anterior se conserva.
-- [ ] CA-limpieza: no queda ninguna referencia a `nextAccountCode`/`deducirPaso` ni a `RANGES` para sugerir códigos.
+- [x] CA-limpieza: no queda ninguna referencia a `nextAccountCode`/`deducirPaso` ni a `RANGES` para sugerir códigos.
 
 ## 10. Plan de agentes
-Lo completa `/implementar`.
+Sin cambios de schema → se omite el paso ARCH GATE. Línea base (2026-10-05): tsc 0 · **5638 tests** en verde
+(1 timeout intermitente de `audit.actions.test.ts` por import dinámico en frío; pasa al repetir, ajeno a esta spec).
 
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | test-agent | Tests en RED de CA-1..CA-14, CA-tenant y CA-limpieza: `account-code` (`parentCodeOf`, `isTitleParentCode`, `MOVEMENT_CODE_REGEX`), `nextChildCode` (huecos, eliminadas, 999, propiedad RN-1), validación de padre (RN-2/RN-3, un test por caso de CA-5/CA-6), `getNextAccountCodeAction` (CA-7), `createAccountAction`/`updateAccountAction` (CA-9..CA-13) e `importAccounts` (CA-14). Ajustar los tests existentes que crean cuentas de 9 dígitos sin padre. | RED |
+| 2 | ledger-agent | `account-code.ts` + `nextChildCode` (reescribe `next-account-code.ts`, borra `nextAccountCode`/`deducirPaso` y `RANGES` para sugerir) + validación de padre compartida (función pura con lookup inyectable: BD en create/update, BD **o** títulos del mismo archivo en import) + `getNextAccountCodeAction(type, companyId, parentId)` con Zod + reglas RN-9/RN-10 en `createAccountAction`/`updateAccountAction` + RN-11 en `ImportService.importAccounts` (`missing_parent`, sin abortar el lote). | GREEN |
+| 3 | test-agent | Auditoría de cobertura de lo nuevo (servicios 100 %, actions 90 %, schemas 100 %); cierra huecos MUST-FIX. | — |
+| 4 | ui-agent | `AccountsTable`: selector "Cuenta padre (título)" (títulos de 6 dígitos del tipo, RN-14), sugerencia al elegir padre, estados cargando/vacío/error/éxito, `aria-busy`/`aria-live`, copy exacto de §8; mensaje `missing_parent` en el importador (`AccountsImporter`). Test jsdom de CA-UI. | GREEN |
+| 5 | security-agent | Auditoría (trigger: Server Actions modificadas + input de usuario → DB): IDOR del padre (`companyId` del contexto), validación Zod de `parentId`, no filtración de códigos de otra empresa, regresión del H-1 (el chequeo solo si el código cambia), rate limit. CRITICAL/HIGH bloquean. | — |
+| 6 | (sesión principal) | Gates: `tsc`, `vitest` (6 shards), `pnpm lint`, `format:check`; CA marcados `[x]`; sección 12; ADR-059 actualizado (sugerencia de 9 dígitos y padre obligatorio); línea en Estado Activo; LL si aparece un patrón nuevo. Commits por capa. **Sin merge.** | — |
+
+**Estado de ejecución (2026-10-05, checkpoint al 92 % de tokens):**
+- Paso 1 **HECHO** (test-agent, RED): 224 tests nuevos en rojo, cada uno por su razón (verificado por la sesión
+  principal: 224 failed / 153 passed en los 7 archivos tocados; tsc 0; producción sin tocar). Archivos:
+  `src/lib/account-code.test.ts`, `src/modules/accounting/__tests__/{next-account-code,parent-title}.test.ts`,
+  `src/modules/accounting/actions/account.actions.test.ts`, `src/modules/import/{services/ImportService,schemas/import.schema}.test.ts`
+  y el helper `src/__tests__/helpers/in-memory-account-db.ts` (tabla `Account` en memoria detrás de `prisma.account.*`
+  para que un `where` sin `companyId`/`deletedAt` haga fallar el test). El agente validó los tests contra una
+  implementación de referencia descartable (38/38 mutantes muertos).
+- Pasos 2-6 **PENDIENTES**. Contrato exacto que usaron los tests (el ledger-agent debe implementarlo tal cual):
+  `parentCodeOf`, `isTitleParentCode`, `MOVEMENT_CODE_REGEX` en `src/lib/account-code.ts`; `nextChildCode` en
+  `src/modules/accounting/utils/next-account-code.ts`; `checkMovementParent` y `parentCheckMessage` en
+  `src/modules/accounting/utils/parent-title.ts` (pura: recibe `parent` ya cargado, no un lookup);
+  `getNextAccountCodeAction(type, companyId, parentId)`.
+- **Decisiones del dueño pendientes antes del paso 2** (ambigüedades del test-agent):
+  1. `getNextAccountCodeAction` con padre inválido: los tests exigen el mensaje genérico "La cuenta padre no es válida
+     para este tipo de cuenta." para TODA causa (incluido tipo incompatible); §8 define además "El título padre {código}
+     es de otro tipo de cuenta." (ese lo usa `parentCheckMessage` en alta/edición/import). Recomendación: dejarlo así.
+  2. RN-3: los tests aceptan CONTRA_ASSET bajo padre CONTRA_ASSET y rechazan ASSET bajo padre CONTRA_ASSET.
+     Irrelevante en la práctica (los títulos son ASSET), recomendación: dejarlo.
+  3. Importador: re-importar una cuenta de movimiento que ya existe sin padre en la BD se **omite** (`skipped`), sin
+     error (RN-12). El motivo de error por código mal formado no se fija (`reason` libre entre los permitidos).
+  4. `tsc` se rompe entre el paso 2 y el 4: `AccountsTable.tsx` llama a `getNextAccountCodeAction` con 2 argumentos
+     (líneas ~162 y ~207) y el paso 2 exige `parentId`. Recomendación: que el ledger-agent adapte esas dos llamadas de
+     forma mínima (p. ej. pasar el padre elegido o no sugerir hasta elegir padre) para no dejar la rama en rojo de tipos;
+     el ui-agent rehace el formulario completo en el paso 4.
+- La spec §7 describe `services/assertValidParentTitle` (async); los tests siguen la versión pura `utils/parent-title.ts`
+  (más simple y suficiente). Alinear §7 al cerrar.
+
+Notas de diseño para el paso 2:
+- Sin migración y sin tocar producción en toda esta spec.
+- La función de validación de padre es pura (recibe un `lookup(code) => título | null`); así el importador valida
+  contra la base **y** contra los títulos del mismo archivo sin duplicar la regla ni acoplar módulos (DDD).
+- `existingCodes` para la sugerencia incluye las cuentas eliminadas (RN-5); el padre excluye eliminadas (RN-2).
 
 ## 11. Riesgos y preguntas abiertas
 **Resueltas (dueño, 2026-10-05):** estructura 1/1/2/2/3 fija en todos los planes · cuenta de movimiento sin título
@@ -188,8 +229,17 @@ padre **no** se permite.
   en (1) utilidad + validación de servidor + importador y (2) formulario con sugerencia.
 
 ## 12. Cierre
-Lo completa `/implementar`.
-- Commits:
-- Tests: antes N → después N
-- ADR creado o actualizado: ADR-059 (sugerencia de 9 dígitos y padre obligatorio)
-- Lección aprendida (LL-XXX):
+- Commits (rama `feat/spec-008-codigo-sugerido-nueve-digitos`): `1ff66b16` tests en RED (paso 1) · `676417cc` lógica
+  (util, validación de padre, actions, importador) · `53b76a88` formulario con selector de padre · commit de cierre
+  (limiter de update, desbloqueo de la UI, topes del importador, docs). Sin merge a `main`.
+- Tests: antes 5638 → después **5903** (+265; 0 fallos). Gates: tsc 0 · eslint 0 errores · prettier OK · 6 shards verdes.
+  Mutaciones verificadas: H-1 (update solo si el código cambia), limiter de update, `catch` de la sugerencia, padre sin
+  `companyId`/`deletedAt` (el helper `in-memory-account-db` hace fallar un `where` incompleto).
+- security-agent: **GO**, 0 CRITICAL/HIGH. Corregidos M-1 (update sin limiter), L-1 (UI bloqueada si la sugerencia falla
+  por red) y L-2 (topes de longitud del importador). Pendientes documentados en ADR-059: M-2 (AuditLog del import sin
+  IP/UA ni `$transaction`), L-3, L-4, I-1..I-5.
+- Decisiones tomadas por la sesión principal (ambigüedades del test-agent): mensaje genérico de padre inválido en la
+  sugerencia (no confirma si un id ajeno existe); re-importar una cuenta existente sin padre se omite (`skipped`); la
+  validación de padre es una función pura (`utils/parent-title.ts`) en vez del `assertValidParentTitle` async de §7.
+- ADR creado o actualizado: ADR-059.
+- Lección aprendida: LL-017.

@@ -9,7 +9,48 @@
 // `undefined`, no `true`. Implementar agregando `isPostable: z.boolean().default(true)`
 // al schema (ver propuesta en el informe del test-agent).
 import { describe, it, expect } from "vitest";
-import { ImportAccountRowSchema, type ImportAccountRow } from "./import.schema";
+import {
+  ImportAccountRowSchema,
+  ImportErrorReasonSchema,
+  type ImportAccountRow,
+} from "./import.schema";
+
+describe("ImportAccountRowSchema — topes de longitud (L-2 auditoría SPEC-008)", () => {
+  const base = { codigo: "1.1.01.01.001", nombre: "Caja", tipo: "ASSET" as const };
+
+  it("acepta los topes exactos (código 20, nombre 100, descripción 255)", () => {
+    expect(
+      ImportAccountRowSchema.safeParse({
+        codigo: "1".repeat(20),
+        nombre: "N".repeat(100),
+        tipo: "ASSET",
+        descripcion: "d".repeat(255),
+      }).success
+    ).toBe(true);
+  });
+
+  it("rechaza código de 21, nombre de 101 y descripción de 256 caracteres", () => {
+    expect(ImportAccountRowSchema.safeParse({ ...base, codigo: "1".repeat(21) }).success).toBe(
+      false
+    );
+    expect(ImportAccountRowSchema.safeParse({ ...base, nombre: "N".repeat(101) }).success).toBe(
+      false
+    );
+    expect(
+      ImportAccountRowSchema.safeParse({ ...base, descripcion: "d".repeat(256) }).success
+    ).toBe(false);
+  });
+
+  it("recorta espacios en código y nombre", () => {
+    const parsed = ImportAccountRowSchema.parse({
+      ...base,
+      codigo: "  1.1.01  ",
+      nombre: "  Caja  ",
+    });
+    expect(parsed.codigo).toBe("1.1.01");
+    expect(parsed.nombre).toBe("Caja");
+  });
+});
 
 describe("ImportAccountRowSchema — compatibilidad con la plantilla actual (4 columnas)", () => {
   it("fila con tipo explícito (ASSET) y SIN columna G/M sigue aceptándose — isPostable default true", () => {
@@ -75,4 +116,29 @@ describe("ImportAccountRowSchema — requiresThirdParty (columna 'Ter.')", () =>
     const withThirdParty = parsed as ImportAccountRow & { requiresThirdParty?: boolean };
     expect(withThirdParty.requiresThirdParty).toBe(false);
   });
+});
+
+// ---------------------------------------------------------------------------
+// SPEC-008 RN-11: una cuenta de movimiento sin su título padre es un error de FILA
+// (`reason: "missing_parent"`) que no aborta el lote. El enum de razones debe aceptarlo.
+// ---------------------------------------------------------------------------
+describe("ImportErrorReasonSchema — razones de error de fila (SPEC-008)", () => {
+  it.each(["duplicate_code", "missing_parent", "unknown"])("acepta la razón %s", (reason) => {
+    expect(ImportErrorReasonSchema.safeParse(reason).success).toBe(true);
+  });
+
+  it("el enum contiene EXACTAMENTE duplicate_code, missing_parent y unknown", () => {
+    expect([...ImportErrorReasonSchema.options].sort()).toEqual([
+      "duplicate_code",
+      "missing_parent",
+      "unknown",
+    ]);
+  });
+
+  it.each(["name_conflict", "bad_format", "not_a_title", "", "MISSING_PARENT"])(
+    "rechaza la razón inventada %j",
+    (reason) => {
+      expect(ImportErrorReasonSchema.safeParse(reason).success).toBe(false);
+    }
+  );
 });
