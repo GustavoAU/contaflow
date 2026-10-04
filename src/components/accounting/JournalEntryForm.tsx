@@ -12,6 +12,8 @@ import Decimal from "decimal.js";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
+import { formatMoneyVE, parseMoneyInput } from "@/lib/money-input";
 import {
   Form,
   FormControl,
@@ -66,12 +68,9 @@ const FormSchema = z.object({
 
 type FormValues = z.infer<typeof FormSchema>;
 
-// ─── Helper: parsear decimal seguro ──────────────────────────────────────────
-
-function parseDecimal(val: string): Decimal {
-  const cleaned = val.replace(/[^0-9.]/g, "");
-  return cleaned ? new Decimal(cleaned) : new Decimal(0);
-}
+// Los montos del formulario se guardan en forma canónica ("1234.56"): MoneyInput
+// normaliza la coma/punto que teclea el usuario. Ver src/lib/money-input.ts.
+const parseDecimal = parseMoneyInput;
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
@@ -130,7 +129,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
 
   function onSubmit(values: FormValues) {
     if (!isBalanced) {
-      toast.error("El asiento no está balanceado. Diferencia: " + difference.toFixed(2));
+      toast.error("El asiento no está balanceado. Diferencia: " + formatMoneyVE(difference));
       return;
     }
 
@@ -353,11 +352,14 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Input
+                            <MoneyInput
                               className="h-9 text-right font-mono"
-                              placeholder="0.00"
-                              {...field}
-                              onChange={(e) => handleDebitChange(index, e.target.value)}
+                              placeholder="0,00"
+                              name={field.name}
+                              ref={field.ref}
+                              value={field.value}
+                              onBlur={field.onBlur}
+                              onValueChange={(v) => handleDebitChange(index, v)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -374,11 +376,14 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Input
+                            <MoneyInput
                               className="h-9 text-right font-mono"
-                              placeholder="0.00"
-                              {...field}
-                              onChange={(e) => handleCreditChange(index, e.target.value)}
+                              placeholder="0,00"
+                              name={field.name}
+                              ref={field.ref}
+                              value={field.value}
+                              onBlur={field.onBlur}
+                              onValueChange={(v) => handleCreditChange(index, v)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -431,10 +436,14 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
                   <span className="text-sm font-semibold">Sub Totales</span>
                 </div>
                 <div className="col-span-3 text-right">
-                  <span className="font-mono text-sm font-semibold">{totalDebit.toFixed(2)}</span>
+                  <span className="font-mono text-sm font-semibold">
+                    {formatMoneyVE(totalDebit)}
+                  </span>
                 </div>
                 <div className="col-span-3 text-right">
-                  <span className="font-mono text-sm font-semibold">{totalCredit.toFixed(2)}</span>
+                  <span className="font-mono text-sm font-semibold">
+                    {formatMoneyVE(totalCredit)}
+                  </span>
                 </div>
                 <div className="col-span-1" />
               </div>
@@ -457,7 +466,7 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
                   <span
                     className={`font-mono text-sm font-bold ${isBalanced ? "text-green-600" : "text-amber-600"}`}
                   >
-                    {difference.toFixed(2)}
+                    {formatMoneyVE(difference)}
                   </span>
                 </div>
               </div>
