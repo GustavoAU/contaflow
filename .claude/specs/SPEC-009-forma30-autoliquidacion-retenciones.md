@@ -1,7 +1,7 @@
 ---
 id: SPEC-009
 titulo: Forma 30 — la Autoliquidación replica la planilla SENIAT 99030 (dos saldos separados, retenciones)
-estado: BORRADOR
+estado: APROBADA   # aprobada por Gustavo el 2026-10-04
 fecha: 2026-10-04
 rama: fix/forma30-autoliquidacion
 arbol: "[2]"       # también toca [8] (PDF/Excel) y [10] (UI fiscal)
@@ -200,13 +200,13 @@ Estado de las preguntas tras la tercera ronda (2026-10-04):
 - P8 **(PARCIAL, para SPEC-010)**: falta saber si las exportaciones entran en el denominador del porcentaje, cómo se redondea el porcentaje, si se ajusta al cierre del año y cómo se marca cada compra como "sujeta a prorrata".
 - P9 **(RESPONDIDA, para SPEC-011)**: un Contribuyente Especial declara por **quincena** la Forma 30, la Forma 35 y el IGTF; el ordinario, por mes. Quedan por precisar en SPEC-011 los vencimientos exactos de cada quincena (el calendario del repo usa días aproximados) y cómo se arrastran los saldos 60 y 67 de una quincena a la siguiente.
 
-**Esta spec ya no tiene preguntas bloqueantes para el contador, y D1, D2 y D3 están decididas.** Falta la decisión D5 (recomendado: opción a) y la aprobación explícita de la spec por Gustavo; D4 queda fuera de esta spec.
+**Esta spec no tiene preguntas bloqueantes y D1, D2, D3 y D5 están decididas (D5: opción a, sin cambios de schema). Aprobada por Gustavo el 2026-10-04.** D4 queda fuera de esta spec; P7 sigue abierta como dato y no bloquea.
 
 **DECISIONES DE PRODUCTO** (Gustavo):
 - D1 **(DECIDIDA 2026-10-04 por Gustavo: a mano, como hoy)** — Arrastre de saldos: manual con dos entradas (recomendado ahora, mantiene ADR-009 D-1) frente a persistir la declaración presentada (spec futura; ADR-015-BORRADOR propone `Forma30Declaration` versionada).
 - D2 **(DECIDIDA 2026-10-04 por Gustavo: quitarlas; la contadora confirma que se manejan en la Forma 35, que tiene su propia planilla)** — Retenciones practicadas: retirarlas del resultado (recomendado; la contadora confirma que "solo se pagan y ya", YAGNI y evita confusión) frente a mostrarlas como dato informativo fuera de las casillas.
 - D3 **(DECIDIDA 2026-10-04 por Gustavo: omitir las casillas que dependen del arrastre)** — ZIP/CSV mensual (`ExportService`): omitir las casillas que dependen del arrastre (53, 60, 55, 67, 90) y publicar solo las independientes (49, 71, 66), o calcularlas encadenando mes a mes desde saldos iniciales. Recomendado: omitir.
-- D5 — Retención que llega después de declarar el período: la regla real es "si el período ya se declaró, se descuenta en el siguiente", pero ContaFlow no guarda qué períodos se declararon (D1), así que no puede decidirlo solo. Opciones: (a) mantener la fecha de la factura y dejar que el contador la lleve a mano a la casilla 54 del período siguiente (recomendado en esta spec: cero cambios de schema); (b) un control por factura "descontar en el período: este / siguiente" con campo nuevo en la factura (spec aparte; requiere schema y `arch-agent`).
+- D5 **(DECIDIDA 2026-10-04 por Gustavo: opción a)** — Retención que llega después de declarar el período: la regla real es "si el período ya se declaró, se descuenta en el siguiente", pero ContaFlow no guarda qué períodos se declararon (D1), así que no puede decidirlo solo. Opciones: (a) mantener la fecha de la factura y dejar que el contador la lleve a mano a la casilla 54 del período siguiente (recomendado en esta spec: cero cambios de schema); (b) un control por factura "descontar en el período: este / siguiente" con campo nuevo en la factura (spec aparte; requiere schema y `arch-agent`).
 - D4 — Reintegro Art. 66 (bajas de activo fijo): `DisposeAssetModal` dice que "debe reflejarse en la declaración de IVA como ajuste a los créditos fiscales", pero la Forma 30 no tiene dónde recibirlo. Opciones: aviso en la Forma 30 cuando el período tenga un reintegro, o entrada manual para la casilla 38. Fuera de esta spec; hay que decidir si va en una spec aparte.
 
 **Riesgos:**
