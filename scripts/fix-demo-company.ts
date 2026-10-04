@@ -157,19 +157,19 @@ async function main() {
     where: {
       companyId,
       deletedAt: null,
-      code: { in: ["1115", "5110", "2110", "2105", "1305", "4110"] },
+      code: { in: ["1.1.15.01.001", "5.1.10.01.001", "2.1.10.01.001", "2.1.05.01.001", "1.3.05.01.001", "4.1.10.01.001"] },
     },
     select: { id: true, code: true, name: true },
   });
 
   const byCode = Object.fromEntries(accounts.map(a => [a.code, a]));
 
-  const acc1115 = byCode["1115"]; // Inventario de Mercancías
-  const acc5110 = byCode["5110"]; // Costo de Ventas
-  const acc2110 = byCode["2110"]; // Retenciones IVA por Pagar
-  const acc2105 = byCode["2105"]; // IVA Débito Fiscal
-  const acc1305 = byCode["1305"]; // Cuentas por Cobrar
-  const acc4110 = byCode["4110"]; // Ventas
+  const acc1115 = byCode["1.1.15.01.001"]; // Inventario de Mercancías
+  const acc5110 = byCode["5.1.10.01.001"]; // Costo de Ventas
+  const acc2110 = byCode["2.1.10.01.001"]; // Retenciones IVA por Pagar
+  const acc2105 = byCode["2.1.05.01.001"]; // IVA Débito Fiscal
+  const acc1305 = byCode["1.3.05.01.001"]; // Cuentas por Cobrar
+  const acc4110 = byCode["4.1.10.01.001"]; // Ventas
 
   log(`  Cuentas encontradas:`);
   [acc1115, acc5110, acc2110, acc2105, acc1305, acc4110].forEach(a => {
