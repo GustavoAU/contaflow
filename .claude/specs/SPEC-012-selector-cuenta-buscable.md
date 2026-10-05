@@ -55,8 +55,9 @@ Ninguna — decisión de usabilidad pedida por la contadora y confirmada por el 
   y en cualquier orden (`principal caja` encuentra `Caja Principal`).
 - RN-4: Una palabra numérica también puede coincidir con el nombre (cuentas como "Retención 75%"): se acepta si cumple
   RN-2 **o** aparece en el nombre.
-- RN-5: Las cuentas de movimiento que coinciden se ordenan por código ascendente (orden numérico por segmentos, como
-  el plan de cuentas); la coincidencia **exacta** de código va primero.
+- RN-5: Las filas se ordenan siempre en orden **jerárquico por código** (numérico por segmentos, como el plan de
+  cuentas): un título va antes que sus descendientes. La coincidencia **exacta** de código no reordena la lista: pasa a
+  ser la **opción activa inicial** (RN-13).
 - RN-6: Con la consulta vacía se muestra la jerarquía completa (títulos y cuentas), en orden de código.
 - RN-7: Se muestran como máximo 100 cuentas **seleccionables**; si hay más, el aviso "Mostrando las primeras 100. Escribe
   más para afinar." Los encabezados no cuentan para el tope.
@@ -75,7 +76,8 @@ Ninguna — decisión de usabilidad pedida por la contadora y confirmada por el 
 **Selección y teclado**
 - RN-12: Cada cuenta de movimiento se muestra como `código — nombre`.
 - RN-13: Flechas ↑/↓ mueven la opción activa **saltándose los encabezados**; **Enter** elige la activa; **Esc** cierra sin
-  cambiar el valor.
+  cambiar el valor. Al filtrar, la opción activa inicial es la cuenta cuyo código coincide **exactamente** con la
+  consulta (ignorando puntos), si existe; si no, la primera cuenta seleccionable.
 - RN-14: Si la consulta deja **exactamente una** cuenta de movimiento seleccionable, **Enter** o **Tab** la eligen (el
   contador teclea el código de memoria y sigue con el siguiente campo), aunque haya encabezados de contexto. Con varias,
   Tab no elige nada.
@@ -164,7 +166,8 @@ export function AccountCombobox(props: {
 - [ ] CA-2: `110101001`, `1.1.01.01.001`, `1.1.01` y `1101` encuentran `1.1.01.01.001`; `1.1.02` no.
 - [ ] CA-3: `caja` encuentra `Caja Principal` y las cuentas cuyo nombre contiene "caja"; `CAJÁ` y `caja ` también.
 - [ ] CA-4: `principal caja` encuentra `Caja Principal` (varias palabras, cualquier orden); `caja banco` no.
-- [ ] CA-5: la coincidencia exacta de código va primero; el resto por código ascendente.
+- [ ] CA-5: el orden de las filas es siempre el jerárquico por código; si la consulta coincide exactamente con el
+      código de una cuenta de movimiento, esa cuenta es la opción activa inicial (`aria-activedescendant`).
 - [ ] CA-6: consulta vacía → jerarquía completa en orden de código, con los títulos como encabezados sangrados por nivel.
 - [ ] CA-7: más de 100 cuentas seleccionables → 100 y el aviso; los encabezados no cuentan.
 - [ ] CA-8: sin coincidencias → mensaje RN-16, sin encabezados ni opciones.
