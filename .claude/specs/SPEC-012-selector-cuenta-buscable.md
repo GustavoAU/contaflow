@@ -59,15 +59,18 @@ Ninguna — decisión de usabilidad pedida por la contadora y confirmada por el 
   cuentas): un título va antes que sus descendientes. La coincidencia **exacta** de código no reordena la lista: pasa a
   ser la **opción activa inicial** (RN-13).
 - RN-6: Con la consulta vacía se muestra la jerarquía completa (títulos y cuentas), en orden de código.
-- RN-7: Se muestran como máximo 100 cuentas **seleccionables**; si hay más, el aviso "Mostrando las primeras 100. Escribe
-  más para afinar." Los encabezados no cuentan para el tope.
+- RN-7: **Con consulta**, se muestran como máximo 100 cuentas **seleccionables** (las primeras en orden jerárquico, con
+  los títulos ancestros de las que quedan, sin encabezados huérfanos); si hay más, el aviso "Mostrando las primeras 100.
+  Escribe más para afinar." (solo con 101 o más; con exactamente 100 no hay aviso). Los encabezados no cuentan para el
+  tope. **La consulta vacía queda exenta del tope** (RN-6: el plan completo, ~160 cuentas, se ve entero).
 
 **Títulos (encabezados no seleccionables)**
 - RN-8: Un título (`isPostable = false`) se muestra como **encabezado**: texto en gris y negrita, **sangrado según su
   nivel** (número de segmentos del código: `1` → 1, `1.1` → 2, `1.1.01` → 3, `1.1.01.01` → 4) y nunca se puede elegir
   (ni con clic, ni con Enter, ni con Tab).
 - RN-9: Con consulta, solo se muestran las cuentas que coinciden **más sus títulos ancestros** (la cadena completa
-  `A`, `A.B`, `A.B.CC`, `A.B.CC.DD`, sin repetirlos) como contexto. Un título sin cuentas coincidentes debajo no aparece.
+  `A`, `A.B`, `A.B.CC`, `A.B.CC.DD`, sin repetirlos) como contexto. Un título **sin ninguna cuenta de movimiento debajo en el
+  resultado no aparece**, aunque él mismo coincida (no hay nada que elegir ahí).
 - RN-10: Si un **título** coincide con la consulta (RN-2 o RN-3 sobre su código o nombre), se incluyen **todas** sus
   cuentas de movimiento descendientes (código con el prefijo `título.`): buscar `cajas` trae todo el grupo CAJAS.
 - RN-11: Un título que **solo** aparece como contexto o que coincide no cuenta como resultado: el contador de
