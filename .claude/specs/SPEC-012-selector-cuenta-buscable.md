@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
-titulo: El selector de cuenta busca por código o por nombre (en vez de recorrer una lista)
-estado: BORRADOR   # Q2 y Q3 resueltas por el dueño (2026-10-05); falta Q1 (títulos en la lista) y aprobar
+titulo: El selector de cuenta busca por código o por nombre y muestra los títulos (sin poder elegirlos)
+estado: BORRADOR   # todas las preguntas resueltas por el dueño (2026-10-05); falta que la apruebe
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
@@ -9,7 +9,7 @@ zonas: []
 adrs: [ADR-059]
 ---
 
-# El selector de cuenta busca por código o por nombre
+# El selector de cuenta busca por código o por nombre y muestra los títulos
 
 ## 1. Problema
 Feedback de la contadora (2026-10-05), sobre cómo elige hoy una cuenta en un asiento:
@@ -21,25 +21,30 @@ Feedback de la contadora (2026-10-05), sobre cómo elige hoy una cuenta en un as
 
 Hoy el campo es un `Select` de lista (Radix). Su único atajo es el *typeahead* por la primera letra del texto
 `código — nombre`: saltar al primer `1…`, no escribir `1.1.01.01.001` ni buscar "caja". Un plan real tiene ~160
-cuentas de movimiento, así que encontrar una cuenta es recorrer una lista larga. Se repite en ~16 formularios.
+cuentas de movimiento, así que encontrar una cuenta es recorrer una lista larga. Se repite en ~17 formularios.
+
+Además, desde ADR-059 los selectores **ocultan** los títulos; la contadora dijo (2026-10-04) que "deben aparecer como
+títulos y subtítulos, pero no como cuentas seleccionables". El dueño decidió (2026-10-05) que **se muestren, sin poder
+elegirlos**.
 
 ## 2. Base legal / contable
-Ninguna — decisión de usabilidad pedida por la contadora.
+Ninguna — decisión de usabilidad pedida por la contadora y confirmada por el dueño.
 
 ## 3. Alcance
 **Incluye:**
-- Función pura de búsqueda de cuentas (`filterAccounts`) y componente reutilizable `AccountCombobox`.
-- Sustituir el `Select` de cuenta por el combobox, **en dos tandas**: A = asientos manuales (`JournalEntryForm`);
-  B = el resto de formularios con selector de cuenta (inventario en §8).
+- Función pura de búsqueda y de armado de la jerarquía (`filterAccounts`) y componente reutilizable `AccountCombobox`.
+- Que los formularios entreguen al componente **también los títulos** (hoy los filtran en la consulta).
+- Sustituir el `Select` de cuenta por el combobox, **en dos entregas**: A = componente + asientos manuales
+  (`JournalEntryForm`); B = **todos** los demás formularios con selector de cuenta, en un solo PR.
 - Tests unitarios, de componente (jsdom) y de accesibilidad; un test de arquitectura que impida volver a un `Select`
   de cuentas.
 
 **No incluye (explícito):**
-- Cambiar **qué** cuentas se ofrecen: cada formulario sigue recibiendo su lista ya filtrada (movimiento, tipo).
-- Mostrar los títulos como encabezados no seleccionables (pregunta Q1 de §11).
-- Búsqueda en el servidor, crear cuentas desde el selector, favoritas o recientes.
+- Permitir elegir un título (jamás: el gate de asientos ya los rechaza, ADR-053).
+- Cambiar qué **tipos** de cuenta ofrece cada formulario (el filtro por tipo se mantiene).
+- Búsqueda en el servidor, crear cuentas o títulos desde el selector, favoritas o recientes.
 - Selectores que no son de cuentas contables (bancos `BankAccount`, productos, clientes) — `ProductCombobox` no se toca.
-- Cambios de modelo, de actions o de reglas de negocio.
+- Cambios de modelo, de reglas de negocio o de actions (salvo quitar el filtro `isPostable` de las consultas, §7).
 
 ## 4. Reglas de negocio
 **Búsqueda**
@@ -50,27 +55,43 @@ Ninguna — decisión de usabilidad pedida por la contadora.
   y en cualquier orden (`principal caja` encuentra `Caja Principal`).
 - RN-4: Una palabra numérica también puede coincidir con el nombre (cuentas como "Retención 75%"): se acepta si cumple
   RN-2 **o** aparece en el nombre.
-- RN-5: Orden de los resultados: primero la coincidencia **exacta** de código, luego por código ascendente (orden
-  numérico por segmentos, como el plan de cuentas).
-- RN-6: Con la consulta vacía se muestran todas las cuentas, ordenadas por código.
-- RN-7: Se muestran como máximo 100 resultados; si hay más, un aviso "Mostrando las primeras 100. Escribe más para afinar."
+- RN-5: Las cuentas de movimiento que coinciden se ordenan por código ascendente (orden numérico por segmentos, como
+  el plan de cuentas); la coincidencia **exacta** de código va primero.
+- RN-6: Con la consulta vacía se muestra la jerarquía completa (títulos y cuentas), en orden de código.
+- RN-7: Se muestran como máximo 100 cuentas **seleccionables**; si hay más, el aviso "Mostrando las primeras 100. Escribe
+  más para afinar." Los encabezados no cuentan para el tope.
+
+**Títulos (encabezados no seleccionables)**
+- RN-8: Un título (`isPostable = false`) se muestra como **encabezado**: texto en gris y negrita, **sangrado según su
+  nivel** (número de segmentos del código: `1` → 1, `1.1` → 2, `1.1.01` → 3, `1.1.01.01` → 4) y nunca se puede elegir
+  (ni con clic, ni con Enter, ni con Tab).
+- RN-9: Con consulta, solo se muestran las cuentas que coinciden **más sus títulos ancestros** (la cadena completa
+  `A`, `A.B`, `A.B.CC`, `A.B.CC.DD`, sin repetirlos) como contexto. Un título sin cuentas coincidentes debajo no aparece.
+- RN-10: Si un **título** coincide con la consulta (RN-2 o RN-3 sobre su código o nombre), se incluyen **todas** sus
+  cuentas de movimiento descendientes (código con el prefijo `título.`): buscar `cajas` trae todo el grupo CAJAS.
+- RN-11: Un título que **solo** aparece como contexto o que coincide no cuenta como resultado: el contador de
+  resultados ("{n} cuentas") y la regla de "un solo resultado" (RN-14) consideran solo cuentas de movimiento.
 
 **Selección y teclado**
-- RN-8: Cada opción se muestra como `código — nombre`.
-- RN-9: Flechas ↑/↓ mueven la opción activa; **Enter** elige la activa; **Esc** cierra sin cambiar el valor.
-- RN-10: Si la consulta deja **exactamente un** resultado, **Enter** o **Tab** lo eligen (el contador teclea el código
-  de memoria y sigue con el siguiente campo). Con varios resultados, Tab no elige nada.
-- RN-11: Al salir del campo sin elegir, el texto se restaura a la cuenta ya seleccionada (o queda vacío si no había):
+- RN-12: Cada cuenta de movimiento se muestra como `código — nombre`.
+- RN-13: Flechas ↑/↓ mueven la opción activa **saltándose los encabezados**; **Enter** elige la activa; **Esc** cierra sin
+  cambiar el valor.
+- RN-14: Si la consulta deja **exactamente una** cuenta de movimiento seleccionable, **Enter** o **Tab** la eligen (el
+  contador teclea el código de memoria y sigue con el siguiente campo), aunque haya encabezados de contexto. Con varias,
+  Tab no elige nada.
+- RN-15: Al salir del campo sin elegir, el texto se restaura a la cuenta ya seleccionada (o queda vacío si no había):
   nunca queda texto libre que no corresponda a una cuenta.
-- RN-12: Sin resultados: "No hay cuentas que coincidan con «{consulta}»".
+- RN-16: Sin cuentas coincidentes: "No hay cuentas que coincidan con «{consulta}»" (sin encabezados).
 
 **Integración**
-- RN-13: Contrato idéntico al `Select` actual: recibe `value` (id de cuenta o `""`) y emite `onChange(accountId)`;
+- RN-17: Contrato idéntico al `Select` actual: recibe `value` (id de cuenta o `""`) y emite `onChange(accountId)`;
   funciona con `react-hook-form` (`FormControl` + `FormMessage`, error "Selecciona una cuenta").
-- RN-14: El conjunto de cuentas es el que ya trae cada formulario; el componente no consulta nada ni filtra por tipo.
-- RN-15: Cambios externos del valor (p. ej. la autoselección de `FixedAssetForm.findBestMatch` o un reset del
-  formulario) se reflejan en el texto mostrado.
-- RN-16: Soporta `disabled` y `aria-invalid`.
+- RN-18: Cada formulario entrega las cuentas de **su** conjunto (mismo filtro por tipo/empresa de hoy) **incluyendo los
+  títulos de esos tipos**; el componente decide qué es seleccionable por `isPostable` y no consulta nada.
+- RN-19: La lógica propia de cada formulario (autoselección, validaciones, cálculos) usa **solo** las cuentas de
+  movimiento; los títulos son solo para mostrar. En particular `FixedAssetForm.findBestMatch` nunca elige un título.
+- RN-20: Cambios externos del valor (la autoselección anterior o un reset del formulario) se reflejan en el texto mostrado.
+- RN-21: Soporta `disabled` y `aria-invalid`.
 
 ## 5. Asientos contables
 No genera ni modifica asientos.
@@ -80,18 +101,30 @@ Sin cambios de schema. Sin migración. Sin dependencias nuevas (se usa `radix-ui
 como `ProductCombobox`).
 
 ## 7. Contrato de servicio y actions
-No hay actions nuevas ni cambios en las existentes.
+No hay actions nuevas. Cambios en las existentes (solo datos que se entregan al cliente):
+- `getAccountsAction(companyId, { onlyPostable })`: el parámetro `onlyPostable` deja de usarse en los formularios
+  (`transactions/new`, `cajachica`, `income-distribution`, `settings`); se retira si no queda ningún consumidor.
+- Las consultas `prisma.account.findMany` de las páginas que alimentan un selector dejan de filtrar `isPostable: true`
+  (conservan `companyId`, `deletedAt: null` y su filtro por tipo): `bank-reconciliation`, `budgets`, `fixed-assets`,
+  `inflation` (×2), `inventory`, `payroll/config/edit` y `retention.actions.ts`.
+- Lectura de datos de la propia empresa: sin impacto de seguridad (mismos roles y `companyId` que hoy).
 
 ```ts
 // src/lib/account-search.ts (puro, sin React)
-export type AccountOption = { id: string; code: string; name: string };
+export type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
+export type AccountRow = {
+  option: AccountOption;
+  selectable: boolean; // = option.isPostable
+  depth: number;       // segmentos del código (1..5)
+};
 export function normalizeSearch(text: string): string;
-export function filterAccounts(accounts: readonly AccountOption[], query: string): AccountOption[]; // RN-1..RN-7
+export function filterAccounts(accounts: readonly AccountOption[], query: string): AccountRow[]; // RN-1..RN-11
+export function selectableCount(rows: readonly AccountRow[]): number;
 
 // src/components/accounting/AccountCombobox.tsx
 export function AccountCombobox(props: {
-  accounts: readonly AccountOption[];
-  value: string;                       // accountId o ""
+  accounts: readonly AccountOption[];  // títulos Y cuentas de movimiento
+  value: string;                       // accountId (de una cuenta de movimiento) o ""
   onChange: (accountId: string) => void;
   id?: string;
   "aria-label"?: string;
@@ -101,44 +134,60 @@ export function AccountCombobox(props: {
   className?: string;
 }): JSX.Element;
 ```
-- Roles/limiter/AuditLog/período CLOSED: no aplican (solo UI).
+- Roles/limiter/AuditLog/período CLOSED: no aplican (solo UI y lectura).
 
 ## 8. UI
-- **Tanda A:** `src/components/accounting/JournalEntryForm.tsx` (columna "Cuenta" de cada fila del asiento).
-- **Tanda B** (inventario a confirmar por el ui-agent: algunos pueden ser `<select>` nativo): `RetentionList`,
+- **Entrega A:** `src/components/accounting/JournalEntryForm.tsx` (columna "Cuenta" de cada fila) y
+  `src/app/(dashboard)/company/[companyId]/transactions/new/page.tsx`.
+- **Entrega B** (inventario a confirmar por el ui-agent: algunos pueden ser `<select>` nativo): `RetentionList`,
   `BankAccountList` (cuenta contable de la cuenta bancaria), `BudgetDetail`, `CajaCajaPageClient`, `CajaCajaList`,
   `CajaCajaDepositForm`, `CajaCajaMovementForm`, `FiscalConfigForm`, `DisposeAssetModal`, `FixedAssetForm`,
   `FixedAssetList`, `IncomeDistributionForm`, `InflationAdjustmentPanel`, `InventoryItemForm`, `MovementForm`
-  (inventario), `PayrollWizard`, `GLAccountsForm`.
+  (inventario), `PayrollWizard`, `GLAccountsForm`, y las páginas que les entregan las cuentas (§7).
 - Estados: **vacío** (sin cuentas ofrecidas: campo deshabilitado con "No hay cuentas disponibles"), **sin resultados**
-  (RN-12), **cargando** no aplica (la lista ya está en memoria), **error** (borde y `aria-invalid` + `FormMessage`),
+  (RN-16), **cargando** no aplica (la lista ya está en memoria), **error** (borde y `aria-invalid` + `FormMessage`),
   **éxito** (texto `código — nombre`).
+- Aspecto de la lista: encabezados en gris/negrita con sangría por nivel y cursor `default` (no clicables);
+  cuentas de movimiento con texto normal, resaltado al estar activas; separación visual entre grupos.
 - Accesibilidad: patrón ARIA combobox — `role="combobox"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`,
-  lista con `role="listbox"` y opciones `role="option"`; etiqueta asociada (`FormLabel`/`aria-label`); un
-  `aria-live="polite"` anuncia "{n} cuentas" al filtrar; todo operable con teclado; contraste AA; el foco no se pierde
+  lista con `role="listbox"` y cuentas `role="option"`; los encabezados `role="presentation"` (o `role="group"` con
+  `aria-labelledby` para el título de 6 dígitos) **sin** `role="option"`, de modo que el lector de pantalla no los ofrezca
+  como elegibles; etiqueta asociada (`FormLabel`/`aria-label`); un `aria-live="polite"` anuncia "{n} cuentas" al filtrar
+  (RN-11); todo operable con teclado; contraste AA también en el gris de los encabezados (≥ 4.5:1); el foco no se pierde
   al abrir/cerrar la lista. En la grilla de asientos (varias filas) cada fila monta su lista solo cuando está abierta.
 - Copy exacto: placeholder "Buscar por código o nombre…"; sin resultados "No hay cuentas que coincidan con «{consulta}»";
   tope "Mostrando las primeras 100. Escribe más para afinar."; sin cuentas "No hay cuentas disponibles".
 
 ## 9. Criterios de aceptación
 - [ ] CA-1: Dadas `1.1.01.01.001`, `1.1.02.01.001`, `2.1.01.01.001`, la consulta `1` devuelve las dos primeras en
-      orden de código (lo que la contadora observó con el *typeahead*).
+      orden de código, más sus títulos ancestros (lo que la contadora observó con el *typeahead*).
 - [ ] CA-2: `110101001`, `1.1.01.01.001`, `1.1.01` y `1101` encuentran `1.1.01.01.001`; `1.1.02` no.
-- [ ] CA-3: `caja` encuentra `Caja Principal` y `CAJAS`; `CAJÁ` y `caja ` también (tildes y mayúsculas).
+- [ ] CA-3: `caja` encuentra `Caja Principal` y las cuentas cuyo nombre contiene "caja"; `CAJÁ` y `caja ` también.
 - [ ] CA-4: `principal caja` encuentra `Caja Principal` (varias palabras, cualquier orden); `caja banco` no.
 - [ ] CA-5: la coincidencia exacta de código va primero; el resto por código ascendente.
-- [ ] CA-6: consulta vacía → todas, ordenadas; más de 100 → 100 y el aviso.
-- [ ] CA-7: sin coincidencias → mensaje RN-12; la lista no ofrece opciones.
-- [ ] CA-8: un solo resultado + Enter (y + Tab) selecciona y emite `onChange(accountId)`; con varios, Tab no emite nada.
-- [ ] CA-9: ↓/↑ cambian la opción activa (`aria-activedescendant`) y Enter elige la activa; Esc cierra sin cambios.
-- [ ] CA-10: salir del campo sin elegir restaura el texto de la cuenta seleccionada (o vacío).
-- [ ] CA-11: con `value` conocido muestra `código — nombre`; un cambio externo de `value` actualiza el texto (RN-15).
-- [ ] CA-12: `JournalEntryForm`: sin cuenta, el envío muestra "Selecciona una cuenta"; con cuenta elegida tecleando
-      `110101001` + Enter, el payload lleva el `accountId` correcto.
-- [ ] CA-13: sin violaciones de axe en el componente (cerrado y abierto) y roles ARIA del patrón combobox.
-- [ ] CA-14: `disabled` e `aria-invalid` se reflejan en el input.
+- [ ] CA-6: consulta vacía → jerarquía completa en orden de código, con los títulos como encabezados sangrados por nivel.
+- [ ] CA-7: más de 100 cuentas seleccionables → 100 y el aviso; los encabezados no cuentan.
+- [ ] CA-8: sin coincidencias → mensaje RN-16, sin encabezados ni opciones.
+- [ ] CA-9 (títulos): un título **no se puede elegir** — clic, Enter y Tab sobre él no emiten `onChange`; no tiene
+      `role="option"`; ↓/↑ lo saltan.
+- [ ] CA-10: con la consulta `caja`, aparece `1.1.01.01.001 — Caja Principal` bajo la cadena de encabezados `1`, `1.1`,
+      `1.1.01`, `1.1.01.01` (sin repetirlos); un título sin coincidencias debajo no aparece (RN-9).
+- [ ] CA-11: una consulta que coincide con un título (`cajas`) incluye todas sus cuentas de movimiento descendientes (RN-10).
+- [ ] CA-12: un solo resultado seleccionable + Enter (y + Tab) lo elige aunque haya encabezados de contexto; con varios,
+      Tab no emite nada. El contador "{n} cuentas" no cuenta los encabezados.
+- [ ] CA-13: ↓/↑ cambian la opción activa (`aria-activedescendant`) y Enter elige la activa; Esc cierra sin cambios.
+- [ ] CA-14: salir del campo sin elegir restaura el texto de la cuenta seleccionada (o vacío).
+- [ ] CA-15: con `value` conocido muestra `código — nombre`; un cambio externo de `value` actualiza el texto (RN-20).
+- [ ] CA-16: `JournalEntryForm`: sin cuenta, el envío muestra "Selecciona una cuenta"; con cuenta elegida tecleando
+      `110101001` + Enter, el payload lleva el `accountId` correcto; intentar elegir un título no cambia el valor.
+- [ ] CA-17: sin violaciones de axe en el componente (cerrado y abierto, con encabezados) y roles ARIA del patrón.
+- [ ] CA-18: `disabled` e `aria-invalid` se reflejan en el input.
+- [ ] CA-19 (datos): las páginas de la Entrega B entregan títulos y cuentas de movimiento (sin `isPostable: true` en las
+      consultas que alimentan un `AccountCombobox`), conservando `companyId`, `deletedAt: null` y el filtro por tipo.
+- [ ] CA-20 (RN-19): `FixedAssetForm.findBestMatch` y cualquier autoselección o validación de los formularios migrados
+      ignoran los títulos (test con un título que coincidiría mejor que la cuenta).
 - [ ] CA-limpieza: test de arquitectura — ningún archivo de `src/` renderiza un `SelectItem` con `account.code`/`a.code`
-      (Tanda B).
+      (Entrega B).
 - [ ] CA-sin-regresión: los tests existentes de los formularios migrados siguen en verde (ajustados al nuevo control).
 
 ## 10. Plan de agentes
@@ -148,28 +197,29 @@ Lo completa `/implementar`.
 |---|---|---|---|
 
 ## 11. Riesgos y preguntas abiertas
-- **Q1 — PENDIENTE (dueño/contadora):** ¿la lista de resultados debe mostrar, además de las cuentas de movimiento, los
-  **títulos en gris y sin poder elegirse** (p. ej. `1.1.01.01 CAJAS` encima de sus cuentas) para orientarse? El
-  2026-10-04 la contadora dijo que los títulos "deben aparecer como títulos y subtítulos, pero no como cuentas
-  seleccionables". Hoy en los selectores **no aparecen** (solo cuentas de movimiento). **Recomendación:** versión 1 sin
-  títulos (la búsqueda por código o nombre ya resuelve lo que pidió); mostrarlos como encabezados es una mejora posterior
-  que exige pasar los títulos a cada uno de los ~17 formularios. *(El dueño confirmó el 2026-10-05 que todas las cuentas
-  deben llevar título y subtítulo: eso ya está garantizado por SPEC-008 y no cambia esta pregunta.)*
-- **Q2 — RESUELTA (dueño, 2026-10-05): sí.** RN-10 se mantiene: Tab elige cuando la consulta deja un solo resultado.
-- **Q3 — RESUELTA (dueño, 2026-10-05): dos entregas.** A = componente + asientos manuales; B = **todos** los demás
-  formularios en un solo PR. Como B va completa, el orden entre formularios no importa: se descarta la pregunta de qué
-  formulario usa más la contadora.
-- Riesgo: sustituir un control conocido en ~17 formularios. Mitigación: contrato idéntico (RN-13), tandas, test de
+**Resueltas (dueño, 2026-10-05):** Q1 — los títulos **se muestran** como encabezados, **sin poder elegirlos** (RN-8..RN-11);
+Q2 — Tab elige cuando queda un solo resultado (RN-14); Q3 — dos entregas, A (componente + asientos) y B (todos los demás
+formularios en un solo PR; el orden entre ellos no importa). Además confirmó que **todas las cuentas deben llevar título
+y subtítulo** (garantizado por SPEC-008).
+
+- Riesgo: mostrar títulos obliga a **cambiar las consultas** de ~10 páginas y a que cada formulario ignore los títulos en
+  su lógica (RN-19). Un formulario que, por descuido, ofreciera un título como valor lo vería rechazado por el gate de
+  asientos (ADR-053), pero sería mala experiencia. Mitigación: `selectable` solo viene de `isPostable`, CA-9/CA-20 y la
+  revisión formulario por formulario del ui-agent.
+- Riesgo: sustituir un control conocido en ~17 formularios. Mitigación: contrato idéntico (RN-17), dos entregas, test de
   arquitectura y tests existentes ajustados.
-- Riesgo: algunos formularios usan `<select>` nativo y no `Select` de Radix; el ui-agent inventaría cada sitio antes de
-  la Tanda B.
-- Riesgo: la grilla de asientos tiene varias filas con este control. Mitigación: lista montada solo al abrir; el filtrado
-  es puro y en memoria (cientos de cuentas).
-- Semántica mixta (`1105 caja`): cada palabra debe cumplirse (Y); queda cubierta por RN-2/RN-3/RN-4.
+- Riesgo: algunos formularios usan `<select>` nativo y no `Select` de Radix; el ui-agent inventaría cada sitio antes de la
+  Entrega B.
+- Riesgo: la grilla de asientos tiene varias filas con este control y ahora una lista con ~240 filas entre títulos y
+  cuentas. Mitigación: lista montada solo al abrir; el filtrado es puro y en memoria; si algún plan superara ~1000
+  cuentas, virtualizar (fuera de alcance hoy: el plan real tiene 242).
+- Semántica mixta (`1105 caja`): cada palabra debe cumplirse (Y); cubierta por RN-2/RN-3/RN-4.
+- Idea relacionada (no incluida): un botón "Crear el título {código}" cuando falta el padre al crear una cuenta; tarea
+  aparte si el dueño la pide.
 
 ## 12. Cierre
 Lo completa `/implementar`.
 - Commits:
 - Tests: antes N → después N
-- ADR creado o actualizado: ADR-059 (nota sobre el selector buscable)
+- ADR creado o actualizado: ADR-059 (los selectores vuelven a recibir los títulos, como encabezados no elegibles)
 - Lección aprendida (LL-XXX):
