@@ -20,7 +20,8 @@ export const CreateMovementSchema = z.object({
   idempotencyKey: z.string().uuid(),
   // R-04 auditoría SENIAT: cuenta contrapartida para partida doble completa
   // ENTRADA sin factura: OBLIGATORIA (SPEC-007) — Dr Inventario / Cr contrapartida: Banco o Caja
-  // (contado), Cuentas por pagar (crédito) o Capital (aporte de socios). Con factura no se exige:
+  // (contado) o Capital (aporte de socios); una cuenta que exija tercero (ADR-054, p. ej. Cuentas
+  // por pagar a proveedores) se rechaza: la compra a crédito va con su factura. Con factura no se exige:
   // la entrada se enlaza al asiento de la factura. El servicio la valida (misma empresa, tipo
   // Activo/Pasivo/Patrimonio/Gasto, distinta de la cuenta de inventario); el schema la deja
   // opcional porque depende de `invoiceId`.

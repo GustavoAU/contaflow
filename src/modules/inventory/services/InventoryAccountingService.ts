@@ -476,14 +476,30 @@ export async function voidPostedMovement(
         }
 
         let rawCounterEntries:
-          | { accountId: string; amount: Decimal; description: string | null }[]
+          | {
+              accountId: string;
+              amount: Decimal;
+              description: string | null;
+              customerId?: string;
+              vendorId?: string;
+              partnerId?: string;
+              employeeId?: string;
+            }[]
           | null = null;
         // Sin `transactionId` (dato previo: producción tiene entradas sin asiento) no hay nada que reversar.
         if (movement.transactionId) {
           const originalLines = await tx.journalEntry.findMany({
             // ADR-004: el asiento se acota por empresa a través de su Transaction
             where: { transactionId: movement.transactionId, transaction: { companyId } },
-            select: { accountId: true, amount: true, description: true },
+            select: {
+              accountId: true,
+              amount: true,
+              description: true,
+              customerId: true,
+              vendorId: true,
+              partnerId: true,
+              employeeId: true,
+            },
           });
 
           // Asiento sin líneas visibles (o de otra empresa): tampoco hay nada que contrarrestar.
@@ -492,17 +508,27 @@ export async function voidPostedMovement(
               accountId: l.accountId,
               amount: new Decimal(l.amount),
               description: l.description,
+              customerId: l.customerId,
+              vendorId: l.vendorId,
+              partnerId: l.partnerId,
+              employeeId: l.employeeId,
             }));
             // Un asiento original que no suma 0 (p. ej. el de una sola línea de antes de la SPEC-007)
             // no se puede espejar: su espejo tampoco cuadraría. Cuadre EXACTO, sin tolerancia.
             const originalSum = lines.reduce((acc, l) => acc.plus(l.amount), new Decimal(0));
             if (!originalSum.isZero()) throw new Error(MSG_ANULAR_ASIENTO_NO_CUADRA);
 
-            // Cada línea se niega exacta: misma cuenta, monto opuesto.
+            // Cada línea se niega exacta: misma cuenta, monto opuesto. ADR-054: se conserva el
+            // tercero de la línea original; sin él, el gate de Prisma bloquearía la anulación de
+            // una línea cuya cuenta exige tercero (VOID siempre debe ser posible, R-3/ADR-005).
             rawCounterEntries = lines.map((l) => ({
               accountId: l.accountId,
               amount: l.amount.negated(),
               description: l.description ? `Anulación — ${l.description}` : null,
+              customerId: l.customerId ?? undefined,
+              vendorId: l.vendorId ?? undefined,
+              partnerId: l.partnerId ?? undefined,
+              employeeId: l.employeeId ?? undefined,
             }));
           }
         }

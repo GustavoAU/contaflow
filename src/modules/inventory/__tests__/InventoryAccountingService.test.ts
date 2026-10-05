@@ -1652,6 +1652,34 @@ describe("SPEC-007 M-2 — voidPostedMovement deriva el contra-asiento de las l�
     expect(sumOf(lines).isZero()).toBe(true);
   });
 
+  // ADR-054 ("VOID siempre debe ser posible"): si una línea original lleva tercero, su espejo
+  // también, igual que TransactionService.voidTransaction. Si no, el gate de Prisma rechazaría la
+  // anulación cuando la cuenta de esa línea exige tercero.
+  it("L-A (ADR-054): el contra-asiento conserva el tercero de cada línea original, sin mezclar terceros", async () => {
+    const guardadas = [
+      journalLine("tx-original-001", "acc-inv", "600"),
+      journalLine("tx-original-001", "acc-banco", "-600", { vendorId: "ven-1" }),
+    ];
+    const voidTx = makeTx(
+      entradaPosted({ transactionId: "tx-original-001", counterpartAccountId: "acc-banco" }),
+      [],
+      { journalEntries: guardadas }
+    );
+
+    await voidPosted(voidTx);
+
+    const lines = linesOf(voidTx) as Array<Line & Record<string, unknown>>;
+    expect(lines).toHaveLength(2);
+    expect(lines.find((l) => l.accountId === "acc-banco")?.vendorId).toBe("ven-1");
+    expect(lines.find((l) => l.accountId === "acc-inv")?.vendorId ?? null).toBeNull();
+    // Exclusión mutua: ninguna línea lleva más de un tercero (CHECK de la tabla).
+    for (const l of lines) {
+      const conTercero = ["customerId", "vendorId", "partnerId", "employeeId"].filter((k) => l[k]);
+      expect(conTercero.length).toBeLessThanOrEqual(1);
+    }
+    expect(sumOf(lines).isZero()).toBe(true);
+  });
+
   it("M-2: la contrapartida que hoy diga el movimiento no manda: se espeja la del asiento guardado", async () => {
     // El asiento original (tx-original-001) acreditó acc-banco; el movimiento hoy dice acc-capital.
     const tx = makeTx(entradaPosted({ counterpartAccountId: "acc-capital" }));

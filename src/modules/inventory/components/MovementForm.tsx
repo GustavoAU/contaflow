@@ -8,8 +8,9 @@
 //   R-04: cuenta contrapartida para completar partida doble en ENTRADA/AJUSTE
 //   R-06: SERVICE bloquea ENTRADA/SALIDA (solo AJUSTE permitido)
 //   SPEC-007: en ENTRADA la contrapartida es obligatoria (Dr Inventario / Cr contrapartida):
-//     Activo (Banco/Caja), Pasivo (Cuentas por pagar), Patrimonio (Capital, solo aporte de
-//     socios) o Gasto; nunca la cuenta de inventario del propio producto. El servidor
+//     Activo (Banco/Caja), Patrimonio (Capital, solo aporte de socios), Pasivo o Gasto que no
+//     exijan tercero (ADR-054; una compra a crédito va con su factura); nunca la cuenta de
+//     inventario del propio producto. El servidor
 //     lo revalida (el cliente solo evita el viaje de ida y vuelta).
 //     AJUSTE no cambia: el servicio ignora esa cuenta (PA-4, decisión pendiente).
 
@@ -76,7 +77,7 @@ const COUNTERPART_REQUIRED_MESSAGE =
   "Seleccione la cuenta de contrapartida: Banco o Caja si fue de contado, o Capital solo si es un aporte de socios. Una compra a crédito se registra con su factura de compra.";
 
 const COUNTERPART_EMPTY_MESSAGE =
-  "No hay cuentas disponibles para la contrapartida. Cree en el Plan de Cuentas una cuenta de movimiento de Banco, Caja, Cuentas por pagar o Capital.";
+  "No hay cuentas disponibles para la contrapartida. Cree en el Plan de Cuentas una cuenta de movimiento de Banco, Caja o Capital.";
 
 // Tipos de cuenta que se ofrecen como contrapartida, agrupados (optgroup) para encontrar
 // Capital sin recorrer toda la lista. Patrimonio solo aplica a ENTRADA (aporte de socios).
