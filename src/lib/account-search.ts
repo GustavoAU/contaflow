@@ -137,7 +137,9 @@ export function filterAccountsWithMeta(
     return { rows, matchCount: rows.filter((row) => row.selectable).length, truncated: false };
   }
 
-  const words = normalized.split(" ");
+  // Sin repetir: una palabra repetida no cambia el resultado (Y) y pegar miles de ellas congelaba la
+  // pestaña (auditoría de seguridad de SPEC-012, LOW-2).
+  const words = [...new Set(normalized.split(" "))];
 
   // Un solo recorrido en orden jerárquico. `stack` guarda la cadena de títulos que abarca al ítem
   // actual (sus ancestros) y si cada uno coincide con la consulta por sí mismo.

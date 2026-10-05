@@ -9,6 +9,7 @@
 _Solo esto se carga por defecto en cada sesión._
 
 ### Fase en vuelo
+**SPEC-012 Entrega A HECHA, pendiente de merge** (2026-10-05) — rama `feat/spec-012-selector-cuenta-buscable`: el campo de cuenta de los asientos busca por código o nombre y muestra los títulos como encabezados no elegibles (`AccountCombobox`); 6155 tests, security GO. Falta la Entrega B (resto de formularios, un PR).
 **SPEC-008 HECHA, pendiente de merge** (2026-10-05) — rama `feat/spec-008-codigo-sugerido-nueve-digitos`: una cuenta de movimiento es de 9 dígitos y exige título padre (alta, edición e importador), sugerencia de código `PADRE.EEE`, selector de padre en el formulario; 5903 tests, security GO (ADR-059, LL-017). ADR-059 completo en main (PR #58/#59/#60: regla de 9 dígitos, nombre no único, demo renumeradas + títulos).
 **Ninguna** — branch `main` limpio (2026-10-04). SPEC-002 HECHA (CI de integración contra Neon + a11y + Prettier); SPEC-004 HECHA (asientos al céntimo y cuadre exacto, ADR-058, 21 servicios; producción sin asientos descuadrados); SPEC-001 (trigger de cuadre en BD) APROBADA, pendiente decidir la ENTRADA de inventario de una línea; SPEC-003 (a11y de formularios) y SPEC-005 (total de factura a 2 decimales) pendientes. Ver `.claude/specs/`.
 

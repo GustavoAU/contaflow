@@ -199,6 +199,13 @@ async function renderControlled({
 }
 
 /** Valor fijado por el test (para probar cambios externos con `rerender`). */
+describe("AccountCombobox — límite de la consulta (auditoría de seguridad, LOW-2)", () => {
+  it("el campo limita el largo de lo que se puede teclear o pegar", async () => {
+    const { input } = await renderControlled();
+    expect(input.maxLength).toBe(64);
+  });
+});
+
 async function renderPlain(value: string, accounts: readonly AccountOption[] = PLAN) {
   const Combobox = await loadCombobox();
   const onChange = vi.fn();

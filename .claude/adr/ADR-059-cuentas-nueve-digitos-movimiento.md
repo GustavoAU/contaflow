@@ -48,6 +48,14 @@ crear una cuenta de movimiento sin título padre**.
 - Auditoría de seguridad: GO (0 críticos/altos). Corregidos en la misma rama: `updateAccountAction` sin limiter (M-1),
   desbloqueo de la UI si la sugerencia falla por red (L-1) y topes de longitud en el importador (L-2).
 
+## SPEC-012 (2026-10-05): selector de cuenta buscable que muestra los títulos
+
+A petición de la contadora, el campo de cuenta de los formularios pasa de una lista a un **buscador por código o nombre**
+(`AccountCombobox`, `src/lib/account-search.ts`). Los selectores **vuelven a recibir los títulos** que ADR-059 había
+filtrado en las consultas, pero como **encabezados grises no elegibles**: `selectable` sale solo de `isPostable`, y el
+gate de asientos (ADR-053) sigue siendo el respaldo. Entrega A (asientos manuales) hecha; la Entrega B migra el resto de
+formularios. Auditoría de seguridad: GO.
+
 ## Pendiente (no bloqueante)
 
 - **Importador (M-2, R-6):** el AuditLog `IMPORT` guarda `ipAddress`/`userAgent` en null y los `create` no van en un
@@ -63,3 +71,10 @@ crear una cuenta de movimiento sin título padre**.
   por el dueño ("si, asi", 2026-10-04).
 - `saveGLConfigAction` / `setFiscalConfigAction` no validan `isPostable` al elegir cuentas de configuración (el gate de
   asientos es el respaldo).
+- (Auditoría de SPEC-012, fuera de esa spec) `TransactionService.createBalancedTransaction` valida que las cuentas sean
+  de la empresa pero **no `isPostable`**: el único respaldo es el gate, que es fail-open ante un fallo de su consulta
+  (LOW-1). Añadir `isPostable: true` al `where` del paso 3 como defensa en profundidad.
+- (Hipótesis por lectura de código, SIN ejecutar) el mismo paso 3 compara `accounts.length !== accountIds.length` con
+  `accountIds` sin deduplicar: un asiento con la misma cuenta en dos líneas daría «Cuentas no encontradas». Confirmar con un
+  test `[A, A, B]` y, si es real, deduplicar antes de comparar.
+- `transaction.schema.ts`: `entries` sin `.max()` (acotado hoy por rol y `limiters.fiscal`).

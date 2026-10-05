@@ -47,6 +47,7 @@ export type AccountComboboxProps = {
 
 const DEFAULT_PLACEHOLDER = "Buscar por código o nombre…";
 const NO_ACCOUNTS_MESSAGE = "No hay cuentas disponibles";
+const MAX_QUERY_LENGTH = 64;
 const CAP_NOTICE = "Mostrando las primeras 100. Escribe más para afinar.";
 
 const EMPTY_RESULT: AccountSearchResult = { rows: [], matchCount: 0, truncated: false };
@@ -241,6 +242,7 @@ export function AccountCombobox({
         disabled={isDisabled}
         autoComplete="off"
         spellCheck={false}
+        maxLength={MAX_QUERY_LENGTH}
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         aria-invalid={ariaInvalid}

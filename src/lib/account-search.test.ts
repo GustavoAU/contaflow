@@ -446,6 +446,31 @@ describe("filterAccounts — palabras con letras: «contiene» en el nombre (RN-
     expect(filterAccounts(PLAN, "caja caja")).toEqual(filterAccounts(PLAN, "caja"));
   });
 
+  it("[LOW-2] miles de palabras repetidas dan lo mismo que una sola y no congelan la pestaña", async () => {
+    const { filterAccounts } = await load();
+    const big: AccountOption[] = [];
+    for (let g = 1; g <= 30; g++) {
+      const group = String(g).padStart(2, "0");
+      big.push({ id: `t${g}`, code: `1.1.01.${group}`, name: `GRUPO ${g}`, isPostable: false });
+      for (let n = 1; n <= 30; n++) {
+        big.push({
+          id: `m${g}-${n}`,
+          code: `1.1.01.${group}.${String(n).padStart(3, "0")}`,
+          name: `Caja ${g}-${n}`,
+          isPostable: true,
+        });
+      }
+    }
+    const many = Array.from({ length: 50_000 }, () => "caja").join(" ");
+
+    const start = performance.now();
+    const result = filterAccounts(big, many);
+    const elapsed = performance.now() - start;
+
+    expect(result).toEqual(filterAccounts(big, "caja"));
+    expect(elapsed).toBeLessThan(750);
+  });
+
   it("un símbolo en la consulta se busca literalmente: «75%» encuentra «Retención IVA 75%»", async () => {
     const { filterAccounts } = await load();
     expect(selectableCodesOf(filterAccounts(PLAN, "75%"))).toEqual(["2.1.01.02.001"]);

@@ -83,6 +83,28 @@ beforeEach(() => {
 });
 
 describe("NewTransactionPage — títulos y cuentas para el selector buscable (SPEC-012 §7)", () => {
+  it("[LOW-4] al cliente solo viajan id, code, name, type e isPostable (no el registro completo)", async () => {
+    const full = [...TITLES, ...MOVEMENT].map((r) => ({
+      ...r,
+      companyId: COMPANY_ID,
+      deletedAt: null,
+      description: "no debe viajar",
+      isMonetary: true,
+      createdAt: new Date("2026-01-01"),
+      updatedAt: new Date("2026-01-01"),
+    }));
+    mockData(full as unknown as Row[]);
+
+    const tree = await renderPage();
+    const forms = findAll(tree, JournalEntryForm);
+    const props = forms[0].props as { accounts: Record<string, unknown>[] };
+
+    expect(props.accounts.length).toBeGreaterThan(0);
+    for (const account of props.accounts) {
+      expect(Object.keys(account).sort()).toEqual(["code", "id", "isPostable", "name", "type"]);
+    }
+  });
+
   it("pide las cuentas SIN onlyPostable: los títulos llegan al formulario", async () => {
     mockData([...TITLES, ...MOVEMENT]);
     await renderPage();

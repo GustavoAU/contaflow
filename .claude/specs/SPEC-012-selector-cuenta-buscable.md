@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
 titulo: El selector de cuenta busca por código o por nombre y muestra los títulos (sin poder elegirlos)
-estado: EN_CURSO   # aprobada 2026-10-05; plan de §10 pendiente de confirmación (Entrega A)
+estado: EN_CURSO   # Entrega A HECHA y pendiente de merge; falta la Entrega B (resto de formularios)
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
@@ -164,37 +164,37 @@ export function AccountCombobox(props: {
   tope "Mostrando las primeras 100. Escribe más para afinar."; sin cuentas "No hay cuentas disponibles".
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: Dadas `1.1.01.01.001`, `1.1.02.01.001`, `2.1.01.01.001`, la consulta `1` devuelve las dos primeras en
+- [x] CA-1: Dadas `1.1.01.01.001`, `1.1.02.01.001`, `2.1.01.01.001`, la consulta `1` devuelve las dos primeras en
       orden de código, más sus títulos ancestros (lo que la contadora observó con el *typeahead*).
-- [ ] CA-2: `110101001`, `1.1.01.01.001`, `1.1.01` y `1101` encuentran `1.1.01.01.001`; `1.1.02` no.
-- [ ] CA-3: `caja` encuentra `Caja Principal` y las cuentas cuyo nombre contiene "caja"; `CAJÁ` y `caja ` también.
-- [ ] CA-4: `principal caja` encuentra `Caja Principal` (varias palabras, cualquier orden); `caja banco` no.
-- [ ] CA-5: el orden de las filas es siempre el jerárquico por código; si la consulta coincide exactamente con el
+- [x] CA-2: `110101001`, `1.1.01.01.001`, `1.1.01` y `1101` encuentran `1.1.01.01.001`; `1.1.02` no.
+- [x] CA-3: `caja` encuentra `Caja Principal` y las cuentas cuyo nombre contiene "caja"; `CAJÁ` y `caja ` también.
+- [x] CA-4: `principal caja` encuentra `Caja Principal` (varias palabras, cualquier orden); `caja banco` no.
+- [x] CA-5: el orden de las filas es siempre el jerárquico por código; si la consulta coincide exactamente con el
       código de una cuenta de movimiento, esa cuenta es la opción activa inicial (`aria-activedescendant`).
-- [ ] CA-6: consulta vacía → jerarquía completa en orden de código, con los títulos como encabezados sangrados por nivel.
-- [ ] CA-7: más de 100 cuentas seleccionables → 100 y el aviso; los encabezados no cuentan.
-- [ ] CA-8: sin coincidencias → mensaje RN-16, sin encabezados ni opciones.
+- [x] CA-6: consulta vacía → jerarquía completa en orden de código, con los títulos como encabezados sangrados por nivel.
+- [x] CA-7: más de 100 cuentas seleccionables → 100 y el aviso; los encabezados no cuentan.
+- [x] CA-8: sin coincidencias → mensaje RN-16, sin encabezados ni opciones.
 - [ ] CA-9 (títulos): un título **no se puede elegir** — clic, Enter y Tab sobre él no emiten `onChange`; no tiene
       `role="option"`; ↓/↑ lo saltan.
-- [ ] CA-10: con la consulta `caja`, aparece `1.1.01.01.001 — Caja Principal` bajo la cadena de encabezados `1`, `1.1`,
+- [x] CA-10: con la consulta `caja`, aparece `1.1.01.01.001 — Caja Principal` bajo la cadena de encabezados `1`, `1.1`,
       `1.1.01`, `1.1.01.01` (sin repetirlos); un título sin coincidencias debajo no aparece (RN-9).
-- [ ] CA-11: una consulta que coincide con un título (`cajas`) incluye todas sus cuentas de movimiento descendientes (RN-10).
-- [ ] CA-12: un solo resultado seleccionable + Enter (y + Tab) lo elige aunque haya encabezados de contexto; con varios,
+- [x] CA-11: una consulta que coincide con un título (`cajas`) incluye todas sus cuentas de movimiento descendientes (RN-10).
+- [x] CA-12: un solo resultado seleccionable + Enter (y + Tab) lo elige aunque haya encabezados de contexto; con varios,
       Tab no emite nada. El contador "{n} cuentas" no cuenta los encabezados.
-- [ ] CA-13: ↓/↑ cambian la opción activa (`aria-activedescendant`) y Enter elige la activa; Esc cierra sin cambios.
-- [ ] CA-14: salir del campo sin elegir restaura el texto de la cuenta seleccionada (o vacío).
-- [ ] CA-15: con `value` conocido muestra `código — nombre`; un cambio externo de `value` actualiza el texto (RN-20).
-- [ ] CA-16: `JournalEntryForm`: sin cuenta, el envío muestra "Selecciona una cuenta"; con cuenta elegida tecleando
+- [x] CA-13: ↓/↑ cambian la opción activa (`aria-activedescendant`) y Enter elige la activa; Esc cierra sin cambios.
+- [x] CA-14: salir del campo sin elegir restaura el texto de la cuenta seleccionada (o vacío).
+- [x] CA-15: con `value` conocido muestra `código — nombre`; un cambio externo de `value` actualiza el texto (RN-20).
+- [x] CA-16: `JournalEntryForm`: sin cuenta, el envío muestra "Selecciona una cuenta"; con cuenta elegida tecleando
       `110101001` + Enter, el payload lleva el `accountId` correcto; intentar elegir un título no cambia el valor.
-- [ ] CA-17: sin violaciones de axe en el componente (cerrado y abierto, con encabezados) y roles ARIA del patrón.
-- [ ] CA-18: `disabled` e `aria-invalid` se reflejan en el input.
+- [x] CA-17: sin violaciones de axe en el componente (cerrado y abierto, con encabezados) y roles ARIA del patrón.
+- [x] CA-18: `disabled` e `aria-invalid` se reflejan en el input.
 - [ ] CA-19 (datos): las páginas de la Entrega B entregan títulos y cuentas de movimiento (sin `isPostable: true` en las
       consultas que alimentan un `AccountCombobox`), conservando `companyId`, `deletedAt: null` y el filtro por tipo.
 - [ ] CA-20 (RN-19): `FixedAssetForm.findBestMatch` y cualquier autoselección o validación de los formularios migrados
       ignoran los títulos (test con un título que coincidiría mejor que la cuenta).
 - [ ] CA-limpieza: test de arquitectura — ningún archivo de `src/` renderiza un `SelectItem` con `account.code`/`a.code`
       (Entrega B).
-- [ ] CA-sin-regresión: los tests existentes de los formularios migrados siguen en verde (ajustados al nuevo control).
+- [x] CA-sin-regresión (Entrega A): los tests existentes de los formularios migrados siguen en verde (ajustados al nuevo control).
 
 ## 10. Plan de agentes
 Sin cambios de schema ni de actions → se omite el ARCH GATE y el ledger/fiscal-agent. Línea base (2026-10-05, `main`
@@ -214,6 +214,19 @@ La spec se entrega en **dos PR** (Q3). Este plan es el de la **Entrega A**; la E
 | 4 | security-agent | Revisión ligera (cambia qué datos de la propia empresa llegan al cliente: ahora también los títulos): mismos `companyId`/roles de `getAccountsAction`, sin fuga entre empresas, el título nunca viaja como valor del formulario (el gate de asientos sigue siendo el respaldo), sin `dangerouslySetInnerHTML`. | — |
 | 5 | (sesión principal) | Gates: `tsc`, `vitest` (6 shards), `pnpm lint`, `format:check`; CA de la Entrega A marcados `[x]`; ADR-059 (nota del selector buscable); LL si aparece un patrón nuevo; línea en Estado Activo. Commits por capa. **Sin merge.** | — |
 
+### Estado de ejecución — Entrega A HECHA (2026-10-05, sin merge)
+- Rama `feat/spec-012-selector-cuenta-buscable`. Pasos: 1 test-agent RED (240 tests + 6 guardas; verificado contra una
+  implementación de referencia y 66 mutantes) → 2 ui-agent GREEN (`account-search.ts`, `AccountCombobox.tsx`,
+  `JournalEntryForm`, `transactions/new/page.tsx`) → 3 cobertura (lib 97 %, componente 90 % de sentencias) →
+  4 security-agent **GO** (0 CRITICAL/HIGH/MEDIUM) → 5 cierre.
+- Tests: antes **5906** → después **6155** (+249). tsc 0 · eslint 0 errores · prettier OK.
+- Corregidos de la auditoría: LOW-2 (palabras de la consulta sin repetir + `maxLength={64}` en el campo; sin eso 50 000
+  palabras repetidas congelaban la pestaña ~2,6 s) y LOW-4 (el test de la página ahora exige que al cliente solo viajen
+  `id, code, name, type, isPostable`). Cada uno con su test y mutación verificada.
+- Decisiones de la sesión: la consulta vacía no tiene tope de 100 (RN-6/RN-7); un título sin cuentas debajo no aparece
+  aunque coincida (RN-9); la coincidencia exacta es solo la opción activa inicial, no reordena (RN-5/RN-13).
+- Pendientes para la **Entrega B** (de la auditoría y del ui-agent): ver §11.
+
 ### Entrega B — resto de formularios (rama `feat/spec-012b-selector-cuenta-resto-formularios`, un solo PR)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
@@ -230,6 +243,17 @@ Q2 — Tab elige cuando queda un solo resultado (RN-14); Q3 — dos entregas, A 
 formularios en un solo PR; el orden entre ellos no importa). Además confirmó que **todas las cuentas deben llevar título
 y subtítulo** (garantizado por SPEC-008).
 
+- **Para la Entrega B (de la auditoría de A):**
+  - LOW-3: un `value` inicial que apunte a un título (puede ocurrir tras ADR-059 en formularios con valores guardados:
+    nómina, fiscal, bancos, activos fijos) hoy se muestra como elegido; y uno que no esté en `accounts` se ve vacío pero
+    el formulario lo conserva (no salta «Selecciona una cuenta»). Decidir en B: tratarlo como «sin selección» (texto
+    vacío + `aria-invalid`) y comprobar en cada formulario si el destino valida `isPostable` (el gate solo cubre `Transaction`).
+  - Esc dentro de un `Dialog` de Radix (p. ej. `DisposeAssetModal`): el Esc del combobox puede cerrar también el diálogo.
+  - La lista siempre abre hacia abajo (sin detección de colisión): revisar en modales con poco espacio.
+  - El combobox no permite «sin cuenta» (vaciar el texto restaura la anterior, RN-15): un selector opcional necesitaría
+    una opción explícita.
+  - No hay `ref`/`onBlur` hacia react-hook-form (no se enfoca el campo al fallar la validación; el `Select` anterior
+    tampoco lo hacía).
 - Riesgo: mostrar títulos obliga a **cambiar las consultas** de ~10 páginas y a que cada formulario ignore los títulos en
   su lógica (RN-19). Un formulario que, por descuido, ofreciera un título como valor lo vería rechazado por el gate de
   asientos (ADR-053), pero sería mala experiencia. Mitigación: `selectable` solo viene de `isPostable`, CA-9/CA-20 y la
