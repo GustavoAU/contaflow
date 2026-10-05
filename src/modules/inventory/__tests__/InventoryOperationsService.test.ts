@@ -274,6 +274,20 @@ describe("createDraftMovement", () => {
     expect(second.data.totalCost.toFixed(2)).toBe("0.05");
   });
 
+  // SPEC-007 L-1: los campos que ahora deciden el tratamiento contable deben quedar en la
+  // auditoría; en la fila del movimiento son mutables mientras sea DRAFT.
+  it("L-1: el AuditLog CREATE_DRAFT guarda la contrapartida, la factura y la fecha", async () => {
+    await createDraftMovement(BASE, USER_ID);
+
+    const audit = currentTx.auditLog.create.mock.calls[0]![0];
+    expect(audit.data.action).toBe("CREATE_DRAFT");
+    expect(audit.data.newValue).toMatchObject({
+      counterpartAccountId: "acc-banco",
+      invoiceId: null,
+      date: BASE.date,
+    });
+  });
+
   it("MEDIUM-2: para SALIDA usa CPP del ítem — ignora unitCost del cliente", async () => {
     await createDraftMovement({ ...BASE, type: "SALIDA", unitCost: "999" }, USER_ID);
     const createCall = currentTx.inventoryMovement.create.mock.calls[0]![0];

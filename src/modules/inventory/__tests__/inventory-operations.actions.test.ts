@@ -174,6 +174,28 @@ describe("createMovementAction", () => {
     expect(result).toEqual({ success: true, data: "mov-001" });
   });
 
+  // SPEC-007 H-1: el formulario nunca envía `invoiceId`; los movimientos ligados a una factura los
+  // crea solo el módulo de facturas (InvoiceLineService). Si el cliente lo envía, es un intento de
+  // colgar la ENTRADA del asiento de una factura ajena al movimiento: se descarta.
+  it("H-1: descarta el invoiceId que venga del cliente y no lo pasa al servicio", async () => {
+    const result = await createMovementAction({
+      ...BASE_MOVEMENT_INPUT,
+      invoiceId: "inv-venta-propia",
+    });
+
+    expect(result).toEqual({ success: true, data: "mov-001" });
+    const arg = vi.mocked(OpsService.createDraftMovement).mock.calls[0]?.[0];
+    expect(arg?.invoiceId ?? null).toBeNull();
+    // El resto del payload llega íntegro (no se pierde ningún otro campo).
+    expect(arg).toMatchObject({
+      companyId: COMPANY_ID,
+      itemId: "item-001",
+      type: "ENTRADA",
+      quantity: 5,
+      unitCost: "100",
+    });
+  });
+
   it("HIGH-1: rechaza VIEWER", async () => {
     vi.mocked(prisma.companyMember.findFirst).mockResolvedValue({ role: "VIEWER" } as never);
     const result = await createMovementAction(BASE_MOVEMENT_INPUT);

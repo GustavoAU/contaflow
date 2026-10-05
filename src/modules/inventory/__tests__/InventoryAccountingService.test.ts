@@ -49,10 +49,19 @@ const makeMockMovement = (
   ...overrides,
 });
 
+// Tablas de la "BD" falsa que un test puede sustituir (por defecto, las de helpers/fake-db).
+type FakeRows = {
+  invoices?: Row[];
+  invoiceLines?: Row[];
+  transactions?: Row[];
+  journalEntries?: Row[];
+};
+
 const makeTx = (
   movement = makeMockMovement(),
   // Periodos existentes en la "BD" falsa (por defecto ninguno). El servicio consulta solo los CLOSED.
-  periods: Row[] = []
+  periods: Row[] = [],
+  rows: FakeRows = {}
 ) => ({
   inventoryMovement: {
     findFirstOrThrow: vi.fn().mockResolvedValue(movement),
@@ -64,10 +73,17 @@ const makeTx = (
   transaction: {
     count: vi.fn().mockResolvedValue(5),
     create: vi.fn().mockResolvedValue({ id: "tx-001" }),
+    // H-1: el asiento de la factura se lee acotado por companyId y con su estado.
+    findFirst: fakeFindFirst(rows.transactions ?? FAKE_TRANSACTIONS),
   },
-  // SPEC-007: tablas falsas que filtran por TODO el where (detectan un companyId omitido).
+  // SPEC-007: tablas falsas que filtran por TODO el where (detectan un companyId omitido) y
+  // devuelven solo los campos de `select` (detectan un campo leido sin pedirlo).
   account: { findFirst: fakeFindFirst(FAKE_ACCOUNTS) },
-  invoice: { findFirst: fakeFindFirst(FAKE_INVOICES) },
+  invoice: { findFirst: fakeFindFirst(rows.invoices ?? FAKE_INVOICES) },
+  // H-1: la linea de factura que enlaza el movimiento.
+  invoiceLine: { findFirst: fakeFindFirst(rows.invoiceLines ?? FAKE_INVOICE_LINES) },
+  // M-2: lineas guardadas del asiento original (anulacion).
+  journalEntry: { findMany: vi.fn(findManyImpl(rows.journalEntries ?? FAKE_JOURNAL_ENTRIES)) },
   accountingPeriod: { findFirst: fakeFindFirst(periods) },
   auditLog: {
     create: vi.fn().mockResolvedValue({}),
@@ -112,12 +128,19 @@ import { applyLotMovement } from "../services/LotTrackingService";
 import { createSerials } from "../services/SerialTrackingService";
 import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import {
   FAKE_ACCOUNTS,
   FAKE_INVOICES,
+  FAKE_INVOICE_LINES,
+  FAKE_JOURNAL_ENTRIES,
+  FAKE_TRANSACTIONS,
   OTHER_COMPANY_ID,
   fakeFindFirst,
   findFirstOrThrowImpl,
+  findManyImpl,
+  invoiceLine,
+  journalLine,
   type Row,
 } from "./helpers/fake-db";
 
@@ -603,18 +626,28 @@ describe("ADR-058 — InventoryAccountingService cuantiza al centimo", () => {
     expect(audit.data.newValue).not.toHaveProperty("glRounding");
   });
 
-  it("anulacion de un movimiento historico a 4 decimales: negacion EXACTA (no cuantiza)", async () => {
+  it("anulacion de un movimiento historico a 4 decimales: negacion EXACTA de las lineas guardadas (no cuantiza)", async () => {
+    // SPEC-007 M-2: la anulacion deriva de las LINEAS GUARDADAS del asiento original (aqui a 4
+    // decimales, como las dejaba el sistema antes de ADR-058), no del movimiento ni del item.
     const movement = makeMockMovement({
       status: "POSTED",
       type: "SALIDA",
       quantity: new Decimal("3"),
       totalCost: new Decimal("1234.5678"),
+      transactionId: "tx-historico-001",
     });
-    const tx = makeTx(movement);
+    const tx = makeTx(movement, [], {
+      journalEntries: [
+        journalLine("tx-historico-001", "acc-cogs", "1234.5678"),
+        journalLine("tx-historico-001", "acc-inv", "-1234.5678"),
+      ],
+    });
     await voidPosted(tx);
 
     const lines = linesOf(tx);
-    expect(lines.map((l) => l.amount.toString())).toEqual(["-1234.5678", "1234.5678"]);
+    expect(lines).toHaveLength(2);
+    expect(amountOf(lines, "acc-cogs")).toBe("-1234.5678");
+    expect(amountOf(lines, "acc-inv")).toBe("1234.5678");
     expect(sumOf(lines).isZero()).toBe(true);
   });
 
@@ -664,8 +697,17 @@ const MSG_FACTURA_SIN_ASIENTO =
   "La factura de esta entrada aún no tiene asiento contable. Contabilice la factura antes de registrar la entrada de inventario.";
 const MSG_ANULAR_ENTRADA_DE_FACTURA =
   "Esta entrada pertenece a una factura: anule la factura o emita una nota de crédito.";
-const MSG_ANULAR_ASIENTO_SIN_CONTRAPARTIDA =
-  "Esta entrada tiene un asiento sin contrapartida (dato previo). No se puede anular automáticamente; corrija con un asiento manual.";
+// Contrato de la ronda de correccion tras la revision de seguridad (H-1, M-1, M-2, L-1). Estos
+// mensajes se comparan por un fragmento estable (el que fija el contrato), no por el texto entero.
+//  - H-1: la entrada indica una factura que no es una compra de la empresa o de la que no es linea.
+const RE_FACTURA_NO_ES_COMPRA = /factura de compra/;
+//  - H-1: el asiento de la factura existe pero esta anulado.
+const RE_ASIENTO_NO_VIGENTE = /no está vigente/;
+//  - M-1: otra entrada de la misma factura ya enlazo el asiento (unico de transactionId).
+const RE_OTRA_ENTRADA = /otra entrada/;
+//  - M-2: el asiento original no cuadra. Se compara sin distinguir mayusculas porque el texto
+//    abre la oracion con "No se puede anular automáticamente".
+const RE_ASIENTO_NO_CUADRA = /no se puede anular automáticamente/i;
 
 // ─── RN-1: sin contrapartida no hay entrada ───────────────────────────────────
 
@@ -861,18 +903,22 @@ describe("SPEC-007 RN-2/RN-3 — postMovement: ENTRADA con contrapartida = Dr In
 
 // ─── RN-4 / PA-3: ENTRADA ligada a factura ───────────────────────────────────
 
-describe("SPEC-007 RN-4 — postMovement: la ENTRADA ligada a factura no crea asiento propio", () => {
-  const entradaConFactura = (over: Parameters<typeof makeMockMovement>[0] = {}) =>
-    makeMockMovement({
-      type: "ENTRADA",
-      quantity: new Decimal("5"),
-      unitCost: new Decimal("120"),
-      totalCost: new Decimal("600"),
-      counterpartAccountId: null, // con factura la contrapartida NO es exigible
-      invoiceId: "inv-001",
-      ...over,
-    });
+/**
+ * ENTRADA ligada a una factura. Por defecto es la linea de `inv-001` (compra de la empresa con
+ * asiento POSTED `tx-factura-001`): ver FAKE_INVOICES / FAKE_INVOICE_LINES / FAKE_TRANSACTIONS.
+ */
+const entradaConFactura = (over: Parameters<typeof makeMockMovement>[0] = {}) =>
+  makeMockMovement({
+    type: "ENTRADA",
+    quantity: new Decimal("5"),
+    unitCost: new Decimal("120"),
+    totalCost: new Decimal("600"),
+    counterpartAccountId: null, // con factura la contrapartida NO es exigible
+    invoiceId: "inv-001",
+    ...over,
+  });
 
+describe("SPEC-007 RN-4 — postMovement: la ENTRADA ligada a factura no crea asiento propio", () => {
   it("CA-5: no crea asiento y se enlaza al asiento de la factura (no duplica el débito a Inventario)", async () => {
     const tx = makeTx(entradaConFactura());
 
@@ -904,18 +950,25 @@ describe("SPEC-007 RN-4 — postMovement: la ENTRADA ligada a factura no crea as
     expect(tx.auditLog.create).toHaveBeenCalledOnce();
     const audit = tx.auditLog.create.mock.calls[0]![0];
     expect(audit.data).toMatchObject({ entityName: "InventoryMovement", action: "POST" });
-    expect(audit.data.newValue).toMatchObject({ transactionId: "tx-factura-001" });
+    // L-1: el asiento es el de la factura y la auditoria dice de QUE factura (trazabilidad).
+    expect(audit.data.newValue).toMatchObject({
+      transactionId: "tx-factura-001",
+      invoiceId: "inv-001",
+    });
   });
 
-  it("ADR-004: la factura se lee acotada por companyId y pide solo transactionId", async () => {
+  // H-1 (cambia el test anterior "la factura se lee acotada por companyId y pide solo
+  // transactionId", que fijaba el comportamiento laxo: ahora hace falta el TIPO para exigir que sea
+  // una compra).
+  it("ADR-004: la factura se lee acotada por companyId (y sin las dadas de baja) y pide type y transactionId", async () => {
     const tx = makeTx(entradaConFactura());
 
     await post(tx);
 
     expect(tx.invoice.findFirst).toHaveBeenCalledTimes(1);
     const args = tx.invoice.findFirst.mock.calls[0]![0] as { where: Row; select: Row };
-    expect(args.where).toMatchObject({ id: "inv-001", companyId: COMPANY_ID });
-    expect(args.select).toMatchObject({ transactionId: true });
+    expect(args.where).toMatchObject({ id: "inv-001", companyId: COMPANY_ID, deletedAt: null });
+    expect(args.select).toMatchObject({ type: true, transactionId: true });
   });
 
   it("RN-4: nunca crea asiento propio, aunque el movimiento traiga además una contrapartida", async () => {
@@ -931,6 +984,7 @@ describe("SPEC-007 RN-4 — postMovement: la ENTRADA ligada a factura no crea as
     ["una factura que aún no tiene asiento", "inv-sin-asiento"],
     ["una factura que no existe", "inv-fantasma"],
     ["una factura de OTRA empresa", "inv-ajena"],
+    ["una factura dada de baja (soft delete)", "inv-eliminada"],
   ])(
     "CA-5b: ENTRADA ligada a %s → error de negocio y el movimiento sigue en DRAFT",
     async (_caso, invoiceId) => {
@@ -983,6 +1037,279 @@ describe("SPEC-007 RN-4 — postMovement: la ENTRADA ligada a factura no crea as
     );
     expect(tx.transaction.create).not.toHaveBeenCalled();
     expect(tx.inventoryMovement.update.mock.calls[0]![0].data.transactionId).toBe("tx-factura-001");
+  });
+});
+
+// ─── H-1: la factura de la entrada ───────────────────────────────────────────
+//
+// Hallazgo HIGH del security-agent: la rama FACTURA solo comprobaba que la factura existiera en la
+// empresa y tuviera `transactionId`. Una entrada podia enlazarse al asiento de una factura de VENTA,
+// de una factura de la que no es linea, o de un asiento anulado, y heredar su contabilidad sin que
+// el debito a Inventario existiera. Ahora, TODO antes de la primera escritura: la factura es una
+// COMPRA de la empresa, el movimiento es LINEA vigente de esa factura y su asiento esta POSTED.
+
+describe("SPEC-007 H-1 — postMovement: la rama FACTURA exige compra de la empresa, línea de esa factura y asiento vigente", () => {
+  it("(guarda) camino feliz: compra de la empresa, la entrada es su línea y el asiento está POSTED → enlaza el asiento de la factura", async () => {
+    const tx = makeTx(entradaConFactura());
+
+    const result = await post(tx);
+
+    expect(tx.transaction.create).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.update.mock.calls[0]![0].data.transactionId).toBe("tx-factura-001");
+    expect(result.transaction.id).toBe("tx-factura-001");
+  });
+
+  // ── 1) la factura es una COMPRA ────────────────────────────────────────────
+
+  it("una factura de VENTA no es válida para una entrada → error de 'factura de compra' y no se persiste nada", async () => {
+    const tx = makeTx(entradaConFactura({ invoiceId: "inv-venta" }));
+
+    await expect(post(tx)).rejects.toThrow(RE_FACTURA_NO_ES_COMPRA);
+
+    expectNoWrites(tx);
+  });
+
+  it("una factura de VENTA se rechaza aunque el movimiento traiga contrapartida: no se cae a crear un asiento propio", async () => {
+    // El camino correcto es otro (borrador sin factura, con su contrapartida), no un fallback
+    // silencioso que contabilice con la contrapartida que el cliente puso de adorno.
+    const tx = makeTx(
+      entradaConFactura({ invoiceId: "inv-venta", counterpartAccountId: "acc-banco" })
+    );
+
+    await expect(post(tx)).rejects.toThrow(RE_FACTURA_NO_ES_COMPRA);
+
+    expectNoWrites(tx);
+  });
+
+  it.each([
+    ["LOT", { lotData: { lotNumber: "L-001" } }, applyLotMovement],
+    ["SERIAL", { serialNumbers: ["S-1", "S-2", "S-3", "S-4", "S-5"] }, createSerials],
+  ] as const)(
+    "el rechazo llega antes de aplicar lotes o seriales: ítem %s con factura de VENTA no crea lote ni seriales",
+    async (trackingType, extra, sideEffect) => {
+      const tx = makeTx(
+        entradaConFactura({
+          invoiceId: "inv-venta",
+          item: { ...mockItem, trackingType } as never,
+        })
+      );
+
+      // `extra` viene de una tabla `as const` (tupla de solo lectura): el schema pide un arreglo mutable.
+      await expect(post(tx, extra as never)).rejects.toThrow(RE_FACTURA_NO_ES_COMPRA);
+
+      expect(sideEffect).not.toHaveBeenCalled();
+      expectNoWrites(tx);
+    }
+  );
+
+  // ── 2) el movimiento es LÍNEA vigente de esa factura ───────────────────────
+
+  it("ADR-004: la línea de la factura se busca acotada por empresa, factura y movimiento, sin las dadas de baja", async () => {
+    const tx = makeTx(entradaConFactura());
+
+    await post(tx);
+
+    expect(tx.invoiceLine.findFirst).toHaveBeenCalledTimes(1);
+    const args = tx.invoiceLine.findFirst.mock.calls[0]![0] as { where: Row; select: Row };
+    expect(args.where).toMatchObject({
+      companyId: COMPANY_ID,
+      invoiceId: "inv-001",
+      inventoryMovementId: "mov-001",
+      deletedAt: null,
+    });
+    expect(args.select).toMatchObject({ id: true });
+  });
+
+  it.each<[string, Row[]]>([
+    ["la factura no tiene ninguna línea (el movimiento no es línea de ella)", []],
+    [
+      "la factura solo tiene líneas de OTROS movimientos",
+      [invoiceLine("inv-001", "mov-de-otra-entrada")],
+    ],
+    [
+      "el movimiento es línea de OTRA factura de la empresa",
+      [invoiceLine("inv-otra-factura", "mov-001")],
+    ],
+    [
+      "la línea fue dada de baja (soft delete)",
+      [invoiceLine("inv-001", "mov-001", { deletedAt: new Date("2026-03-01T00:00:00.000Z") })],
+    ],
+    [
+      "la línea pertenece a OTRA empresa",
+      [invoiceLine("inv-001", "mov-001", { companyId: OTHER_COMPANY_ID })],
+    ],
+  ])(
+    "el movimiento no es línea vigente de su factura (%s) → error de 'factura de compra' y no se persiste nada",
+    async (_caso, invoiceLines) => {
+      const tx = makeTx(entradaConFactura(), [], { invoiceLines });
+
+      await expect(post(tx)).rejects.toThrow(RE_FACTURA_NO_ES_COMPRA);
+
+      expectNoWrites(tx);
+    }
+  );
+
+  // ── 3) el asiento de la factura existe, es de la empresa y está vigente ────
+
+  it("ADR-004: el asiento de la factura se lee acotado por companyId y pide id y status", async () => {
+    const tx = makeTx(entradaConFactura());
+
+    await post(tx);
+
+    expect(tx.transaction.findFirst).toHaveBeenCalledTimes(1);
+    const args = tx.transaction.findFirst.mock.calls[0]![0] as { where: Row; select: Row };
+    expect(args.where).toMatchObject({ id: "tx-factura-001", companyId: COMPANY_ID });
+    expect(args.select).toMatchObject({ id: true, status: true });
+  });
+
+  it.each([
+    ["un asiento de OTRA empresa", "inv-tx-ajena"],
+    ["un asiento que no existe", "inv-tx-fantasma"],
+  ])(
+    "la factura apunta a %s → mismo error de 'aún no tiene asiento' y no se persiste nada",
+    async (_caso, invoiceId) => {
+      const tx = makeTx(entradaConFactura({ invoiceId }));
+
+      await expect(post(tx)).rejects.toThrow(MSG_FACTURA_SIN_ASIENTO);
+
+      expectNoWrites(tx);
+    }
+  );
+
+  it("el asiento de la factura está ANULADO (VOIDED) → error 'no está vigente' y no se persiste nada", async () => {
+    const tx = makeTx(entradaConFactura({ invoiceId: "inv-tx-anulada" }));
+
+    await expect(post(tx)).rejects.toThrow(RE_ASIENTO_NO_VIGENTE);
+
+    expectNoWrites(tx);
+  });
+
+  // ── Solo la ENTRADA pasa por la rama FACTURA ───────────────────────────────
+
+  it("(guarda) una SALIDA ligada a una factura no consulta la factura ni su línea: contabiliza con su propio asiento", async () => {
+    const tx = makeTx(
+      makeMockMovement({
+        type: "SALIDA",
+        quantity: new Decimal("3"),
+        unitCost: new Decimal("100"),
+        totalCost: new Decimal("300"),
+        counterpartAccountId: null,
+        invoiceId: "inv-venta",
+      })
+    );
+
+    await post(tx);
+
+    expect(tx.invoice.findFirst).not.toHaveBeenCalled();
+    expect(tx.invoiceLine.findFirst).not.toHaveBeenCalled();
+    expect(tx.transaction.findFirst).not.toHaveBeenCalled();
+    const lines = linesOf(tx);
+    expect(lines).toHaveLength(2);
+    expect(amountOf(lines, "acc-cogs")).toBe("300");
+    expect(amountOf(lines, "acc-inv")).toBe("-300");
+  });
+});
+
+// ─── M-1: dos entradas de la misma factura ───────────────────────────────────
+//
+// `InventoryMovement.transactionId` es @unique: la segunda entrada de una factura con 2+ lineas de
+// inventario choca al enlazar el MISMO asiento. Paliativo: traducir ese P2002 a un mensaje de
+// negocio (hoy el usuario veria "Ya existe un registro con esos datos"). Solucion de fondo: otra spec.
+
+describe("SPEC-007 M-1 — postMovement traduce el P2002 de InventoryMovement.transactionId", () => {
+  // Forma historica (Prisma < 7.8): `meta.target`, array o string.
+  const p2002Target = (target?: unknown) =>
+    new Prisma.PrismaClientKnownRequestError("Unique constraint failed on the fields", {
+      code: "P2002",
+      clientVersion: "7.0.0",
+      meta: target === undefined ? {} : { target },
+    });
+
+  // Forma REAL de Prisma 7.8 + adaptador de Neon (LL-014): `meta.target` NO existe y las columnas
+  // viven en `meta.driverAdapterError.cause.constraint.fields`, con o sin comillas literales.
+  const p2002Neon = (fields: string[]) =>
+    new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "7.8.0",
+      meta: {
+        modelName: "InventoryMovement",
+        driverAdapterError: {
+          name: "DriverAdapterError",
+          cause: {
+            originalCode: "23505",
+            originalMessage:
+              'duplicate key value violates unique constraint "InventoryMovement_transactionId_key"',
+            kind: "UniqueConstraintViolation",
+            constraint: { fields },
+          },
+        },
+      },
+    });
+
+  const enlazarFalla = (err: unknown) => {
+    const tx = makeTx(entradaConFactura());
+    tx.inventoryMovement.update.mockRejectedValue(err);
+    return tx;
+  };
+
+  it.each([
+    ["meta.target como array", p2002Target(["transactionId"])],
+    ["meta.target como string", p2002Target("transactionId")],
+    ["Prisma 7.8 + Neon: driverAdapterError…fields", p2002Neon(["transactionId"])],
+    ["Prisma 7.8 + Neon: columna con comillas literales", p2002Neon(['"transactionId"'])],
+  ])(
+    "P2002 de la columna transactionId (%s) al enlazar el asiento de la factura → mensaje de 'otra entrada'",
+    async (_forma, err) => {
+      await expect(post(enlazarFalla(err))).rejects.toThrow(RE_OTRA_ENTRADA);
+    }
+  );
+
+  it("el mensaje explica la limitación y NO es el error crudo de Prisma", async () => {
+    const error = await post(enlazarFalla(p2002Neon(["transactionId"]))).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    expect((error as Error).message).toMatch(/una entrada de inventario por factura/);
+  });
+
+  it.each([
+    ["otra columna (meta.target)", p2002Target(["companyId", "idempotencyKey"])],
+    ["otra columna (Prisma 7.8 + Neon)", p2002Neon(['"companyId"', "idempotencyKey"])],
+    ["sin target (fail-closed, LL-014)", p2002Target(undefined)],
+  ])(
+    "P2002 de %s NO se disfraza de 'otra entrada': se relanza el mismo error",
+    async (_caso, err) => {
+      await expect(post(enlazarFalla(err))).rejects.toBe(err);
+    }
+  );
+
+  it("un error que no es P2002 se relanza intacto", async () => {
+    const err = new Error("boom");
+
+    await expect(post(enlazarFalla(err))).rejects.toBe(err);
+  });
+});
+
+// ─── L-1: la auditoría de POST dice contra qué cuenta se contabilizó ─────────
+
+describe("SPEC-007 L-1 — postMovement audita la contrapartida", () => {
+  it("ENTRADA contabilizada por contrapartida: el AuditLog POST incluye counterpartAccountId", async () => {
+    const tx = makeTx(makeMockMovement({ type: "ENTRADA", counterpartAccountId: "acc-cxp" }));
+
+    await post(tx);
+
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "POST",
+          newValue: expect.objectContaining({
+            status: "POSTED",
+            transactionId: "tx-001",
+            counterpartAccountId: "acc-cxp",
+          }),
+        }),
+      })
+    );
   });
 });
 
@@ -1116,22 +1443,36 @@ describe("SPEC-007 CA-tenant — contabilizar y anular acotan el movimiento por 
   });
 });
 
-// ─── RN-6: anular una ENTRADA ────────────────────────────────────────────────
+// ─── RN-6 / M-2: anular un movimiento ────────────────────────────────────────
+
+/** ENTRADA ya contabilizada por contrapartida Banco: su asiento original es `tx-original-001`. */
+const entradaPosted = (over: Parameters<typeof makeMockMovement>[0] = {}) =>
+  makeMockMovement({
+    status: "POSTED",
+    type: "ENTRADA",
+    quantity: new Decimal("5"),
+    unitCost: new Decimal("120"),
+    totalCost: new Decimal("600"),
+    counterpartAccountId: "acc-banco",
+    transactionId: "tx-original-001",
+    invoiceId: null,
+    ...over,
+  });
+
+/** SALIDA ya contabilizada (Dr COGS / Cr Inventario): su asiento original es `tx-original-002`. */
+const salidaPosted = (over: Parameters<typeof makeMockMovement>[0] = {}) =>
+  makeMockMovement({
+    status: "POSTED",
+    type: "SALIDA",
+    quantity: new Decimal("3"),
+    unitCost: new Decimal("100"),
+    totalCost: new Decimal("300"),
+    counterpartAccountId: null,
+    transactionId: "tx-original-002",
+    ...over,
+  });
 
 describe("SPEC-007 RN-6 — voidPostedMovement de una ENTRADA", () => {
-  const entradaPosted = (over: Parameters<typeof makeMockMovement>[0] = {}) =>
-    makeMockMovement({
-      status: "POSTED",
-      type: "ENTRADA",
-      quantity: new Decimal("5"),
-      unitCost: new Decimal("120"),
-      totalCost: new Decimal("600"),
-      counterpartAccountId: "acc-banco",
-      transactionId: "tx-original-001",
-      invoiceId: null,
-      ...over,
-    });
-
   it("CA-7: con contrapartida y asiento propio → contra-asiento de 2 lineas: Dr contrapartida / Cr Inventario, Σ = 0", async () => {
     const tx = makeTx(entradaPosted());
 
@@ -1146,9 +1487,16 @@ describe("SPEC-007 RN-6 — voidPostedMovement de una ENTRADA", () => {
   });
 
   it("CA-7: el contra-asiento es el espejo EXACTO del guardado, a 4 decimales (no cuantiza)", async () => {
-    // Movimiento historico guardado a 4 decimales: la anulacion deriva de lo guardado (ADR-058 B2).
+    // Asiento historico guardado a 4 decimales: la anulacion deriva de lo guardado (ADR-058 B2).
     const tx = makeTx(
-      entradaPosted({ totalCost: new Decimal("233.3331"), counterpartAccountId: "acc-cxp" })
+      entradaPosted({ totalCost: new Decimal("233.3331"), counterpartAccountId: "acc-cxp" }),
+      [],
+      {
+        journalEntries: [
+          journalLine("tx-original-001", "acc-inv", "233.3331"),
+          journalLine("tx-original-001", "acc-cxp", "-233.3331"),
+        ],
+      }
     );
 
     await voidPosted(tx);
@@ -1181,7 +1529,7 @@ describe("SPEC-007 RN-6 — voidPostedMovement de una ENTRADA", () => {
       { transactionId: "tx-factura-001", counterpartAccountId: "acc-banco" },
     ],
   ])(
-    "CA-8: ENTRADA ligada a factura (%s) → rechazada; el stock no cambia y el movimiento sigue POSTED",
+    "CA-8: ENTRADA ligada a factura (%s) → rechazada ANTES de leer el asiento; el stock no cambia y el movimiento sigue POSTED",
     async (_caso, over) => {
       const tx = makeTx(
         entradaPosted({ invoiceId: "inv-001", counterpartAccountId: null, ...over })
@@ -1189,37 +1537,11 @@ describe("SPEC-007 RN-6 — voidPostedMovement de una ENTRADA", () => {
 
       await expect(voidPosted(tx)).rejects.toThrow(MSG_ANULAR_ENTRADA_DE_FACTURA);
 
+      // Regla (iv) de la ronda de seguridad: se rechaza SIEMPRE, antes de leer nada del asiento.
+      expect(tx.journalEntry.findMany).not.toHaveBeenCalled();
       expectNoWrites(tx);
     }
   );
-
-  it.each([null, "acc-banco"])(
-    "CA-9: ENTRADA sin asiento original (transactionId nulo, contrapartida=%s) → revierte el stock y NO crea asiento",
-    async (counterpart) => {
-      const tx = makeTx(entradaPosted({ transactionId: null, counterpartAccountId: counterpart }));
-
-      await voidPosted(tx);
-
-      expect(tx.transaction.create).not.toHaveBeenCalled();
-      expect(tx.inventoryItem.update.mock.calls[0]![0].data.stockQuantity.toString()).toBe("5");
-      expect(tx.inventoryMovement.update.mock.calls[0]![0].data).toMatchObject({
-        status: "VOIDED",
-      });
-      // La auditoría se conserva aunque no haya contra-asiento.
-      expect(tx.auditLog.create).toHaveBeenCalledOnce();
-      expect(tx.auditLog.create.mock.calls[0]![0].data).toMatchObject({ action: "VOID_POSTED" });
-    }
-  );
-
-  it("RN-6: ENTRADA con asiento pero sin contrapartida (dato previo) → error de negocio, sin cambios", async () => {
-    const tx = makeTx(
-      entradaPosted({ counterpartAccountId: null, transactionId: "tx-previo-001" })
-    );
-
-    await expect(voidPosted(tx)).rejects.toThrow(MSG_ANULAR_ASIENTO_SIN_CONTRAPARTIDA);
-
-    expectNoWrites(tx);
-  });
 
   it("(guarda) anular una ENTRADA cuyo stock ya se consumió sigue rechazándose y no escribe nada", async () => {
     const tx = makeTx(
@@ -1236,18 +1558,7 @@ describe("SPEC-007 RN-6 — voidPostedMovement de una ENTRADA", () => {
   });
 
   it("(guarda) anular una SALIDA ligada a factura sigue creando su contra-asiento de 2 lineas (la restricción es solo de ENTRADA)", async () => {
-    const tx = makeTx(
-      makeMockMovement({
-        status: "POSTED",
-        type: "SALIDA",
-        quantity: new Decimal("3"),
-        unitCost: new Decimal("100"),
-        totalCost: new Decimal("300"),
-        counterpartAccountId: null,
-        invoiceId: "inv-001",
-        transactionId: "tx-original-002",
-      })
-    );
+    const tx = makeTx(salidaPosted({ invoiceId: "inv-001" }));
 
     await voidPosted(tx);
 
@@ -1259,4 +1570,291 @@ describe("SPEC-007 RN-6 — voidPostedMovement de una ENTRADA", () => {
     // la SALIDA devuelve stock: 10 + 3
     expect(tx.inventoryItem.update.mock.calls[0]![0].data.stockQuantity.toString()).toBe("13");
   });
+});
+
+// ─── M-2: el contra-asiento nace de las LÍNEAS GUARDADAS ─────────────────────
+//
+// Hallazgo MEDIUM del security-agent: voidPostedMovement armaba el contra-asiento con lo que HOY
+// dijera el item (`accountId`, `cogsAccountId`) o el movimiento (`counterpartAccountId`). Si el
+// item se reconfiguro entre contabilizar y anular, el contra-asiento caia en cuentas distintas de
+// las del asiento original y el mayor quedaba falseado. Ahora se lee `JournalEntry` del asiento
+// original y se niega linea por linea, exacto.
+
+describe("SPEC-007 M-2 — voidPostedMovement deriva el contra-asiento de las líneas guardadas del asiento original", () => {
+  /** Estado final esperado de una anulacion que solo revierte stock: sin asiento, sin rastro. */
+  const expectSoloRevierteStock = (
+    tx: Tx,
+    result: Awaited<ReturnType<typeof voidPostedMovement>>,
+    stockEsperado: string
+  ) => {
+    expect(tx.transaction.create).not.toHaveBeenCalled();
+    expect(result.voidTransaction).toBeNull();
+    expect(tx.inventoryItem.update.mock.calls[0]![0].data.stockQuantity.toString()).toBe(
+      stockEsperado
+    );
+    expect(tx.inventoryMovement.update.mock.calls[0]![0].data).toMatchObject({ status: "VOIDED" });
+    expect(tx.auditLog.create).toHaveBeenCalledOnce();
+    const audit = tx.auditLog.create.mock.calls[0]![0];
+    expect(audit.data).toMatchObject({ action: "VOID_POSTED" });
+    expect(audit.data.newValue).toMatchObject({ status: "VOIDED", voidTransactionId: null });
+  };
+
+  it("ADR-004: lee las líneas del asiento original acotadas por companyId y pide solo cuenta, monto y descripción", async () => {
+    const tx = makeTx(entradaPosted());
+
+    await voidPosted(tx);
+
+    expect(tx.journalEntry.findMany).toHaveBeenCalledTimes(1);
+    const args = tx.journalEntry.findMany.mock.calls[0]![0] as { where: Row; select: Row };
+    expect(args.where).toMatchObject({
+      transactionId: "tx-original-001",
+      transaction: { companyId: COMPANY_ID },
+    });
+    expect(args.select).toMatchObject({ accountId: true, amount: true, description: true });
+  });
+
+  it("M-2 (clave): contabilizar con el ítem en la cuenta A, cambiar la cuenta del ítem a B y anular → el contra-asiento usa la cuenta A", async () => {
+    // 1) Contabilizar: la entrada crea su asiento Dr acc-inv (A) / Cr acc-banco.
+    const postTx = makeTx(
+      makeMockMovement({
+        type: "ENTRADA",
+        totalCost: new Decimal("600"),
+        counterpartAccountId: "acc-banco",
+      })
+    );
+    await post(postTx);
+    const guardadas = linesOf(postTx).map((l) =>
+      journalLine("tx-001", l.accountId, l.amount.toString())
+    );
+    expect(guardadas.map((l) => l.accountId)).toEqual(["acc-inv", "acc-banco"]);
+
+    // 2) El ítem se reconfigura: su cuenta de inventario pasa a B y su COGS a otra cuenta.
+    const itemReconfigurado = { ...mockItem, accountId: "acc-gasto", cogsAccountId: "acc-ingreso" };
+    const voidTx = makeTx(
+      entradaPosted({
+        transactionId: "tx-001",
+        counterpartAccountId: "acc-banco",
+        item: itemReconfigurado,
+      }),
+      [],
+      { journalEntries: guardadas }
+    );
+
+    // 3) Anular: el contra-asiento espeja las cuentas del asiento ORIGINAL, no las de hoy.
+    await voidPosted(voidTx);
+
+    const lines = linesOf(voidTx);
+    expect(lines).toHaveLength(2);
+    expect(amountOf(lines, "acc-banco")).toBe("600");
+    expect(amountOf(lines, "acc-inv")).toBe("-600");
+    expect(lines.map((l) => l.accountId)).not.toContain("acc-gasto");
+    expect(lines.map((l) => l.accountId)).not.toContain("acc-ingreso");
+    expect(sumOf(lines).isZero()).toBe(true);
+  });
+
+  it("M-2: la contrapartida que hoy diga el movimiento no manda: se espeja la del asiento guardado", async () => {
+    // El asiento original (tx-original-001) acreditó acc-banco; el movimiento hoy dice acc-capital.
+    const tx = makeTx(entradaPosted({ counterpartAccountId: "acc-capital" }));
+
+    await voidPosted(tx);
+
+    const lines = linesOf(tx);
+    expect(lines).toHaveLength(2);
+    expect(amountOf(lines, "acc-banco")).toBe("600");
+    expect(amountOf(lines, "acc-inv")).toBe("-600");
+    expect(lines.map((l) => l.accountId)).not.toContain("acc-capital");
+  });
+
+  it("M-2: ENTRADA sin counterpartAccountId pero con asiento original completo → se anula con su espejo", async () => {
+    // Antes se rechazaba ("asiento sin contrapartida, dato previo") aunque el asiento SÍ cuadrara.
+    const tx = makeTx(entradaPosted({ counterpartAccountId: null }));
+
+    await voidPosted(tx);
+
+    const lines = linesOf(tx);
+    expect(lines).toHaveLength(2);
+    expect(amountOf(lines, "acc-banco")).toBe("600");
+    expect(amountOf(lines, "acc-inv")).toBe("-600");
+    expect(sumOf(lines).isZero()).toBe(true);
+  });
+
+  it.each([
+    ["ENTRADA", () => entradaPosted(), "acc-banco", "600", "acc-inv", "-600"],
+    ["SALIDA", () => salidaPosted(), "acc-cogs", "-300", "acc-inv", "300"],
+  ])(
+    "M-2: %s sin cuentas configuradas en el ítem se anula igual (no depende de item.accountId ni de item.cogsAccountId)",
+    async (_tipo, movimiento, cuentaA, montoA, cuentaB, montoB) => {
+      const tx = makeTx({
+        ...movimiento(),
+        item: { ...mockItem, accountId: null!, cogsAccountId: null! },
+      });
+
+      await voidPosted(tx);
+
+      const lines = linesOf(tx);
+      expect(lines).toHaveLength(2);
+      expect(amountOf(lines, cuentaA)).toBe(montoA);
+      expect(amountOf(lines, cuentaB)).toBe(montoB);
+      expect(lines.every((l) => typeof l.accountId === "string" && l.accountId.length > 0)).toBe(
+        true
+      );
+      expect(sumOf(lines).isZero()).toBe(true);
+    }
+  );
+
+  it.each(["SALIDA", "AJUSTE"] as const)(
+    "M-2: %s se anula con las cuentas del asiento guardado, no con las que hoy tenga el ítem",
+    async (type) => {
+      const tx = makeTx(
+        makeMockMovement({
+          status: "POSTED",
+          type,
+          quantity: new Decimal("2"),
+          unitCost: new Decimal("100"),
+          totalCost: new Decimal("200"),
+          counterpartAccountId: null,
+          transactionId: "tx-original-ajuste",
+          // El ítem se reconfiguró después de contabilizar.
+          item: { ...mockItem, accountId: "acc-banco", cogsAccountId: "acc-gasto" },
+        }),
+        [],
+        {
+          journalEntries: [
+            journalLine("tx-original-ajuste", "acc-cogs", "200"),
+            journalLine("tx-original-ajuste", "acc-inv", "-200"),
+          ],
+        }
+      );
+
+      await voidPosted(tx);
+
+      const lines = linesOf(tx);
+      expect(lines).toHaveLength(2);
+      expect(amountOf(lines, "acc-cogs")).toBe("-200");
+      expect(amountOf(lines, "acc-inv")).toBe("200");
+      expect(lines.map((l) => l.accountId)).not.toContain("acc-gasto");
+      expect(lines.map((l) => l.accountId)).not.toContain("acc-banco");
+      expect(sumOf(lines).isZero()).toBe(true);
+    }
+  );
+
+  it("M-2: cada línea guardada se niega por separado (un asiento de 3 líneas da un contra-asiento de 3 líneas) y el monto sale de las líneas, no del movimiento", async () => {
+    // El movimiento dice 600, pero lo guardado en el asiento son 116 / -100 / -16.
+    const tx = makeTx(entradaPosted({ counterpartAccountId: "acc-cxp" }), [], {
+      journalEntries: [
+        journalLine("tx-original-001", "acc-inv", "116"),
+        journalLine("tx-original-001", "acc-cxp", "-100"),
+        journalLine("tx-original-001", "acc-gasto", "-16"),
+      ],
+    });
+
+    await voidPosted(tx);
+
+    const lines = linesOf(tx);
+    expect(lines).toHaveLength(3);
+    expect(amountOf(lines, "acc-inv")).toBe("-116");
+    expect(amountOf(lines, "acc-cxp")).toBe("100");
+    expect(amountOf(lines, "acc-gasto")).toBe("16");
+    expect(sumOf(lines).isZero()).toBe(true);
+  });
+
+  // ── (i) sin asiento original ───────────────────────────────────────────────
+
+  it.each([
+    [
+      "ENTRADA sin contrapartida",
+      () => entradaPosted({ transactionId: null, counterpartAccountId: null }),
+      "5",
+    ],
+    ["ENTRADA con contrapartida", () => entradaPosted({ transactionId: null }), "5"],
+    ["SALIDA", () => salidaPosted({ transactionId: null }), "13"],
+    [
+      "AJUSTE",
+      () =>
+        salidaPosted({
+          type: "AJUSTE",
+          quantity: new Decimal("2"),
+          totalCost: new Decimal("200"),
+          transactionId: null,
+        }),
+      "12",
+    ],
+  ])(
+    "(i) %s con transactionId nulo (dato previo) → solo revierte el stock y marca VOIDED, SIN asiento",
+    async (_caso, movimiento, stockEsperado) => {
+      const tx = makeTx(movimiento());
+
+      const result = await voidPosted(tx);
+
+      expectSoloRevierteStock(tx, result, stockEsperado);
+    }
+  );
+
+  // ── (ii) asiento original sin líneas ───────────────────────────────────────
+
+  it.each([
+    ["ENTRADA", () => entradaPosted({ transactionId: "tx-sin-lineas" }), "5"],
+    ["SALIDA", () => salidaPosted({ transactionId: "tx-sin-lineas" }), "13"],
+  ])(
+    "(ii) %s cuyo asiento original no tiene líneas → solo revierte el stock y marca VOIDED, SIN asiento",
+    async (_caso, movimiento, stockEsperado) => {
+      const tx = makeTx(movimiento());
+
+      const result = await voidPosted(tx);
+
+      expectSoloRevierteStock(tx, result, stockEsperado);
+      // Y lo decidio leyendo las lineas guardadas (no por una suposicion).
+      expect(tx.journalEntry.findMany).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("ADR-004: las líneas de un asiento de OTRA empresa no se ven → no se inventa un contra-asiento con cuentas ajenas", async () => {
+    // Dato corrupto: el movimiento apunta a un asiento cuyas lineas pertenecen a otra empresa. Un
+    // servicio que no acote por `transaction: { companyId }` las negaria y crearia un asiento con
+    // cuentas ajenas dentro de ESTA empresa.
+    const ajena = { transaction: { companyId: OTHER_COMPANY_ID } };
+    const tx = makeTx(entradaPosted({ transactionId: "tx-ajeno-001" }), [], {
+      journalEntries: [
+        journalLine("tx-ajeno-001", "acc-otra-empresa", "600", ajena),
+        journalLine("tx-ajeno-001", "acc-inv", "-600", ajena),
+      ],
+    });
+
+    const result = await voidPosted(tx);
+
+    expectSoloRevierteStock(tx, result, "5");
+  });
+
+  // ── (iii) asiento original que no cuadra ───────────────────────────────────
+
+  it.each([
+    [
+      "ENTRADA con un asiento previo de UNA línea (sin contrapartida)",
+      () => entradaPosted({ transactionId: "tx-previo-001" }),
+      [journalLine("tx-previo-001", "acc-inv", "600")],
+    ],
+    [
+      "ENTRADA con un desfase de 0,0001 (no se tolera redondeo)",
+      () => entradaPosted({ transactionId: "tx-desfase-001", totalCost: new Decimal("233.3331") }),
+      [
+        journalLine("tx-desfase-001", "acc-inv", "233.3331"),
+        journalLine("tx-desfase-001", "acc-banco", "-233.3330"),
+      ],
+    ],
+    [
+      "SALIDA con un asiento de UNA línea",
+      () => salidaPosted({ transactionId: "tx-previo-002" }),
+      [journalLine("tx-previo-002", "acc-cogs", "300")],
+    ],
+  ])(
+    "(iii) %s → error 'no se puede anular automáticamente' y no cambia nada",
+    async (_caso, movimiento, journalEntries) => {
+      const tx = makeTx(movimiento(), [], { journalEntries });
+
+      await expect(voidPosted(tx)).rejects.toThrow(RE_ASIENTO_NO_CUADRA);
+
+      // Ni stock, ni contra-asiento, ni estado, ni auditoria: el rechazo no deja nada a medias.
+      expectNoWrites(tx);
+    }
+  );
 });
