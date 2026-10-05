@@ -24,6 +24,8 @@ import type { ComponentType } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
+import { AccountCombobox } from "./AccountCombobox";
+
 // ─── Contrato (SPEC §7) ──────────────────────────────────────────────────────────────────────────
 
 type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
@@ -39,15 +41,8 @@ type AccountComboboxProps = {
   className?: string;
 };
 
-const MODULE_PATH = "./AccountCombobox";
 async function loadCombobox(): Promise<ComponentType<AccountComboboxProps>> {
-  const mod = (await import(/* @vite-ignore */ MODULE_PATH)) as {
-    AccountCombobox?: ComponentType<AccountComboboxProps>;
-  };
-  if (typeof mod.AccountCombobox !== "function") {
-    throw new Error("AccountCombobox no es una función exportada por ./AccountCombobox");
-  }
-  return mod.AccountCombobox;
+  return AccountCombobox;
 }
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────────────────────────

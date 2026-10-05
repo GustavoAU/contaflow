@@ -23,6 +23,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { expectNoSeriousA11yViolations } from "@/__tests__/a11y";
 
+import { AccountCombobox } from "./AccountCombobox";
+
 type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
 type AccountComboboxProps = {
   accounts: readonly AccountOption[];
@@ -36,15 +38,8 @@ type AccountComboboxProps = {
   className?: string;
 };
 
-const MODULE_PATH = "./AccountCombobox";
 async function loadCombobox(): Promise<ComponentType<AccountComboboxProps>> {
-  const mod = (await import(/* @vite-ignore */ MODULE_PATH)) as {
-    AccountCombobox?: ComponentType<AccountComboboxProps>;
-  };
-  if (typeof mod.AccountCombobox !== "function") {
-    throw new Error("AccountCombobox no es una función exportada por ./AccountCombobox");
-  }
-  return mod.AccountCombobox;
+  return AccountCombobox;
 }
 
 const t = (code: string, name: string): AccountOption => ({

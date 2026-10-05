@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { PlusIcon, Trash2Icon, AlertCircleIcon, CheckCircle2Icon, Loader2Icon } from "lucide-react";
 import Decimal from "decimal.js";
 
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -35,11 +36,14 @@ import { todayLocalISO } from "@/lib/today";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
+// Títulos Y cuentas de movimiento (SPEC-012): el selector muestra los títulos como encabezados no
+// elegibles y decide qué es elegible por `isPostable`.
 type Account = {
   id: string;
   name: string;
   code: string;
   type: string;
+  isPostable: boolean;
 };
 
 type Props = {
@@ -304,20 +308,14 @@ export function JournalEntryForm({ companyId, userId, accounts }: Props) {
                       name={`entries.${index}.accountId`}
                       render={({ field }) => (
                         <FormItem>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="h-9">
-                                <SelectValue placeholder="Seleccionar cuenta..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {accounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  {account.code} — {account.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <AccountCombobox
+                              accounts={accounts}
+                              value={field.value}
+                              onChange={field.onChange}
+                              aria-label={`Cuenta, línea ${index + 1}`}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

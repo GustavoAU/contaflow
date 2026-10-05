@@ -23,6 +23,8 @@
 
 import { describe, it, expect } from "vitest";
 
+import * as accountSearch from "./account-search";
+
 type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
 type AccountRow = { option: AccountOption; selectable: boolean; depth: number };
 type AccountSearchModule = {
@@ -31,9 +33,8 @@ type AccountSearchModule = {
   selectableCount(rows: readonly AccountRow[]): number;
 };
 
-const MODULE_PATH = "./account-search";
 async function load(): Promise<AccountSearchModule> {
-  return (await import(/* @vite-ignore */ MODULE_PATH)) as AccountSearchModule;
+  return accountSearch;
 }
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────────────────────────
