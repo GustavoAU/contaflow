@@ -131,6 +131,45 @@ describe("assertEntradaCounterpart", () => {
       /1\.1 — CIRCULANTE.*título/
     );
   });
+
+  // ADR-054: una cuenta con `requiresThirdParty` (Cuentas por pagar a proveedores, por ejemplo)
+  // exige el tercero en CADA línea del asiento, y el movimiento de inventario no registra tercero.
+  // Sin esta guarda el borrador se aceptaba y el gate de Prisma lo rechazaba recién al
+  // contabilizar, sin que el contador pudiera arreglarlo: un borrador imposible de contabilizar.
+  it("rechaza una cuenta que exige tercero (ADR-054) y explica qué hacer", async () => {
+    const rows: Row[] = [
+      {
+        id: "acc-cxp-proveedores",
+        companyId: COMPANY_ID,
+        type: "LIABILITY",
+        deletedAt: null,
+        isPostable: true,
+        requiresThirdParty: true,
+        code: "2.1.01.01.001",
+        name: "Cuentas por Pagar a Proveedores",
+      },
+    ];
+    await expect(counterpart("acc-cxp-proveedores", makeDb(rows))).rejects.toThrow(
+      /2\.1\.01\.01\.001 — Cuentas por Pagar a Proveedores.*tercero.*factura de compra/
+    );
+  });
+
+  it("pide requiresThirdParty en la consulta y una cuenta que no lo exige se admite", async () => {
+    const rows: Row[] = [
+      {
+        id: "acc-banco-2",
+        companyId: COMPANY_ID,
+        type: "ASSET",
+        deletedAt: null,
+        isPostable: true,
+        requiresThirdParty: false,
+      },
+    ];
+    const db = makeDb(rows);
+    await expect(counterpart("acc-banco-2", db)).resolves.toBe("acc-banco-2");
+    const args = db.account.findFirst.mock.calls[0]![0] as { select: Record<string, unknown> };
+    expect(args.select).toMatchObject({ requiresThirdParty: true });
+  });
 });
 
 describe("assertMovementPeriodOpen", () => {

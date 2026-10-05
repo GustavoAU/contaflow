@@ -92,10 +92,20 @@ export default async function InventoryPage({ params, searchParams }: Props) {
             // socios, SPEC-007). Las cuentas de producto se filtran más abajo.
             type: { in: ["ASSET", "EXPENSE", "LIABILITY", "EQUITY"] },
           },
-          select: { id: true, code: true, name: true, type: true },
+          // requiresThirdParty (ADR-054): MovementForm no ofrece como contrapartida las cuentas que
+          // exigen tercero, porque el movimiento de inventario no lo registra.
+          select: { id: true, code: true, name: true, type: true, requiresThirdParty: true },
           orderBy: [{ code: "asc" }],
         })
-      : Promise.resolve([] as { id: string; code: string; name: string; type: string }[]),
+      : Promise.resolve(
+          [] as {
+            id: string;
+            code: string;
+            name: string;
+            type: string;
+            requiresThirdParty: boolean;
+          }[]
+        ),
   ]);
 
   const [rawPending, usdRateMovimientos] =
@@ -180,6 +190,7 @@ export default async function InventoryPage({ params, searchParams }: Props) {
     code: a.code,
     name: a.name,
     type: a.type,
+    requiresThirdParty: a.requiresThirdParty,
   }));
 
   // Cuentas de producto (InventoryItemForm / InventoryItemList): SIN EQUITY — un

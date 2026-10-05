@@ -43,6 +43,8 @@ type AccountOption = {
   code: string;
   name: string;
   type: string;
+  /** ADR-054: la cuenta exige tercero en cada línea del asiento (p. ej. Cuentas por pagar a proveedores). */
+  requiresThirdParty?: boolean;
 };
 
 type Props = {
@@ -64,14 +66,14 @@ type MovementType = (typeof MOVEMENT_TYPES)[number]["value"];
 // Cuentas de contrapartida relevantes por tipo de movimiento
 const COUNTERPART_HINT: Record<MovementType, string> = {
   ENTRADA:
-    "Seleccione de dónde sale el dinero o qué origina la compra: Banco o Caja si fue de contado, Cuentas por pagar si fue a crédito, o Capital solo si es un aporte de socios (por ejemplo, al constituir la empresa).",
+    "Seleccione de dónde sale el dinero o qué origina la entrada: Banco o Caja si fue de contado, o Capital solo si es un aporte de socios (por ejemplo, al constituir la empresa). Una compra a crédito se registra con su factura de compra.",
   SALIDA: "", // SALIDA no necesita contrapartida — Dr COGS / Cr Inventario es autosuficiente
   AJUSTE:
     "Seleccione la cuenta de ajuste: Mermas (gasto) para sobrantes/faltas, o la cuenta operativa correspondiente.",
 };
 
 const COUNTERPART_REQUIRED_MESSAGE =
-  "Seleccione la cuenta de contrapartida: Banco o Caja si fue de contado, Cuentas por pagar si fue a crédito, o Capital solo si es un aporte de socios.";
+  "Seleccione la cuenta de contrapartida: Banco o Caja si fue de contado, o Capital solo si es un aporte de socios. Una compra a crédito se registra con su factura de compra.";
 
 const COUNTERPART_EMPTY_MESSAGE =
   "No hay cuentas disponibles para la contrapartida. Cree en el Plan de Cuentas una cuenta de movimiento de Banco, Caja, Cuentas por pagar o Capital.";
@@ -200,14 +202,18 @@ export function MovementForm({
   const needsCounterpart = movType === "ENTRADA" || movType === "AJUSTE";
 
   // Opciones de contrapartida. ENTRADA: Activo/Pasivo/Patrimonio/Gasto, sin la cuenta de
-  // inventario del producto elegido (el servidor la rechaza). AJUSTE: igual que antes
-  // (sin Patrimonio y sin filtrar), porque el servicio ignora esa cuenta (PA-4).
+  // inventario del producto elegido ni las que exigen tercero (el servidor las rechaza: el
+  // movimiento no registra tercero, ADR-054). AJUSTE: igual que antes (sin Patrimonio y sin
+  // filtrar), porque el servicio ignora esa cuenta (PA-4).
   const isEntrada = movType === "ENTRADA";
   const inventoryAccountId = isEntrada ? selectedItem?.accountId : null;
   const counterpartGroups = COUNTERPART_GROUPS.filter((g) => isEntrada || g.type !== "EQUITY")
     .map((g) => ({
       ...g,
-      accounts: counterpartAccounts.filter((a) => a.type === g.type && a.id !== inventoryAccountId),
+      accounts: counterpartAccounts.filter(
+        (a) =>
+          a.type === g.type && a.id !== inventoryAccountId && !(isEntrada && a.requiresThirdParty)
+      ),
     }))
     .filter((g) => g.accounts.length > 0);
 

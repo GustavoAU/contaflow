@@ -669,7 +669,7 @@ describe("createDraftMovement — recuperación TOCTOU del P2002 de idempotencia
 
 describe("SPEC-007 — createDraftMovement: la ENTRADA sin factura exige una contrapartida válida", () => {
   const MSG_SIN_CONTRAPARTIDA =
-    "La entrada de inventario requiere una cuenta de contrapartida: Banco o Caja si fue de contado, Cuentas por pagar si fue a crédito, o Capital si es aporte de socios.";
+    "La entrada de inventario requiere una cuenta de contrapartida: Banco o Caja si fue de contado, o Capital si es aporte de socios. Una compra a crédito se registra con su factura de compra.";
 
   const BASE = {
     companyId: COMPANY_ID,

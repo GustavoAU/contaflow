@@ -119,7 +119,7 @@ describe("MovementForm — contrapartida obligatoria en ENTRADA (SPEC-007)", () 
     render(<MovementForm {...BASE_PROPS} />);
 
     const hint =
-      "Seleccione de dónde sale el dinero o qué origina la compra: Banco o Caja si fue de contado, Cuentas por pagar si fue a crédito, o Capital solo si es un aporte de socios (por ejemplo, al constituir la empresa).";
+      "Seleccione de dónde sale el dinero o qué origina la entrada: Banco o Caja si fue de contado, o Capital solo si es un aporte de socios (por ejemplo, al constituir la empresa). Una compra a crédito se registra con su factura de compra.";
     const hintEl = screen.getByText(hint);
     expect(counterpartSelect().getAttribute("aria-describedby")).toBe(hintEl.id);
   });
@@ -153,6 +153,31 @@ describe("MovementForm — contrapartida obligatoria en ENTRADA (SPEC-007)", () 
     expect(within(select).queryByRole("option", { name: /Inventario de mercancía/ })).toBeNull();
     // El resto de cuentas de Activo sigue disponible
     expect(within(select).getByRole("option", { name: /Caja/ })).toBeTruthy();
+  });
+
+  // ADR-054: las cuentas que exigen tercero (Cuentas por pagar a proveedores) no se ofrecen en una
+  // ENTRADA sin factura: el movimiento no registra tercero y el gate de Prisma rechazaría el
+  // asiento al contabilizar. Una compra a crédito va con su factura de compra.
+  it("ENTRADA: no ofrece las cuentas que exigen tercero (ADR-054)", () => {
+    const accounts = [
+      ...ACCOUNTS,
+      {
+        id: "acc-cxp-prov",
+        code: "210102001",
+        name: "Cuentas por pagar a proveedores",
+        type: "LIABILITY",
+        requiresThirdParty: true,
+      },
+    ];
+    render(<MovementForm {...BASE_PROPS} counterpartAccounts={accounts} />);
+
+    const select = counterpartSelect();
+    expect(
+      within(select).queryByRole("option", { name: /Cuentas por pagar a proveedores/ })
+    ).toBeNull();
+    // Las demás contrapartidas siguen disponibles
+    expect(within(select).getByRole("option", { name: /Cuentas por pagar$/ })).toBeTruthy();
+    expect(within(select).getByRole("option", { name: /Capital social/ })).toBeTruthy();
   });
 
   it("SALIDA: el selector de contrapartida no aparece", () => {

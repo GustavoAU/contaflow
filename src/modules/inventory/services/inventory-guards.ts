@@ -13,13 +13,16 @@ import { notPostableMessage } from "@/lib/prisma-postable-account-gate";
 // ─── Contrapartida de una ENTRADA sin factura (SPEC-007) ──────────────────────
 
 export const MSG_ENTRADA_SIN_CONTRAPARTIDA =
-  "La entrada de inventario requiere una cuenta de contrapartida: Banco o Caja si fue de contado, Cuentas por pagar si fue a crédito, o Capital si es aporte de socios.";
+  "La entrada de inventario requiere una cuenta de contrapartida: Banco o Caja si fue de contado, o Capital si es aporte de socios. Una compra a crédito se registra con su factura de compra.";
 export const MSG_CONTRAPARTIDA_NO_EXISTE =
   "La cuenta de contrapartida no existe o no pertenece a esta empresa.";
 export const MSG_CONTRAPARTIDA_ES_INVENTARIO =
   "La contrapartida no puede ser la misma cuenta de inventario del producto: el asiento quedaría Dr y Cr sobre la misma cuenta.";
+export function contrapartidaExigeTerceroMessage(code: string, name: string): string {
+  return `La cuenta ${code} — ${name} exige indicar un tercero (proveedor, socio, cliente o empleado) y las entradas de inventario sin factura todavía no lo registran. Para una compra a crédito, regístrela con su factura de compra; para una entrada sin factura elija Banco, Caja o Capital.`;
+}
 const MSG_CONTRAPARTIDA_TIPO_GENERICO =
-  "El tipo de cuenta elegido no es válido como contrapartida de una entrada de inventario. Elija Banco o Caja, Cuentas por pagar o Capital.";
+  "El tipo de cuenta elegido no es válido como contrapartida de una entrada de inventario. Elija Banco, Caja o Capital.";
 
 // PA-1 (contadora, 2026-10-04): la mercancía entra contra Activo (Banco o Caja, de contado), Pasivo
 // (Cuentas por pagar), Patrimonio (Capital, aporte de socios) o Costo/Gasto. Lista PERMITIDA, no
@@ -33,9 +36,9 @@ const TIPOS_CONTRAPARTIDA_PERMITIDOS: ReadonlySet<AccountType> = new Set<Account
 
 const MSG_CONTRAPARTIDA_TIPO_RECHAZADO: Partial<Record<AccountType, string>> = {
   REVENUE:
-    "Una cuenta de Ingresos no puede ser la contrapartida de una entrada de inventario. Elija Banco o Caja, Cuentas por pagar o Capital.",
+    "Una cuenta de Ingresos no puede ser la contrapartida de una entrada de inventario. Elija Banco, Caja o Capital.",
   CONTRA_ASSET:
-    "Una cuenta regularizadora (contra-activo) no puede ser la contrapartida de una entrada de inventario. Elija Banco o Caja, Cuentas por pagar o Capital.",
+    "Una cuenta regularizadora (contra-activo) no puede ser la contrapartida de una entrada de inventario. Elija Banco, Caja o Capital.",
 };
 
 /**
@@ -70,7 +73,14 @@ export async function assertEntradaCounterpart(
   // nunca devuelve una cuenta ajena aunque el guard de arriba se omitiera o cambiara.
   const account = await db.account.findFirst({
     where: { id: accountId, companyId, deletedAt: null },
-    select: { id: true, type: true, code: true, name: true, isPostable: true },
+    select: {
+      id: true,
+      type: true,
+      code: true,
+      name: true,
+      isPostable: true,
+      requiresThirdParty: true,
+    },
   });
   if (!account) throw new Error(MSG_CONTRAPARTIDA_NO_EXISTE);
 
@@ -88,6 +98,15 @@ export async function assertEntradaCounterpart(
   // contabilizar: aquí se avisa al crear el borrador, para no dejar un DRAFT imposible de contabilizar.
   if (account.isPostable === false) {
     throw new Error(notPostableMessage(account.code, account.name));
+  }
+
+  // ADR-054: una cuenta con `requiresThirdParty` (Cuentas por pagar a proveedores, por ejemplo)
+  // exige el tercero en cada línea del asiento, y el movimiento de inventario no lo registra. El
+  // gate de Prisma (prisma-tercero-required-gate) lo rechazaría recién al contabilizar, sin que el
+  // contador pudiera arreglarlo: se corta aquí, antes de dejar un borrador imposible de contabilizar.
+  // Una compra a crédito se registra con su factura de compra (que lleva al proveedor).
+  if (account.requiresThirdParty) {
+    throw new Error(contrapartidaExigeTerceroMessage(account.code, account.name));
   }
 
   return account.id;
