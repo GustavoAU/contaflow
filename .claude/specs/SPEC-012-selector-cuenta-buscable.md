@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
 titulo: El selector de cuenta busca por código o por nombre y muestra los títulos (sin poder elegirlos)
-estado: APROBADA   # aprobada por el dueño 2026-10-05; preguntas resueltas (ver §11)
+estado: EN_CURSO   # aprobada 2026-10-05; plan de §10 pendiente de confirmación (Entrega A)
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
@@ -191,10 +191,32 @@ export function AccountCombobox(props: {
 - [ ] CA-sin-regresión: los tests existentes de los formularios migrados siguen en verde (ajustados al nuevo control).
 
 ## 10. Plan de agentes
-Lo completa `/implementar`.
+Sin cambios de schema ni de actions → se omite el ARCH GATE y el ledger/fiscal-agent. Línea base (2026-10-05, `main`
+`4ec24794`): tsc 0 · **5906 tests** en verde (el test de arquitectura `idempotency-key-tenant-scope` —«Meta: integridad del
+enmascarado»— da timeout intermitente de 5 s dentro del shard 3 porque recorre todos los archivos de `src/`; pasa solo y
+al repetir; ajeno a esta spec, anotado como pendiente aparte).
 
+La spec se entrega en **dos PR** (Q3). Este plan es el de la **Entrega A**; la Entrega B repite el mismo flujo en la rama
+`feat/spec-012b-selector-cuenta-resto-formularios`.
+
+### Entrega A — componente + asientos manuales (rama `feat/spec-012-selector-cuenta-buscable`)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | test-agent | Tests en RED: `src/lib/account-search.test.ts` (CA-1..CA-8, CA-10, CA-11: normalización, prefijo de código sin puntos, palabras con letras, orden y exacta primero, jerarquía con títulos, cadena de ancestros, grupo completo si coincide un título, tope de 100 sin contar encabezados); `AccountCombobox.test.tsx` jsdom (CA-9 títulos no elegibles por clic/Enter/Tab y saltados por flechas, CA-12..CA-15, CA-18) y `AccountCombobox.a11y.test.tsx` con axe (CA-17, cerrado y abierto); `JournalEntryForm` (CA-16: «Selecciona una cuenta», `110101001`+Enter, no se puede elegir un título) ajustando sus tests actuales. | RED |
+| 2 | ui-agent | `src/lib/account-search.ts` (`AccountOption`, `AccountRow`, `normalizeSearch`, `filterAccounts`, `selectableCount`), `src/components/accounting/AccountCombobox.tsx` (patrón ARIA combobox, sin dependencias nuevas), sustituir el `Select` de cuenta en `JournalEntryForm` y entregar títulos + cuentas desde `transactions/new/page.tsx` (`getAccountsAction(companyId)` sin `onlyPostable`, mapeo a `AccountOption` con `isPostable`). Cumplir copy y estados de §8. | GREEN |
+| 3 | test-agent | Auditoría de cobertura de lo nuevo (puro 100 %, componente ≥ 90 %); cierra huecos MUST-FIX. | — |
+| 4 | security-agent | Revisión ligera (cambia qué datos de la propia empresa llegan al cliente: ahora también los títulos): mismos `companyId`/roles de `getAccountsAction`, sin fuga entre empresas, el título nunca viaja como valor del formulario (el gate de asientos sigue siendo el respaldo), sin `dangerouslySetInnerHTML`. | — |
+| 5 | (sesión principal) | Gates: `tsc`, `vitest` (6 shards), `pnpm lint`, `format:check`; CA de la Entrega A marcados `[x]`; ADR-059 (nota del selector buscable); LL si aparece un patrón nuevo; línea en Estado Activo. Commits por capa. **Sin merge.** | — |
+
+### Entrega B — resto de formularios (rama `feat/spec-012b-selector-cuenta-resto-formularios`, un solo PR)
+| Paso | Agente | Subtarea | TDD |
+|---|---|---|---|
+| 1 | ui-agent | Inventario de los ~17 formularios y páginas (§8): cuáles usan `Select` de Radix y cuáles `<select>` nativo, y qué lógica propia usa la lista de cuentas (autoselección, validaciones) para aplicar RN-19. | — |
+| 2 | test-agent | Tests en RED: CA-19 (consultas sin `isPostable: true`, con `companyId`/`deletedAt`/tipo), CA-20 (`FixedAssetForm.findBestMatch` ignora un título que coincidiría mejor), CA-limpieza (test de arquitectura: ningún `SelectItem` de cuentas) y ajuste de los tests existentes de cada formulario. | RED |
+| 3 | ui-agent | Migrar los formularios y las páginas que les entregan las cuentas (quitar `isPostable: true` de las consultas, retirar `onlyPostable` de `getAccountsAction` si no queda consumidor). | GREEN |
+| 4 | test-agent | Cobertura y revisión de regresiones. | — |
+| 5 | security-agent | Revisión ligera de las consultas modificadas (`companyId`, `deletedAt`, tipo). | — |
+| 6 | (sesión principal) | Gates, cierre de §12, spec `HECHA`, ADR-059, Estado Activo. **Sin merge.** | — |
 
 ## 11. Riesgos y preguntas abiertas
 **Resueltas (dueño, 2026-10-05):** Q1 — los títulos **se muestran** como encabezados, **sin poder elegirlos** (RN-8..RN-11);
