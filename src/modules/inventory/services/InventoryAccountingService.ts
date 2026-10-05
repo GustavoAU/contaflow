@@ -19,14 +19,26 @@ import {
   applySerialMovement,
   voidSerialMovement,
 } from "./SerialTrackingService";
+import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import { assertEntradaCounterpart, assertMovementPeriodOpen } from "./inventory-guards";
 
 const MSG_FACTURA_SIN_ASIENTO =
   "La factura de esta entrada aún no tiene asiento contable. Contabilice la factura antes de registrar la entrada de inventario.";
+// Un solo texto para "no es una factura de compra de esta empresa" y "el movimiento no es línea de
+// ella": el usuario no necesita (ni debe) saber cuál de las dos falló, y no se filtra si la factura
+// existe en otra empresa.
+const MSG_FACTURA_NO_ES_COMPRA =
+  "La entrada indica una factura que no es una factura de compra de esta empresa, o de la cual no es una línea. No se puede contabilizar: elimine este borrador y registre la entrada sin factura, con su contrapartida.";
+const MSG_ASIENTO_FACTURA_NO_VIGENTE =
+  "El asiento de la factura de esta entrada no está vigente (anulado). No se puede registrar la entrada de inventario.";
+// M-1 (paliativo): InventoryMovement.transactionId es único, y InvoiceService enlaza TODOS los
+// movimientos de una factura al mismo asiento. La solución de fondo (relación 1:N) es otra spec.
+const MSG_OTRA_ENTRADA_ENLAZADA =
+  "Esta factura ya tiene otra entrada de inventario enlazada a su asiento. Por ahora el sistema solo admite una entrada de inventario por factura; esta limitación está en revisión.";
 const MSG_ANULAR_ENTRADA_DE_FACTURA =
   "Esta entrada pertenece a una factura: anule la factura o emita una nota de crédito.";
-const MSG_ANULAR_ASIENTO_SIN_CONTRAPARTIDA =
-  "Esta entrada tiene un asiento sin contrapartida (dato previo). No se puede anular automáticamente; corrija con un asiento manual.";
+const MSG_ANULAR_ASIENTO_NO_CUADRA =
+  "El asiento original de este movimiento no cuadra (dato previo, por ejemplo sin contrapartida). No se puede anular automáticamente; corrija con un asiento manual.";
 
 // Cómo se contabiliza una ENTRADA (null en SALIDA / AJUSTE). Se decide ANTES de escribir nada:
 //  - FACTURA: la factura ya tiene su asiento (Dr Inventario / Cr Proveedores); se enlaza a él.
@@ -91,12 +103,38 @@ export async function postMovement(
           if (movement.invoiceId) {
             // RN-4 / PA-3: con factura NO se crea asiento propio (duplicaría el débito a Inventario
             // en el Libro Mayor). Si la factura aún no tiene asiento, no se registra la entrada.
+            // H-1 (PA-9): enlazar el asiento de una factura es heredar SU contabilidad, así que antes
+            // se exige que sea una COMPRA de la empresa, que este movimiento sea línea vigente de
+            // ella y que su asiento sea de la empresa y esté vigente. Sin esto, una entrada ligada a
+            // una factura de venta (o ajena a la línea) quedaba contabilizada sin débito a Inventario.
             const invoice = await tx.invoice.findFirst({
               where: { id: movement.invoiceId, companyId, deletedAt: null }, // ADR-004
-              select: { transactionId: true },
+              select: { type: true, transactionId: true },
             });
-            if (!invoice?.transactionId) throw new Error(MSG_FACTURA_SIN_ASIENTO);
-            entrada = { via: "FACTURA", transactionId: invoice.transactionId };
+            if (!invoice) throw new Error(MSG_FACTURA_SIN_ASIENTO);
+            if (invoice.type !== "PURCHASE") throw new Error(MSG_FACTURA_NO_ES_COMPRA);
+
+            const invoiceLine = await tx.invoiceLine.findFirst({
+              where: {
+                companyId, // ADR-004
+                invoiceId: movement.invoiceId,
+                inventoryMovementId: movement.id,
+                deletedAt: null,
+              },
+              select: { id: true },
+            });
+            if (!invoiceLine) throw new Error(MSG_FACTURA_NO_ES_COMPRA);
+
+            if (!invoice.transactionId) throw new Error(MSG_FACTURA_SIN_ASIENTO);
+            const invoiceTransaction = await tx.transaction.findFirst({
+              where: { id: invoice.transactionId, companyId }, // ADR-004: nunca el asiento de otra empresa
+              select: { id: true, status: true },
+            });
+            if (!invoiceTransaction) throw new Error(MSG_FACTURA_SIN_ASIENTO);
+            if (invoiceTransaction.status !== "POSTED") {
+              throw new Error(MSG_ASIENTO_FACTURA_NO_VIGENTE);
+            }
+            entrada = { via: "FACTURA", transactionId: invoiceTransaction.id };
           } else {
             // RN-1..RN-3: sin factura, la contrapartida es obligatoria y debe ser válida.
             const accountId = await assertEntradaCounterpart(tx, {
@@ -311,17 +349,28 @@ export async function postMovement(
         }
 
         // ── Marcar movimiento como POSTED ─────────────────────────────────────
-        const posted = await tx.inventoryMovement.update({
-          where: { id: movementId },
-          data: {
-            status: "POSTED",
-            transactionId: ledgerTransaction.id,
-            postedAt: new Date(),
-            postedBy: userId,
-            unitCost: unitCostSnapshot, // snapshot CPP al momento de post
-            totalCost,
-          },
-        });
+        let posted;
+        try {
+          posted = await tx.inventoryMovement.update({
+            where: { id: movementId },
+            data: {
+              status: "POSTED",
+              transactionId: ledgerTransaction.id,
+              postedAt: new Date(),
+              postedBy: userId,
+              unitCost: unitCostSnapshot, // snapshot CPP al momento de post
+              totalCost,
+            },
+          });
+        } catch (err) {
+          // M-1: solo la rama FACTURA enlaza un asiento que ya existe (el de la contrapartida es
+          // recién creado y no puede chocar). `p2002TargetIncludes` y no `meta.target` a mano: con
+          // Prisma 7.8 + Neon esa clave no existe (LL-014).
+          if (entrada?.via === "FACTURA" && p2002TargetIncludes(err, "transactionId")) {
+            throw new Error(MSG_OTRA_ENTRADA_ENLAZADA);
+          }
+          throw err;
+        }
 
         // ── AuditLog ──────────────────────────────────────────────────────────
         await tx.auditLog.create({
@@ -345,6 +394,8 @@ export async function postMovement(
               transactionId: ledgerTransaction.id,
               // ENTRADA con factura: el asiento es el de la factura, no uno propio (trazabilidad)
               ...(entrada?.via === "FACTURA" && { invoiceId: movement.invoiceId }),
+              // L-1: ENTRADA contabilizada por contrapartida: contra qué cuenta se acreditó
+              ...(entrada?.via === "CONTRAPARTIDA" && { counterpartAccountId: entrada.accountId }),
               ...(!glResidual.isZero()
                 ? {
                     glRounding: {
@@ -380,8 +431,9 @@ export async function postMovement(
 
 // ─── voidPostedMovement: POSTED → VOIDED (Serializable) ──────────────────────
 // Revierte el stock y genera un contra-asiento en la misma transacción atómica.
-// ENTRADA (RN-6): ligada a factura se rechaza; sin asiento original solo revierte el stock; con
-// asiento y contrapartida, contra-asiento exacto de 2 líneas. Nunca un asiento de una sola línea.
+// El contra-asiento es la negación exacta de las LÍNEAS GUARDADAS del asiento original (RN-6, M-2).
+// ENTRADA ligada a factura se rechaza; sin asiento original (o sin líneas) solo se revierte el
+// stock; un asiento original que no cuadra se rechaza. Nunca un asiento de una sola línea.
 
 export async function voidPostedMovement(
   input: VoidMovementInput,
@@ -409,41 +461,50 @@ export async function voidPostedMovement(
         const item = movement.item;
         const qty = new Decimal(movement.quantity);
         const currentStock = new Decimal(item.stockQuantity);
-        const totalCost = new Decimal(movement.totalCost);
 
         // ── Qué contra-asiento corresponde: se decide ANTES de la primera escritura ──
-        // La anulación deriva de lo guardado en el movimiento (RN-6), nunca de lo que hoy diga el
-        // ítem. null = no hay asiento que contrarrestar: solo se revierte el stock.
-        let rawCounterEntries: { accountId: string; amount: Decimal }[] | null;
-        if (movement.type === "ENTRADA") {
-          if (movement.invoiceId) {
-            // Su asiento es el de la factura: contrarrestar solo el movimiento dejaría la
-            // contabilidad descuadrada con la factura. Se anula la factura o se emite nota de crédito.
-            throw new Error(MSG_ANULAR_ENTRADA_DE_FACTURA);
+        // M-2 / RN-6: la anulación deriva de las LÍNEAS GUARDADAS del asiento original, nunca de lo
+        // que hoy digan el ítem o el movimiento: si el ítem se reconfiguró entre contabilizar y
+        // anular, un contra-asiento armado con sus cuentas de hoy caería en cuentas distintas a las
+        // del original y falsearía el mayor. null = no hay asiento que contrarrestar (solo se
+        // revierte el stock).
+        if (movement.type === "ENTRADA" && movement.invoiceId) {
+          // Su asiento es el de la factura: contrarrestar solo el movimiento dejaría la
+          // contabilidad descuadrada con la factura. Se anula la factura o se emite nota de crédito.
+          // Se rechaza SIEMPRE y antes de leer nada, aunque el movimiento no tenga asiento enlazado.
+          throw new Error(MSG_ANULAR_ENTRADA_DE_FACTURA);
+        }
+
+        let rawCounterEntries:
+          | { accountId: string; amount: Decimal; description: string | null }[]
+          | null = null;
+        // Sin `transactionId` (dato previo: producción tiene entradas sin asiento) no hay nada que reversar.
+        if (movement.transactionId) {
+          const originalLines = await tx.journalEntry.findMany({
+            // ADR-004: el asiento se acota por empresa a través de su Transaction
+            where: { transactionId: movement.transactionId, transaction: { companyId } },
+            select: { accountId: true, amount: true, description: true },
+          });
+
+          // Asiento sin líneas visibles (o de otra empresa): tampoco hay nada que contrarrestar.
+          if (originalLines.length > 0) {
+            const lines = originalLines.map((l) => ({
+              accountId: l.accountId,
+              amount: new Decimal(l.amount),
+              description: l.description,
+            }));
+            // Un asiento original que no suma 0 (p. ej. el de una sola línea de antes de la SPEC-007)
+            // no se puede espejar: su espejo tampoco cuadraría. Cuadre EXACTO, sin tolerancia.
+            const originalSum = lines.reduce((acc, l) => acc.plus(l.amount), new Decimal(0));
+            if (!originalSum.isZero()) throw new Error(MSG_ANULAR_ASIENTO_NO_CUADRA);
+
+            // Cada línea se niega exacta: misma cuenta, monto opuesto.
+            rawCounterEntries = lines.map((l) => ({
+              accountId: l.accountId,
+              amount: l.amount.negated(),
+              description: l.description ? `Anulación — ${l.description}` : null,
+            }));
           }
-          if (!movement.transactionId) {
-            // Dato previo (producción tiene entradas sin asiento): no hay nada que reversar.
-            rawCounterEntries = null;
-          } else if (!movement.counterpartAccountId) {
-            // Tiene asiento pero se desconoce la contrapartida: inventar una sería falsear el mayor.
-            throw new Error(MSG_ANULAR_ASIENTO_SIN_CONTRAPARTIDA);
-          } else {
-            if (!item.accountId) {
-              throw new Error(
-                `El ítem "${item.name}" no tiene cuenta de inventario configurada. Configure la cuenta antes de anular.`
-              );
-            }
-            // Espejo exacto de la entrada: Dr contrapartida / Cr Inventario
-            rawCounterEntries = [
-              { accountId: movement.counterpartAccountId, amount: totalCost },
-              { accountId: item.accountId, amount: totalCost.negated() },
-            ];
-          }
-        } else {
-          rawCounterEntries = [
-            { accountId: item.cogsAccountId!, amount: totalCost.negated() },
-            { accountId: item.accountId!, amount: totalCost },
-          ];
         }
 
         // Revertir stock según tipo
@@ -474,6 +535,7 @@ export async function voidPostedMovement(
           });
 
           // N4: el cuadre se verifica SIEMPRE (RN-5): ningún contra-asiento queda incompleto.
+          // (Redundante con el chequeo del asiento original, pero este es el invariante central.)
           assertBalancedGLEntries(counterEntries);
           voidTx = await tx.transaction.create({
             data: {

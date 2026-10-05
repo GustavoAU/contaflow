@@ -345,6 +345,11 @@ export async function createDraftMovement(
             conversionSnapshot: conversionSnapshot.toString(),
             unitId: resolvedUnitId,
             unitCost: resolvedUnitCost.toString(),
+            // SPEC-007 L-1: mientras el movimiento es DRAFT la fila es mutable, y estos tres campos
+            // deciden cómo se contabiliza: la auditoría conserva con qué valores nació.
+            counterpartAccountId: counterpartAccountId ?? null,
+            invoiceId: invoiceId ?? null,
+            date: new Date(rest.date).toISOString(),
           },
         },
       });
