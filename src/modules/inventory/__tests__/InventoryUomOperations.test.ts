@@ -13,12 +13,20 @@ vi.mock("@/lib/prisma", () => ({
     inventoryMovement: { findFirst: vi.fn(), findMany: vi.fn() },
     accountingPeriod: { findFirst: vi.fn() }, // R-09: bloqueo períodos cerrados
     invoice: { findFirstOrThrow: vi.fn() },
+    // SPEC-007: la contrapartida de una ENTRADA se valida (existencia, empresa y tipo).
+    account: { findFirstOrThrow: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
 
 import { createDraftMovement } from "../services/InventoryOperationsService";
 import prisma from "@/lib/prisma";
+import {
+  FAKE_ACCOUNTS,
+  findFirstImpl,
+  findFirstOrThrowImpl,
+  findManyImpl,
+} from "./helpers/fake-db";
 
 const COMPANY_ID = "company-001";
 const ITEM_ID = "item-001";
@@ -78,11 +86,19 @@ const BASE = {
   reference: "REF-TEST-001", // R-03: referencia obligatoria (min 3 chars)
   date: new Date().toISOString(),
   idempotencyKey: "550e8400-e29b-41d4-a716-446655440001",
+  counterpartAccountId: "acc-banco", // SPEC-007: toda ENTRADA sin factura lleva contrapartida
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   currentTx = makeTx();
+
+  // SPEC-007: plan de cuentas falso que filtra por companyId (la contrapartida debe ser de la empresa)
+  vi.mocked(prisma.account.findFirst).mockImplementation(findFirstImpl(FAKE_ACCOUNTS) as never);
+  vi.mocked(prisma.account.findFirstOrThrow).mockImplementation(
+    findFirstOrThrowImpl(FAKE_ACCOUNTS, "Account") as never
+  );
+  vi.mocked(prisma.account.findMany).mockImplementation(findManyImpl(FAKE_ACCOUNTS) as never);
 
   vi.mocked(prisma.inventoryItem.findFirstOrThrow).mockResolvedValue(makeItem() as never);
   vi.mocked(prisma.inventoryItemUnit.findFirstOrThrow).mockResolvedValue(makeBoxUnit() as never);
