@@ -17,13 +17,25 @@ export default async function NewTransactionPage({ params }: Props) {
   if (!user) redirect("/sign-in");
 
   const [accountsResult, periodResult] = await Promise.all([
-    getAccountsAction(companyId, { onlyPostable: true }),
+    // SPEC-012: sin `onlyPostable`. El selector recibe también los títulos (como encabezados no
+    // elegibles) y decide qué se puede elegir por `isPostable`.
+    getAccountsAction(companyId),
     getActivePeriodAction(companyId),
   ]);
 
-  const accounts = accountsResult.success ? accountsResult.data : [];
+  // Solo lo que el selector necesita (no el registro completo de Prisma) viaja al cliente.
+  const accounts = accountsResult.success
+    ? accountsResult.data.map(({ id, code, name, type, isPostable }) => ({
+        id,
+        code,
+        name,
+        type,
+        isPostable,
+      }))
+    : [];
   const hasOpenPeriod = periodResult.success && periodResult.data !== null;
-  const hasAccounts = accounts.length > 0;
+  // «Hay cuentas» cuenta SOLO las de movimiento: un plan con puros títulos no permite asentar nada.
+  const hasAccounts = accounts.some((account) => account.isPostable);
 
   if (!hasOpenPeriod) {
     return (
