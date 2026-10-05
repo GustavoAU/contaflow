@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
 titulo: El selector de cuenta busca por código o por nombre y muestra los títulos (sin poder elegirlos)
-estado: BORRADOR   # todas las preguntas resueltas por el dueño (2026-10-05); falta que la apruebe
+estado: APROBADA   # aprobada por el dueño 2026-10-05; preguntas resueltas (ver §11)
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
