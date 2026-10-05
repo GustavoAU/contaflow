@@ -189,6 +189,11 @@ export function AccountsImporter({ companyId, userId }: Props) {
               movimientos; las de menos dígitos se importan como títulos y subtítulos y no se pueden
               seleccionar en un asiento
             </li>
+            <li>
+              Cada cuenta de movimiento necesita su <strong>título padre</strong> (el código sin el
+              último grupo, ej: 1.1.01.01): inclúyelo en el archivo o créalo antes en el plan. Las
+              filas sin título padre no se importan y se listan al terminar
+            </li>
             <li>Sube el archivo y confirma la importación</li>
           </ol>
           <p className="mt-2 text-xs text-blue-600">

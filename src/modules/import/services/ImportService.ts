@@ -3,7 +3,13 @@ import ExcelJS from "exceljs";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { p2002TargetIncludes } from "@/lib/prisma-errors";
-import { isPostableCode } from "@/lib/account-code";
+import type { AccountType } from "@prisma/client";
+import { isPostableCode, parentCodeOf } from "@/lib/account-code";
+import {
+  checkMovementParent,
+  type ParentCheckFailure,
+  type ParentTitle,
+} from "@/modules/accounting/utils/parent-title";
 import {
   ImportAccountsSchema,
   type ImportAccountRow,
@@ -335,6 +341,38 @@ function normalizeAccountRows(allRows: unknown[][]): ImportAccountRow[] {
   }
 }
 
+// SPEC-008 RN-11: error de FILA cuando una cuenta de movimiento no tiene forma válida o título padre.
+// Un padre que existe pero no sirve de padre (9 dígitos, de movimiento) equivale a no tenerlo →
+// `missing_parent`. La forma mala y el tipo incompatible no son "falta el padre": `unknown`, pero con su
+// propio mensaje de negocio (el `ImportErrorReason` no distingue más razones a propósito).
+function parentRowError(
+  row: { codigo: string },
+  check: ParentCheckFailure,
+  fullRow: ImportAccountRow
+): ImportAccountRowError {
+  switch (check.reason) {
+    case "missing_parent":
+    case "not_a_title":
+      return {
+        row: fullRow,
+        reason: "missing_parent",
+        message: `Fila ${row.codigo}: falta el título padre ${check.parentCode}.`,
+      };
+    case "type_mismatch":
+      return {
+        row: fullRow,
+        reason: "unknown",
+        message: `Fila ${row.codigo}: el título padre ${check.parentCode} es de otro tipo de cuenta.`,
+      };
+    case "bad_format":
+      return {
+        row: fullRow,
+        reason: "unknown",
+        message: `Fila ${row.codigo}: el código de una cuenta de movimiento debe tener el formato A.B.CC.DD.EEE (ej: 1.1.01.01.001).`,
+      };
+  }
+}
+
 // Fila de importación tal como llega a `importAccounts` — `isPostable` es opcional aquí y se
 // IGNORA: el servidor lo deriva siempre del código (ADR-059), nunca de lo que mande el cliente.
 type ImportAccountRowInput = Omit<
@@ -399,28 +437,70 @@ export class ImportService {
     let skipped = 0;
     const errors: ImportAccountRowError[] = [];
 
-    for (const row of rows) {
+    // `row` completo viaja en el error (no solo el código) para que el cliente pueda
+    // mostrar qué fila falló sin reconstruir el objeto original.
+    const toFullRow = (row: ImportAccountRowInput): ImportAccountRow => ({
+      codigo: row.codigo,
+      nombre: row.nombre,
+      tipo: row.tipo as ImportAccountRow["tipo"],
+      descripcion: row.descripcion,
+      isPostable: isPostableCode(row.codigo),
+      isBudgetable: row.isBudgetable ?? false,
+      requiresThirdParty: row.requiresThirdParty ?? false,
+    });
+
+    // SPEC-008 RN-11: títulos padre ya consultados en la BD (por código). Solo se llena en la fase de
+    // cuentas de movimiento, cuando los títulos del archivo ya están creados, así que un padre que
+    // viene en el MISMO archivo se ve igual que uno que ya existía. Los hijos de movimiento (9
+    // dígitos) nunca son padres (6 dígitos), por lo que la caché no se invalida mientras se importa.
+    const parentCache = new Map<string, ParentTitle | null>();
+    const findParent = async (parentCode: string): Promise<ParentTitle | null> => {
+      const cached = parentCache.get(parentCode);
+      if (cached !== undefined) return cached;
+      // companyId del contexto verificado por la action, sin eliminadas (RN-2): un título de otra
+      // empresa o ya eliminado no sirve de padre.
+      const parent = await prisma.account.findFirst({
+        where: { companyId, code: parentCode, deletedAt: null },
+        select: { code: true, type: true, isPostable: true },
+      });
+      parentCache.set(parentCode, parent);
+      return parent;
+    };
+
+    const importRow = async (row: ImportAccountRowInput): Promise<void> => {
       try {
         const exists = await prisma.account.findUnique({
           where: { companyId_code: { companyId, code: row.codigo } },
         });
 
+        // RN-12: lo ya existente no se toca ni se bloquea — ni siquiera una cuenta de movimiento
+        // heredada sin título padre (empresas demo): se omite sin error.
         if (exists) {
           skipped++;
-          continue;
+          return;
+        }
+
+        // RN-11: una cuenta de movimiento solo se importa si tiene forma A.B.CC.DD.EEE y su título
+        // padre existe (con tipo compatible). Un fallo es error de FILA: no aborta el resto del lote.
+        if (isPostableCode(row.codigo)) {
+          const parentCode = parentCodeOf(row.codigo);
+          const parent = parentCode === null ? null : await findParent(parentCode);
+          const check = checkMovementParent({
+            code: row.codigo,
+            type: row.tipo as AccountType,
+            parent,
+          });
+          if (!check.ok) {
+            errors.push(parentRowError(row, check, toFullRow(row)));
+            return;
+          }
         }
 
         await prisma.account.create({
           data: {
             code: row.codigo,
             name: row.nombre,
-            type: row.tipo as
-              | "ASSET"
-              | "CONTRA_ASSET"
-              | "LIABILITY"
-              | "EQUITY"
-              | "REVENUE"
-              | "EXPENSE",
+            type: row.tipo as AccountType,
             description: row.descripcion,
             isPostable: isPostableCode(row.codigo),
             isBudgetable: row.isBudgetable ?? false,
@@ -433,32 +513,30 @@ export class ImportService {
       } catch (e) {
         // ADR-059: el nombre ya no es único (títulos y cuentas de movimiento repiten nombre);
         // solo el CÓDIGO puede chocar.
-        // `row` completo viaja en el error (no solo el código) para que el cliente pueda
-        // mostrar qué fila falló sin reconstruir el objeto original.
-        const fullRow: ImportAccountRow = {
-          codigo: row.codigo,
-          nombre: row.nombre,
-          tipo: row.tipo as ImportAccountRow["tipo"],
-          descripcion: row.descripcion,
-          isPostable: isPostableCode(row.codigo),
-          isBudgetable: row.isBudgetable ?? false,
-          requiresThirdParty: row.requiresThirdParty ?? false,
-        };
         if (p2002TargetIncludes(e, "code")) {
           errors.push({
-            row: fullRow,
+            row: toFullRow(row),
             reason: "duplicate_code",
             message: `Fila ${row.codigo}: ya existe una cuenta con ese código`,
           });
         } else {
           errors.push({
-            row: fullRow,
+            row: toFullRow(row),
             reason: "unknown",
             message: `Fila ${row.codigo}: error al importar`,
           });
         }
       }
-    }
+    };
+
+    // Primero los títulos y subtítulos (< 9 dígitos) y después las cuentas de movimiento, cada grupo en
+    // el orden del archivo. Así el resultado NO depende del orden de las filas: cuando se valida el
+    // padre de una cuenta de movimiento, los títulos del archivo ya están en la BD. Un título del
+    // archivo que no se pudo crear (error, o eliminado con ese mismo código) deja a sus hijos sin padre,
+    // que es lo correcto.
+    const isMovement = (row: ImportAccountRowInput) => isPostableCode(row.codigo);
+    for (const row of rows.filter((r) => !isMovement(r))) await importRow(row);
+    for (const row of rows.filter(isMovement)) await importRow(row);
 
     await prisma.auditLog.create({
       data: {

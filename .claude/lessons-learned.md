@@ -172,3 +172,19 @@
 - **Fix applied**: función central `quantizeGLEntries` (redondea al céntimo, absorbe el residuo en la línea mayor que no sea `noAbsorb`, modo `exact` para derivados de saldos guardados), redondeo de cada documento en su origen, y cuadre exacto en `assertBalancedGLEntries`.
 - **Golden rule**: se verifica lo que SE GUARDA, no lo que se calculó: cuantizar a la precisión de persistencia ANTES de verificar y de persistir, y persistir el resultado cuantizado. Un asiento derivado de saldos ya guardados (anulación, cierre, liquidación) se niega EXACTO, sin redondear. Una tolerancia en una invariante contable esconde defectos reales. Un test de arquitectura exige que todo archivo que llame `assertBalancedGLEntries` llame `quantizeGLEntries`.
 - **Regression test**: `src/lib/__tests__/gl-quantize.test.ts`, `src/__tests__/architecture/gl-quantize-coverage.test.ts` y `src/__tests__/integration/gl-quantize-balance.test.ts` (corre contra Postgres real en el job `integration`)
+
+---
+
+## LL-017 — Un test que dice "alta y edición" pero solo prueba el alta deja pasar un limiter faltante (2026-10-05)
+
+- **Phase detected**: auditoría de seguridad de SPEC-008 (cuentas de 9 dígitos con título padre)
+- **Context**: `src/modules/accounting/actions/account.actions.ts`; `requireCompanyAction(..., { limiter })` (ADR-041)
+- **Error**: `updateAccountAction` llamaba al guard sin `limiter`, la única mutación de cuentas sin rate limit. Existía un test
+  llamado "alta y edición siguen en el limiter fiscal" que solo ejercitaba `createAccountAction`: el nombre prometía una
+  cobertura que no había. Mismo patrón en otra tanda: `setIsSuggesting(true)` sin `finally` dejaba la UI bloqueada si la
+  Server Action se rechazaba por red.
+- **Fix applied**: `limiter: limiters.fiscal` en update + test propio; `try/catch/finally` en la sugerencia del formulario.
+- **Golden rule**: los tests de limiter/rol se parametrizan por CADA acción de mutación del módulo, y el nombre del test
+  debe coincidir con lo que ejecuta; todo estado `loading` que se activa antes de un `await` se desactiva en `finally`.
+- **Regression test**: `account.actions.test.ts` "[M-1] la edición pasa por el limiter fiscal…" y
+  `AccountsTable.parent.test.tsx` "[L-1] si la llamada a la action se rechaza…"
