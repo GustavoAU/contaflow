@@ -1,7 +1,7 @@
 ---
 id: SPEC-013
 titulo: La cuota de préstamo a empleado no se resta dos veces en el asiento de nómina
-estado: APROBADA   # aprobada por el usuario 2026-10-04 ("Aprobado" y "Confirmo" a P-1). Falta solo P-3: autorización para el ajuste en producción, que se pide al llegar a ese paso
+estado: EN_CURSO   # 2026-10-05; línea base tsc 0 y 5906 tests; el usuario pidió avanzar lo que no dependa de la contadora. P-3 (ajuste en producción) sigue exigiendo su autorización explícita
 fecha: 2026-10-04
 rama: fix/nomina-prestamo-doble-descuento
 arbol: "[9]"
@@ -107,6 +107,10 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | test-agent | RED en `PayrollRunService.test.ts` (aprobación): corregir el caso USD con préstamo que codifica el error (gasto 899,61 → 1.043,32 × tasa; Nómina por pagar 690,02 → 833,73 × tasa); CA-1 (bruto 1.000, IVSS 40, cuota 100 → 1.000 / 40 / 100 / 860, Σ = 0); CA-3 invariante (Nómina por pagar = neto del recibo convertido, con y sin cuentas de retenciones); CA-4 regresión sin cuotas; CA-5 (Σ = 0 exacta, múltiplos de 0,01, la línea de préstamos no absorbe); CA-6 (saldos de `EmployeeLoan` y línea `PRESTAMO_EMP` sin cambios); CA-7 (cuota de préstamo y sin `loanReceivableAccountId` → se rechaza con el mensaje de RN-8 ANTES de escribir; sin cuota no bloquea). | Sí, RED por la razón correcta |
+| 2 | ledger-agent | GREEN en `PayrollRunService.approve`: `salaryExpense` = `totalEarnings` (sin restar la cuota); rechazo previo a cualquier escritura si hay cuotas de préstamo y falta `loanReceivableAccountId` (RN-8); simplificar `configuredDeductions` (la cuota siempre va a la cuenta de préstamos); corregir los comentarios que describen un `totalEarnings` que no existe. Barrido de la clase de bug: grep de otros `.minus(loan` y de sitios que armen el neto. | GREEN |
+| 3 | (yo) | Revisión del diff contra las zonas de peligro y gates: `tsc`, `vitest` completo en 4 shards, `lint`, `format:check`. `security-agent` no hace falta: no hay action, ruta, modelo ni input nuevo (solo cálculo interno y una validación previa). | n/a |
+| 4 | (yo, SOLO con autorización explícita del usuario, P-3) | Ajuste en producción de la nómina demo `cmtfuqio100019klw9983jgfm`: asiento DIARIO Dr Sueldos y Salarios / Cr Nómina por Pagar por Bs. 194.988,05 + AuditLog `GL_DATA_FIX`, con consulta de solo lectura antes y después. Nunca editar ni borrar el asiento original (ADR-005). | n/a |
 
 ## 11. Riesgos y preguntas abiertas
 - **P-1 (RESUELTA 2026-10-04, contadora + usuario):** la cuenta del plan de cuentas "Cuentas por cobrar empleados" (código que empieza por 1; la contadora confirmó que existe) recibe TODOS los préstamos al personal, sean en bolívares, en divisas, en mercancía o en comida según el rubro. Eligió la **opción A**: bloquear la aprobación si esa cuenta no está configurada, con el asiento correcto (gasto por el bruto, retenciones, crédito a esa cuenta por la cuota, y el resto a Nómina por pagar; la contadora lo describió como "el banco por el que salió el monto", que en ContaFlow es el pago de la nómina por pagar, un asiento aparte que no cambia). El usuario confirmó ("Confirmo"). Consecuencia: ya no existe el caso "cuota dentro de Nómina por pagar" y se simplifica el cálculo.
