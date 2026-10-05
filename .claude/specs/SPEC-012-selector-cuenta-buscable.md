@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
 titulo: El selector de cuenta busca por código o por nombre y muestra los títulos (sin poder elegirlos)
-estado: EN_CURSO   # Entrega A HECHA y pendiente de merge; falta la Entrega B (resto de formularios)
+estado: EN_CURSO   # Entrega A FUSIONADA (PR #62); Entrega B dividida en B1/B2/B3 (ver §10); Q4 pendiente de la contadora
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
@@ -227,7 +227,24 @@ La spec se entrega en **dos PR** (Q3). Este plan es el de la **Entrega A**; la E
   aunque coincida (RN-9); la coincidencia exacta es solo la opción activa inicial, no reordena (RN-5/RN-13).
 - Pendientes para la **Entrega B** (de la auditoría y del ui-agent): ver §11.
 
-### Entrega B — resto de formularios (rama `feat/spec-012b-selector-cuenta-resto-formularios`, un solo PR)
+### Decisiones del dueño tras el inventario de la Entrega B (2026-10-05)
+Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 52 selectores, riesgos y decisiones D1-D9).
+1. **La Entrega B se divide** (antes: un solo PR) porque el inventario muestra ~25 archivos y riesgo alto en nómina y activos fijos:
+   - **B1** (esta rama): paso 0 = extender `AccountCombobox` (valor huérfano o título → texto vacío + `aria-invalid`; prop
+     `clearable`; `data-state` y ayuda para `Esc` dentro de AlertDialog) + formularios simples: `RetentionList`,
+     `BankAccountList`, `BudgetDetail`, `CajaCajaPageClient`, `CajaCajaDepositForm`, `CajaCajaMovementForm`, panel INPC de
+     `FixedAssetList`, `FiscalConfigForm`, `IncomeDistributionForm`, `InflationAdjustmentPanel`, con sus páginas.
+   - **B2**: `CloseCajaDialog` (`CajaCajaList`), `DisposeAssetModal`, `InventoryItemForm`, `GLAccountsForm`, `FixedAssetForm`,
+     `PayrollWizard` (los opcionales y los complejos) + retiro de `onlyPostable` de `getAccountsAction`.
+   - **B3 (al final)**: `MovementForm` (inventario) y `inventory/page.tsx`, **después** de que SPEC-007 se fusione (esa rama
+     reescribe el mismo selector y la misma consulta; migrarlo antes garantiza conflicto).
+2. **Q4 — pendiente de la contadora/dueño:** qué hacer al abrir un formulario **opcional** cuya cuenta guardada es un título o
+   no existe: (A) avisar qué campos se limpiaron y dejarlos vacíos (recomendado) o (B) bloquear el guardado hasta resolverlo.
+   *Dato verificado el 2026-10-05 (producción, solo lectura, 15 tablas con campos `*AccountId`): hoy hay 0 referencias a un
+   título.* No bloquea B1 (sus formularios son casi todos obligatorios, que ya se validan al enviar); sí afecta a B2
+   (`GLAccountsForm`, `PayrollWizard`, contrapartida de activos).
+
+### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
 | 1 | ui-agent | Inventario de los ~17 formularios y páginas (§8): cuáles usan `Select` de Radix y cuáles `<select>` nativo, y qué lógica propia usa la lista de cuentas (autoselección, validaciones) para aplicar RN-19. | — |
