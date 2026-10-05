@@ -3,6 +3,7 @@
 // No genera asientos contables — eso es responsabilidad de InventoryAccountingService
 
 import prisma from "@/lib/prisma";
+import { assertAccountsBelongToCompany } from "@/lib/account-guard";
 import { p2002TargetIncludes } from "@/lib/prisma-errors";
 import type {
   CreateInventoryItemInput,
@@ -11,6 +12,7 @@ import type {
 import type { CreateMovementInput, VoidMovementInput } from "../schemas/inventory-movement.schema";
 import Decimal from "decimal.js";
 import { resolveQuantity } from "./InventoryUomService";
+import { assertEntradaCounterpart, assertMovementPeriodOpen } from "./inventory-guards";
 
 // ─── Items ────────────────────────────────────────────────────────────────────
 
@@ -228,27 +230,24 @@ export async function createDraftMovement(
     );
   }
 
-  // R-09 auditoría SENIAT: bloquear movimientos en períodos cerrados
-  const movDate = new Date(rest.date);
-  // Fecha de NEGOCIO: getters UTC — resuelve el período contable (R-3).
-  const movYear = movDate.getUTCFullYear();
-  const movMonth = movDate.getUTCMonth() + 1; // getUTCMonth() es 0-based
-  const closedPeriod = await prisma.accountingPeriod.findFirst({
-    where: { companyId, status: "CLOSED", year: movYear, month: movMonth },
-    select: { year: true, month: true },
-  });
-  if (closedPeriod) {
-    throw new Error(
-      `No se pueden registrar movimientos en el período ${String(closedPeriod.month).padStart(2, "0")}/${closedPeriod.year} porque está CERRADO. Use una fecha en el período activo.`
-    );
-  }
+  // R-09 auditoría SENIAT: bloquear movimientos en períodos cerrados (R-3).
+  // La misma guarda corre al contabilizar el borrador (InventoryAccountingService, PA-7).
+  await assertMovementPeriodOpen(prisma, companyId, new Date(rest.date));
 
-  // R-04 auditoría SENIAT: verificar ownership de cuenta contrapartida
-  if (counterpartAccountId) {
-    await prisma.account.findFirstOrThrow({
-      where: { id: counterpartAccountId, companyId },
-      select: { id: true },
+  // R-04 auditoría SENIAT + SPEC-007: cuenta contrapartida.
+  if (type === "ENTRADA" && !invoiceId) {
+    // RN-1: toda ENTRADA sin factura lleva contrapartida válida. Se rechaza AQUÍ, al crear el
+    // borrador, para no dejar un DRAFT que luego no se pueda contabilizar. Con factura no se exige:
+    // la entrada se enlaza al asiento de la factura (RN-4).
+    await assertEntradaCounterpart(prisma, {
+      companyId,
+      accountId: counterpartAccountId,
+      inventoryAccountId: item.accountId,
     });
+  } else if (counterpartAccountId) {
+    // No es obligatoria (SALIDA, AJUSTE, ENTRADA con factura), pero si viene debe ser de la
+    // empresa: nunca se guarda un id de cuenta ajena (ADR-004).
+    await assertAccountsBelongToCompany(prisma, companyId, [counterpartAccountId]);
   }
 
   // Verificar idempotencyKey no duplicada — ACOTADA a la empresa (ADR-004).
