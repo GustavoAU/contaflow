@@ -1,7 +1,7 @@
 ---
 id: SPEC-007
 titulo: Toda entrada de inventario lleva contrapartida (nunca un asiento de una sola línea)
-estado: EN_CURSO   # plan escrito 2026-10-04; pendiente de confirmación del usuario (PA-3 y PA-4)
+estado: HECHA   # cerrada 2026-10-04; rama lista, pendiente de merge (requiere confirmación del usuario)
 fecha: 2026-10-04
 rama: feat/spec-007-entrada-inventario-contrapartida
 arbol: "[3]"
@@ -76,18 +76,18 @@ Sin cambios de esquema. `counterpartAccountId` ya existe en el movimiento y hoy 
 - Accesibilidad: etiqueta asociada al selector (`htmlFor`/`id`), `aria-busy` + `disabled={isPending}` en el botón.
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: ENTRADA sin factura y sin contrapartida → error de negocio; no se persiste ningún asiento.
-- [ ] CA-2: ENTRADA con contrapartida Banco → asiento de 2 líneas, Σ = 0.
-- [ ] CA-3: ENTRADA con contrapartida Capital (aporte) → asiento de 2 líneas, Σ = 0.
-- [ ] CA-4: contrapartida de otra empresa → rechazada.
-- [ ] CA-5: ENTRADA vinculada a factura con asiento → se enlaza al asiento de la factura y no crea otro (no duplica el débito a Inventario).
-- [ ] CA-5b: ENTRADA vinculada a factura sin asiento → rechazada con mensaje de negocio; el movimiento sigue en DRAFT.
-- [ ] CA-6: el test de arquitectura confirma que no queda ningún `expectBalanced: false` de inventario.
-- [ ] CA-tenant: un usuario de otra empresa no puede contabilizar el movimiento.
-- [ ] CA-período: con el período de la fecha del movimiento CLOSED, tanto `createDraftMovement` como `postMovement` devuelven error de negocio y no crean asiento (PA-7).
-- [ ] CA-7: anular una ENTRADA con contrapartida → contra-asiento de 2 líneas (Dr contrapartida / Cr Inventario), Σ = 0.
-- [ ] CA-8: anular una ENTRADA ligada a factura → rechazada con mensaje de negocio; el movimiento sigue POSTED y el stock no cambia.
-- [ ] CA-9: anular una ENTRADA sin asiento original (`transactionId` nulo) → revierte el stock y no crea asiento.
+- [x] CA-1: ENTRADA sin factura y sin contrapartida → error de negocio; no se persiste ningún asiento. **Tests CA-1 de `postMovement` (contrapartida nula, indefinida y con ítem LOT) y de `createDraftMovement`.**
+- [x] CA-2: ENTRADA con contrapartida Banco → asiento de 2 líneas, Σ = 0. **Test CA-2 (Banco): 2 líneas Dr Inventario / Cr Banco, Σ = 0.**
+- [x] CA-3: ENTRADA con contrapartida Capital (aporte) → asiento de 2 líneas, Σ = 0. **Test CA-3 (Capital, EQUITY): 2 líneas, Σ = 0.**
+- [x] CA-4: contrapartida de otra empresa → rechazada. **Tests CA-4 y RN-3 (guard de cuentas ajenas, consulta acotada por `companyId`, cuenta dada de baja).**
+- [x] CA-5: ENTRADA vinculada a factura con asiento → se enlaza al asiento de la factura y no crea otro (no duplica el débito a Inventario). **Tests RN-4 (con factura no crea asiento, enlaza el de la factura; LOT y SERIAL) y H-1 (compra, línea vigente, asiento de la empresa y POSTED).**
+- [x] CA-5b: ENTRADA vinculada a factura sin asiento → rechazada con mensaje de negocio; el movimiento sigue en DRAFT. **Tests CA-5b (factura inexistente, ajena o sin asiento) y H-1 (asiento anulado).**
+- [x] CA-6: el test de arquitectura confirma que no queda ningún `expectBalanced: false` de inventario. **`src/__tests__/architecture/inventory-no-single-line-entries.test.ts` (3 tests).**
+- [x] CA-tenant: un usuario de otra empresa no puede contabilizar el movimiento. **Todas las lecturas (movimiento, factura, línea, asiento, cuenta, período, líneas del asiento original) van acotadas por `companyId`; las tablas falsas de `fake-db.ts` filtran por TODO el `where` y hay tests ADR-004 por consulta.**
+- [x] CA-período: con el período de la fecha del movimiento CLOSED, tanto `createDraftMovement` como `postMovement` devuelven error de negocio y no crean asiento (PA-7). **Tests PA-7 (ENTRADA, ENTRADA con factura, SALIDA, AJUSTE, fecha en UTC) y los de `createDraftMovement`.**
+- [x] CA-7: anular una ENTRADA con contrapartida → contra-asiento de 2 líneas (Dr contrapartida / Cr Inventario), Σ = 0. **Tests RN-6 (espejo exacto a 4 decimales; M-2: usa las cuentas del asiento original aunque el ítem se reconfigure; L-A: conserva el tercero).**
+- [x] CA-8: anular una ENTRADA ligada a factura → rechazada con mensaje de negocio; el movimiento sigue POSTED y el stock no cambia. **Tests CA-8 (3 variantes) y de la regla antes de leer nada.**
+- [x] CA-9: anular una ENTRADA sin asiento original (`transactionId` nulo) → revierte el stock y no crea asiento. **Tests CA-9 (con y sin contrapartida; SALIDA y AJUSTE sin `transactionId`).**
 
 ## 10. Plan de agentes
 Lo completa `/implementar`.
@@ -112,12 +112,16 @@ Lo completa `/implementar`.
   - **Campos del cliente que deciden la contabilidad de una factura:** `CreateInvoiceSchema` acepta `transactionId` y `periodId` del cliente y `InvoiceService.create` guarda `transactionId` y se salta el asiento de la factura (verificado leyendo `invoice.schema.ts:244` e `InvoiceService.ts:369,407-410`). Es la raíz de H-1; esta spec lo contiene del lado de inventario, pero hay que cerrarlo en el módulo de facturas y barrer los demás schemas que acepten `*transactionId` del cliente.
   - **Cantidad con más de 4 decimales (M-4):** `quantity` acepta más de 4 decimales y el costo total se calcula con la cantidad sin redondear, mientras la columna guarda 4: un movimiento puede asentar un monto sin mover stock.
   - La anulación fecha el contra-asiento con `new Date()` (UTC) sin mirar el período de hoy (L-3); costo total 0,00 (PA-8).
+  - **Re-revisión de seguridad (2026-10-04): GO, 0 CRITICAL / 0 HIGH / 0 MEDIUM.** H-1, M-1, M-2, L-1 y PA-10 cerrados; `autoPostMovementInTx` idéntica a la de antes de la rama. L-A (la anulación conservaba terceros) se corrigió en esta rama. Quedan como seguimiento: **L-B** (la anulación no mira si el asiento original ya fue anulado a mano desde el módulo de asientos y crearía un segundo reverso), **L-C** (defensa en profundidad: exigir `transaction.reference === invoiceId`; antes hay que comprobar que los asientos de factura de producción tengan `reference`; queda cubierto al cerrar la raíz en `CreateInvoiceSchema`), e INFO: el mensaje `MSG_FACTURA_NO_ES_COMPRA` dice "elimine este borrador" pero solo OPERATIONS puede eliminarlo (un contador no), una factura dada de baja sale como "aún no tiene asiento", y la anulación sin líneas visibles no deja constancia explícita en el AuditLog.
 - **R-1:** el formulario de movimiento hoy puede no pedir la contrapartida; hay que revisarlo y es un cambio de UI (ui-agent).
 - **R-2:** es prerrequisito de SPEC-001 (el trigger rechazaría el asiento de una línea).
 
 ## 12. Cierre
-Lo completa `/implementar`.
-- Commits:
-- Tests: antes N → después N
-- ADR creado o actualizado:
-- Lección aprendida (LL-XXX):
+- **Rama:** `feat/spec-007-entrada-inventario-contrapartida`, con `origin/main` fusionado (sin conflictos). Sin merge a `main`: requiere confirmación del usuario.
+- **Commits de código:** `4417cc77` tests en RED, `40874757` servicios, `7174978b` interfaz, `a20838b2` comentarios, `c16c9fbe` tests de la ronda de seguridad en RED, `8e59ce01` correcciones H-1 / M-1 / M-2 / L-1, `5e931703` guarda de tercero (PA-10), `07dcbb6d` terceros en la anulación (L-A). El resto de commits son de esta spec.
+- **Tests:** antes 5641 → después 5797 antes de fusionar con `main` (+156); con `main` fusionado la suite completa da 6062, 0 fallos. `tsc` 0 errores, `format:check` limpio, lint 0 errores.
+- **Seguridad:** primera revisión GO con condiciones (H-1 HIGH bloqueante, corregido); re-revisión GO sin hallazgos CRITICAL, HIGH ni MEDIUM abiertos.
+- **Producción:** sin migraciones ni cambios de datos. Las 8 ENTRADA contabilizadas sin asiento (`transactionId` nulo) siguen como estaban.
+- **Pendiente de la contadora:** PA-4 (ajustes de inventario) y PA-6 (rechazar anular una entrada ligada a factura). PA-10 se aparta de su frase "Cuentas por pagar si tiene crédito" para el caso sin factura; ver PA-10.
+- **ADR creado o actualizado:** ninguno nuevo (aplican ADR-058 y ADR-054).
+- **Lección aprendida:** LL-018.
