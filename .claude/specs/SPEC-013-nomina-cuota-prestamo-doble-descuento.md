@@ -1,7 +1,7 @@
 ---
 id: SPEC-013
 titulo: La cuota de préstamo a empleado no se resta dos veces en el asiento de nómina
-estado: EN_CURSO   # 2026-10-05; línea base tsc 0 y 5906 tests; el usuario pidió avanzar lo que no dependa de la contadora. P-3 (ajuste en producción) sigue exigiendo su autorización explícita
+estado: EN_CURSO   # 2026-10-05; código y tests listos y verificados; falta SOLO CA-8 (ajuste de la nómina demo en producción), que exige la autorización explícita del usuario (P-3)
 fecha: 2026-10-04
 rama: fix/nomina-prestamo-doble-descuento
 arbol: "[9]"
@@ -91,16 +91,16 @@ Sin cambios de firmas. `PayrollRunService.approve(companyId, userId, runId, …)
 Sin cambios.
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: Dado bruto 1.000, IVSS 40 y cuota de préstamo 100 con cuentas configuradas, cuando se aprueba la nómina, entonces el asiento es Gasto 1.000 / IVSS 40 / Préstamos 100 / Nómina por pagar 860 y Σ = 0.
-- [ ] CA-2: En el caso USD existente (1.043,32 de sueldo, cuota 143,71), el gasto es 1.043,32 × tasa y Nómina por pagar es el neto del recibo × tasa (833,73 × tasa), a 2 decimales; el test actual (gasto 899,61) se corrige.
-- [ ] CA-3 (invariante): para varias combinaciones (con y sin cuota, con y sin cuentas de retenciones), el crédito a Nómina por pagar es igual al `totalNet` convertido MÁS las retenciones que no tienen cuenta propia (esas quedan dentro de Nómina por pagar, RN-4).
-- [ ] CA-4: Sin cuotas de préstamo el asiento es idéntico al actual (regresión).
-- [ ] CA-5: Σ de las líneas es exactamente 0 y cada línea es múltiplo de 0,01; la línea de Préstamos a empleados no absorbe el residuo.
-- [ ] CA-6: Los saldos de `EmployeeLoan` y la línea `PRESTAMO_EMP` del recibo no cambian.
-- [ ] CA-7: Dada una nómina con cuota de préstamo y sin `loanReceivableAccountId` configurada, cuando se aprueba, entonces se rechaza con el mensaje de RN-8; no se crea asiento, no cambian los saldos de `EmployeeLoan` y la nómina sigue sin aprobar. Sin cuotas de préstamo, la falta de esa cuenta no bloquea nada.
+- [x] CA-1: Dado bruto 1.000, IVSS 40 y cuota de préstamo 100 con cuentas configuradas, cuando se aprueba la nómina, entonces el asiento es Gasto 1.000 / IVSS 40 / Préstamos 100 / Nómina por pagar 860 y Σ = 0. **Test CA-1 (1.000 / 40 / 100 / 860, exactamente 4 líneas, Σ = 0).**
+- [x] CA-2: En el caso USD existente (1.043,32 de sueldo, cuota 143,71), el gasto es 1.043,32 × tasa y Nómina por pagar es el neto del recibo × tasa (833,73 × tasa), a 2 decimales; el test actual (gasto 899,61) se corrige. **Caso USD de ADR-058 corregido: gasto 1.043,32 × tasa, Nómina por pagar 833,73 × tasa (el residuo se recalculó con Decimal.js).**
+- [x] CA-3 (invariante): para varias combinaciones (con y sin cuota, con y sin cuentas de retenciones), el crédito a Nómina por pagar es igual al `totalNet` convertido MÁS las retenciones que no tienen cuenta propia (esas quedan dentro de Nómina por pagar, RN-4). **`it.each` de 7 combinaciones × VES/USD (14 casos) contra valores calculados aparte del recibo. La redacción de la spec se corrigió: Nómina por pagar = neto + retenciones sin cuenta propia.**
+- [x] CA-4: Sin cuotas de préstamo el asiento es idéntico al actual (regresión). **Tests CA-4 (sin cuota, FAOV sin cuenta propia → 1.000 / −40 / −960) y todos los tests previos de aprobación.**
+- [x] CA-5: Σ de las líneas es exactamente 0 y cada línea es múltiplo de 0,01; la línea de Préstamos a empleados no absorbe el residuo. **Tests CA-5 (dos casos USD con residuo +0,02 y −0,01). Límite conocido: quitar `noAbsorb` de la línea de préstamos no hace fallar ningún test porque el gasto, que es ≥ la cuota, siempre absorbe el residuo; lo que queda fijado es que la cuota termina en `round(cuota × tasa, 2)`.**
+- [x] CA-6: Los saldos de `EmployeeLoan` y la línea `PRESTAMO_EMP` del recibo no cambian. **Tres tests sobre `employeeLoan.update` (VES activo, última cuota → PAID, préstamo USD).**
+- [x] CA-7: Dada una nómina con cuota de préstamo y sin `loanReceivableAccountId` configurada, cuando se aprueba, entonces se rechaza con el mensaje de RN-8; no se crea asiento, no cambian los saldos de `EmployeeLoan` y la nómina sigue sin aprobar. Sin cuotas de préstamo, la falta de esa cuenta no bloquea nada. **Tests CA-7 (VES y USD: rechazo con el mensaje exacto, sin asiento, sin saldos, sin auditoría; sin cuota o con cuota en 0 no bloquea).**
 - [ ] CA-8: Tras el ajuste en producción (solo con autorización), el asiento de la nómina demo más el ajuste da Gasto = `totalEarnings` × tasa y Nómina por pagar = `totalNet` × tasa, ambos a 2 decimales, y no hay asientos descuadrados en la base.
-- [ ] CA-tenant: un usuario de otra empresa no puede aprobar la nómina (los tests actuales de aislamiento siguen en verde).
-- [ ] CA-período: con período CLOSED la aprobación devuelve error de negocio (el test actual sigue en verde).
+- [x] CA-tenant: un usuario de otra empresa no puede aprobar la nómina (los tests actuales de aislamiento siguen en verde). **El proceso se busca con `{ id, companyId }` (sin cambios; tests previos en verde).**
+- [x] CA-período: con período CLOSED la aprobación devuelve error de negocio (el test actual sigue en verde). **Test previo "RECHAZA si el periodo contable esta cerrado (R-3)" en verde.**
 
 ## 10. Plan de agentes
 Lo completa `/implementar`. Dejar vacío al escribir la spec.
@@ -123,9 +123,11 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 - **R-5:** la SPEC-001 (trigger de cuadre) no se ve afectada: el asiento corregido sigue cuadrando.
 - **R-6 (menor, no bloquea):** la contadora llama a la cuenta "Cuentas por cobrar empleados" y la configuración de nómina la rotula "Préstamos a Empleados" (6 archivos de UI y `payroll-gl-accounts.ts`). Se deja el rótulo actual en esta spec; si se prefiere igualar el nombre, es un cambio de copy aparte. Los préstamos en mercancía o comida que menciona no existen en el modelo (`EmployeeLoan` es monetario): fuera de alcance.
 
-## 12. Cierre
-Lo completa `/implementar`.
-- Commits:
-- Tests: antes N → después N
-- ADR creado o actualizado:
-- Lección aprendida (LL-XXX):
+## 12. Cierre (parcial: falta CA-8)
+- **Rama:** `fix/nomina-prestamo-doble-descuento`. Sin merge a `main`: requiere confirmación del usuario.
+- **Commits:** `267261e5` plan, `f0ef9316` tests en RED (14), `af52bc23` corrección. El plan §10 paso 2 lo hice yo directamente (el cambio es de ~10 líneas) y lo verifiqué contra los 14 tests en rojo.
+- **Tests:** antes 5906 → después 5931 (+25), 0 fallos; `tsc` 0 errores; `format:check` limpio; lint 0 errores. `security-agent` no hizo falta: no hay action, ruta, modelo ni input nuevo.
+- **Barrido de la clase de bug:** `grep` de `.minus(loan` y `.minus(loanTotal` fuera de tests: sin resultados. `TerminationService`, `VacationService` y `ProfitSharingService` no manejan cuotas de préstamo.
+- **Pendiente:** CA-8, el asiento de ajuste de la nómina demo `cmtfuqio100019klw9983jgfm` (Bs. 194.988,05) en producción, solo con autorización explícita (P-3). Se hace después del merge del código.
+- **ADR:** ninguno nuevo (aplican ADR-005, ADR-015, ADR-058).
+- **Lección aprendida:** pendiente (LL-019): el test de ADR-058 que cubría el caso USD con préstamo se escribió copiando el valor que producía el código (gasto 899,61) en vez de derivarlo del recibo, y blindó el error. Un valor esperado se calcula de una fuente independiente. Se añade tras el merge de la SPEC-007 para no colisionar con LL-018.
