@@ -1552,15 +1552,22 @@ describe("PayrollRunService.approve", () => {
   // ADR-058 / SPEC-004 CA-1: caso real del bug. Nómina USD x tasa 779,9522 con 13 líneas de
   // asiento. En bruto Σ = 0, pero Postgres redondea cada línea a Decimal(19,4) por separado y la
   // suma guardada deja de ser 0 (aquí −0,0001, igual que NOM-2026-08-16-83jgfm).
+  //
+  // SPEC-013 CA-2: este caso trae una cuota de préstamo (143,71). Antes de la spec el test daba por
+  // bueno el doble descuento (gasto 899,61 = 1043,32 − 143,71; Nómina por pagar −690,02). El valor
+  // correcto es: gasto = bruto completo (1043,32) y Nómina por pagar = neto del recibo (833,73).
   it("ADR-058: nómina USD x 779,9522 — el asiento que va a Prisma suma 0 exacto y cada línea es múltiplo de 0,01", async () => {
     mockTx();
     const m = (s: string) => new Decimal(s);
     const RATE = m("779.9522");
+    // SPEC-013: totales coherentes con las líneas (calculator: totalEarnings = solo EARNING,
+    // totalDeductions = IVSS 42,54 + FAOV 12,68 + INCES 6,71 + RPE 3,95 + préstamo 143,71 = 209,59,
+    // totalNet = totalEarnings − totalDeductions = 833,73). Antes el mock traía 0 y 0.
     const USD_RUN = {
       ...BASE_RUN,
       totalEarnings: m("1043.32"),
-      totalDeductions: m("0"),
-      totalNet: m("0"),
+      totalDeductions: m("209.59"),
+      totalNet: m("833.73"),
     };
     vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(USD_RUN as never);
     vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
@@ -1625,8 +1632,8 @@ describe("PayrollRunService.approve", () => {
     // Reproduce el defecto: con los mismos montos USD, redondear CADA línea a 4 decimales
     // (lo que hace Postgres con Decimal(19,4)) NO suma 0.
     const usd = [
-      "899.61", // gasto de personal (1043.32 − préstamo 143.71)
-      "-690.02", // Sueldos por Pagar (899,61 − retenciones − cuota préstamo)
+      "1043.32", // gasto de personal = bruto completo (SPEC-013: la cuota NO se resta del gasto)
+      "-833.73", // Nómina por pagar = neto del recibo (1043,32 − retenciones − cuota préstamo)
       "-42.54",
       "-12.68",
       "-6.71",
@@ -1648,6 +1655,30 @@ describe("PayrollRunService.approve", () => {
       expect(e.amount.mul(100).isInteger()).toBe(true);
       expect(Object.keys(e)).not.toContain("noAbsorb"); // Prisma rechaza campos desconocidos
     }
+
+    // SPEC-013 CA-2 — el valor correcto, calculado con Decimal.js (no copiado del test viejo).
+    // Raw (Bs.): gasto 1043,32 x tasa = 813.739,729304; Nómina por pagar 833,73 x tasa =
+    // 650.269,547706. A 2 decimales (ROUND_HALF_UP): 813.739,73 y 650.269,55. La suma de las 13
+    // líneas redondeadas queda en +0,01, y ese residuo lo absorbe la línea de mayor |monto| que no
+    // sea noAbsorb: el gasto (813.739,73 > 650.269,55; el débito patronal es menor). Por eso el
+    // gasto final es 813.739,72. Nómina por pagar NO se mueve: es el neto del recibo x tasa.
+    const gastoRedondeado = m("1043.32").mul(RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+    expect(gastoRedondeado.toFixed(2)).toBe("813739.73");
+    const gasto = entries.find((e) => e.accountId === "acct-exp");
+    expect(gasto?.amount.toFixed(2)).toBe("813739.72");
+    expect(gasto?.amount.toFixed(2)).toBe(gastoRedondeado.minus("0.01").toFixed(2));
+    const porPagar = entries.find((e) => e.accountId === "acct-pay");
+    expect(porPagar?.amount.toFixed(2)).toBe("-650269.55");
+    expect(porPagar?.amount.toFixed(2)).toBe(
+      m("-833.73").mul(RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(2)
+    );
+    // La cuota se convierte con la misma tasa y su línea NO absorbe el residuo (noAbsorb):
+    // queda exacta en round(143,71 x tasa, 2), sin el +/−0,01 del ajuste.
+    const prestamo = entries.find((e) => e.accountId === "acct-loan");
+    expect(prestamo?.amount.toFixed(2)).toBe("-112086.93");
+    expect(prestamo?.amount.toFixed(2)).toBe(
+      m("-143.71").mul(RATE).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toFixed(2)
+    );
 
     // Obligaciones parafiscales NO absorben: IVSS obrero = round(42.54 x 779,9522, 2).
     const ivss = entries.find((e) => e.accountId === "acct-ivss");
@@ -1689,6 +1720,558 @@ describe("PayrollRunService.approve", () => {
     await expect(PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID)).rejects.toThrow(
       "antes de aprobar esta nómina"
     );
+  });
+});
+
+// ─── approve — cuota de préstamo (SPEC-013) ───────────────────────────────────
+//
+// Contrato (SPEC-013, contadora 2026-10-04): la cuota de préstamo (PRESTAMO_EMP, DEDUCTION) NO está
+// dentro de totalEarnings (que solo suma líneas EARNING) y NO es gasto: es la recuperación de
+// "Préstamos a empleados". El asiento de causación es
+//   Dr Gasto de sueldos      = totalEarnings (bruto completo)
+//   Cr retenciones           = cada una con cuenta propia
+//   Cr Préstamos a empleados = Σ cuotas PRESTAMO_EMP
+//   Cr Nómina por pagar      = neto del recibo (totalNet) + retenciones SIN cuenta propia (RN-4)
+// Bug previo: el gasto salía de totalEarnings − cuota y Nómina por pagar volvía a restarla (doble
+// descuento): con bruto 1.000, IVSS 40 y cuota 100 daba 900 / 40 / 100 / 760 en vez de
+// 1.000 / 40 / 100 / 860.
+describe("PayrollRunService.approve — cuota de préstamo (SPEC-013)", () => {
+  const m = (s: string) => new Decimal(s);
+  const RATE = m("779.9522");
+  const r2 = (d: Decimal) => d.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+  const LOAN_ACCOUNT_REQUIRED_MESSAGE =
+    "Configure la cuenta de préstamos al personal (Préstamos a Empleados) en la configuración de nómina antes de aprobar una nómina con cuotas de préstamo.";
+
+  type Currency = "VES" | "USD";
+  type LineType = "EARNING" | "DEDUCTION" | "EMPLOYER_COST";
+  type Gl = { accountId: string; amount: Decimal; description: string };
+
+  const mkLine = (
+    code: string,
+    type: LineType,
+    amount: string,
+    currency: Currency = "VES",
+    employeeId = "emp-1"
+  ) => ({
+    conceptCode: code,
+    conceptType: type,
+    amount: m(amount),
+    salarySnapshotCurrency: currency,
+    employeeId,
+  });
+  type LineRow = ReturnType<typeof mkLine>;
+
+  // Config con TODAS las cuentas de la nómina del empleado; sin cuentas patronales (estos casos no
+  // traen líneas EMPLOYER_COST). Cada caso sobreescribe lo que necesita.
+  function cfg(overrides: Record<string, unknown> = {}) {
+    return {
+      expenseAccountId: "acct-exp",
+      payableAccountId: "acct-pay",
+      ivssPayableAccountId: "acct-ivss",
+      faovPayableAccountId: "acct-faov",
+      incesPayableAccountId: "acct-inces",
+      rpePayableAccountId: "acct-rpe",
+      loanReceivableAccountId: "acct-loan",
+      ivssPatronalAccountId: null,
+      incesPatronalAccountId: null,
+      faovPatronalAccountId: null,
+      rpePatronalAccountId: null,
+      pensionesPatronalAccountId: null,
+      ivssEnabled: true,
+      incesEnabled: true,
+      banavihEnabled: true,
+      rpeEnabled: true,
+      pensionesEnabled: false,
+      ...overrides,
+    };
+  }
+
+  // Totales del run COHERENTES con las líneas, igual que PayrollCalculatorService (:575):
+  // totalEarnings = solo EARNING, totalDeductions = solo DEDUCTION, totalNet = la resta.
+  function runFromLines(lines: LineRow[]) {
+    const sumOf = (t: LineType) =>
+      lines.filter((l) => l.conceptType === t).reduce((s, l) => s.plus(l.amount), m("0"));
+    const totalEarnings = sumOf("EARNING");
+    const totalDeductions = sumOf("DEDUCTION");
+    return {
+      ...BASE_RUN,
+      totalEarnings,
+      totalDeductions,
+      totalNet: totalEarnings.minus(totalDeductions),
+    };
+  }
+
+  // Préstamo ACTIVE cuya cuota coincide con la línea PRESTAMO_EMP del recibo (sin esto approve
+  // loguea un warning de "recibo y plan discrepan" que no es lo que se prueba aquí).
+  function loanMatchingLines(lines: LineRow[]) {
+    const l = lines.find(
+      (x) =>
+        x.conceptCode === "PRESTAMO_EMP" && x.conceptType === "DEDUCTION" && x.amount.greaterThan(0)
+    );
+    if (!l) return [];
+    const usd = l.salarySnapshotCurrency === "USD";
+    return [
+      {
+        id: "loan-1",
+        currency: usd ? "USD" : "VES",
+        installmentAmount: usd ? m("0") : l.amount,
+        remainingBalance: usd ? m("0") : l.amount.mul(5),
+        installmentAmountUsd: usd ? l.amount : null,
+        remainingBalanceUsd: usd ? l.amount.mul(5) : null,
+        paidInstallments: 1,
+      },
+    ];
+  }
+
+  function setupLoanApprove(
+    lines: LineRow[],
+    configOverrides: Record<string, unknown> = {},
+    opts: { rate?: Decimal; loans?: unknown[] } = {}
+  ) {
+    mockTx();
+    const run = runFromLines(lines);
+    vi.mocked(prisma.payrollRun.findFirst).mockResolvedValue(run as never);
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({ id: "period-1" } as never);
+    vi.mocked(prisma.payrollConfig.findUnique).mockResolvedValue(cfg(configOverrides) as never);
+    vi.mocked(prisma.payrollRun.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(prisma.payrollRunLine.findMany).mockResolvedValue(lines as never);
+    vi.mocked(prisma.exchangeRate.findFirst).mockResolvedValue(
+      (opts.rate ? { rate: opts.rate } : null) as never
+    );
+    vi.mocked(prisma.transaction.create).mockResolvedValue({ id: "tx-1" } as never);
+    vi.mocked(prisma.payrollRun.update).mockResolvedValue({
+      ...run,
+      status: "APPROVED",
+      transactionId: "tx-1",
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.employeeLoan.findMany).mockResolvedValue(
+      (opts.loans ?? loanMatchingLines(lines)) as never
+    );
+    vi.mocked(prisma.employeeRecurringConcept.findMany).mockResolvedValue([] as never);
+    return run;
+  }
+
+  function glEntries(): Gl[] {
+    const txCall = vi.mocked(prisma.transaction.create).mock.calls[0]?.[0];
+    return (txCall?.data?.entries?.create ?? []) as Gl[];
+  }
+
+  // Monto (string a 2 decimales) por cuenta. Estos casos no repiten cuenta: lo verifica
+  // expectWellFormed, así que un Record por cuenta no esconde líneas duplicadas.
+  const byAccount = (entries: Gl[]) =>
+    Object.fromEntries(entries.map((e) => [e.accountId, e.amount.toFixed(2)]));
+
+  // Residuo que ADR-058 dejó trazado en el AuditLog (0 si no hubo).
+  function auditedResidual(): Decimal {
+    const audit = vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0];
+    const nv = audit?.data?.newValue as unknown as { glRounding?: { residual: string } };
+    return nv?.glRounding ? m(nv.glRounding.residual) : m("0");
+  }
+
+  // CA-5 / ADR-058: lo que llega a Prisma suma EXACTAMENTE 0, cada línea es múltiplo de 0,01, no
+  // lleva el campo interno noAbsorb (Prisma rechaza campos desconocidos) y no repite cuenta.
+  function expectWellFormed(entries: Gl[]) {
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.reduce((acc, e) => acc.plus(e.amount), m("0")).isZero()).toBe(true);
+    for (const e of entries) {
+      expect(e.amount.mul(100).isInteger()).toBe(true);
+      expect(Object.keys(e)).not.toContain("noAbsorb");
+    }
+    expect(new Set(entries.map((e) => e.accountId)).size).toBe(entries.length);
+  }
+
+  const WITHHOLDINGS = [
+    {
+      code: "IVSS_OBR",
+      key: "ivss",
+      account: "acct-ivss",
+      cfgKey: "ivssPayableAccountId",
+      amt: "42.54",
+    },
+    {
+      code: "FAOV_OBR",
+      key: "faov",
+      account: "acct-faov",
+      cfgKey: "faovPayableAccountId",
+      amt: "12.68",
+    },
+    {
+      code: "INCES_OBR",
+      key: "inces",
+      account: "acct-inces",
+      cfgKey: "incesPayableAccountId",
+      amt: "6.71",
+    },
+    {
+      code: "RPE_OBR",
+      key: "rpe",
+      account: "acct-rpe",
+      cfgKey: "rpePayableAccountId",
+      amt: "3.95",
+    },
+  ] as const;
+  type OwnAccounts = Record<(typeof WITHHOLDINGS)[number]["key"], boolean>;
+  const LOAN_AMOUNT = "143.71";
+
+  // ── CA-1 ─────────────────────────────────────────────────────────────────
+  it("CA-1: bruto 1.000, IVSS 40 y cuota 100 → Gasto 1.000 / IVSS 40 / Préstamos 100 / Nómina por pagar 860, Σ = 0", async () => {
+    setupLoanApprove([
+      mkLine("SAL_BASE", "EARNING", "1000"),
+      mkLine("IVSS_OBR", "DEDUCTION", "40"),
+      mkLine("PRESTAMO_EMP", "DEDUCTION", "100"),
+    ]);
+
+    await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+    const entries = glEntries();
+    expectWellFormed(entries);
+    // Exactamente 4 líneas: gasto (débito) y tres créditos. Hoy sale 900 / 40 / 100 / 760.
+    expect(entries).toHaveLength(4);
+    expect(byAccount(entries)).toEqual({
+      "acct-exp": "1000.00",
+      "acct-ivss": "-40.00",
+      "acct-loan": "-100.00",
+      "acct-pay": "-860.00",
+    });
+  });
+
+  // ── CA-3: invariante Nómina por pagar = neto del recibo ──────────────────
+  // Nota: CA-3 en la spec dice "Nómina por pagar MÁS las retenciones sin cuenta propia = totalNet",
+  // pero RN-3/RN-4 (y el comportamiento actual) son al revés: lo que no tiene cuenta propia QUEDA
+  // DENTRO de Nómina por pagar, o sea Nómina por pagar = totalNet + retenciones sin cuenta propia.
+  const ALL_OWN: OwnAccounts = { ivss: true, faov: true, inces: true, rpe: true };
+  const NONE_OWN: OwnAccounts = { ivss: false, faov: false, inces: false, rpe: false };
+  const CA3_CASES: Array<{ label: string; withLoan: boolean; own: OwnAccounts }> = [
+    { label: "con cuota, todas las retenciones con cuenta propia", withLoan: true, own: ALL_OWN },
+    { label: "sin cuota, todas las retenciones con cuenta propia", withLoan: false, own: ALL_OWN },
+    {
+      label: "con cuota, IVSS sin cuenta propia",
+      withLoan: true,
+      own: { ...ALL_OWN, ivss: false },
+    },
+    {
+      label: "con cuota, solo FAOV y RPE con cuenta propia",
+      withLoan: true,
+      own: { ivss: false, faov: true, inces: false, rpe: true },
+    },
+    { label: "con cuota, ninguna retención con cuenta propia", withLoan: true, own: NONE_OWN },
+    { label: "sin cuota, ninguna retención con cuenta propia", withLoan: false, own: NONE_OWN },
+    {
+      label: "sin cuota, solo INCES con cuenta propia",
+      withLoan: false,
+      own: { ...NONE_OWN, inces: true },
+    },
+  ];
+  // Filas [nombre, caso]: con %s el nombre sale completo (con $name vitest lo trunca y VES/USD se confunden).
+  const CA3_MATRIX = CA3_CASES.flatMap((c) =>
+    (["VES", "USD"] as const).map(
+      (currency) => [`${c.label} (${currency})`, { ...c, currency }] as const
+    )
+  );
+
+  it.each(CA3_MATRIX)(
+    "CA-3: %s — Nómina por pagar = neto del recibo + retenciones sin cuenta propia",
+    async (_name, { withLoan, own, currency }) => {
+      const lines = [
+        mkLine("SAL_BASE", "EARNING", "1043.32", currency),
+        ...WITHHOLDINGS.map((w) => mkLine(w.code, "DEDUCTION", w.amt, currency)),
+        ...(withLoan ? [mkLine("PRESTAMO_EMP", "DEDUCTION", LOAN_AMOUNT, currency)] : []),
+      ];
+      const ownConfig = Object.fromEntries(
+        WITHHOLDINGS.map((w) => [w.cfgKey, own[w.key] ? w.account : null])
+      );
+      const run = setupLoanApprove(lines, ownConfig, {
+        rate: currency === "USD" ? RATE : undefined,
+      });
+      const mult = currency === "USD" ? RATE : m("1");
+
+      await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+      const entries = glEntries();
+      expectWellFormed(entries);
+
+      // Todo se calcula aparte, a partir del recibo, no del código de producción.
+      const sinCuentaPropia = WITHHOLDINGS.filter((w) => !own[w.key]).reduce(
+        (s, w) => s.plus(w.amt),
+        m("0")
+      );
+      const expected: Record<string, string> = {
+        // Gasto = bruto completo x tasa (ADR-058: el residuo de redondeo cae aquí, la línea mayor).
+        "acct-exp": r2(run.totalEarnings.mul(mult)).minus(auditedResidual()).toFixed(2),
+        // Nómina por pagar = neto del recibo + lo que no tiene cuenta propia (RN-3 / RN-4).
+        "acct-pay": r2(run.totalNet.plus(sinCuentaPropia).mul(mult)).negated().toFixed(2),
+      };
+      for (const w of WITHHOLDINGS) {
+        if (own[w.key]) expected[w.account] = r2(m(w.amt).mul(mult)).negated().toFixed(2);
+      }
+      if (withLoan) expected["acct-loan"] = r2(m(LOAN_AMOUNT).mul(mult)).negated().toFixed(2);
+
+      expect(byAccount(entries)).toEqual(expected);
+    }
+  );
+
+  // ── CA-4: sin cuotas de préstamo el asiento es el de hoy ─────────────────
+  it("CA-4 regresión: sin cuotas de préstamo el asiento no cambia (FAOV sin cuenta propia queda en Nómina por pagar)", async () => {
+    setupLoanApprove(
+      [
+        mkLine("SAL_BASE", "EARNING", "1000"),
+        mkLine("IVSS_OBR", "DEDUCTION", "40"),
+        mkLine("FAOV_OBR", "DEDUCTION", "10"),
+      ],
+      { faovPayableAccountId: null }
+    );
+
+    await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+    const entries = glEntries();
+    expectWellFormed(entries);
+    expect(byAccount(entries)).toEqual({
+      "acct-exp": "1000.00",
+      "acct-ivss": "-40.00",
+      "acct-pay": "-960.00", // 1000 − IVSS 40; el FAOV 10 sigue dentro de Nómina por pagar (RN-4)
+    });
+  });
+
+  // ── CA-5: cuantización al céntimo con residuo; la cuota NO absorbe ───────
+  // Montos buscados con Decimal.js (tasa 779,9522, sin líneas patronales) para que el redondeo a 2
+  // decimales de las líneas deje un residuo ≠ 0 de cada signo. El residuo cae en el gasto (la línea
+  // de mayor |monto| que no es noAbsorb) y NUNCA en Préstamos a empleados.
+  it.each([
+    {
+      label: "residuo +0,02",
+      earnings: "921.19",
+      ded: { ivss: "39.86", faov: "13.34", inces: "7.26", rpe: "3.33" },
+      loan: "133.64",
+      residual: "0.02",
+    },
+    {
+      label: "residuo −0,01",
+      earnings: "1983.72",
+      ded: { ivss: "33.96", faov: "10.95", inces: "3.85", rpe: "4.05" },
+      loan: "118.58",
+      residual: "-0.01",
+    },
+  ])(
+    "CA-5: nómina USD con cuota, $label — Σ = 0 exacta, múltiplos de 0,01 y la cuota queda en round(cuota x tasa, 2)",
+    async ({ earnings, ded, loan, residual }) => {
+      const lines = [
+        mkLine("SAL_BASE", "EARNING", earnings, "USD"),
+        mkLine("IVSS_OBR", "DEDUCTION", ded.ivss, "USD"),
+        mkLine("FAOV_OBR", "DEDUCTION", ded.faov, "USD"),
+        mkLine("INCES_OBR", "DEDUCTION", ded.inces, "USD"),
+        mkLine("RPE_OBR", "DEDUCTION", ded.rpe, "USD"),
+        mkLine("PRESTAMO_EMP", "DEDUCTION", loan, "USD"),
+      ];
+      const run = setupLoanApprove(lines, {}, { rate: RATE });
+
+      await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+      const entries = glEntries();
+      expectWellFormed(entries);
+      expect(auditedResidual().toFixed(2)).toBe(m(residual).toFixed(2));
+
+      const amounts = byAccount(entries);
+      // La cuota NO absorbe: exacta, sin el ajuste del residuo.
+      expect(amounts["acct-loan"]).toBe(r2(m(loan).mul(RATE)).negated().toFixed(2));
+      // Las retenciones tampoco (noAbsorb).
+      expect(amounts["acct-ivss"]).toBe(r2(m(ded.ivss).mul(RATE)).negated().toFixed(2));
+      // Nómina por pagar = neto del recibo x tasa, sin tocar.
+      expect(amounts["acct-pay"]).toBe(r2(run.totalNet.mul(RATE)).negated().toFixed(2));
+      // El gasto = bruto completo x tasa − residuo (el residuo cae aquí).
+      expect(amounts["acct-exp"]).toBe(r2(m(earnings).mul(RATE)).minus(m(residual)).toFixed(2));
+    }
+  );
+
+  // ── CA-6 / RN-7: saldos del préstamo y línea del recibo intactos ─────────
+  describe("CA-6: saldos de EmployeeLoan y línea PRESTAMO_EMP", () => {
+    it("aplica la cuota al saldo del préstamo y no toca la línea del recibo ni los totales", async () => {
+      const lines = [
+        mkLine("SAL_BASE", "EARNING", "1000"),
+        mkLine("IVSS_OBR", "DEDUCTION", "40"),
+        mkLine("PRESTAMO_EMP", "DEDUCTION", "100"),
+      ];
+      const antes = JSON.stringify(lines.map((l) => ({ ...l, amount: l.amount.toString() })));
+      setupLoanApprove(
+        lines,
+        {},
+        {
+          loans: [
+            {
+              id: "loan-1",
+              currency: "VES",
+              installmentAmount: m("100"),
+              remainingBalance: m("500"),
+              installmentAmountUsd: null,
+              remainingBalanceUsd: null,
+              paidInstallments: 2,
+            },
+          ],
+        }
+      );
+
+      await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+      expect(vi.mocked(prisma.employeeLoan.update)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(prisma.employeeLoan.update)).toHaveBeenCalledWith({
+        where: { id: "loan-1" },
+        data: {
+          remainingBalance: "400.00",
+          paidInstallments: { increment: 1 },
+          status: "ACTIVE",
+        },
+      });
+      // La línea del recibo y los totales no se reescriben: solo se vincula el asiento.
+      const despues = JSON.stringify(lines.map((l) => ({ ...l, amount: l.amount.toString() })));
+      expect(despues).toBe(antes);
+      expect(vi.mocked(prisma.payrollRunLine.create)).not.toHaveBeenCalled();
+      expect(vi.mocked(prisma.payrollRunLine.createMany)).not.toHaveBeenCalled();
+      expect(vi.mocked(prisma.payrollRun.update)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(prisma.payrollRun.update)).toHaveBeenCalledWith({
+        where: { id: RUN_ID },
+        data: { transactionId: "tx-1" },
+      });
+    });
+
+    it("la última cuota deja el préstamo en PAID con saldo 0.00", async () => {
+      setupLoanApprove(
+        [mkLine("SAL_BASE", "EARNING", "1000"), mkLine("PRESTAMO_EMP", "DEDUCTION", "100")],
+        {},
+        {
+          loans: [
+            {
+              id: "loan-1",
+              currency: "VES",
+              installmentAmount: m("100"),
+              remainingBalance: m("100"),
+              installmentAmountUsd: null,
+              remainingBalanceUsd: null,
+              paidInstallments: 5,
+            },
+          ],
+        }
+      );
+
+      await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+      expect(vi.mocked(prisma.employeeLoan.update)).toHaveBeenCalledWith({
+        where: { id: "loan-1" },
+        data: {
+          remainingBalance: "0.00",
+          paidInstallments: { increment: 1 },
+          status: "PAID",
+        },
+      });
+    });
+
+    it("préstamo en USD en nómina USD: baja el saldo en dólares (no en bolívares) sin convertir", async () => {
+      setupLoanApprove(
+        [
+          mkLine("SAL_BASE", "EARNING", "1043.32", "USD"),
+          mkLine("PRESTAMO_EMP", "DEDUCTION", "143.71", "USD"),
+        ],
+        {},
+        {
+          rate: RATE,
+          loans: [
+            {
+              id: "loan-usd",
+              currency: "USD",
+              installmentAmount: m("0"),
+              remainingBalance: m("0"),
+              installmentAmountUsd: m("143.71"),
+              remainingBalanceUsd: m("500"),
+              paidInstallments: 0,
+            },
+          ],
+        }
+      );
+
+      await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+      expect(vi.mocked(prisma.employeeLoan.update)).toHaveBeenCalledWith({
+        where: { id: "loan-usd" },
+        data: {
+          remainingBalance: "0.00",
+          remainingBalanceUsd: "356.29",
+          paidInstallments: { increment: 1 },
+          status: "ACTIVE",
+        },
+      });
+    });
+  });
+
+  // ── CA-7 / RN-8: sin cuenta de préstamos, con cuotas → se rechaza ────────
+  describe("CA-7: cuota de préstamo sin loanReceivableAccountId", () => {
+    function expectNothingWritten() {
+      expect(vi.mocked(prisma.transaction.create)).not.toHaveBeenCalled();
+      expect(vi.mocked(prisma.employeeLoan.update)).not.toHaveBeenCalled();
+      // `payrollRun.update` es el que vincula el asiento (transactionId): no se marca aprobada con asiento.
+      expect(vi.mocked(prisma.payrollRun.update)).not.toHaveBeenCalled();
+      expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+    }
+
+    it("VES: rechaza con el mensaje de RN-8 y no crea asiento, no toca saldos ni vincula el asiento", async () => {
+      setupLoanApprove(
+        [
+          mkLine("SAL_BASE", "EARNING", "1000"),
+          mkLine("IVSS_OBR", "DEDUCTION", "40"),
+          mkLine("PRESTAMO_EMP", "DEDUCTION", "100"),
+        ],
+        { loanReceivableAccountId: null }
+      );
+
+      await expect(PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID)).rejects.toMatchObject({
+        message: LOAN_ACCOUNT_REQUIRED_MESSAGE,
+      });
+      expectNothingWritten();
+    });
+
+    it("USD (con tasa registrada): también rechaza con el mensaje de RN-8 y no escribe nada", async () => {
+      setupLoanApprove(
+        [
+          mkLine("SAL_BASE", "EARNING", "1043.32", "USD"),
+          mkLine("PRESTAMO_EMP", "DEDUCTION", "143.71", "USD"),
+        ],
+        { loanReceivableAccountId: null },
+        { rate: RATE }
+      );
+
+      await expect(PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID)).rejects.toMatchObject({
+        message: LOAN_ACCOUNT_REQUIRED_MESSAGE,
+      });
+      expectNothingWritten();
+    });
+
+    it("sin cuotas de préstamo, la falta de la cuenta NO bloquea la aprobación", async () => {
+      setupLoanApprove(
+        [mkLine("SAL_BASE", "EARNING", "1000"), mkLine("IVSS_OBR", "DEDUCTION", "40")],
+        { loanReceivableAccountId: null }
+      );
+
+      const result = await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+      expect(result.status).toBe("APPROVED");
+      const entries = glEntries();
+      expectWellFormed(entries);
+      expect(byAccount(entries)).toEqual({
+        "acct-exp": "1000.00",
+        "acct-ivss": "-40.00",
+        "acct-pay": "-960.00",
+      });
+    });
+
+    it("una línea PRESTAMO_EMP en 0 no es una cuota: no bloquea sin la cuenta", async () => {
+      setupLoanApprove(
+        [mkLine("SAL_BASE", "EARNING", "1000"), mkLine("PRESTAMO_EMP", "DEDUCTION", "0")],
+        { loanReceivableAccountId: null }
+      );
+
+      const result = await PayrollRunService.approve(COMPANY_ID, USER_ID, RUN_ID);
+
+      expect(result.status).toBe("APPROVED");
+      expect(vi.mocked(prisma.transaction.create)).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

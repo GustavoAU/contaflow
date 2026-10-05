@@ -53,7 +53,7 @@ Respuesta de la contadora (2026-10-04, al ejercicio con bruto 1.000, IVSS 40 y c
 - RN-5: El asiento sigue cuadrando exacto (Σ = 0) y cuantizado al céntimo (ADR-058). La línea de Préstamos a empleados sigue siendo `noAbsorb`: el residuo cae en gasto o en Nómina por pagar.
 - RN-6: Sin cuotas de préstamo, el asiento es idéntico al de hoy (sin regresión).
 - RN-7: Los saldos de `EmployeeLoan` y la línea del recibo `PRESTAMO_EMP` no cambian.
-- RN-8: Una nómina con cuotas de préstamo NO se aprueba si falta la cuenta de préstamos al personal en la configuración de nómina (`loanReceivableAccountId`). Se rechaza ANTES de cualquier escritura, con el mensaje "Configure la cuenta de préstamos al personal (Préstamos a Empleados) en la configuración de nómina antes de aprobar una nómina con cuotas de préstamo." La nómina sigue sin aprobar, sin asiento y sin tocar saldos (P-1, opción A).
+- RN-8: Una nómina con cuotas de préstamo NO se aprueba si falta la cuenta de préstamos al personal en la configuración de nómina (`loanReceivableAccountId`). Se rechaza antes de crear el asiento y de tocar saldos (dentro del `$transaction`, el rechazo revierte también la marca de aprobación), con el mensaje "Configure la cuenta de préstamos al personal (Préstamos a Empleados) en la configuración de nómina antes de aprobar una nómina con cuotas de préstamo." La nómina sigue sin aprobar, sin asiento y sin tocar saldos (P-1, opción A).
 
 ## 5. Asientos contables
 **Caso A — ejercicio de la contadora** (bruto 1.000, IVSS 40, cuota 100; cuentas de IVSS y de préstamos configuradas):
@@ -93,7 +93,7 @@ Sin cambios.
 ## 9. Criterios de aceptación
 - [ ] CA-1: Dado bruto 1.000, IVSS 40 y cuota de préstamo 100 con cuentas configuradas, cuando se aprueba la nómina, entonces el asiento es Gasto 1.000 / IVSS 40 / Préstamos 100 / Nómina por pagar 860 y Σ = 0.
 - [ ] CA-2: En el caso USD existente (1.043,32 de sueldo, cuota 143,71), el gasto es 1.043,32 × tasa y Nómina por pagar es el neto del recibo × tasa (833,73 × tasa), a 2 decimales; el test actual (gasto 899,61) se corrige.
-- [ ] CA-3 (invariante): para varias combinaciones (con y sin cuota, con y sin cuentas de retenciones), el crédito a Nómina por pagar más las retenciones sin cuenta propia es igual al `totalNet` convertido.
+- [ ] CA-3 (invariante): para varias combinaciones (con y sin cuota, con y sin cuentas de retenciones), el crédito a Nómina por pagar es igual al `totalNet` convertido MÁS las retenciones que no tienen cuenta propia (esas quedan dentro de Nómina por pagar, RN-4).
 - [ ] CA-4: Sin cuotas de préstamo el asiento es idéntico al actual (regresión).
 - [ ] CA-5: Σ de las líneas es exactamente 0 y cada línea es múltiplo de 0,01; la línea de Préstamos a empleados no absorbe el residuo.
 - [ ] CA-6: Los saldos de `EmployeeLoan` y la línea `PRESTAMO_EMP` del recibo no cambian.
