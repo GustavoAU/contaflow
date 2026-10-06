@@ -12,9 +12,9 @@
 // Contrato idéntico al <Select> anterior (RN-17): recibe `value` (id de cuenta o "") y emite
 // `onChange(accountId)`, así que sirve dentro de FormControl de react-hook-form.
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FocusEvent, KeyboardEvent, MouseEvent } from "react";
-import { CheckIcon, ChevronsUpDownIcon, InfoIcon } from "lucide-react";
+import { CheckIcon, ChevronsUpDownIcon, InfoIcon, XIcon } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -43,14 +43,40 @@ export type AccountComboboxProps = {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  /**
+   * Campos opcionales (D2): con una cuenta elegida (o un valor huérfano) aparece el botón «Quitar la
+   * cuenta», que emite `onChange("")`. Vaciar el texto y salir NO limpia (RN-15): el botón es la única vía.
+   */
+  clearable?: boolean;
+  /**
+   * Las cuentas aún se están cargando (acción cliente): el campo queda deshabilitado, `aria-busy` y con
+   * «Cargando cuentas…», en vez de decir «No hay cuentas disponibles» durante ese instante.
+   */
+  loading?: boolean;
 };
 
+const LOADING_MESSAGE = "Cargando cuentas…";
 const DEFAULT_PLACEHOLDER = "Buscar por código o nombre…";
 const NO_ACCOUNTS_MESSAGE = "No hay cuentas disponibles";
 const MAX_QUERY_LENGTH = 64;
 const CAP_NOTICE = "Mostrando las primeras 100. Escribe más para afinar.";
+const CLEAR_LABEL = "Quitar la cuenta";
 
 const EMPTY_RESULT: AccountSearchResult = { rows: [], matchCount: 0, truncated: false };
+
+/**
+ * D3: ¿el evento viene de un AccountCombobox con la lista (o el aviso de «sin coincidencias») visible?
+ * Decide solo por `target` (nunca por un estado global). Lo usa `onEscapeKeyDown` del AlertDialog de
+ * Radix: el primer Esc cierra solo la lista y el segundo cierra el diálogo. El disparador de Radix
+ * Select también es role="combobox" con data-state="open", pero NO es un <input>.
+ */
+export function isAccountComboboxOpen(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement &&
+    target.getAttribute("role") === "combobox" &&
+    target.getAttribute("data-state") === "open"
+  );
+}
 
 /** Sangría por nivel del código: 1 segmento = margen base, y 0,75 rem más por cada nivel. */
 function indentFor(depth: number): string {
@@ -88,6 +114,8 @@ export function AccountCombobox({
   disabled = false,
   placeholder = DEFAULT_PLACEHOLDER,
   className,
+  clearable = false,
+  loading = false,
 }: AccountComboboxProps) {
   const uid = useId();
   const listboxId = `${uid}-listbox`;
@@ -98,14 +126,23 @@ export function AccountCombobox({
   // `value`, así un cambio externo (autoselección, reset del formulario) se refleja solo (RN-20).
   const [typed, setTyped] = useState<string | null>(null);
   const [storedActiveId, setStoredActiveId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const clearRef = useRef<HTMLButtonElement>(null);
+  // Al devolver el foco al campo tras «Quitar la cuenta» no se abre la lista (solo se evita perder el foco).
+  const skipOpenOnFocus = useRef(false);
 
   const hasSelectable = useMemo(() => accounts.some((account) => account.isPostable), [accounts]);
-  const isDisabled = disabled || !hasSelectable;
+  const isDisabled = disabled || loading || !hasSelectable;
+  // D1: solo una cuenta de MOVIMIENTO presente en `accounts` cuenta como elegida. Un título o un id
+  // ausente (configuración vieja) se ve como campo vacío e inválido; nunca se emite onChange por eso.
   const selected = useMemo(
-    () => accounts.find((account) => account.id === value),
+    () => accounts.find((account) => account.id === value && account.isPostable),
     [accounts, value]
   );
   const selectedText = selected ? `${selected.code} — ${selected.name}` : "";
+  const isOrphan = value !== "" && !selected;
+  const invalid = ariaInvalid === true || isOrphan ? true : ariaInvalid;
+  const showClear = clearable && value !== "" && !disabled;
 
   // La consulta NO se inicializa con el texto mostrado: al abrir sobre una cuenta ya elegida la
   // lista sale completa.
@@ -144,6 +181,21 @@ export function AccountCombobox({
     setOpen(false);
   }
 
+  /** D2: vacía el valor. mousedown no roba el foco; si el foco estaba en el botón, vuelve al campo. */
+  function clearValue() {
+    const buttonHadFocus = document.activeElement === clearRef.current;
+    onChange("");
+    cancel();
+    if (buttonHadFocus) {
+      skipOpenOnFocus.current = true;
+      try {
+        inputRef.current?.focus();
+      } finally {
+        skipOpenOnFocus.current = false;
+      }
+    }
+  }
+
   /** Restaura el texto de la cuenta elegida (RN-15) y cierra, sin emitir nada. */
   function cancel() {
     setTyped(null);
@@ -173,7 +225,7 @@ export function AccountCombobox({
   }
 
   function handleFocus(event: FocusEvent<HTMLInputElement>) {
-    if (isDisabled) return;
+    if (isDisabled || skipOpenOnFocus.current) return;
     setOpen(true);
     // Con una cuenta elegida, seleccionar el texto hace que lo primero que se teclea lo reemplace.
     if (typed === null) event.currentTarget.select();
@@ -234,23 +286,26 @@ export function AccountCombobox({
   return (
     <div className="relative w-full">
       <Input
+        ref={inputRef}
         type="text"
         role="combobox"
         id={id}
         value={typed ?? selectedText}
-        placeholder={hasSelectable ? placeholder : NO_ACCOUNTS_MESSAGE}
+        placeholder={loading ? LOADING_MESSAGE : hasSelectable ? placeholder : NO_ACCOUNTS_MESSAGE}
+        aria-busy={loading || undefined}
         disabled={isDisabled}
         autoComplete="off"
         spellCheck={false}
         maxLength={MAX_QUERY_LENGTH}
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
-        aria-invalid={ariaInvalid}
+        aria-invalid={invalid}
         aria-autocomplete="list"
         aria-expanded={hasList}
         aria-controls={hasList ? listboxId : undefined}
         aria-activedescendant={hasList ? activeDomId : undefined}
-        className={cn("pr-8", className)}
+        data-state={isOpen ? "open" : "closed"}
+        className={cn(showClear ? "pr-16 pointer-coarse:pr-18" : "pr-8", className)}
         onChange={handleChange}
         onFocus={handleFocus}
         onClick={handleClick}
@@ -261,6 +316,20 @@ export function AccountCombobox({
         aria-hidden="true"
         className="text-muted-foreground pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2"
       />
+      {showClear && (
+        // mousedown con preventDefault: pulsar el botón no le quita el foco al campo (si no, el blur
+        // cerraría la lista antes del clic). Alcanzable con Tab; en táctil el área llega a 44 px.
+        <button
+          ref={clearRef}
+          type="button"
+          aria-label={CLEAR_LABEL}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 absolute inset-y-0 right-7 flex w-8 items-center justify-center rounded-md outline-none focus-visible:ring-3 pointer-coarse:right-8 pointer-coarse:w-11"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={clearValue}
+        >
+          <XIcon aria-hidden="true" className="size-4" />
+        </button>
+      )}
 
       {/* Anuncia «{n} cuentas» al abrir y al filtrar; cuenta solo cuentas de movimiento (RN-11). */}
       <span className="sr-only" aria-live="polite" aria-atomic="true">

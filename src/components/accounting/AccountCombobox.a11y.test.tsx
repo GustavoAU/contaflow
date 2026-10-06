@@ -36,6 +36,8 @@ type AccountComboboxProps = {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  /** B1 · D2: botón «Quitar la cuenta» que llama onChange("") (campos opcionales). */
+  clearable?: boolean;
 };
 
 async function loadCombobox(): Promise<ComponentType<AccountComboboxProps>> {
@@ -300,5 +302,110 @@ describe("AccountCombobox — patrón ARIA combobox (SPEC §8)", () => {
     const { input } = await renderCombobox({ disabled: true, "aria-invalid": true });
     expect(input.disabled).toBe(true);
     expect(input.getAttribute("aria-invalid")).toBe("true");
+  });
+});
+
+// <<B1-BLOCK-START>>
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SPEC-012 · ENTREGA B1 · PASO 0 (modo RED) — accesibilidad de `clearable` (D2) y del valor huérfano
+// (D1): axe sin violaciones serious/critical y nombre accesible exacto del botón.
+//
+// TDD SPEC — contrato ejecutable para el ui-agent. FALLA hasta que exista el botón «Quitar la cuenta»
+// y el input marque `aria-invalid` ante un valor huérfano; los casos de axe SIN botón pasan hoy y
+// quedan como guarda contra una regresión de accesibilidad al añadirlo.
+
+const ID_CAJA_P = "m:1.1.01.01.001";
+const ID_TITLE_CAJAS = "t:1.1.01.01";
+
+describe("AccountCombobox — axe B1: clearable", () => {
+  it("clearable con una cuenta elegida, cerrado: el botón tiene el nombre accesible «Quitar la cuenta» y axe no se queja", async () => {
+    await renderCombobox({ value: ID_CAJA_P, clearable: true });
+    expect(screen.getByRole("button", { name: "Quitar la cuenta" })).toBeTruthy();
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("clearable con una cuenta elegida y la lista abierta: sin violaciones", async () => {
+    const { input } = await renderCombobox({ value: ID_CAJA_P, clearable: true });
+    fireEvent.focus(input);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Quitar la cuenta" })).toBeTruthy();
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("clearable con el aviso de «sin coincidencias» visible: sin violaciones", async () => {
+    const { input } = await renderCombobox({ value: ID_CAJA_P, clearable: true });
+    typeInto(input, "zzz");
+    expect(screen.getByRole("button", { name: "Quitar la cuenta" })).toBeTruthy();
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("clearable + valor huérfano (título): botón presente, input inválido y sin violaciones", async () => {
+    const { input } = await renderCombobox({ value: ID_TITLE_CAJAS, clearable: true });
+    expect(screen.getByRole("button", { name: "Quitar la cuenta" })).toBeTruthy();
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("clearable deshabilitado: no hay botón y no hay violaciones", async () => {
+    await renderCombobox({ value: ID_CAJA_P, clearable: true, disabled: true });
+    expect(screen.queryByRole("button", { name: "Quitar la cuenta" })).toBeNull();
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("dos selectores clearable en la pantalla (el panel de inflación): los botones se distinguen por su selector y axe no se queja", async () => {
+    const Combobox = await loadCombobox();
+    render(
+      <>
+        <Combobox
+          aria-label="Cuenta actualizadora"
+          accounts={PLAN}
+          value={ID_CAJA_P}
+          onChange={() => {}}
+          clearable
+        />
+        <Combobox
+          aria-label="Cuenta REPOMO"
+          accounts={PLAN}
+          value="m:1.1.01.02.001"
+          onChange={() => {}}
+          clearable
+        />
+      </>
+    );
+    expect(screen.getAllByRole("button", { name: "Quitar la cuenta" })).toHaveLength(2);
+    await expectNoSeriousA11yViolations(document.body);
+  });
+});
+
+describe("AccountCombobox — axe B1: valor huérfano (D1)", () => {
+  it("un título como value: el campo queda vacío, marcado inválido, y axe no se queja (cerrado)", async () => {
+    const { input } = await renderCombobox({ value: ID_TITLE_CAJAS });
+    expect(input.value).toBe("");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("un título como value, con la lista abierta: sin violaciones", async () => {
+    const { input } = await renderCombobox({ value: ID_TITLE_CAJAS });
+    fireEvent.focus(input);
+    expect(screen.getByRole("listbox")).toBeTruthy();
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("un id inexistente como value: inválido y sin violaciones", async () => {
+    const { input } = await renderCombobox({ value: "no-existe" });
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    await expectNoSeriousA11yViolations(document.body);
+  });
+
+  it("data-state=open con la lista abierta y data-state=closed cerrado, sin violaciones en ninguno de los dos", async () => {
+    const { input } = await renderCombobox();
+    expect(input.getAttribute("data-state")).toBe("closed");
+    await expectNoSeriousA11yViolations(document.body);
+    fireEvent.focus(input);
+    expect(input.getAttribute("data-state")).toBe("open");
+    await expectNoSeriousA11yViolations(document.body);
+    press(input, "Escape");
+    expect(input.getAttribute("data-state")).toBe("closed");
   });
 });

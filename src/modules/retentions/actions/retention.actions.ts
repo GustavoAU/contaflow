@@ -707,11 +707,14 @@ export async function getRetentionsAction(
 }
 
 // ─── Listar cuentas para selector de enteramiento ─────────────────────────────
+// SPEC-012 (B1): entrega también los TÍTULOS (isPostable=false) del tipo pedido; el selector los
+// muestra como encabezados no elegibles y decide qué se puede elegir por `isPostable`.
 export type AccountOption = {
   id: string;
   code: string;
   name: string;
   type: string;
+  isPostable: boolean;
 };
 
 export async function getAccountsForEnteramientoAction(
@@ -724,10 +727,10 @@ export async function getAccountsForEnteramientoAction(
     const accounts = await prisma.account.findMany({
       where: {
         companyId,
-        isPostable: true,
+        deletedAt: null,
         type: { in: ["ASSET", "LIABILITY"] },
       },
-      select: { id: true, code: true, name: true, type: true },
+      select: { id: true, code: true, name: true, type: true, isPostable: true },
       orderBy: { code: "asc" },
     });
 

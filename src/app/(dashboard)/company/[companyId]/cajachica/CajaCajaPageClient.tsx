@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import {
+  isSelectableAccountId,
+  selectableAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 import { CajaCajaList } from "@/modules/cajachica/components/CajaCajaList";
 import {
   listCajasCajasAction,
@@ -13,7 +19,8 @@ import {
 } from "@/modules/cajachica/actions/cajachica.actions";
 import type { CajaCajaSummary } from "@/modules/cajachica/services/CajaCajaService";
 
-type Account = { id: string; code: string; name: string; type: string };
+// SPEC-012: títulos Y cuentas de movimiento; el combobox solo deja elegir las de movimiento.
+type Account = AccountWithType;
 type Employee = { id: string; name: string; status: string };
 
 type Props = {
@@ -38,6 +45,7 @@ function CreateCajaForm({
 }) {
   const [name, setName] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [accountMissing, setAccountMissing] = useState(false);
   const [custodianId, setCustodianId] = useState("");
   const [maxBalance, setMaxBalance] = useState("");
   const [currency, setCurrency] = useState("VES");
@@ -45,7 +53,10 @@ function CreateCajaForm({
   const [isPending, start] = useTransition();
 
   // Defensa en cliente: la cuenta de la caja debe ser de tipo Activo (el server valida también).
+  // `assetAccounts` incluye los títulos de Activo (se muestran como encabezados); el aviso y el
+  // `disabled` cuentan SOLO cuentas de movimiento (RN-19).
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
+  const hasAssetAccount = selectableAccounts(assetAccounts).length > 0;
 
   // Preferir empleados activos; si no hay, listar todos para no bloquear la creación.
   const activeEmployees = employees.filter((e) => e.status === "ACTIVE");
@@ -54,6 +65,12 @@ function CreateCajaForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // El combobox es un <input type=text>: ya no existe el `required` nativo del <select>.
+    if (!isSelectableAccountId(assetAccounts, accountId)) {
+      setAccountMissing(true);
+      setError("Selecciona la cuenta contable (Activo) de la caja chica.");
+      return;
+    }
     start(async () => {
       const result = await createCajaCajaAction({
         companyId,
@@ -89,22 +106,18 @@ function CreateCajaForm({
           <Label htmlFor="caja-account" className="text-xs">
             Cuenta contable (Activo) *
           </Label>
-          <select
+          <AccountCombobox
             id="caja-account"
+            accounts={assetAccounts}
             value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
-            required
-            disabled={isPending || assetAccounts.length === 0}
-          >
-            <option value="">Seleccionar cuenta...</option>
-            {assetAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
-          {assetAccounts.length === 0 && (
+            onChange={(next) => {
+              setAccountId(next);
+              setAccountMissing(false);
+            }}
+            aria-invalid={accountMissing ? true : undefined}
+            disabled={isPending}
+          />
+          {!hasAssetAccount && (
             <p className="text-xs text-amber-600">
               No hay cuentas de tipo Activo. Crea una cuenta de Activo en el Plan de Cuentas antes
               de registrar una caja chica.

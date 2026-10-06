@@ -6,6 +6,8 @@ import { useState, useTransition, useEffect, useCallback } from "react";
 import { PlusIcon, Trash2Icon, BarChart2Icon, ListIcon } from "lucide-react";
 import { toast } from "sonner";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { isSelectableAccountId, selectableAccounts } from "@/lib/account-search";
 import type { BudgetRow, BudgetLineRow, BudgetVsActualLine } from "../services/BudgetService";
 import {
   upsertBudgetLineAction,
@@ -36,7 +38,8 @@ type Props = {
   companyId: string;
   budget: BudgetRow;
   canWrite: boolean;
-  accounts: { id: string; code: string; name: string; type: string }[];
+  // SPEC-012: títulos Y cuentas de movimiento; solo las de movimiento (`isPostable`) se pueden elegir.
+  accounts: { id: string; code: string; name: string; type: string; isPostable: boolean }[];
   onBudgetUpdate: (updated: BudgetRow) => void;
 };
 
@@ -76,7 +79,8 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
   }
 
   function handleAddLine() {
-    if (!addAccountId || !addAmount.trim()) return;
+    // L-2: la cuenta se revalida contra la lista vigente (pudo dejar de ser elegible).
+    if (!canAddLine || !addAmount.trim()) return;
     startTransition(async () => {
       const r = await upsertBudgetLineAction(companyId, budget.id, {
         accountId: addAccountId,
@@ -121,6 +125,9 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
   // Accounts not yet in budget (for the selector)
   const usedAccountIds = new Set(lines.map((l) => l.accountId));
   const availableAccounts = accounts.filter((a) => !usedAccountIds.has(a.id));
+  // RN-19: los títulos solo se muestran; si no queda ninguna cuenta de movimiento no hay nada que agregar.
+  const hasSelectableAccount = selectableAccounts(availableAccounts).length > 0;
+  const canAddLine = isSelectableAccountId(availableAccounts, addAccountId);
 
   const totalBudgeted = lines.reduce((s, l) => s + parseFloat(l.amount), 0);
 
@@ -164,7 +171,7 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
               {!showAddForm ? (
                 <button
                   onClick={() => setShowAddForm(true)}
-                  disabled={availableAccounts.length === 0}
+                  disabled={!hasSelectableAccount}
                   className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <PlusIcon className="size-4" />
@@ -173,18 +180,13 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
               ) : (
                 <div className="space-y-2 rounded-lg border border-indigo-100 bg-indigo-50 p-3">
                   <p className="text-xs font-medium text-indigo-800">Nueva línea de presupuesto</p>
-                  <select
-                    className="w-full rounded border px-2 py-1.5 text-sm text-zinc-700"
+                  <AccountCombobox
+                    accounts={availableAccounts}
                     value={addAccountId}
-                    onChange={(e) => setAddAccountId(e.target.value)}
-                  >
-                    <option value="">Seleccionar cuenta…</option>
-                    {availableAccounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} — {a.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setAddAccountId}
+                    aria-label="Cuenta de la nueva línea de presupuesto"
+                    className="bg-white"
+                  />
                   <div className="flex gap-2">
                     <MoneyInput
                       bare
@@ -205,7 +207,7 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
                   <div className="flex gap-2">
                     <button
                       onClick={handleAddLine}
-                      disabled={!addAccountId || !addAmount.trim() || isPending}
+                      disabled={!canAddLine || !addAmount.trim() || isPending}
                       className="rounded bg-indigo-600 px-3 py-1 text-xs text-white disabled:opacity-50"
                     >
                       {isPending ? "Guardando…" : "Guardar"}

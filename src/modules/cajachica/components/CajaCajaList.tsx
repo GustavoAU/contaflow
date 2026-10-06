@@ -17,6 +17,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { AccountCombobox, isAccountComboboxOpen } from "@/components/accounting/AccountCombobox";
+import {
+  isSelectableAccountId,
+  selectableAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 import { CajaCajaBalanceCard } from "./CajaCajaBalanceCard";
 import { CajaCajaMovementForm } from "./CajaCajaMovementForm";
 import { CajaCajaMovementList } from "./CajaCajaMovementList";
@@ -38,7 +44,8 @@ import type { MovementSummary } from "../services/CajaCajaMovementService";
 import type { DepositSummary } from "../services/CajaCajaDepositService";
 import type { ReimbursementSummary } from "../services/CajaCajaReimbursementService";
 
-type Account = { id: string; code: string; name: string; type: string };
+// SPEC-012: títulos Y cuentas de movimiento; el combobox solo deja elegir las de movimiento.
+type Account = AccountWithType;
 type Employee = { id: string; name: string; status: string };
 
 type Props = {
@@ -191,10 +198,15 @@ function CloseCajaDialog({
   // reverificationError y Clerk muestra el modal de 2do factor y reintenta.
   const closeWithStepUp = useReverification(closeCajaCajaAction);
 
-  // Cuenta de retorno: solo Activo y distinta de la propia cuenta de la caja.
+  // Cuenta de retorno: solo Activo y distinta de la propia cuenta de la caja. Incluye los títulos de
+  // Activo (encabezados no elegibles); el aviso y el `disabled` cuentan SOLO cuentas de movimiento (RN-19).
   const returnAccounts = accounts.filter((a) => a.type === "ASSET" && a.id !== caja.accountId);
+  const hasReturnAccount = selectableAccounts(returnAccounts).length > 0;
+  // L-2: la cuenta de retorno se revalida contra la lista vigente (pudo dejar de ser elegible).
+  const canClose = isSelectableAccountId(returnAccounts, returnAccountId);
 
   function handleConfirm() {
+    if (!canClose) return;
     setError(null);
     startClose(async () => {
       try {
@@ -231,7 +243,13 @@ function CloseCajaDialog({
           Cerrar caja
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent
+        // D3: Radix cierra el diálogo con Esc ANTES de que el combobox vea la tecla. Con la lista del
+        // combobox abierta el primer Esc cierra solo la lista; el segundo (lista ya cerrada) cierra el diálogo.
+        onEscapeKeyDown={(event) => {
+          if (isAccountComboboxOpen(event.target)) event.preventDefault();
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>Cerrar caja chica</AlertDialogTitle>
           <AlertDialogDescription>
@@ -245,21 +263,14 @@ function CloseCajaDialog({
           <Label htmlFor={`return-account-${caja.id}`} className="text-xs">
             Cuenta de retorno del efectivo (Activo) *
           </Label>
-          <select
+          <AccountCombobox
             id={`return-account-${caja.id}`}
+            accounts={returnAccounts}
             value={returnAccountId}
-            onChange={(e) => setReturnAccountId(e.target.value)}
-            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
-            disabled={isClosing || returnAccounts.length === 0}
-          >
-            <option value="">Seleccionar cuenta...</option>
-            {returnAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
-          {returnAccounts.length === 0 && (
+            onChange={setReturnAccountId}
+            disabled={isClosing}
+          />
+          {!hasReturnAccount && (
             <p className="text-xs text-amber-600">
               No hay otra cuenta de tipo Activo disponible para recibir el efectivo. Crea una en el
               Plan de Cuentas antes de cerrar la caja.
@@ -280,7 +291,7 @@ function CloseCajaDialog({
               e.preventDefault();
               handleConfirm();
             }}
-            disabled={isClosing || !returnAccountId}
+            disabled={isClosing || !canClose}
             aria-busy={isClosing}
           >
             Cerrar caja

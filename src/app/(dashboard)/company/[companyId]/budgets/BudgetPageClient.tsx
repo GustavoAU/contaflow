@@ -12,7 +12,7 @@ type Props = {
   companyId: string;
   initialBudgets: BudgetRow[];
   initialCashFlow: CashFlowProjection;
-  accounts: { id: string; code: string; name: string; type: string }[];
+  accounts: { id: string; code: string; name: string; type: string; isPostable: boolean }[];
   canWrite: boolean;
   canDelete: boolean;
 };

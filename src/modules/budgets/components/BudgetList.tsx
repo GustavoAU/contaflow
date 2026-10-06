@@ -58,7 +58,7 @@ type Props = {
   initialBudgets: BudgetRow[];
   canWrite: boolean;
   canDelete: boolean;
-  accounts: { id: string; code: string; name: string; type: string }[];
+  accounts: { id: string; code: string; name: string; type: string; isPostable: boolean }[];
 };
 
 export function BudgetList({ companyId, initialBudgets, canWrite, canDelete, accounts }: Props) {

@@ -7,8 +7,15 @@ import { Label } from "@/components/ui/label";
 import { createMovementAction } from "../actions/cajachica.actions";
 import { todayLocalISO } from "@/lib/today";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import {
+  isSelectableAccountId,
+  selectableAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 
-type Account = { id: string; code: string; name: string; type: string };
+// SPEC-012: títulos Y cuentas de movimiento; el combobox solo deja elegir las de movimiento.
+type Account = AccountWithType;
 
 type Props = {
   companyId: string;
@@ -29,6 +36,7 @@ export function CajaCajaMovementForm({
   const [concept, setConcept] = useState("");
   const [description, setDescription] = useState("");
   const [expenseAccountId, setExpenseAccountId] = useState("");
+  const [expenseMissing, setExpenseMissing] = useState(false);
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("VES");
   const [supportingDocumentId, setSupportingDocumentId] = useState("");
@@ -39,11 +47,20 @@ export function CajaCajaMovementForm({
 
   // Defensa en cliente: un gasto de caja chica solo puede imputarse a una cuenta de Gasto
   // (el server valida el tipo de cuenta también).
+  // `expenseAccounts` incluye los títulos de Gasto (encabezados no elegibles); el aviso y el
+  // `disabled` cuentan SOLO cuentas de movimiento (RN-19).
   const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
+  const hasExpenseAccount = selectableAccounts(expenseAccounts).length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // El combobox es un <input type=text>: ya no existe el `required` nativo del <select>.
+    if (!isSelectableAccountId(expenseAccounts, expenseAccountId)) {
+      setExpenseMissing(true);
+      setError("Selecciona la cuenta de Gasto a la que se imputa el movimiento.");
+      return;
+    }
 
     startTransition(async () => {
       const result = await createMovementAction({
@@ -118,22 +135,18 @@ export function CajaCajaMovementForm({
           <Label htmlFor="movement-expense-account" className="text-xs">
             Cuenta de Gasto *
           </Label>
-          <select
+          <AccountCombobox
             id="movement-expense-account"
+            accounts={expenseAccounts}
             value={expenseAccountId}
-            onChange={(e) => setExpenseAccountId(e.target.value)}
-            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
-            required
-            disabled={isPending || expenseAccounts.length === 0}
-          >
-            <option value="">Seleccionar cuenta...</option>
-            {expenseAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
-          {expenseAccounts.length === 0 && (
+            onChange={(next) => {
+              setExpenseAccountId(next);
+              setExpenseMissing(false);
+            }}
+            aria-invalid={expenseMissing ? true : undefined}
+            disabled={isPending}
+          />
+          {!hasExpenseAccount && (
             <p className="text-xs text-amber-600">
               No hay cuentas de tipo Gasto. Crea una cuenta de Gasto en el Plan de Cuentas antes de
               registrar movimientos.

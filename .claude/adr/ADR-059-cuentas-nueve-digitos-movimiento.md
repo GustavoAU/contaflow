@@ -56,6 +56,14 @@ filtrado en las consultas, pero como **encabezados grises no elegibles**: `selec
 gate de asientos (ADR-053) sigue siendo el respaldo. Entrega A (asientos manuales) hecha; la Entrega B migra el resto de
 formularios. Auditoría de seguridad: GO.
 
+## SPEC-012 Entrega B1 (2026-10-06): selector buscable en retenciones, bancos, presupuestos, inflación y caja chica
+
+Las páginas y acciones de B1 vuelven a entregar los títulos (sin `isPostable: true` en la consulta, con `companyId`,
+`deletedAt: null` y su filtro de tipo) y los formularios usan `AccountCombobox`; una cuenta guardada que dejó de ser elegible
+se revalida al enviar (`isSelectableAccountId`). **Regla de reparto:** una página y todos los formularios que ella alimenta
+migran en la misma entrega. Hueco conocido que B1 no cierra: los destinos de configuración no validan `isPostable` en el
+servidor (L-1, ver Pendiente); el combobox es la única barrera de UI y el gate de asientos protege lo que genera asiento.
+
 ## Pendiente (no bloqueante)
 
 - **Importador (M-2, R-6):** el AuditLog `IMPORT` guarda `ipAddress`/`userAgent` en null y los `create` no van en un
@@ -78,3 +86,8 @@ formularios. Auditoría de seguridad: GO.
   `accountIds` sin deduplicar: un asiento con la misma cuenta en dos líneas daría «Cuentas no encontradas». Confirmar con un
   test `[A, A, B]` y, si es real, deduplicar antes de comparar.
 - `transaction.schema.ts`: `entries` sin `.max()` (acotado hoy por rol y `limiters.fiscal`).
+- (Auditoría de SPEC-012 B1) `BankAccountService.create`, `BudgetService.upsertLine`, `CajaCajaService.createCajaCaja` y
+  `CajaCajaMovementService.createMovement` no validan `isPostable` (L-1): crear `assertAccountsPostable` en
+  `src/lib/account-guard.ts` y cablearlo; en B2/B3 (nómina, cierre fiscal, ajustes contables, activos fijos) la misma clase sube a
+  MEDIUM porque el fallo aparecería recién al correr la nómina o el cierre.
+- (Auditoría de SPEC-012 B1) barrido de páginas sin guard propio (M-1): ver SPEC-012 §10, «Backlog de B1».

@@ -12,6 +12,9 @@
 
 export type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
 
+/** `AccountOption` + tipo contable: lo usan los formularios que filtran o rotulan por tipo (caja chica, enteramiento). */
+export type AccountWithType = AccountOption & { type: string };
+
 export type AccountRow = {
   option: AccountOption;
   /** = option.isPostable: solo las cuentas de movimiento se pueden elegir; los títulos son encabezados. */
@@ -203,4 +206,27 @@ export function findExactCodeMatch(
   const digits = normalizeSearch(query).replace(/\./g, "");
   if (!/^\d+$/.test(digits)) return undefined;
   return rows.find((row) => row.selectable && row.option.code.replace(/\./g, "") === digits);
+}
+
+// ─── RN-19: la lógica de los formularios ignora los títulos ──────────────────────────────────────
+
+/**
+ * RN-19: solo las cuentas de movimiento, en el MISMO orden de entrada y sin mutarla. Conteos, avisos
+ * («No hay cuentas de tipo…»), `disabled` y autoselecciones (`[0]`) de cada formulario deben pasar por
+ * aquí: los títulos viajan al combobox solo para mostrarse como encabezados.
+ */
+export function selectableAccounts<T extends { isPostable: boolean }>(accounts: readonly T[]): T[] {
+  return accounts.filter((account) => account.isPostable);
+}
+
+/**
+ * D1: ¿este id es una cuenta ELEGIBLE de esta lista? `true` solo si existe en `accounts` Y es de
+ * movimiento. Un título, un id ausente o `""` (sin selección) dan `false`.
+ */
+export function isSelectableAccountId(
+  accounts: readonly { id: string; isPostable: boolean }[],
+  id: string
+): boolean {
+  if (id === "") return false;
+  return accounts.some((account) => account.id === id && account.isPostable);
 }

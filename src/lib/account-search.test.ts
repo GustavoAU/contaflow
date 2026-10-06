@@ -24,6 +24,7 @@
 import { describe, it, expect } from "vitest";
 
 import * as accountSearch from "./account-search";
+import { isSelectableAccountId, selectableAccounts } from "./account-search";
 
 type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
 type AccountRow = { option: AccountOption; selectable: boolean; depth: number };
@@ -1139,5 +1140,183 @@ describe("selectableCount — solo cuentas de movimiento (RN-11)", () => {
       { option: title("1.1", "CORRIENTE"), selectable: false, depth: 2 },
     ];
     expect(selectableCount(rows)).toBe(0);
+  });
+});
+
+// <<B1-BLOCK-START>>
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SPEC-012 · ENTREGA B1 · PASO 0 (modo RED) — helpers que los formularios usan para ignorar títulos
+// (RN-19): `selectableAccounts` e `isSelectableAccountId`.
+//
+// TDD SPEC — contrato ejecutable para el ui-agent. FALLA hasta que `src/lib/account-search.ts`
+// exporte ambas funciones. Se cargan con el espacio de nombres del módulo y se tipan con el contrato
+// declarado aquí, para que `tsc` no falle mientras no existan y cada caso falle por su propia razón.
+//
+//   selectableAccounts<T extends { isPostable: boolean }>(accounts: readonly T[]): T[]
+//     → solo las de movimiento, en el MISMO orden, sin mutar la entrada.
+//   isSelectableAccountId(accounts: readonly { id: string; isPostable: boolean }[], id: string): boolean
+//     → true solo si el id existe en la lista Y es de movimiento; "" → false.
+//   type AccountWithType = AccountOption & { type: string }   (solo tipo: lo verifica `tsc` en el GREEN)
+
+type B1Module = {
+  selectableAccounts<T extends { isPostable: boolean }>(accounts: readonly T[]): T[];
+  isSelectableAccountId(
+    accounts: readonly { id: string; isPostable: boolean }[],
+    id: string
+  ): boolean;
+};
+
+// GREEN (paso 2): import estático normal — `tsc` verifica que las firmas reales cumplen B1Module.
+function loadB1(): B1Module {
+  return { selectableAccounts, isSelectableAccountId };
+}
+
+type Typed = AccountOption & { type: string };
+const tt = (code: string, name: string, type = "ASSET"): Typed => ({
+  ...title(code, name),
+  type,
+});
+const mt = (code: string, name: string, type = "ASSET"): Typed => ({ ...mov(code, name), type });
+
+describe("selectableAccounts — solo cuentas de movimiento (RN-19)", () => {
+  it("descarta los títulos y conserva las cuentas de movimiento", () => {
+    const { selectableAccounts } = loadB1();
+    const result = selectableAccounts(PLAN);
+    expect(result.length).toBe(PLAN.filter((a) => a.isPostable).length);
+    expect(result.every((a) => a.isPostable)).toBe(true);
+    expect(result.map((a) => a.code)).toEqual(PLAN.filter((a) => a.isPostable).map((a) => a.code));
+  });
+
+  it("conserva el orden de ENTRADA (no reordena por código)", () => {
+    const { selectableAccounts } = loadB1();
+    const input = [
+      mt("3.1.01.01.001", "Capital"),
+      tt("1", "ACTIVO"),
+      mt("1.1.01.01.001", "Caja"),
+      tt("2", "PASIVO"),
+      mt("2.1.01.01.001", "Proveedores"),
+    ];
+    expect(selectableAccounts(input).map((a) => a.code)).toEqual([
+      "3.1.01.01.001",
+      "1.1.01.01.001",
+      "2.1.01.01.001",
+    ]);
+  });
+
+  it("devuelve los MISMOS objetos (no copias) y conserva campos extra como `type`", () => {
+    const { selectableAccounts } = loadB1();
+    const caja = mt("1.1.01.01.001", "Caja", "ASSET");
+    const gasto = mt("5.1.01.01.001", "Papelería", "EXPENSE");
+    const result = selectableAccounts([tt("1", "ACTIVO"), caja, gasto]);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toBe(caja);
+    expect(result[1]).toBe(gasto);
+    expect(result[1].type).toBe("EXPENSE");
+  });
+
+  it("NO muta la entrada: ni el arreglo ni sus elementos (entrada congelada)", () => {
+    const { selectableAccounts } = loadB1();
+    const input = Object.freeze([
+      Object.freeze(tt("1", "ACTIVO")),
+      Object.freeze(mt("1.1.01.01.001", "Caja")),
+      Object.freeze(tt("1.1", "CORRIENTE")),
+    ]);
+    const snapshot = JSON.stringify(input);
+    const result = selectableAccounts(input);
+    expect(result).toHaveLength(1);
+    expect(JSON.stringify(input)).toBe(snapshot);
+    expect(input).toHaveLength(3);
+  });
+
+  it("el resultado es un arreglo nuevo: modificarlo no altera la entrada", () => {
+    const { selectableAccounts } = loadB1();
+    const input = [mt("1.1.01.01.001", "Caja"), tt("1", "ACTIVO")];
+    const result = selectableAccounts(input);
+    result.push(mt("9.9.99.99.999", "Intruso"));
+    expect(input).toHaveLength(2);
+    expect(selectableAccounts(input)).toHaveLength(1);
+  });
+
+  it("lista vacía → []", () => {
+    expect(loadB1().selectableAccounts([])).toEqual([]);
+  });
+
+  it("solo títulos → [] (nada que elegir)", () => {
+    expect(loadB1().selectableAccounts([tt("1", "ACTIVO"), tt("1.1", "CORRIENTE")])).toEqual([]);
+  });
+
+  it("solo cuentas de movimiento → todas, en el mismo orden", () => {
+    const { selectableAccounts } = loadB1();
+    const input = [mt("1.1.01.01.002", "B"), mt("1.1.01.01.001", "A")];
+    expect(selectableAccounts(input).map((a) => a.name)).toEqual(["B", "A"]);
+  });
+
+  it("un título que va PRIMERO (el que una autoselección `[0]` elegiría por error) no aparece", () => {
+    const { selectableAccounts } = loadB1();
+    const result = selectableAccounts([
+      tt("3", "PATRIMONIO", "EQUITY"),
+      mt("3.1.01.01.001", "Capital", "EQUITY"),
+    ]);
+    expect(result[0]?.code).toBe("3.1.01.01.001");
+  });
+});
+
+describe("isSelectableAccountId — ¿este id es elegible en esta lista? (D1)", () => {
+  it("true para una cuenta de movimiento presente", () => {
+    const { isSelectableAccountId } = loadB1();
+    expect(isSelectableAccountId(PLAN, "m:1.1.01.01.001")).toBe(true);
+    expect(isSelectableAccountId(PLAN, "m:2.1.01.01.001")).toBe(true);
+  });
+
+  it("false para un título presente (no se puede elegir)", () => {
+    const { isSelectableAccountId } = loadB1();
+    expect(isSelectableAccountId(PLAN, "t:1.1.01.01")).toBe(false);
+    expect(isSelectableAccountId(PLAN, "t:1")).toBe(false);
+  });
+
+  it("false para un id que no existe en la lista", () => {
+    const { isSelectableAccountId } = loadB1();
+    expect(isSelectableAccountId(PLAN, "m:9.9.99.99.999")).toBe(false);
+    expect(isSelectableAccountId(PLAN, "no-existe")).toBe(false);
+  });
+
+  it("false para la cadena vacía (sin selección), aunque la lista traiga una cuenta con id vacío", () => {
+    const { isSelectableAccountId } = loadB1();
+    expect(isSelectableAccountId(PLAN, "")).toBe(false);
+    expect(isSelectableAccountId([{ id: "", isPostable: true }], "")).toBe(false);
+  });
+
+  it("lista vacía → false", () => {
+    expect(loadB1().isSelectableAccountId([], "m:1.1.01.01.001")).toBe(false);
+  });
+
+  it("compara el id exacto: sin ignorar mayúsculas ni espacios", () => {
+    const { isSelectableAccountId } = loadB1();
+    expect(isSelectableAccountId(PLAN, "M:1.1.01.01.001")).toBe(false);
+    expect(isSelectableAccountId(PLAN, " m:1.1.01.01.001")).toBe(false);
+    expect(isSelectableAccountId(PLAN, "m:1.1.01.01.001 ")).toBe(false);
+  });
+
+  it("solo mira la lista recibida: un id elegible en OTRA lista no cuenta", () => {
+    const { isSelectableAccountId } = loadB1();
+    const soloPasivos = PLAN.filter((a) => a.code.startsWith("2"));
+    expect(isSelectableAccountId(soloPasivos, "m:1.1.01.01.001")).toBe(false);
+    expect(isSelectableAccountId(soloPasivos, "m:2.1.01.01.001")).toBe(true);
+  });
+
+  it("no depende de la posición: funciona igual con el título antes o después de la cuenta", () => {
+    const { isSelectableAccountId } = loadB1();
+    const caja = mov("1.1.01.01.001", "Caja");
+    const cajas = title("1.1.01.01", "CAJAS");
+    expect(isSelectableAccountId([cajas, caja], caja.id)).toBe(true);
+    expect(isSelectableAccountId([caja, cajas], caja.id)).toBe(true);
+    expect(isSelectableAccountId([caja, cajas], cajas.id)).toBe(false);
+  });
+
+  it("acepta una lista de solo lectura y no la muta", () => {
+    const { isSelectableAccountId } = loadB1();
+    const frozen = Object.freeze([...PLAN]);
+    expect(isSelectableAccountId(frozen, "m:1.1.01.01.001")).toBe(true);
+    expect(frozen).toHaveLength(PLAN.length);
   });
 });

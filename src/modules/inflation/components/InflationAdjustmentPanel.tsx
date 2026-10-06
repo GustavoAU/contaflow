@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import {
   previewInflationAdjustmentAction,
@@ -9,6 +9,8 @@ import {
 import type { SerializedPreviewRow, SerializedRepomo } from "../actions/inpc.actions";
 import type { Account } from "@prisma/client";
 import { fmtVen } from "@/lib/fmt-ven";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { isSelectableAccountId, selectableAccounts } from "@/lib/account-search";
 
 const MONTHS = [
   "",
@@ -30,10 +32,13 @@ function fmt(v: string | number, decimals = 2): string {
   return fmtVen(v, decimals);
 }
 
+// SPEC-012: la página entrega títulos Y cuentas de movimiento; solo las de movimiento se pueden elegir.
+type InflationAccount = Pick<Account, "id" | "code" | "name"> & { isPostable: boolean };
+
 type Props = {
   companyId: string;
-  equityAccounts: Pick<Account, "id" | "code" | "name">[];
-  repomoAccounts: Pick<Account, "id" | "code" | "name">[];
+  equityAccounts: InflationAccount[];
+  repomoAccounts: InflationAccount[];
   inflationBaseYear: number | null;
   inflationBaseMonth: number | null;
 };
@@ -45,11 +50,16 @@ export function InflationAdjustmentPanel({
   inflationBaseYear,
   inflationBaseMonth,
 }: Props) {
+  const uid = useId();
   const now = new Date();
+  // RN-19: conteos, avisos y autoselección usan SOLO cuentas de movimiento. Con títulos y orden por
+  // código, `[0]` sería un título.
+  const equityOptions = selectableAccounts(equityAccounts);
+  const repomoOptions = selectableAccounts(repomoAccounts);
   const [periodYear, setPeriodYear] = useState(now.getFullYear());
   const [periodMonth, setPeriodMonth] = useState(now.getMonth() + 1);
-  const [adjustmentAccountId, setAdjustmentAccountId] = useState(equityAccounts[0]?.id ?? "");
-  const [repomoAccountId, setRepomoAccountId] = useState(repomoAccounts[0]?.id ?? "");
+  const [adjustmentAccountId, setAdjustmentAccountId] = useState(equityOptions[0]?.id ?? "");
+  const [repomoAccountId, setRepomoAccountId] = useState(repomoOptions[0]?.id ?? "");
 
   const [previewRows, setPreviewRows] = useState<SerializedPreviewRow[] | null>(null);
   const [previewRepomo, setPreviewRepomo] = useState<SerializedRepomo | null>(null);
@@ -65,7 +75,14 @@ export function InflationAdjustmentPanel({
     ? `${MONTHS[inflationBaseMonth ?? 1]} ${inflationBaseYear}`
     : "No configurado";
 
+  // L-2: las cuentas elegidas se revalidan contra las listas VIGENTES. La de Patrimonio es obligatoria;
+  // REPOMO es opcional (vacío = sin REPOMO), pero si hay una elegida debe seguir siendo elegible.
+  const accountsValid =
+    isSelectableAccountId(equityAccounts, adjustmentAccountId) &&
+    (repomoAccountId === "" || isSelectableAccountId(repomoAccounts, repomoAccountId));
+
   function handlePreview() {
+    if (!accountsValid) return;
     setPreviewError(null);
     setPreviewRows(null);
     setPreviewRepomo(null);
@@ -91,6 +108,7 @@ export function InflationAdjustmentPanel({
   }
 
   function handleConfirmRun() {
+    if (!accountsValid) return;
     setRunError(null);
     setShowConfirm(false);
     startRun(async () => {
@@ -156,47 +174,45 @@ export function InflationAdjustmentPanel({
               ))}
             </select>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">
+          <div className="w-full sm:w-72">
+            <label
+              htmlFor={`${uid}-adjustment`}
+              className="mb-1 block text-xs font-medium text-gray-600"
+            >
               Cuenta actualizadora
             </label>
-            <select
+            <AccountCombobox
+              id={`${uid}-adjustment`}
+              accounts={equityAccounts}
               value={adjustmentAccountId}
-              onChange={(e) => setAdjustmentAccountId(e.target.value)}
-              className="min-w-48 rounded border border-gray-300 px-2 py-1.5 text-sm"
-            >
-              {equityAccounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} — {a.name}
-                </option>
-              ))}
-            </select>
+              onChange={setAdjustmentAccountId}
+              className="bg-white"
+            />
           </div>
-          {repomoAccounts.length > 0 && (
-            <div>
+          {repomoOptions.length > 0 && (
+            <div className="w-full sm:w-72">
               <label
+                htmlFor={`${uid}-repomo`}
                 className="mb-1 block cursor-help text-xs font-medium text-gray-600"
                 title="Cuenta que registra el Resultado por Posición Monetaria Neta (VEN-NIF 3 §36.4)"
               >
                 Cuenta REPOMO ⓘ
               </label>
-              <select
+              {/* Opcional («Sin REPOMO» = ""): `clearable` es la única forma de quitarla (D2). */}
+              <AccountCombobox
+                id={`${uid}-repomo`}
+                accounts={repomoAccounts}
                 value={repomoAccountId}
-                onChange={(e) => setRepomoAccountId(e.target.value)}
-                className="min-w-48 rounded border border-gray-300 px-2 py-1.5 text-sm"
-              >
-                <option value="">— Sin REPOMO —</option>
-                {repomoAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setRepomoAccountId}
+                clearable
+                placeholder="Sin REPOMO — buscar cuenta…"
+                className="bg-white"
+              />
             </div>
           )}
           <button
             onClick={handlePreview}
-            disabled={isPendingPreview || !adjustmentAccountId}
+            disabled={isPendingPreview || !accountsValid}
             className="inline-flex items-center gap-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {isPendingPreview && <Loader2Icon className="size-4 animate-spin" />}
@@ -204,7 +220,7 @@ export function InflationAdjustmentPanel({
           </button>
         </div>
 
-        {repomoAccounts.length === 0 && (
+        {repomoOptions.length === 0 && (
           <p className="rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
             No hay cuentas de Ingreso/Gasto disponibles para registrar el REPOMO. Crea una cuenta de
             tipo REVENUE o EXPENSE para el resultado por inflación.
@@ -355,7 +371,7 @@ export function InflationAdjustmentPanel({
                   </p>
                   <button
                     onClick={handleConfirmRun}
-                    disabled={isPendingRun}
+                    disabled={isPendingRun || !accountsValid}
                     className="inline-flex items-center gap-2 rounded bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
                     {isPendingRun && <Loader2Icon className="size-4 animate-spin" />}

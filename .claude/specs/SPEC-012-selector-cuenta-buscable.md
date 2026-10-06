@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
 titulo: El selector de cuenta busca por código o por nombre y muestra los títulos (sin poder elegirlos)
-estado: EN_CURSO   # Entrega A HECHA y pendiente de merge; falta la Entrega B (resto de formularios)
+estado: EN_CURSO   # Entrega A FUSIONADA (PR #62); Entrega B dividida en B1/B2/B3 (ver §10); Q4 resuelta (alerta y bloquear)
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
@@ -227,7 +227,84 @@ La spec se entrega en **dos PR** (Q3). Este plan es el de la **Entrega A**; la E
   aunque coincida (RN-9); la coincidencia exacta es solo la opción activa inicial, no reordena (RN-5/RN-13).
 - Pendientes para la **Entrega B** (de la auditoría y del ui-agent): ver §11.
 
-### Entrega B — resto de formularios (rama `feat/spec-012b-selector-cuenta-resto-formularios`, un solo PR)
+### Decisiones del dueño tras el inventario de la Entrega B (2026-10-05, actualizadas con las respuestas de la contadora)
+Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 52 selectores, riesgos y decisiones D1-D9).
+1. **La Entrega B se divide** (antes: un solo PR) porque el inventario muestra ~25 archivos y riesgo alto en nómina y activos fijos.
+   **Regla de reparto (comprobada el 2026-10-05):** una **página y todos los formularios que ella alimenta migran en la misma
+   entrega**. Si no, al quitar `isPostable: true` de su consulta los formularios sin migrar recibirían títulos en un `<select>`
+   nativo y se podrían elegir. Páginas compartidas: `cajachica/page.tsx` (crear caja, depósito, movimiento y cierre de caja),
+   `fixed-assets/page.tsx` (alta de activo, baja y panel INPC), `settings/page.tsx` (cierre fiscal y cuentas contables) e
+   `inventory/page.tsx` (ítems y movimientos).
+   - **B1** (esta rama): paso 0 = extender `AccountCombobox` (valor huérfano o título → texto vacío + `aria-invalid`; prop
+     `clearable`; `data-state` y ayuda `isAccountComboboxOpen` para `Esc` dentro de AlertDialog) + las páginas **completas**:
+     `RetentionList` (acción `getAccountsForEnteramientoAction`), `BankAccountList` (`bank-reconciliation/page`),
+     `BudgetDetail` (`budgets/page`), `InflationAdjustmentPanel` (`inflation/page`) y **caja chica completa**
+     (`CajaCajaPageClient`/crear caja, `CajaCajaDepositForm`, `CajaCajaMovementForm` y `CloseCajaDialog` de `CajaCajaList`).
+   - **B2**: **activos fijos** (`FixedAssetForm`, `DisposeAssetModal`, panel INPC de `FixedAssetList` y su página),
+     **ajustes** (`FiscalConfigForm`, `GLAccountsForm` y `settings/page`) y **nómina** (`PayrollWizard` y
+     `payroll/config/edit/page`) + alerta que bloquea el guardado (Q4) + retiro de `onlyPostable` de `getAccountsAction`.
+   - **B3 (al final)**: **inventario completo** (`InventoryItemForm`, `MovementForm` e `inventory/page.tsx`), **después** de
+     que SPEC-007 se fusione (esa rama reescribe el selector de `MovementForm` y la misma consulta de la página; y los dos
+     formularios comparten página).
+   - **Fuera de SPEC-012:** `IncomeDistributionForm`. Tiene un fallo de diseño previo (las cuentas por línea se validan contra
+     la empresa **receptora** pero el formulario ofrece las de la empresa actual); el dueño decidió arreglarlo con una **spec
+     propia**, y migrar su selector antes de eso sería rehacerlo dos veces.
+2. **Q4 — RESUELTA (dueño + contadora, 2026-10-05): opción B.** Si una configuración guardada apunta a una cuenta de título (o a
+   una que no existe), el formulario **muestra una alerta** que lista esos campos y **no deja guardar ni cerrar** hasta que se
+   cambien por una cuenta de movimiento. Palabras de la contadora: «mostrar una alerta … que no me deje cerrar porque estoy
+   llamando a esa cuenta; el contador sabe que los títulos y subtítulos no se deben llamar». El dueño añadió que no hay
+   asientos afectados. Aplica a todos los formularios (obligatorios y opcionales); el combobox sigue mostrando el campo vacío
+   con `aria-invalid` (D1) y es el **formulario** quien bloquea el envío con la alerta. *Dato verificado en producción el
+   2026-10-05 (solo lectura, 15 tablas con campos `*AccountId`): hoy hay 0 referencias a un título.*
+3. **Activos fijos a crédito (respuesta de la contadora):** la contrapartida de la adquisición debe poder ser también una
+   cuenta de **Pasivo** (Cuentas por pagar: «se compra a crédito un enfriador, una computadora»). Hoy
+   `fixed-assets/page.tsx:33` filtra `ASSET, EXPENSE, CONTRA_ASSET, REVENUE, EQUITY`. → en **B2**, al entregar las cuentas a
+   `FixedAssetForm`, incluir `LIABILITY` en ese filtro (el `findBestMatch` de las otras tres cuentas no cambia).
+
+### Estado de ejecución — Entrega B1 (2026-10-05)
+- **Paso 1 HECHO (test-agent, RED):** 323 tests nuevos = **273 en rojo** (por aserción real: «se esperaban N `<input role="combobox">`…
+  ¿sigue siendo un `<select>` nativo?») + 50 guardas verdes que ya pasan a propósito (matan mutantes). Verificado por la sesión
+  principal: 6 shards = 6478 tests, **273 fallan y 6205 pasan** (los 6155 anteriores intactos), tsc 0, producción sin tocar.
+  Referencia GREEN descartable (fuera del repo) y 76 mutantes: todos muertos.
+- Archivos de test: ampliados `src/lib/account-search.test.ts`, `AccountCombobox.test.tsx`, `AccountCombobox.a11y.test.tsx`,
+  `retention-extra.actions.test.ts`; nuevos `src/__tests__/architecture/account-selector-no-native-select.test.ts` (ratchet con
+  allowlist cerrada de los 9 pendientes B2/B3 + intencionales), helpers `account-combobox-forms.ts`, `account-page-data.ts`,
+  `react-tree.ts`, tests de `RetentionList`, `BankAccountList`, `BudgetDetail`, `InflationAdjustmentPanel`, `CajaCajaDepositForm`,
+  `CajaCajaMovementForm`, `CajaCajaList` (CloseCajaDialog), `CajaCajaPageClient` (CreateCajaForm) y las 4 páginas.
+- **Decisiones de la sesión principal sobre las ambigüedades del test-agent** (el ui-agent las sigue en el paso 2):
+  1. Error de «sin cuenta»: se **conserva el gating actual** de cada botón (Retención, Presupuesto «Guardar», Inflación «Vista
+     previa» y CloseCaja «Cerrar caja» siguen deshabilitados sin cuenta; Banco, Crear caja, Depósito y Movimiento validan al
+     enviar con `toast.error` o texto en pantalla que mencione «cuenta»). No se rediseña el flujo.
+  2. Nombres accesibles: se conservan los `id` existentes (`ba-account`, `caja-account`, `movement-expense-account`,
+     `return-account-<id>`); donde hoy falta etiqueta se asocia con `id` + `htmlFor`; `BudgetDetail` usa `aria-label`.
+  3. **Default de REPOMO:** sigue autoseleccionando la primera cuenta de **movimiento** (como hoy); con solo títulos es `""`
+     y se envía `undefined`.
+  4. REPOMO con solo títulos: aviso «No hay cuentas de Ingreso/Gasto…» y sin selector utilizable.
+  5. Con consulta vacía se muestran todos los títulos aunque sus cuentas ya estén en el presupuesto (RN-6): se acepta.
+  6. El `type` es opcional en el `select`/claves de bancos, presupuestos e inflación, y obligatorio en caja chica y en
+     `getAccountsForEnteramientoAction`; siempre `id`, `code`, `name`, `isPostable` y nada más.
+- **Pasos 2-5 HECHOS (2026-10-05/06):** paso 2 ui-agent GREEN (combobox con D1/D2/D3 + `loading`, 5 fuentes de datos y 9
+  componentes; acción de enteramiento con `deletedAt: null` e `isPostable`); paso 3 cobertura: los selectores y lo que cambió
+  están cubiertos (los archivos grandes como `CajaCajaList`/`BudgetList` conservan su cobertura previa); paso 4 security-agent
+  **GO** (0 CRITICAL/HIGH); paso 5 cierre.
+- **Entrega B1 HECHA (pendiente de merge):** rama `feat/spec-012b-selector-cuenta-resto-formularios`. **393 tests nuevos**
+  (323 del paso 1 + 5 de `loading` + 65 de L-2/M-1), 6768 en total con `main` integrado, 0 fallos; tsc 0 · eslint 0 errores ·
+  prettier OK. Añadidos tras la auditoría: estado `loading` del combobox («Cargando cuentas…», para `RetentionList`),
+  **L-2** (RetentionList, BudgetDetail, CloseCajaDialog e InflationAdjustmentPanel revalidan la cuenta con
+  `isSelectableAccountId` al enviar) y **M-1** (`bank-reconciliation/page.tsx` usa `requireCompanyPage` antes de leer).
+  Mutaciones verificadas en cada uno.
+- **Backlog de B1 (no bloquea):** (1) **L-1** — cuatro destinos de configuración (`BankAccountService.create`,
+  `BudgetService.upsertLine`, `createCajaCaja`, `createMovement`) no validan `isPostable`: `assertAccountsPostable` en
+  `src/lib/account-guard.ts` + cableado (arch-agent + ledger-agent), sube a MEDIUM en B2/B3; (2) **barrido M-1**: unas 21 páginas
+  de `/company/[companyId]/…` no llaman a un guard propio (`bank-reconciliation/[statementId]`, `fiscal-close`, `igtf`,
+  `iva-declaration`, `periods`, `reports/*`, `retentions`, `transactions`, `import`…); hay que leerlas una a una y ampliar
+  `company-page-scope.test.ts` a `prisma.account.*` y servicios; (3) `enterRetention` y `assertAccountsBelongToCompany` no
+  filtran `deletedAt`; (4) D4 (altura de la lista en `CloseCajaDialog` en 375×667) sin verificar en navegador; (5) el ratchet
+  solo detecta `<option>`/`SelectItem` con `x.code —`, no otras formas de mostrar la cuenta; (6) si `getAccountsForEnteramientoAction`
+  falla, el combobox queda sin cuentas sin avisar el error (UX).
+
+
+### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
 | 1 | ui-agent | Inventario de los ~17 formularios y páginas (§8): cuáles usan `Select` de Radix y cuáles `<select>` nativo, y qué lógica propia usa la lista de cuentas (autoselección, validaciones) para aplicar RN-19. | — |

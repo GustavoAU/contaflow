@@ -1,7 +1,7 @@
 // src/components/retentions/RetentionList.tsx
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import {
   Loader2Icon,
   ClockIcon,
@@ -13,6 +13,8 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { isSelectableAccountId } from "@/lib/account-search";
 import {
   enterRetentionAction,
   exportRetentionVoucherPDFAction,
@@ -47,20 +49,25 @@ function EnterRetentionModal({
   onCancel: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const uid = useId();
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [liabilityAccountId, setLiabilityAccountId] = useState("");
   const [bankAccountId, setBankAccountId] = useState("");
   const [enterDate, setEnterDate] = useState(todayLocalISO());
 
   useEffect(() => {
-    getAccountsForEnteramientoAction(companyId).then((r) => {
-      if (r.success) setAccounts(r.data);
-    });
+    getAccountsForEnteramientoAction(companyId)
+      .then((r) => {
+        if (r.success) setAccounts(r.data);
+      })
+      .finally(() => setAccountsLoading(false));
   }, [companyId]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!liabilityAccountId || !bankAccountId) return;
+    // L-2: se revalida contra las listas VIGENTES (la cuenta pudo dejar de ser elegible).
+    if (!canSubmit) return;
 
     startTransition(async () => {
       const result = await enterRetentionAction({
@@ -82,6 +89,9 @@ function EnterRetentionModal({
 
   const liabilityAccounts = accounts.filter((a) => a.type === "LIABILITY");
   const bankAccounts = accounts.filter((a) => a.type === "ASSET");
+  const canSubmit =
+    isSelectableAccountId(liabilityAccounts, liabilityAccountId) &&
+    isSelectableAccountId(bankAccounts, bankAccountId);
 
   return (
     <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
@@ -91,40 +101,33 @@ function EnterRetentionModal({
       </p>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">
+          <label
+            htmlFor={`${uid}-liability`}
+            className="mb-1 block text-xs font-medium text-zinc-600"
+          >
             Cuenta Retenciones por Pagar (Pasivo)
           </label>
-          <select
+          <AccountCombobox
+            id={`${uid}-liability`}
+            accounts={liabilityAccounts}
             value={liabilityAccountId}
-            onChange={(e) => setLiabilityAccountId(e.target.value)}
-            required
-            className="w-full rounded-md border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-          >
-            <option value="">-- Seleccionar cuenta pasivo --</option>
-            {liabilityAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
+            onChange={setLiabilityAccountId}
+            loading={accountsLoading}
+            className="bg-white"
+          />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">
+          <label htmlFor={`${uid}-bank`} className="mb-1 block text-xs font-medium text-zinc-600">
             Cuenta Banco / Caja (Activo)
           </label>
-          <select
+          <AccountCombobox
+            id={`${uid}-bank`}
+            accounts={bankAccounts}
             value={bankAccountId}
-            onChange={(e) => setBankAccountId(e.target.value)}
-            required
-            className="w-full rounded-md border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-          >
-            <option value="">-- Seleccionar cuenta banco/caja --</option>
-            {bankAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
+            onChange={setBankAccountId}
+            loading={accountsLoading}
+            className="bg-white"
+          />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600">
@@ -141,7 +144,7 @@ function EnterRetentionModal({
         <div className="flex gap-2">
           <Button
             type="submit"
-            disabled={isPending || !liabilityAccountId || !bankAccountId}
+            disabled={isPending || !canSubmit}
             className="flex-1 bg-indigo-600 hover:bg-indigo-700"
             aria-busy={isPending}
           >
