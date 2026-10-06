@@ -1,7 +1,7 @@
 ---
 id: SPEC-001
 titulo: Cuadre de partida doble garantizado en la base de datos
-estado: APROBADA   # reaprobada 2026-10-03 (T = 0). SPEC-004 HECHA. Pendiente: SPEC-007 (entrada de inventario con contrapartida) antes de activar el trigger
+estado: EN_CURSO   # 2026-10-05; prerrequisitos cumplidos (SPEC-004 y SPEC-007 mergeadas). Código y tests listos; falta el CI de integración contra Neon y APLICAR en producción (requiere confirmación)
 fecha: 2026-10-01
 rama: feat/spec-001-cuadre-bd
 arbol: "[7]"
@@ -79,6 +79,12 @@ Sin cambios. El mensaje llega por el canal de errores existente.
 
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | (yo) | Barrido de generadores de asientos: de los 24 archivos que crean líneas, solo `InvoiceGLPostingService` no cuantizaba ni verificaba el cuadre (el resto ya pasa por `quantizeGLEntries`, SPEC-004). Con T = 0, un total con más de 2 decimales habría hecho fallar el COMMIT de una factura en producción. | Sí: `InvoiceGLPostingService.quantize.test.ts` en RED |
+| 2 | (yo) | RED y GREEN de `isUnbalancedEntryError` + mensaje de negocio en `mapPrismaError` (CA-6). | Sí: `prisma-errors.unbalanced.test.ts` |
+| 3 | (yo) | Migración `20261005_trigger_cuadre_partida_doble` (función + `CONSTRAINT TRIGGER` diferido, SQLSTATE `CF001`, T = 0), verificada localmente con Postgres real (PGlite, 17 escenarios, aplicada dos veces). | Sí: `gl-balance-trigger.test.ts` (integración, CI) |
+| 4 | (yo) | Adaptar `gl-quantize-balance.test.ts` (i-a: el defecto ahora está bloqueado); guard de arquitectura `gl-entry-creators-quantize.test.ts`; ADR-060; README de integración. | Sí |
+| 5 | (yo) | Gates (`tsc`, `vitest`, lint, `format:check`) y PR; el job `integration` corre CA-2..CA-6 contra Neon. `security-agent` no hace falta: no hay action, ruta, modelo ni input nuevo. | n/a |
+| 6 | (yo, SOLO con confirmación del usuario) | Aplicar la migración en producción tras el merge (`scripts/apply-migration-http.mjs`) y prueba de humo con una transacción descuadrada que se revierte sola. | n/a |
 
 ## 11. Riesgos y preguntas abiertas
 - **P-1 (RESUELTA 2026-10-03):** la auditoría de solo lectura de PRODUCCIÓN (proyecto `royal-voice-77113362`) dio: 117 asientos en 2 empresas, todos POSTED; **116 cuadran exactamente; 1 con residuo de 0,0001 Bs.** (`NOM-2026-08-16-83jgfm`, id `cmtkl766x0000sslwig0uyju5`, empresa demo "Tecnología y Suministros Andina, C.A." de Gustavo, período OPEN, causación de nómina en USD). 0 asientos con descuadre mayor a 0,01, 0 sin líneas, 0 anulados. Usuario: "corrígelos todos"; la empresa es su cuenta DEMO, sin riesgo. La corrección solo es necesaria si `T = 0`.
