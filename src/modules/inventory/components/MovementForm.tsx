@@ -7,8 +7,14 @@
 //   R-03: referencia de documento obligatoria (min 3 chars)
 //   R-04: cuenta contrapartida para completar partida doble en ENTRADA/AJUSTE
 //   R-06: SERVICE bloquea ENTRADA/SALIDA (solo AJUSTE permitido)
+//   SPEC-007: en ENTRADA la contrapartida es obligatoria (Dr Inventario / Cr contrapartida):
+//     Activo (Banco/Caja), Patrimonio (Capital, solo aporte de socios), Pasivo o Gasto que no
+//     exijan tercero (ADR-054; una compra a crédito va con su factura); nunca la cuenta de
+//     inventario del propio producto. El servidor
+//     lo revalida (el cliente solo evita el viaje de ida y vuelta).
+//     AJUSTE no cambia: el servicio ignora esa cuenta (PA-4, decisión pendiente).
 
-import { useState, useTransition, useEffect } from "react";
+import { useId, useState, useTransition, useEffect } from "react";
 import { createMovementAction } from "../actions/inventory-operations.actions";
 import { listUomsAction } from "../actions/inventory-uom.actions";
 import { todayLocalISO } from "@/lib/today";
@@ -22,6 +28,7 @@ type ItemOption = {
   stockQuantity: string;
   averageCost: string;
   itemType: string; // R-06: para bloquear SERVICE
+  accountId?: string | null; // cuenta de inventario: no puede ser su propia contrapartida (SPEC-007)
 };
 
 type UnitOption = {
@@ -37,6 +44,8 @@ type AccountOption = {
   code: string;
   name: string;
   type: string;
+  /** ADR-054: la cuenta exige tercero en cada línea del asiento (p. ej. Cuentas por pagar a proveedores). */
+  requiresThirdParty?: boolean;
 };
 
 type Props = {
@@ -58,11 +67,26 @@ type MovementType = (typeof MOVEMENT_TYPES)[number]["value"];
 // Cuentas de contrapartida relevantes por tipo de movimiento
 const COUNTERPART_HINT: Record<MovementType, string> = {
   ENTRADA:
-    "Seleccione la cuenta que origina la compra: Proveedores (CxP) si es a crédito, o Caja/Banco si fue al contado.",
+    "Seleccione de dónde sale el dinero o qué origina la entrada: Banco o Caja si fue de contado, o Capital solo si es un aporte de socios (por ejemplo, al constituir la empresa). Una compra a crédito se registra con su factura de compra.",
   SALIDA: "", // SALIDA no necesita contrapartida — Dr COGS / Cr Inventario es autosuficiente
   AJUSTE:
     "Seleccione la cuenta de ajuste: Mermas (gasto) para sobrantes/faltas, o la cuenta operativa correspondiente.",
 };
+
+const COUNTERPART_REQUIRED_MESSAGE =
+  "Seleccione la cuenta de contrapartida: Banco o Caja si fue de contado, o Capital solo si es un aporte de socios. Una compra a crédito se registra con su factura de compra.";
+
+const COUNTERPART_EMPTY_MESSAGE =
+  "No hay cuentas disponibles para la contrapartida. Cree en el Plan de Cuentas una cuenta de movimiento de Banco, Caja o Capital.";
+
+// Tipos de cuenta que se ofrecen como contrapartida, agrupados (optgroup) para encontrar
+// Capital sin recorrer toda la lista. Patrimonio solo aplica a ENTRADA (aporte de socios).
+const COUNTERPART_GROUPS = [
+  { type: "ASSET", label: "Activo" },
+  { type: "LIABILITY", label: "Pasivo" },
+  { type: "EQUITY", label: "Patrimonio" },
+  { type: "EXPENSE", label: "Gasto" },
+] as const;
 
 const fieldClass =
   "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -75,6 +99,7 @@ export function MovementForm({
   currentBcvRate,
   onSuccess,
 }: Props) {
+  const counterpartId = useId();
   const [isPending, startTransition] = useTransition();
   const [isLoadingUnits, startLoadUnits] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +157,13 @@ export function MovementForm({
     const unitId = selectedUnitId && !unitIsBase ? selectedUnitId : null;
 
     const counterpartAccountId = (fd.get("counterpartAccountId") as string) || null;
+
+    // SPEC-007 RN-1: toda ENTRADA lleva contrapartida (el servidor también lo exige).
+    if (movType === "ENTRADA" && !counterpartAccountId) {
+      setError(COUNTERPART_REQUIRED_MESSAGE);
+      return;
+    }
+
     const exchangeRateVes = (fd.get("exchangeRateVes") as string) || null;
 
     const input = {
@@ -170,15 +202,37 @@ export function MovementForm({
   const hasAltUnits = units.length > 1;
   const needsCounterpart = movType === "ENTRADA" || movType === "AJUSTE";
 
+  // Opciones de contrapartida. ENTRADA: Activo/Pasivo/Patrimonio/Gasto, sin la cuenta de
+  // inventario del producto elegido ni las que exigen tercero (el servidor las rechaza: el
+  // movimiento no registra tercero, ADR-054). AJUSTE: igual que antes (sin Patrimonio y sin
+  // filtrar), porque el servicio ignora esa cuenta (PA-4).
+  const isEntrada = movType === "ENTRADA";
+  const inventoryAccountId = isEntrada ? selectedItem?.accountId : null;
+  const counterpartGroups = COUNTERPART_GROUPS.filter((g) => isEntrada || g.type !== "EQUITY")
+    .map((g) => ({
+      ...g,
+      accounts: counterpartAccounts.filter(
+        (a) =>
+          a.type === g.type && a.id !== inventoryAccountId && !(isEntrada && a.requiresThirdParty)
+      ),
+    }))
+    .filter((g) => g.accounts.length > 0);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700"
+        >
           {error}
         </div>
       )}
       {success && (
-        <div className="rounded border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+        <div
+          role="status"
+          className="rounded border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700"
+        >
           {success}
         </div>
       )}
@@ -413,26 +467,36 @@ export function MovementForm({
         {/* R-04: Cuenta contrapartida */}
         {needsCounterpart && (
           <div className="sm:col-span-2">
-            <label className={labelClass}>
-              Cuenta contrapartida <span className="text-red-500">*</span>
+            <label htmlFor={counterpartId} className={labelClass}>
+              Cuenta contrapartida{" "}
+              <span aria-hidden="true" className="text-red-600">
+                *
+              </span>
             </label>
-            <select name="counterpartAccountId" required={needsCounterpart} className={fieldClass}>
+            <select
+              id={counterpartId}
+              name="counterpartAccountId"
+              required={needsCounterpart}
+              aria-describedby={`${counterpartId}-hint`}
+              className={fieldClass}
+            >
               <option value="">— Seleccionar cuenta contrapartida —</option>
-              {counterpartAccounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} — {a.name} (
-                  {a.type === "LIABILITY"
-                    ? "Pasivo"
-                    : a.type === "ASSET"
-                      ? "Activo"
-                      : a.type === "EXPENSE"
-                        ? "Gasto"
-                        : a.type}
-                  )
-                </option>
+              {counterpartGroups.map((g) => (
+                <optgroup key={g.type} label={g.label}>
+                  {g.accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.code} — {a.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-400">{COUNTERPART_HINT[movType]}</p>
+            <p id={`${counterpartId}-hint`} className="mt-1 text-xs text-gray-600">
+              {COUNTERPART_HINT[movType]}
+            </p>
+            {isEntrada && counterpartGroups.length === 0 && (
+              <p className="mt-1 text-xs text-amber-800">{COUNTERPART_EMPTY_MESSAGE}</p>
+            )}
           </div>
         )}
 

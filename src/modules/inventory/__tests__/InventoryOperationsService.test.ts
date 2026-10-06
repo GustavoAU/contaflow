@@ -6,7 +6,10 @@ import Decimal from "decimal.js";
 
 vi.mock("@/lib/prisma", () => ({
   default: {
-    account: { findFirstOrThrow: vi.fn() },
+    // SPEC-007: la contrapartida de una ENTRADA se valida (existencia, empresa y tipo). Se declaran
+    // los tres metodos de lectura para no atar el test a cual use la implementacion; los describe de
+    // createDraftMovement los sustituyen por un plan de cuentas falso que filtra por companyId.
+    account: { findFirstOrThrow: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
     accountingPeriod: { findFirst: vi.fn() }, // R-09: bloqueo períodos cerrados
     inventoryItem: {
       create: vi.fn(),
@@ -41,9 +44,29 @@ import {
 } from "../services/InventoryOperationsService";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import {
+  FAKE_ACCOUNTS,
+  findFirstImpl,
+  findFirstOrThrowImpl,
+  findManyImpl,
+  type Row,
+} from "./helpers/fake-db";
 
 const COMPANY_ID = "company-001";
 const USER_ID = "user-test";
+
+/**
+ * SPEC-007: instala en prisma.account un plan de cuentas falso que filtra por TODO el where
+ * (incluido companyId) y soporta los tres metodos de lectura. Asi el test describe el
+ * comportamiento (la cuenta ajena no se ve) y no el metodo concreto que use la implementacion.
+ */
+const installFakeAccounts = (rows: Row[] = FAKE_ACCOUNTS) => {
+  vi.mocked(prisma.account.findFirst).mockImplementation(findFirstImpl(rows) as never);
+  vi.mocked(prisma.account.findFirstOrThrow).mockImplementation(
+    findFirstOrThrowImpl(rows, "Account") as never
+  );
+  vi.mocked(prisma.account.findMany).mockImplementation(findManyImpl(rows) as never);
+};
 
 const makeItem = (overrides = {}) => ({
   id: "item-001",
@@ -226,7 +249,10 @@ describe("createDraftMovement", () => {
     reference: "REF-TEST-001", // R-03: referencia obligatoria (min 3 chars)
     date: new Date().toISOString(),
     idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+    counterpartAccountId: "acc-banco", // SPEC-007: toda ENTRADA sin factura lleva contrapartida
   };
+
+  beforeEach(() => installFakeAccounts());
 
   it("crea movimiento DRAFT con unitCost del input para ENTRADA", async () => {
     await createDraftMovement(BASE, USER_ID);
@@ -246,6 +272,20 @@ describe("createDraftMovement", () => {
     await createDraftMovement({ ...BASE, quantity: 3, unitCost: "0.015" }, USER_ID);
     const second = currentTx.inventoryMovement.create.mock.calls[1]![0];
     expect(second.data.totalCost.toFixed(2)).toBe("0.05");
+  });
+
+  // SPEC-007 L-1: los campos que ahora deciden el tratamiento contable deben quedar en la
+  // auditoría; en la fila del movimiento son mutables mientras sea DRAFT.
+  it("L-1: el AuditLog CREATE_DRAFT guarda la contrapartida, la factura y la fecha", async () => {
+    await createDraftMovement(BASE, USER_ID);
+
+    const audit = currentTx.auditLog.create.mock.calls[0]![0];
+    expect(audit.data.action).toBe("CREATE_DRAFT");
+    expect(audit.data.newValue).toMatchObject({
+      counterpartAccountId: "acc-banco",
+      invoiceId: null,
+      date: BASE.date,
+    });
   });
 
   it("MEDIUM-2: para SALIDA usa CPP del ítem — ignora unitCost del cliente", async () => {
@@ -321,7 +361,10 @@ describe("createDraftMovement — idempotencia acotada a companyId (regresión I
     reference: "REF-TEST-001",
     date: new Date().toISOString(),
     idempotencyKey: SHARED_KEY,
+    counterpartAccountId: "acc-banco", // SPEC-007: toda ENTRADA sin factura lleva contrapartida
   };
+
+  beforeEach(() => installFakeAccounts());
 
   // Movimiento que YA existe en la BD, pero pertenece a OTRA empresa.
   const foreignMovement = {
@@ -497,6 +540,7 @@ describe("createDraftMovement — recuperación TOCTOU del P2002 de idempotencia
     reference: "REF-TOCTOU-001",
     date: new Date().toISOString(),
     idempotencyKey: KEY,
+    counterpartAccountId: "acc-banco", // SPEC-007: toda ENTRADA sin factura lleva contrapartida
   };
 
   const p2002 = (target: unknown) =>
@@ -547,6 +591,7 @@ describe("createDraftMovement — recuperación TOCTOU del P2002 de idempotencia
 
   beforeEach(() => {
     db = [];
+    installFakeAccounts();
     vi.mocked(prisma.inventoryMovement.findFirst).mockImplementation(fakeFindFirstOn(db) as never);
   });
 
@@ -611,5 +656,147 @@ describe("createDraftMovement — recuperación TOCTOU del P2002 de idempotencia
 
     await expect(createDraftMovement(BASE, USER_ID)).rejects.toBe(err);
     expect(vi.mocked(prisma.inventoryMovement.findFirst)).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SPEC-007 — createDraftMovement: la ENTRADA sin factura falla TEMPRANO sin contrapartida
+//
+// TDD (RED primero). El rechazo ocurre al crear el borrador, no al contabilizarlo: el usuario
+// se entera en el formulario y no queda un DRAFT imposible de contabilizar. Los tests marcados
+// "(guarda)" ya pasan hoy y protegen contra un sobre-rechazo de la implementacion.
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("SPEC-007 — createDraftMovement: la ENTRADA sin factura exige una contrapartida válida", () => {
+  const MSG_SIN_CONTRAPARTIDA =
+    "La entrada de inventario requiere una cuenta de contrapartida: Banco o Caja si fue de contado, o Capital si es aporte de socios. Una compra a crédito se registra con su factura de compra.";
+
+  const BASE = {
+    companyId: COMPANY_ID,
+    itemId: "item-001",
+    type: "ENTRADA" as const,
+    quantity: 5,
+    unitCost: "120",
+    reference: "REF-SPEC7-001",
+    date: new Date().toISOString(),
+    idempotencyKey: "550e8400-e29b-41d4-a716-446655440007",
+  };
+
+  beforeEach(() => installFakeAccounts());
+
+  /** El borrador no se crea: ni transaccion abierta ni fila de movimiento ni auditoria. */
+  const expectNoDraftCreated = () => {
+    expect(vi.mocked(prisma.$transaction)).not.toHaveBeenCalled();
+    expect(currentTx.inventoryMovement.create).not.toHaveBeenCalled();
+    expect(currentTx.auditLog.create).not.toHaveBeenCalled();
+  };
+
+  it.each([undefined, null])(
+    "RN-1: ENTRADA sin factura y counterpartAccountId=%s → error de negocio y no se crea el movimiento",
+    async (counterpart) => {
+      await expect(
+        createDraftMovement({ ...BASE, counterpartAccountId: counterpart }, USER_ID)
+      ).rejects.toThrow(MSG_SIN_CONTRAPARTIDA);
+
+      expectNoDraftCreated();
+    }
+  );
+
+  it("(guarda) RN-4: con factura la contrapartida NO es obligatoria", async () => {
+    await createDraftMovement({ ...BASE, invoiceId: "inv-001" }, USER_ID);
+
+    const data = currentTx.inventoryMovement.create.mock.calls[0]![0].data;
+    expect(data.invoiceId).toBe("inv-001");
+    expect(data.counterpartAccountId).toBeNull();
+  });
+
+  it.each([
+    ["REVENUE (Ingreso)", "acc-ingreso"],
+    ["CONTRA_ASSET (cuenta regularizadora)", "acc-deprec"],
+  ])(
+    "PA-1: contrapartida de tipo %s → rechazada y no se crea el movimiento",
+    async (_tipo, counterpartAccountId) => {
+      await expect(createDraftMovement({ ...BASE, counterpartAccountId }, USER_ID)).rejects.toThrow(
+        /Ingresos|regularizadora/i
+      );
+
+      expectNoDraftCreated();
+    }
+  );
+
+  it("PA-1: la propia cuenta de inventario del ítem no puede ser su contrapartida", async () => {
+    // El ítem de estos tests usa acc-inv como cuenta de inventario; existe, es ASSET y es de la
+    // empresa: solo la regla "misma cuenta" puede rechazarla.
+    await expect(
+      createDraftMovement({ ...BASE, counterpartAccountId: "acc-inv" }, USER_ID)
+    ).rejects.toThrow(/misma cuenta de inventario/i);
+
+    expectNoDraftCreated();
+  });
+
+  it.each([
+    ["de OTRA empresa", "acc-otra-empresa"],
+    ["inexistente", "acc-fantasma"],
+  ])(
+    "RN-3: contrapartida %s → mensaje de negocio (no el error crudo de Prisma) y no se crea el movimiento",
+    async (_caso, counterpartAccountId) => {
+      await expect(createDraftMovement({ ...BASE, counterpartAccountId }, USER_ID)).rejects.toThrow(
+        /no existe o no pertenece a esta empresa/
+      );
+
+      expectNoDraftCreated();
+    }
+  );
+
+  it.each([
+    ["ASSET (Banco)", "acc-banco"],
+    ["LIABILITY (Cuentas por pagar)", "acc-cxp"],
+    ["EQUITY (Capital)", "acc-capital"],
+    ["EXPENSE (Costo/Gasto)", "acc-gasto"],
+  ])(
+    "(guarda) PA-1: contrapartida de tipo %s se admite y queda guardada en el borrador",
+    async (_tipo, counterpartAccountId) => {
+      await createDraftMovement({ ...BASE, counterpartAccountId }, USER_ID);
+
+      const data = currentTx.inventoryMovement.create.mock.calls[0]![0].data;
+      expect(data.counterpartAccountId).toBe(counterpartAccountId);
+      expect(data.status).toBe("DRAFT");
+    }
+  );
+
+  it.each(["SALIDA", "AJUSTE"] as const)("(guarda) %s no exige contrapartida", async (type) => {
+    await createDraftMovement({ ...BASE, type }, USER_ID);
+
+    expect(currentTx.inventoryMovement.create).toHaveBeenCalledOnce();
+    expect(
+      currentTx.inventoryMovement.create.mock.calls[0]![0].data.counterpartAccountId
+    ).toBeNull();
+  });
+
+  // CA-período, mitad createDraftMovement (R-09): ya existe hoy, se fija para que la spec lo cubra.
+  it("(guarda) CA-período: con el período de la fecha CERRADO → error con CERRADO y no se crea el movimiento", async () => {
+    vi.mocked(prisma.accountingPeriod.findFirst).mockResolvedValue({
+      year: 2026,
+      month: 4,
+    } as never);
+
+    await expect(
+      createDraftMovement(
+        { ...BASE, counterpartAccountId: "acc-banco", date: "2026-04-15T12:00:00.000Z" },
+        USER_ID
+      )
+    ).rejects.toThrow("CERRADO");
+
+    expectNoDraftCreated();
+  });
+
+  it("(guarda) CA-período: el período se resuelve en UTC (2026-04-01T03:30Z es abril, no marzo)", async () => {
+    await createDraftMovement(
+      { ...BASE, counterpartAccountId: "acc-banco", date: "2026-04-01T03:30:00.000Z" },
+      USER_ID
+    );
+
+    const where = vi.mocked(prisma.accountingPeriod.findFirst).mock.calls[0]![0]!.where!;
+    expect(where).toMatchObject({ companyId: COMPANY_ID, status: "CLOSED", year: 2026, month: 4 });
   });
 });

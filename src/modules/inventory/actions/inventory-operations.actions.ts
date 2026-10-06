@@ -95,7 +95,11 @@ export async function softDeleteInventoryItemAction(
 // ─── Registrar movimiento (→ DRAFT) ──────────────────────────────────────────
 
 export async function createMovementAction(input: unknown): Promise<ActionResult<string>> {
-  const parsed = CreateMovementSchema.safeParse(input);
+  // SPEC-007 H-1: el cliente NO decide a qué factura se liga un movimiento. El formulario nunca
+  // envía `invoiceId`; los movimientos ligados a factura los crea solo InvoiceLineService. Con
+  // `.omit` Zod descarta la clave si viene: aceptarla dejaba colgar una ENTRADA del asiento de una
+  // factura ajena al movimiento y contabilizarla sin su débito a Inventario.
+  const parsed = CreateMovementSchema.omit({ invoiceId: true }).safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]!.message };
 
   const ctx = await requireCompanyAction(parsed.data.companyId, {
