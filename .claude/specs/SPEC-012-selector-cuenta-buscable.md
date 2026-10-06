@@ -261,6 +261,30 @@ Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 
    `fixed-assets/page.tsx:33` filtra `ASSET, EXPENSE, CONTRA_ASSET, REVENUE, EQUITY`. → en **B2**, al entregar las cuentas a
    `FixedAssetForm`, incluir `LIABILITY` en ese filtro (el `findBestMatch` de las otras tres cuentas no cambia).
 
+### Estado de ejecución — Entrega B1 (2026-10-05)
+- **Paso 1 HECHO (test-agent, RED):** 323 tests nuevos = **273 en rojo** (por aserción real: «se esperaban N `<input role="combobox">`…
+  ¿sigue siendo un `<select>` nativo?») + 50 guardas verdes que ya pasan a propósito (matan mutantes). Verificado por la sesión
+  principal: 6 shards = 6478 tests, **273 fallan y 6205 pasan** (los 6155 anteriores intactos), tsc 0, producción sin tocar.
+  Referencia GREEN descartable (fuera del repo) y 76 mutantes: todos muertos.
+- Archivos de test: ampliados `src/lib/account-search.test.ts`, `AccountCombobox.test.tsx`, `AccountCombobox.a11y.test.tsx`,
+  `retention-extra.actions.test.ts`; nuevos `src/__tests__/architecture/account-selector-no-native-select.test.ts` (ratchet con
+  allowlist cerrada de los 9 pendientes B2/B3 + intencionales), helpers `account-combobox-forms.ts`, `account-page-data.ts`,
+  `react-tree.ts`, tests de `RetentionList`, `BankAccountList`, `BudgetDetail`, `InflationAdjustmentPanel`, `CajaCajaDepositForm`,
+  `CajaCajaMovementForm`, `CajaCajaList` (CloseCajaDialog), `CajaCajaPageClient` (CreateCajaForm) y las 4 páginas.
+- **Decisiones de la sesión principal sobre las ambigüedades del test-agent** (el ui-agent las sigue en el paso 2):
+  1. Error de «sin cuenta»: se **conserva el gating actual** de cada botón (Retención, Presupuesto «Guardar», Inflación «Vista
+     previa» y CloseCaja «Cerrar caja» siguen deshabilitados sin cuenta; Banco, Crear caja, Depósito y Movimiento validan al
+     enviar con `toast.error` o texto en pantalla que mencione «cuenta»). No se rediseña el flujo.
+  2. Nombres accesibles: se conservan los `id` existentes (`ba-account`, `caja-account`, `movement-expense-account`,
+     `return-account-<id>`); donde hoy falta etiqueta se asocia con `id` + `htmlFor`; `BudgetDetail` usa `aria-label`.
+  3. **Default de REPOMO:** sigue autoseleccionando la primera cuenta de **movimiento** (como hoy); con solo títulos es `""`
+     y se envía `undefined`.
+  4. REPOMO con solo títulos: aviso «No hay cuentas de Ingreso/Gasto…» y sin selector utilizable.
+  5. Con consulta vacía se muestran todos los títulos aunque sus cuentas ya estén en el presupuesto (RN-6): se acepta.
+  6. El `type` es opcional en el `select`/claves de bancos, presupuestos e inflación, y obligatorio en caja chica y en
+     `getAccountsForEnteramientoAction`; siempre `id`, `code`, `name`, `isPostable` y nada más.
+- **Pasos 2-5 PENDIENTES:** ui-agent GREEN → cobertura → security ligero → cierre (sin merge).
+
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|

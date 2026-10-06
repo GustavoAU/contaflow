@@ -25,6 +25,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { AccountCombobox } from "./AccountCombobox";
+import * as comboboxModule from "./AccountCombobox";
 
 // ─── Contrato (SPEC §7) ──────────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,8 @@ type AccountComboboxProps = {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  /** B1 · D2: botón «Quitar la cuenta» que llama onChange("") (campos opcionales). */
+  clearable?: boolean;
 };
 
 async function loadCombobox(): Promise<ComponentType<AccountComboboxProps>> {
@@ -1124,5 +1127,434 @@ describe("AccountCombobox — foco y varias instancias (grilla de asientos)", ()
     press(second, "Enter");
     expect(first.value).toBe(CAJA_P);
     expect(second.value).toBe(PROV);
+  });
+});
+
+// <<B1-BLOCK-START>>
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SPEC-012 · ENTREGA B1 · PASO 0 (modo RED) — extensión de AccountCombobox
+//
+// TDD SPEC — contrato ejecutable para el ui-agent. Lo que sigue FALLA hasta que el combobox cumpla:
+//   D1  `value` que no es una cuenta de movimiento presente en `accounts` (título, id inexistente):
+//       texto VACÍO, no se muestra como elegida y, si `value !== ""`, el input lleva
+//       `aria-invalid="true"` aunque no se pase la prop; NUNCA llama a onChange por ese motivo.
+//   D2  prop `clearable`: con valor (también huérfano) y sin `disabled`, un botón «Quitar la cuenta»
+//       que llama onChange("") (mousedown con preventDefault; alcanzable con Tab).
+//   D3  el input expone `data-state="open|closed"` y el módulo exporta
+//       `isAccountComboboxOpen(target)` → true solo para un <input role="combobox"> con
+//       `data-state="open"` (lo usa `onEscapeKeyDown` del AlertDialog de Radix).
+
+type B1ComboboxModule = { isAccountComboboxOpen(target: EventTarget | null): boolean };
+
+function isOpenFn(): B1ComboboxModule["isAccountComboboxOpen"] {
+  const mod = comboboxModule as unknown as Partial<B1ComboboxModule>;
+  if (typeof mod.isAccountComboboxOpen !== "function") {
+    throw new Error("isAccountComboboxOpen no es una función exportada por ./AccountCombobox");
+  }
+  return mod.isAccountComboboxOpen;
+}
+
+const TITLE_CAJAS_ID = "t:1.1.01.01";
+const TITLE_ACTIVO_ID = "t:1";
+const CLEAR_NAME = "Quitar la cuenta";
+const clearButton = () => screen.queryByRole("button", { name: CLEAR_NAME });
+const dataState = (el: HTMLElement) => el.getAttribute("data-state");
+const flush = () => act(async () => {});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+describe("AccountCombobox B1 · D1 — value huérfano (título o id inexistente)", () => {
+  it.each([
+    ["un título de 4 niveles (CAJAS)", TITLE_CAJAS_ID],
+    ["un título de nivel 1 (ACTIVO)", TITLE_ACTIVO_ID],
+    ["un id que no está en `accounts`", "no-existe"],
+  ])(
+    "value = %s → texto vacío y aria-invalid=true aunque la prop no se pase",
+    async (_name, value) => {
+      const { input } = await renderPlain(value);
+      expect(input.value).toBe("");
+      expect(input.getAttribute("aria-invalid")).toBe("true");
+    }
+  );
+
+  it("el título huérfano NO se muestra como elegido: ni el código ni el nombre aparecen en el campo", async () => {
+    const { input } = await renderPlain(TITLE_CAJAS_ID);
+    expect(input.value).not.toContain("CAJAS");
+    expect(input.value).not.toContain("1.1.01.01");
+  });
+
+  it("value = «» (sin selección, el caso normal) NO se marca como inválido", async () => {
+    const { input } = await renderPlain("");
+    expect(input.value).toBe("");
+    expect(input.getAttribute("aria-invalid")).not.toBe("true");
+  });
+
+  it("value = cuenta de movimiento válida: muestra «código — nombre» y NO es inválido", async () => {
+    const { input } = await renderPlain(ID_CAJA_P);
+    expect(input.value).toBe(CAJA_P);
+    expect(input.getAttribute("aria-invalid")).not.toBe("true");
+  });
+
+  it("la prop aria-invalid=true sigue funcionando con un valor válido", async () => {
+    const { input } = await renderControlled({ initial: ID_CAJA_P, "aria-invalid": true });
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("sin cuentas en `accounts` y un value no vacío: inválido y vacío (no hay nada que mostrar)", async () => {
+    const { input } = await renderPlain("m:fantasma", []);
+    expect(input.value).toBe("");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("NUNCA llama a onChange por ese motivo: ni al montar, ni al enfocar, ni al salir del campo", async () => {
+    const { input, onChange } = await renderPlain(TITLE_CAJAS_ID);
+    await flush();
+    fireEvent.focus(input);
+    await flush();
+    fireEvent.blur(input);
+    await flush();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("tampoco con un id inexistente ni al cambiar entre valores huérfanos", async () => {
+    const { input, onChange, setValue } = await renderPlain("no-existe");
+    await flush();
+    setValue(TITLE_ACTIVO_ID);
+    await flush();
+    setValue("otro-que-no-existe");
+    await flush();
+    fireEvent.focus(input);
+    fireEvent.blur(input);
+    await flush();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("al abrir la lista con un título huérfano, el título sigue siendo un encabezado (no una opción) y el campo sigue vacío", async () => {
+    const { input, onChange } = await renderPlain(TITLE_CAJAS_ID);
+    fireEvent.focus(input);
+    expect(screen.getAllByRole("option")).toHaveLength(MOVEMENT_IDS.length);
+    expect(headerEl("CAJAS")?.closest('[role="option"]') ?? null).toBeNull();
+    expect(input.value).toBe("");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("transiciones por cambio externo: válido → título (vacío + inválido) → válido (texto + válido) → «» (vacío + válido)", async () => {
+    const { input, setValue } = await renderPlain(ID_CAJA_P);
+    expect(input.value).toBe(CAJA_P);
+    expect(input.getAttribute("aria-invalid")).not.toBe("true");
+
+    setValue(TITLE_CAJAS_ID);
+    expect(input.value).toBe("");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+
+    setValue(ID_BANCO);
+    expect(input.value).toBe(BANCO);
+    expect(input.getAttribute("aria-invalid")).not.toBe("true");
+
+    setValue("");
+    expect(input.value).toBe("");
+    expect(input.getAttribute("aria-invalid")).not.toBe("true");
+  });
+
+  it("salir del campo con un título huérfano restaura el texto VACÍO (no el nombre del título) y sigue inválido", async () => {
+    const { input } = await renderPlain(TITLE_CAJAS_ID);
+    fireEvent.focus(input);
+    typeInto(input, "banco");
+    fireEvent.blur(input);
+    await waitFor(() => expect(input.value).toBe(""));
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("elegir una cuenta válida desde un valor huérfano emite onChange(id) una vez y deja de ser inválido", async () => {
+    const { input, onChange } = await renderControlled({ initial: TITLE_CAJAS_ID });
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    fireEvent.focus(input);
+    clickLikeBrowser(optionEl(CAJA_C), input);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(ID_CAJA_C);
+    expect(input.value).toBe(CAJA_C);
+    expect(input.getAttribute("aria-invalid")).not.toBe("true");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+describe("AccountCombobox B1 · D2 — prop `clearable` (campos opcionales)", () => {
+  it("con clearable y una cuenta elegida aparece un botón «Quitar la cuenta»", async () => {
+    await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    const button = screen.getByRole("button", { name: CLEAR_NAME });
+    expect(button.tagName === "BUTTON" || button.getAttribute("role") === "button").toBe(true);
+  });
+
+  it("clic en el botón llama onChange(«») exactamente una vez", async () => {
+    const { onChange } = await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    fireEvent.click(screen.getByRole("button", { name: CLEAR_NAME }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("al vaciar, el campo queda sin texto y el botón desaparece (ya no hay nada que quitar)", async () => {
+    const { input } = await renderControlled({ initial: ID_BANCO, clearable: true });
+    expect(input.value).toBe(BANCO);
+    fireEvent.click(screen.getByRole("button", { name: CLEAR_NAME }));
+    expect(input.value).toBe("");
+    expect(clearButton()).toBeNull();
+  });
+
+  it("sin la prop clearable NO hay botón, aunque haya una cuenta elegida", async () => {
+    await renderControlled({ initial: ID_CAJA_P });
+    expect(clearButton()).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("con clearable pero SIN valor no hay botón", async () => {
+    await renderControlled({ initial: "", clearable: true });
+    expect(clearButton()).toBeNull();
+  });
+
+  it("con clearable y `disabled` no hay botón, aunque haya valor", async () => {
+    await renderControlled({ initial: ID_CAJA_P, clearable: true, disabled: true });
+    expect(clearButton()).toBeNull();
+  });
+
+  it.each([
+    ["un título", TITLE_CAJAS_ID],
+    ["un id que no existe", "no-existe"],
+  ])(
+    "con un valor huérfano (%s) el botón SÍ aparece: es la única forma de limpiar una configuración vieja",
+    async (_name, value) => {
+      const { onChange, input } = await renderControlled({ initial: value, clearable: true });
+      expect(input.value).toBe("");
+      fireEvent.click(screen.getByRole("button", { name: CLEAR_NAME }));
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith("");
+      expect(clearButton()).toBeNull();
+    }
+  );
+
+  it("mousedown se cancela (preventDefault): pulsarlo no le quita el foco al campo", async () => {
+    await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    const notCanceled = fireEvent.mouseDown(screen.getByRole("button", { name: CLEAR_NAME }));
+    expect(notCanceled).toBe(false);
+  });
+
+  it("un clic «como lo hace el navegador» (blur solo si mousedown NO se cancela) también vacía una sola vez", async () => {
+    const { input, onChange } = await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    clickLikeBrowser(screen.getByRole("button", { name: CLEAR_NAME }), input);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("es alcanzable con Tab: no lleva tabindex=-1", async () => {
+    await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    const button = screen.getByRole("button", { name: CLEAR_NAME });
+    expect(button.getAttribute("tabindex")).not.toBe("-1");
+    expect(button.tabIndex).toBeGreaterThanOrEqual(0);
+  });
+
+  it("no cambia el patrón del combobox: sigue habiendo UN solo role=combobox y el botón no es una opción", async () => {
+    const { input } = await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    fireEvent.focus(input);
+    const button = screen.getByRole("button", { name: CLEAR_NAME });
+    expect(button.closest('[role="listbox"]')).toBeNull();
+    expect(button.getAttribute("role")).not.toBe("option");
+    expect(screen.getAllByRole("option")).toHaveLength(MOVEMENT_IDS.length);
+  });
+
+  it("con la lista abierta y texto tecleado, el botón sigue vaciando el valor elegido", async () => {
+    const { input, onChange } = await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    fireEvent.focus(input);
+    typeInto(input, "banco");
+    fireEvent.click(screen.getByRole("button", { name: CLEAR_NAME }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("vaciar el TEXTO y salir NO limpia (RN-15): el botón es la única vía; el valor se restaura sin onChange", async () => {
+    const { input, onChange } = await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    fireEvent.focus(input);
+    typeInto(input, "");
+    fireEvent.blur(input);
+    await waitFor(() => expect(input.value).toBe(CAJA_P));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("elegir otra cuenta con el botón presente no lo hace desaparecer y emite el id (no «»)", async () => {
+    const { input, onChange } = await renderControlled({ initial: ID_CAJA_P, clearable: true });
+    fireEvent.focus(input);
+    clickLikeBrowser(optionEl(BANCO), input);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(ID_BANCO);
+    expect(clearButton()).not.toBeNull();
+  });
+
+  it("dos selectores clearable en la misma pantalla: cada botón vacía SOLO el suyo", async () => {
+    const Combobox = await loadCombobox();
+    const onA = vi.fn();
+    const onB = vi.fn();
+    render(
+      <>
+        <Combobox
+          aria-label="Cuenta A"
+          accounts={PLAN}
+          value={ID_CAJA_P}
+          onChange={onA}
+          clearable
+        />
+        <Combobox aria-label="Cuenta B" accounts={PLAN} value={ID_BANCO} onChange={onB} clearable />
+      </>
+    );
+    const buttons = screen.getAllByRole("button", { name: CLEAR_NAME });
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[1]);
+    expect(onB).toHaveBeenCalledWith("");
+    expect(onA).not.toHaveBeenCalled();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+describe("AccountCombobox B1 · D3 — data-state e isAccountComboboxOpen (Esc dentro de un AlertDialog)", () => {
+  it("cerrado: data-state=closed (el atributo existe desde el inicio)", async () => {
+    const { input } = await renderControlled();
+    expect(dataState(input)).toBe("closed");
+  });
+
+  it.each([
+    ["al enfocar", (i: HTMLElement) => fireEvent.focus(i)],
+    ["al hacer clic", (i: HTMLElement) => fireEvent.click(i)],
+    ["al escribir", (i: HTMLElement) => typeInto(i, "caja")],
+    ["con ↓", (i: HTMLElement) => press(i, "ArrowDown")],
+  ])("%s → data-state=open", async (_name, open) => {
+    const { input } = await renderControlled();
+    open(input);
+    expect(dataState(input)).toBe("open");
+  });
+
+  it("Esc con la lista abierta → data-state=closed", async () => {
+    const { input } = await renderControlled();
+    fireEvent.focus(input);
+    expect(dataState(input)).toBe("open");
+    press(input, "Escape");
+    expect(dataState(input)).toBe("closed");
+  });
+
+  it("salir del campo → data-state=closed", async () => {
+    const { input } = await renderControlled();
+    fireEvent.focus(input);
+    fireEvent.blur(input);
+    await waitFor(() => expect(dataState(input)).toBe("closed"));
+  });
+
+  it("elegir una cuenta con Enter o con clic → data-state=closed", async () => {
+    const { input } = await renderControlled();
+    typeInto(input, "110101001");
+    press(input, "Enter");
+    expect(dataState(input)).toBe("closed");
+
+    fireEvent.focus(input);
+    clickLikeBrowser(optionEl(BANCO), input);
+    expect(dataState(input)).toBe("closed");
+  });
+
+  it("con el aviso «No hay cuentas que coincidan» visible el estado sigue siendo open (aunque aria-expanded sea false)", async () => {
+    const { input } = await renderControlled();
+    typeInto(input, "zzz");
+    expect(bodyText()).toContain("No hay cuentas que coincidan");
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    expect(dataState(input)).toBe("open");
+    press(input, "Escape");
+    expect(dataState(input)).toBe("closed");
+  });
+
+  it("disabled: ni el clic ni el foco lo abren → data-state=closed", async () => {
+    const { input } = await renderControlled({ disabled: true });
+    fireEvent.focus(input);
+    fireEvent.click(input);
+    expect(dataState(input)).toBe("closed");
+  });
+
+  it("sin cuentas, o con solo títulos (campo deshabilitado por dentro) → data-state=closed", async () => {
+    const empty = await renderControlled({ accounts: [] });
+    fireEvent.focus(empty.input);
+    expect(dataState(empty.input)).toBe("closed");
+    cleanup();
+
+    const titles = await renderControlled({ accounts: PLAN.filter((a) => !a.isPostable) });
+    fireEvent.focus(titles.input);
+    fireEvent.click(titles.input);
+    expect(dataState(titles.input)).toBe("closed");
+  });
+});
+
+describe("AccountCombobox B1 · D3 — isAccountComboboxOpen: ¿el evento viene de un AccountCombobox con la lista abierta?", () => {
+  const make = (tag: string, attrs: Record<string, string>) => {
+    const el = document.createElement(tag);
+    for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+    return el;
+  };
+
+  it("true solo para <input role=combobox data-state=open>", () => {
+    const isOpen = isOpenFn();
+    expect(isOpen(make("input", { role: "combobox", "data-state": "open" }))).toBe(true);
+  });
+
+  it("false con data-state=closed o sin data-state", () => {
+    const isOpen = isOpenFn();
+    expect(isOpen(make("input", { role: "combobox", "data-state": "closed" }))).toBe(false);
+    expect(isOpen(make("input", { role: "combobox" }))).toBe(false);
+    expect(isOpen(make("input", { role: "combobox", "aria-expanded": "true" }))).toBe(false);
+  });
+
+  it("false si no es un <input> (el disparador de Radix Select también es role=combobox y tiene data-state=open)", () => {
+    const isOpen = isOpenFn();
+    expect(isOpen(make("button", { role: "combobox", "data-state": "open" }))).toBe(false);
+    expect(isOpen(make("div", { role: "combobox", "data-state": "open" }))).toBe(false);
+    expect(isOpen(make("select", { role: "combobox", "data-state": "open" }))).toBe(false);
+  });
+
+  it("false si es un <input> sin role=combobox", () => {
+    const isOpen = isOpenFn();
+    expect(isOpen(make("input", { "data-state": "open" }))).toBe(false);
+    expect(isOpen(make("input", { role: "textbox", "data-state": "open" }))).toBe(false);
+  });
+
+  it("false para null y para destinos que no son elementos (document, window, nodo de texto)", () => {
+    const isOpen = isOpenFn();
+    expect(isOpen(null)).toBe(false);
+    expect(isOpen(document)).toBe(false);
+    expect(isOpen(window)).toBe(false);
+    expect(isOpen(document.createTextNode("texto"))).toBe(false);
+    expect(isOpen(document.body)).toBe(false);
+  });
+
+  it("sobre un AccountCombobox real: false cerrado, true abierto, false tras Esc", async () => {
+    const isOpen = isOpenFn();
+    const { input } = await renderControlled();
+    expect(isOpen(input)).toBe(false);
+    fireEvent.focus(input);
+    expect(isOpen(input)).toBe(true);
+    press(input, "Escape");
+    expect(isOpen(input)).toBe(false);
+  });
+
+  it("sobre un AccountCombobox real con el aviso de «sin coincidencias» visible también es true", async () => {
+    const isOpen = isOpenFn();
+    const { input } = await renderControlled();
+    typeInto(input, "zzz");
+    expect(isOpen(input)).toBe(true);
+  });
+
+  it("con dos selectores, solo el que tiene la lista abierta da true", async () => {
+    const isOpen = isOpenFn();
+    const Combobox = await loadCombobox();
+    render(
+      <>
+        <Combobox aria-label="Cuenta A" accounts={PLAN} value="" onChange={() => {}} />
+        <Combobox aria-label="Cuenta B" accounts={PLAN} value="" onChange={() => {}} />
+      </>
+    );
+    const [a, b] = screen.getAllByRole("combobox");
+    fireEvent.focus(b);
+    expect(isOpen(a)).toBe(false);
+    expect(isOpen(b)).toBe(true);
   });
 });

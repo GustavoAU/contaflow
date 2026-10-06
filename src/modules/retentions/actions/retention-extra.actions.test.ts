@@ -61,6 +61,14 @@ import { checkRateLimit } from "@/lib/ratelimit";
 import { hasModuleAccess } from "@/lib/module-access";
 import { enterRetention } from "../services/RetentionService";
 import {
+  COMPANY_ID as PAGE_COMPANY_ID,
+  createSeededDb,
+  expectKeysWithin,
+  expectSelectKeys,
+  expectedIds,
+  seedAccounts,
+} from "@/__tests__/helpers/account-page-data";
+import {
   enterRetentionAction,
   getAccountsForEnteramientoAction,
   getRetentionReconciliationAction,
@@ -225,5 +233,104 @@ describe("getRetentionReconciliationAction", () => {
     const res = await getRetentionReconciliationAction(COMPANY_ID, 2026, 1);
     expect(res.success).toBe(false);
     if (!res.success) expect(res.error).toBe("query failed");
+  });
+});
+
+// <<B1-BLOCK-START>>
+// ─── getAccountsForEnteramientoAction — títulos y cuentas (SPEC-012 B1, CA-19) ────────────────────
+// La acción alimenta los dos selectores de «Enterar retención» (RetentionList). Deja de filtrar
+// `isPostable: true` (los títulos llegan como encabezados no elegibles), AÑADE `deletedAt: null` (hoy
+// faltaba), CONSERVA `companyId` y `type in [ASSET, LIABILITY]`, y entrega SOLO
+// `{id, code, name, type, isPostable}`. Se evalúa contra una BD en memoria con varias empresas, cuentas
+// eliminadas y columnas de más (un `mockResolvedValue` respondería lo mismo a cualquier `where`).
+
+describe("getAccountsForEnteramientoAction — títulos y cuentas (SPEC-012 B1, CA-19)", () => {
+  const seed = seedAccounts();
+  type FindManyArgs = { where: Record<string, unknown>; select?: Record<string, unknown> };
+
+  function useSeededDb() {
+    vi.mocked(prisma.account.findMany).mockClear(); // el archivo no limpia los mocks entre tests
+    vi.mocked(prisma.account.findMany).mockImplementation(createSeededDb(seed).findMany as never);
+  }
+
+  const lastArgs = () =>
+    vi.mocked(prisma.account.findMany).mock.calls.at(-1)?.[0] as unknown as FindManyArgs;
+
+  it("el where es EXACTAMENTE { companyId, type: { in: [ASSET, LIABILITY] }, deletedAt: null } y NO filtra isPostable", async () => {
+    useSeededDb();
+    await getAccountsForEnteramientoAction(PAGE_COMPANY_ID);
+    expect(vi.mocked(prisma.account.findMany)).toHaveBeenCalledTimes(1);
+    const { where } = lastArgs();
+    expect(where).toEqual({
+      companyId: PAGE_COMPANY_ID,
+      type: { in: ["ASSET", "LIABILITY"] },
+      deletedAt: null,
+    });
+    expect(Object.keys(where)).not.toContain("isPostable");
+  });
+
+  it("añade deletedAt: null (antes faltaba): una cuenta eliminada no llega al selector", async () => {
+    useSeededDb();
+    const res = await getAccountsForEnteramientoAction(PAGE_COMPANY_ID);
+    expect(res.success).toBe(true);
+    if (res.success) {
+      const deletedIds = seed.filter((r) => r.deletedAt !== null).map((r) => r.id);
+      for (const id of deletedIds) expect(res.data.map((a) => a.id)).not.toContain(id);
+    }
+  });
+
+  it("el select pide isPostable (sin él el combobox trataría todo como título) y nada de más", async () => {
+    useSeededDb();
+    await getAccountsForEnteramientoAction(PAGE_COMPANY_ID);
+    expectSelectKeys(lastArgs().select, ["id", "code", "name", "type", "isPostable"]);
+  });
+
+  it("devuelve los títulos Y las cuentas de movimiento de Activo y Pasivo de ESA empresa, y nada más", async () => {
+    useSeededDb();
+    const res = await getAccountsForEnteramientoAction(PAGE_COMPANY_ID);
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    expect(res.data.map((a) => a.id).sort()).toEqual(
+      expectedIds(seed, { types: ["ASSET", "LIABILITY"] }).sort()
+    );
+    // `isPostable` aún no está en el tipo `AccountOption` de la acción (lo añade el ui-agent): se lee por contrato.
+    const accounts = res.data as unknown as { type: string; isPostable: boolean }[];
+    expect(accounts.some((a) => a.isPostable === false)).toBe(true);
+    expect(accounts.some((a) => a.isPostable === true)).toBe(true);
+    expect(accounts.every((a) => a.type === "ASSET" || a.type === "LIABILITY")).toBe(true);
+  });
+
+  it("cada cuenta lleva SOLO {id, code, name, type, isPostable}: sin descripción ni columnas de más", async () => {
+    useSeededDb();
+    const res = await getAccountsForEnteramientoAction(PAGE_COMPANY_ID);
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    expectKeysWithin(res.data as unknown as Record<string, unknown>[], [
+      "id",
+      "code",
+      "name",
+      "type",
+      "isPostable",
+    ]);
+    for (const account of res.data) {
+      expect(Object.keys(account).sort()).toEqual(["code", "id", "isPostable", "name", "type"]);
+    }
+  });
+
+  it("isPostable viaja con su valor real", async () => {
+    useSeededDb();
+    const res = await getAccountsForEnteramientoAction(PAGE_COMPANY_ID);
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    for (const original of seed.filter(
+      (r) =>
+        r.companyId === PAGE_COMPANY_ID &&
+        r.deletedAt === null &&
+        (r.type === "ASSET" || r.type === "LIABILITY")
+    )) {
+      expect(res.data).toContainEqual(
+        expect.objectContaining({ id: original.id, isPostable: original.isPostable })
+      );
+    }
   });
 });
