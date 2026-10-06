@@ -10,7 +10,7 @@ import type { SerializedPreviewRow, SerializedRepomo } from "../actions/inpc.act
 import type { Account } from "@prisma/client";
 import { fmtVen } from "@/lib/fmt-ven";
 import { AccountCombobox } from "@/components/accounting/AccountCombobox";
-import { selectableAccounts } from "@/lib/account-search";
+import { isSelectableAccountId, selectableAccounts } from "@/lib/account-search";
 
 const MONTHS = [
   "",
@@ -75,7 +75,14 @@ export function InflationAdjustmentPanel({
     ? `${MONTHS[inflationBaseMonth ?? 1]} ${inflationBaseYear}`
     : "No configurado";
 
+  // L-2: las cuentas elegidas se revalidan contra las listas VIGENTES. La de Patrimonio es obligatoria;
+  // REPOMO es opcional (vacío = sin REPOMO), pero si hay una elegida debe seguir siendo elegible.
+  const accountsValid =
+    isSelectableAccountId(equityAccounts, adjustmentAccountId) &&
+    (repomoAccountId === "" || isSelectableAccountId(repomoAccounts, repomoAccountId));
+
   function handlePreview() {
+    if (!accountsValid) return;
     setPreviewError(null);
     setPreviewRows(null);
     setPreviewRepomo(null);
@@ -101,6 +108,7 @@ export function InflationAdjustmentPanel({
   }
 
   function handleConfirmRun() {
+    if (!accountsValid) return;
     setRunError(null);
     setShowConfirm(false);
     startRun(async () => {
@@ -204,7 +212,7 @@ export function InflationAdjustmentPanel({
           )}
           <button
             onClick={handlePreview}
-            disabled={isPendingPreview || !adjustmentAccountId}
+            disabled={isPendingPreview || !accountsValid}
             className="inline-flex items-center gap-2 rounded bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {isPendingPreview && <Loader2Icon className="size-4 animate-spin" />}
@@ -363,7 +371,7 @@ export function InflationAdjustmentPanel({
                   </p>
                   <button
                     onClick={handleConfirmRun}
-                    disabled={isPendingRun}
+                    disabled={isPendingRun || !accountsValid}
                     className="inline-flex items-center gap-2 rounded bg-green-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
                     {isPendingRun && <Loader2Icon className="size-4 animate-spin" />}

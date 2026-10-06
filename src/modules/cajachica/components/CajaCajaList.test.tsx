@@ -384,3 +384,171 @@ describe("CloseCajaDialog — D3: Esc con la lista del combobox abierta cierra S
     expect(accountComboboxes()).toHaveLength(1);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// L-2 (revisión de seguridad de la Entrega B1) — TDD SPEC, modo RED: la cuenta de retorno elegida se
+// REVALIDA con la lista vigente.
+//
+// Hoy «Cerrar caja» solo mira `!returnAccountId`. Si tras un refresco de `accounts` la cuenta elegida
+// deja de ser elegible (otro usuario la convirtió en título, ya no existe, o dejó de ser de Activo) el
+// combobox se ve vacío e inválido pero el botón sigue activo y la liquidación iría a la cuenta vieja.
+// Contrato: la guarda del envío Y el `disabled` usan `isSelectableAccountId(returnAccounts, id)`, con
+// `returnAccounts` = las cuentas de tipo ASSET distintas de la cuenta de la caja (la lista del selector).
+// Con la cuenta ya no elegible el botón queda DESHABILITADO y NO se llama a `closeCajaCajaAction`
+// (el step-up `useReverification` está sustituido por el identity, así que es la misma acción).
+//
+// El refresco se simula con `rerender` sobre la MISMA instancia (el estado `returnAccountId` sobrevive;
+// el diálogo sigue abierto) y con el MISMO arreglo `cajas`. Un botón deshabilitado no dispara `onClick`
+// en React: la guarda dentro del manejador no se puede aislar del `disabled` en este componente.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+const BANCO_ACC = PLAN.find((a) => a.id === "m:1.1.01.02.001")!;
+const CAJA_CHICA_ACC = PLAN.find((a) => a.id === "m:1.1.01.01.002")!;
+const CAJAS = [CAJA] as never;
+const EMPLOYEES = [{ id: "emp-1", name: "María Pérez", status: "ACTIVE" }];
+
+/** La lista con `target` convertida en título (`isPostable: false`). */
+const withTitle = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.map((a) => (a.id === target.id ? { ...a, isPostable: false } : a));
+/** La lista sin `target`. */
+const without = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.filter((a) => a.id !== target.id);
+/** La lista con `target` reclasificada a otro tipo contable. */
+const withType = (list: readonly PlanAccount[], target: PlanAccount, type: string): PlanAccount[] =>
+  list.map((a) => (a.id === target.id ? { ...a, type } : a));
+
+/**
+ * Monta la lista, abre «Cerrar caja chica» y elige el Banco Mercantil tecleando su código: el botón
+ * «Cerrar caja» queda habilitado (se comprueba). `refresh(lista)` = el padre entrega una lista nueva.
+ */
+function mountWithChosenReturnAccount() {
+  const element = (accounts: PlanAccount[]) => (
+    <CajaCajaList
+      companyId={COMPANY_ID}
+      cajas={CAJAS}
+      accounts={accounts}
+      employees={EMPLOYEES}
+      isAdmin
+      onRefresh={onRefresh}
+    />
+  );
+  const utils = render(element([...PLAN]));
+  fireEvent.click(screen.getByRole("button", { name: "Cerrar caja" }));
+  const [account] = expectAccountComboboxes(1, "Cerrar caja chica");
+  pickByCode(account, "110102001");
+  expect(account.value).toBe(BANCO);
+  expect(confirmButton().hasAttribute("disabled")).toBe(false); // precondición: así SÍ se podría cerrar
+  return {
+    account,
+    refresh: (accounts: PlanAccount[]) => utils.rerender(element(accounts)),
+  };
+}
+
+const OBSOLETE_RETURN_LISTS = [
+  { when: "pasa a ser un TÍTULO", list: () => withTitle(PLAN, BANCO_ACC) },
+  { when: "YA NO ESTÁ en la lista", list: () => without(PLAN, BANCO_ACC) },
+  {
+    when: "deja de ser de ACTIVO (ya no está en la lista del selector de retorno)",
+    list: () => withType(PLAN, BANCO_ACC, "LIABILITY"),
+  },
+];
+
+describe.each(OBSOLETE_RETURN_LISTS)(
+  "CloseCajaDialog — L-2: la cuenta de retorno elegida $when tras refrescar la lista",
+  ({ list }) => {
+    it("el combobox queda vacío e inválido y «Cerrar caja» queda DESHABILITADO", () => {
+      const { account, refresh } = mountWithChosenReturnAccount();
+      refresh(list());
+      expect(account.value).toBe("");
+      expect(account.getAttribute("aria-invalid")).toBe("true");
+      expect(confirmButton().hasAttribute("disabled")).toBe(true);
+    });
+
+    it("hacer clic en «Cerrar caja» NO llama a closeCajaCajaAction y el diálogo sigue abierto", async () => {
+      const { refresh } = mountWithChosenReturnAccount();
+      refresh(list());
+      fireEvent.click(confirmButton());
+      await act(async () => {});
+      expect(actions.closeCajaCajaAction).not.toHaveBeenCalled();
+      expect(dialogIsOpen()).toBe(true);
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+  }
+);
+
+describe("CloseCajaDialog — L-2: la lista se queda sin NINGUNA cuenta de retorno elegible", () => {
+  it("solo la cuenta de la propia caja y títulos de Activo: aviso, campo deshabilitado, «Cerrar caja» deshabilitado y sin llamada", async () => {
+    const { account, refresh } = mountWithChosenReturnAccount();
+    refresh([
+      ...ofType(PLAN, "ASSET").filter((a) => !a.isPostable),
+      PLAN.find((a) => a.id === OWN_ACCOUNT_ID)!,
+    ]);
+    expect(screen.getByText(RETURN_WARNING)).toBeTruthy();
+    expect(account.disabled).toBe(true);
+    expect(confirmButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(confirmButton());
+    await act(async () => {});
+    expect(actions.closeCajaCajaAction).not.toHaveBeenCalled();
+  });
+
+  it("lista vacía: «Cerrar caja» deshabilitado y sin llamada", async () => {
+    const { refresh } = mountWithChosenReturnAccount();
+    refresh([]);
+    expect(confirmButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(confirmButton());
+    await act(async () => {});
+    expect(actions.closeCajaCajaAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("CloseCajaDialog — L-2: lo que NO debe cambiar (guardas verdes que matan mutantes)", () => {
+  it("un refresco que deja la cuenta elegida igual (objetos y arreglo nuevos): «Cerrar caja» sigue habilitado y envía su id", async () => {
+    const { refresh } = mountWithChosenReturnAccount();
+    refresh(PLAN.map((a) => ({ ...a })));
+    expect(confirmButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(actions.closeCajaCajaAction).toHaveBeenCalledTimes(1));
+    expect(actions.closeCajaCajaAction).toHaveBeenCalledWith({
+      cajaCajaId: CAJA.id,
+      companyId: COMPANY_ID,
+      returnAccountId: BANCO_ACC.id,
+    });
+  });
+
+  it("OTRA cuenta que pasa a título, desaparece o cambia de tipo NO invalida la elegida", async () => {
+    const { account, refresh } = mountWithChosenReturnAccount();
+    const caja001 = PLAN.find((a) => a.id === OWN_ACCOUNT_ID)!;
+    const ventas = PLAN.find((a) => a.code === "4.1.01.01.001")!;
+    refresh(withType(without(withTitle(PLAN, CAJA_CHICA_ACC), caja001), ventas, "ASSET"));
+    expect(account.value).toBe(BANCO);
+    expect(account.getAttribute("aria-invalid")).not.toBe("true");
+    expect(confirmButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(actions.closeCajaCajaAction).toHaveBeenCalledTimes(1));
+    expect(actions.closeCajaCajaAction.mock.calls[0][0].returnAccountId).toBe(BANCO_ACC.id);
+  });
+});
+
+describe("CloseCajaDialog — L-2: recuperación tras un refresco que dejó la cuenta obsoleta", () => {
+  it("si la cuenta vuelve a ser elegible en el siguiente refresco, «Cerrar caja» se rehabilita solo", async () => {
+    const { refresh } = mountWithChosenReturnAccount();
+    refresh(withTitle(PLAN, BANCO_ACC));
+    expect(confirmButton().hasAttribute("disabled")).toBe(true);
+    refresh([...PLAN]);
+    expect(confirmButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(actions.closeCajaCajaAction).toHaveBeenCalledTimes(1));
+    expect(actions.closeCajaCajaAction.mock.calls[0][0].returnAccountId).toBe(BANCO_ACC.id);
+  });
+
+  it("elegir OTRA cuenta vigente rehabilita «Cerrar caja» y envía la nueva, nunca la vieja", async () => {
+    const { account, refresh } = mountWithChosenReturnAccount();
+    refresh(withTitle(PLAN, BANCO_ACC));
+    expect(confirmButton().hasAttribute("disabled")).toBe(true);
+    pickByCode(account, "110101002");
+    expect(account.value).toBe("1.1.01.01.002 — Caja Chica");
+    expect(confirmButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(actions.closeCajaCajaAction).toHaveBeenCalledTimes(1));
+    expect(actions.closeCajaCajaAction.mock.calls[0][0].returnAccountId).toBe(CAJA_CHICA_ACC.id);
+  });
+});

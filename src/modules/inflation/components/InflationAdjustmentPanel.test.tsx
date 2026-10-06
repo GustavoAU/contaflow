@@ -437,3 +437,349 @@ describe("InflationAdjustmentPanel — confirmar el ajuste (el payload NO cambia
     await screen.findByText(/Ajuste registrado: 1 cuentas/);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// L-2 (revisión de seguridad de la Entrega B1) — TDD SPEC, modo RED: las cuentas elegidas se REVALIDAN
+// con las listas vigentes.
+//
+// Hoy «Vista Previa» solo mira `!adjustmentAccountId` y el REPOMO se envía tal cual. El panel
+// autoselecciona la primera cuenta de movimiento de cada lista al montarse (default) y NUNCA lo
+// revisa: si tras un refresco de `equityAccounts` / `repomoAccounts` ese default (o lo elegido) deja de
+// ser elegible (otro usuario lo convirtió en título, o ya no está en la lista), el combobox se ve vacío e
+// inválido pero el botón sigue activo y envía el id viejo.
+//
+// Contrato:
+//   · Cuenta actualizadora (OBLIGATORIA): la guarda y el `disabled` usan
+//     `isSelectableAccountId(equityAccounts, adjustmentAccountId)`.
+//   · REPOMO (OPCIONAL, «» = sin REPOMO): un REPOMO VACÍO sigue siendo válido; un REPOMO ELEGIDO que ya
+//     no es elegible deja el botón deshabilitado (`isSelectableAccountId(repomoAccounts, repomoAccountId)`).
+//   · El botón que EJECUTA el ajuste («Confirmar») tampoco puede enviar un id obsoleto.
+//
+// El refresco se simula con `rerender` sobre la MISMA instancia (el estado sobrevive; el default queda
+// obsoleto). Un botón deshabilitado no dispara `onClick` en React: la guarda dentro del manejador no se
+// puede aislar del `disabled` en este componente.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+const asTitle = (a: PlanAccount): PlanAccount => ({ ...a, isPostable: false });
+/** La lista con `target` convertida en título (`isPostable: false`). */
+const withTitle = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.map((a) => (a.id === target.id ? asTitle(a) : a));
+/** La lista sin `target`. */
+const without = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.filter((a) => a.id !== target.id);
+
+type Lists = { equity?: PlanAccount[]; repomo?: PlanAccount[] };
+
+/**
+ * Monta el panel con los defaults (Capital Social y Ventas Gravadas, comprobado) y «Vista Previa»
+ * habilitado (comprobado). `refresh({ equity, repomo })` = el padre entrega listas nuevas (la que no se
+ * indica se queda como estaba al montar).
+ */
+function mountPanel() {
+  const element = ({ equity = EQUITY, repomo = REPOMO }: Lists) => (
+    <InflationAdjustmentPanel
+      companyId={COMPANY_ID}
+      equityAccounts={equity}
+      repomoAccounts={repomo}
+      inflationBaseYear={2024}
+      inflationBaseMonth={1}
+    />
+  );
+  const utils = render(element({}));
+  const [adjustment, repomo] = panelComboboxes(2);
+  expect(adjustment.value).toBe(labelOf(CAPITAL));
+  expect(repomo.value).toBe(labelOf(VENTAS));
+  expect(previewButton().hasAttribute("disabled")).toBe(false); // precondición: así SÍ se podría enviar
+  return { adjustment, repomo, refresh: (lists: Lists) => utils.rerender(element(lists)) };
+}
+
+const OBSOLETE_EQUITY = [
+  { when: "pasa a ser un TÍTULO", lists: (): Lists => ({ equity: withTitle(EQUITY, CAPITAL) }) },
+  { when: "YA NO ESTÁ en la lista", lists: (): Lists => ({ equity: without(EQUITY, CAPITAL) }) },
+];
+
+describe.each(OBSOLETE_EQUITY)(
+  "InflationAdjustmentPanel — L-2: la cuenta actualizadora por defecto $when tras refrescar la lista",
+  ({ lists }) => {
+    it("el combobox queda vacío e inválido y «Vista Previa» queda DESHABILITADO", () => {
+      const { adjustment, refresh } = mountPanel();
+      refresh(lists());
+      expect(adjustment.value).toBe("");
+      expect(adjustment.getAttribute("aria-invalid")).toBe("true");
+      expect(previewButton().hasAttribute("disabled")).toBe(true);
+    });
+
+    it("hacer clic en «Vista Previa» NO llama a previewInflationAdjustmentAction", async () => {
+      const { refresh } = mountPanel();
+      refresh(lists());
+      fireEvent.click(previewButton());
+      await act(async () => {});
+      expect(previewInflationAdjustmentAction).not.toHaveBeenCalled();
+    });
+  }
+);
+
+describe("InflationAdjustmentPanel — L-2: Patrimonio se queda sin NINGUNA cuenta de movimiento", () => {
+  it("con solo títulos: campo deshabilitado, «Vista Previa» deshabilitado y sin llamada", async () => {
+    const { adjustment, refresh } = mountPanel();
+    refresh({ equity: EQUITY.filter((a) => !a.isPostable) });
+    expect(adjustment.disabled).toBe(true);
+    expect(previewButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(previewButton());
+    await act(async () => {});
+    expect(previewInflationAdjustmentAction).not.toHaveBeenCalled();
+  });
+
+  it("con la lista vacía: «Vista Previa» deshabilitado y sin llamada", async () => {
+    const { refresh } = mountPanel();
+    refresh({ equity: [] });
+    expect(previewButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(previewButton());
+    await act(async () => {});
+    expect(previewInflationAdjustmentAction).not.toHaveBeenCalled();
+  });
+});
+
+const OBSOLETE_REPOMO = [
+  { when: "pasa a ser un TÍTULO", lists: (): Lists => ({ repomo: withTitle(REPOMO, VENTAS) }) },
+  { when: "YA NO ESTÁ en la lista", lists: (): Lists => ({ repomo: without(REPOMO, VENTAS) }) },
+];
+
+describe.each(OBSOLETE_REPOMO)(
+  "InflationAdjustmentPanel — L-2: la cuenta REPOMO elegida (opcional) $when tras refrescar la lista",
+  ({ lists }) => {
+    it("el combobox de REPOMO queda vacío e inválido y «Vista Previa» queda DESHABILITADO (aunque Patrimonio esté bien)", () => {
+      const { adjustment, repomo, refresh } = mountPanel();
+      refresh(lists());
+      expect(repomo.value).toBe("");
+      expect(repomo.getAttribute("aria-invalid")).toBe("true");
+      expect(adjustment.value).toBe(labelOf(CAPITAL)); // la obligatoria sigue vigente
+      expect(previewButton().hasAttribute("disabled")).toBe(true);
+    });
+
+    it("hacer clic en «Vista Previa» NO llama a previewInflationAdjustmentAction", async () => {
+      const { refresh } = mountPanel();
+      refresh(lists());
+      fireEvent.click(previewButton());
+      await act(async () => {});
+      expect(previewInflationAdjustmentAction).not.toHaveBeenCalled();
+    });
+  }
+);
+
+describe("InflationAdjustmentPanel — L-2: a la lista de REPOMO no le queda NINGUNA cuenta de movimiento", () => {
+  // AMBIGÜEDAD declarada en el reporte: con 0 cuentas de REPOMO el selector se oculta (aviso «No hay
+  // cuentas de Ingreso/Gasto…») y el usuario no puede quitar el id viejo. El contrato solo fija que el
+  // id obsoleto NUNCA llegue a la acción: o el botón queda deshabilitado, o se envía SIN REPOMO. Los
+  // dos finales son válidos; lo que NO se admite es enviar el id viejo.
+  it.each([
+    { when: "solo quedan títulos", repomo: () => REPOMO.filter((a) => !a.isPostable) },
+    { when: "la lista queda vacía", repomo: (): PlanAccount[] => [] },
+  ])("$when: el id obsoleto de REPOMO nunca llega a la acción", async ({ repomo }) => {
+    const { refresh } = mountPanel();
+    refresh({ repomo: repomo() });
+    expect(screen.getByText(REPOMO_WARNING)).toBeTruthy();
+    fireEvent.click(previewButton()); // si está deshabilitado, React ignora el clic
+    await act(async () => {});
+    for (const call of previewInflationAdjustmentAction.mock.calls) {
+      expect((call[0] as { repomoAccountId?: string }).repomoAccountId).toBeUndefined();
+    }
+  });
+});
+
+describe("InflationAdjustmentPanel — L-2: lo que NO debe cambiar (guardas verdes que matan mutantes)", () => {
+  it("un refresco que deja las dos cuentas elegidas igual (objetos y arreglos nuevos): «Vista Previa» sigue habilitado y envía los mismos ids", async () => {
+    const { refresh } = mountPanel();
+    refresh({ equity: EQUITY.map((a) => ({ ...a })), repomo: REPOMO.map((a) => ({ ...a })) });
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.adjustmentAccountId).toBe(CAPITAL.id);
+    expect(payload.repomoAccountId).toBe(VENTAS.id);
+  });
+
+  it("OTRAS cuentas que pasan a título o desaparecen NO invalidan las elegidas", async () => {
+    const { adjustment, repomo, refresh } = mountPanel();
+    refresh({
+      equity: withTitle(EQUITY, RESERVA),
+      repomo: without(withTitle(REPOMO, VIAJE), PLAN.find((a) => a.code === "5.1.01.01.001")!),
+    });
+    expect(adjustment.value).toBe(labelOf(CAPITAL));
+    expect(repomo.value).toBe(labelOf(VENTAS));
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.adjustmentAccountId).toBe(CAPITAL.id);
+    expect(payload.repomoAccountId).toBe(VENTAS.id);
+  });
+
+  it("un REPOMO VACÍO (quitado con el botón) sigue siendo válido aunque la lista cambie: «Vista Previa» habilitado y se envía sin REPOMO", async () => {
+    const { repomo, refresh } = mountPanel();
+    clickClear();
+    expect(repomo.value).toBe("");
+    refresh({ repomo: withTitle(REPOMO, VENTAS) });
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.repomoAccountId).toBeUndefined();
+    expect(payload.adjustmentAccountId).toBe(CAPITAL.id);
+  });
+
+  it("un REPOMO VACÍO sigue siendo válido aunque la lista de REPOMO se quede sin cuentas de movimiento", async () => {
+    const { refresh } = mountPanel();
+    clickClear();
+    refresh({ repomo: REPOMO.filter((a) => !a.isPostable) });
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.repomoAccountId).toBeUndefined();
+    expect(payload.adjustmentAccountId).toBe(CAPITAL.id);
+  });
+});
+
+describe("InflationAdjustmentPanel — L-2: recuperación tras un refresco que dejó una cuenta obsoleta", () => {
+  it("Patrimonio: elegir OTRA cuenta vigente rehabilita «Vista Previa» y envía la nueva, nunca la vieja", async () => {
+    const { adjustment, refresh } = mountPanel();
+    refresh({ equity: withTitle(EQUITY, CAPITAL) });
+    expect(previewButton().hasAttribute("disabled")).toBe(true);
+    pickByCode(adjustment, "310101002");
+    expect(adjustment.value).toBe(labelOf(RESERVA));
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.adjustmentAccountId).toBe(RESERVA.id);
+  });
+
+  it("Patrimonio: si la cuenta vuelve a ser elegible en el siguiente refresco, «Vista Previa» se rehabilita solo", async () => {
+    const { refresh } = mountPanel();
+    refresh({ equity: withTitle(EQUITY, CAPITAL) });
+    expect(previewButton().hasAttribute("disabled")).toBe(true);
+    refresh({});
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.adjustmentAccountId).toBe(CAPITAL.id);
+  });
+
+  it("REPOMO: elegir OTRA cuenta vigente rehabilita «Vista Previa» y envía la nueva, nunca la vieja", async () => {
+    const { repomo, refresh } = mountPanel();
+    refresh({ repomo: withTitle(REPOMO, VENTAS) });
+    expect(previewButton().hasAttribute("disabled")).toBe(true);
+    pickByCode(repomo, "5.1.01.01.002");
+    expect(repomo.value).toBe(labelOf(VIAJE));
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.repomoAccountId).toBe(VIAJE.id);
+  });
+
+  it("REPOMO: «Quitar la cuenta» sobre el valor obsoleto lo deja vacío (válido): «Vista Previa» se rehabilita y se envía sin REPOMO", async () => {
+    const { repomo, refresh } = mountPanel();
+    refresh({ repomo: withTitle(REPOMO, VENTAS) });
+    expect(previewButton().hasAttribute("disabled")).toBe(true);
+    clickClear();
+    expect(repomo.value).toBe("");
+    expect(previewButton().hasAttribute("disabled")).toBe(false);
+    const payload = await clickPreview();
+    expect(payload.repomoAccountId).toBeUndefined();
+    expect(payload.adjustmentAccountId).toBe(CAPITAL.id);
+  });
+});
+
+describe("InflationAdjustmentPanel — L-2: el botón que EJECUTA el ajuste tampoco envía una cuenta obsoleta", () => {
+  const PREVIEW_ROW = {
+    accountId: "acc-1",
+    accountCode: "1.1.01.01.001",
+    accountName: "Caja Principal",
+    accountType: "ASSET",
+    originalBalance: "1000.00",
+    adjustmentAmount: "200.00",
+    cumulativeIndex: "1.200000",
+    periodInpc: "120",
+    baseInpc: "100",
+  };
+
+  beforeEach(() => {
+    previewInflationAdjustmentAction.mockResolvedValue({
+      success: true,
+      data: { rows: [PREVIEW_ROW], repomo: null },
+    });
+    // Por si el código llegara a ejecutarlo: que no reviente con `undefined` y el fallo sea la aserción.
+    runInflationAdjustmentAction.mockResolvedValue({
+      success: true,
+      data: { adjustedAccounts: 1, totalAdjustment: "200.00", factor: "1.2", repomo: null },
+    });
+  });
+
+  /** Vista previa ya mostrada (botón «Confirmar y Registrar Ajuste» visible); `openPrompt` abre el «¿Registrar…?». */
+  async function mountWithPreview({ openPrompt }: { openPrompt: boolean }) {
+    const mounted = mountPanel();
+    fireEvent.click(previewButton());
+    fireEvent.click(await screen.findByRole("button", { name: "Confirmar y Registrar Ajuste" }));
+    if (!openPrompt) {
+      // Se vuelve a la vista previa sin el aviso abierto: «Cancelar» cierra el «¿Registrar…?».
+      fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    }
+    return mounted;
+  }
+
+  /**
+   * Recorre la UI como el usuario: abre el aviso si el botón lo permite y pulsa «Confirmar» si está
+   * disponible. Un botón deshabilitado o ausente es una forma válida de bloquear (el contrato no
+   * fija cuál); lo que importa es que la ejecución no salga.
+   */
+  async function tryToRunTheAdjustment() {
+    const open = screen.queryByRole("button", { name: "Confirmar y Registrar Ajuste" });
+    if (open && !open.hasAttribute("disabled")) fireEvent.click(open);
+    const confirm = screen.queryByRole("button", { name: "Confirmar" });
+    const confirmIsBlocked = confirm === null || confirm.hasAttribute("disabled");
+    if (confirm && !confirm.hasAttribute("disabled")) fireEvent.click(confirm);
+    await act(async () => {});
+    return { confirmIsBlocked };
+  }
+
+  it("control: con las cuentas vigentes, «Confirmar» ejecuta el ajuste con los ids elegidos", async () => {
+    await mountWithPreview({ openPrompt: true });
+    const { confirmIsBlocked } = await tryToRunTheAdjustment();
+    expect(confirmIsBlocked).toBe(false);
+    await waitFor(() => expect(runInflationAdjustmentAction).toHaveBeenCalledTimes(1));
+    expect(runInflationAdjustmentAction.mock.calls[0][0]).toMatchObject({
+      adjustmentAccountId: CAPITAL.id,
+      repomoAccountId: VENTAS.id,
+    });
+  });
+
+  it.each([
+    {
+      cuando: "Patrimonio queda obsoleta con el aviso «¿Registrar…?» abierto",
+      openPrompt: true,
+      lists: (): Lists => ({ equity: withTitle(EQUITY, CAPITAL) }),
+    },
+    {
+      cuando: "Patrimonio queda obsoleta con la vista previa mostrada (aviso cerrado)",
+      openPrompt: false,
+      lists: (): Lists => ({ equity: withTitle(EQUITY, CAPITAL) }),
+    },
+    {
+      cuando: "Patrimonio desaparece de la lista con el aviso abierto",
+      openPrompt: true,
+      lists: (): Lists => ({ equity: without(EQUITY, CAPITAL) }),
+    },
+    {
+      cuando: "REPOMO queda obsoleta con el aviso «¿Registrar…?» abierto",
+      openPrompt: true,
+      lists: (): Lists => ({ repomo: withTitle(REPOMO, VENTAS) }),
+    },
+    {
+      cuando: "REPOMO queda obsoleta con la vista previa mostrada (aviso cerrado)",
+      openPrompt: false,
+      lists: (): Lists => ({ repomo: withTitle(REPOMO, VENTAS) }),
+    },
+    {
+      cuando: "REPOMO desaparece de la lista con el aviso abierto",
+      openPrompt: true,
+      lists: (): Lists => ({ repomo: without(REPOMO, VENTAS) }),
+    },
+  ])(
+    "cuando $cuando: «Confirmar» queda bloqueado y runInflationAdjustmentAction NO se llama",
+    async ({ openPrompt, lists }) => {
+      const { refresh } = await mountWithPreview({ openPrompt });
+      refresh(lists());
+      const { confirmIsBlocked } = await tryToRunTheAdjustment();
+      expect(confirmIsBlocked).toBe(true);
+      expect(runInflationAdjustmentAction).not.toHaveBeenCalled();
+    }
+  );
+});

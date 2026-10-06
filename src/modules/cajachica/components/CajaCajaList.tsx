@@ -18,7 +18,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AccountCombobox, isAccountComboboxOpen } from "@/components/accounting/AccountCombobox";
-import { selectableAccounts, type AccountWithType } from "@/lib/account-search";
+import {
+  isSelectableAccountId,
+  selectableAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 import { CajaCajaBalanceCard } from "./CajaCajaBalanceCard";
 import { CajaCajaMovementForm } from "./CajaCajaMovementForm";
 import { CajaCajaMovementList } from "./CajaCajaMovementList";
@@ -198,8 +202,11 @@ function CloseCajaDialog({
   // Activo (encabezados no elegibles); el aviso y el `disabled` cuentan SOLO cuentas de movimiento (RN-19).
   const returnAccounts = accounts.filter((a) => a.type === "ASSET" && a.id !== caja.accountId);
   const hasReturnAccount = selectableAccounts(returnAccounts).length > 0;
+  // L-2: la cuenta de retorno se revalida contra la lista vigente (pudo dejar de ser elegible).
+  const canClose = isSelectableAccountId(returnAccounts, returnAccountId);
 
   function handleConfirm() {
+    if (!canClose) return;
     setError(null);
     startClose(async () => {
       try {
@@ -284,7 +291,7 @@ function CloseCajaDialog({
               e.preventDefault();
               handleConfirm();
             }}
-            disabled={isClosing || !returnAccountId}
+            disabled={isClosing || !canClose}
             aria-busy={isClosing}
           >
             Cerrar caja

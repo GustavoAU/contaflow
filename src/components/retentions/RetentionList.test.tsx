@@ -469,3 +469,208 @@ describe("RetentionList · Enterar — mientras se cargan las cuentas (loading)"
     }
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// L-2 (revisión de seguridad de la Entrega B1) — TDD SPEC, modo RED: las cuentas elegidas se REVALIDAN
+// con las listas vigentes.
+//
+// Hoy el envío solo mira `!liabilityAccountId || !bankAccountId`. Si las cuentas cargadas se
+// reemplazan (otro usuario convirtió la elegida en título, o ya no está en la lista) el combobox se ve
+// vacío e inválido pero el botón sigue activo y `enterRetentionAction` recibe el id viejo.
+// Contrato: la guarda del envío Y el `disabled` usan `isSelectableAccountId(liabilityAccounts, id)` y
+// `isSelectableAccountId(bankAccounts, id)` (las listas por tipo que ve cada selector). Con una de las
+// dos cuentas ya no elegible el botón queda DESHABILITADO y NO se llama a `enterRetentionAction`.
+//
+// CÓMO SE PROVOCA EL REFRESCO (decisión declarada en el reporte): dentro de RetentionList las cuentas
+// se cargan UNA vez, en un `useEffect` que depende de `companyId`, y no hay otro refresco. La única
+// forma de que `accounts` se reemplace con el formulario ya abierto es cambiar el prop `companyId` con
+// `rerender`: el efecto vuelve a pedir las cuentas, el mock devuelve la lista nueva, y los estados
+// `liabilityAccountId` / `bankAccountId` (que NO se reinician) quedan apuntando a cuentas de la lista
+// anterior. Es indirecto (en producción Next remonta al cambiar de empresa) pero ejercita el MISMO
+// camino de código —`setAccounts` con una lista que ya no contiene lo elegido— y, de paso, es el peor
+// caso (ids de otra empresa viajando con el `companyId` nuevo).
+//
+// El envío se prueba de dos formas: con el clic en el botón (`disabled`) y con `fireEvent.submit(form)`,
+// que se salta el `disabled` y por tanto aísla la guarda DENTRO de `handleSubmit`.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+const OTHER_COMPANY_ID = "company-2";
+const BANCO_ACC = PLAN.find((a) => a.id === BANCO_ID)!;
+const PASIVO_ACC = PLAN.find((a) => a.id === PASIVO_ID)!;
+const CAJA_P_ACC = PLAN.find((a) => a.id === "m:1.1.01.01.001")!;
+const CAJA_C_ACC = PLAN.find((a) => a.id === "m:1.1.01.01.002")!;
+
+/** La lista con `target` convertida en título (`isPostable: false`). */
+const withTitle = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.map((a) => (a.id === target.id ? { ...a, isPostable: false } : a));
+/** La lista sin `target`. */
+const without = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.filter((a) => a.id !== target.id);
+/** La lista con `target` reclasificada a otro tipo contable. */
+const withType = (list: readonly PlanAccount[], target: PlanAccount, type: string): PlanAccount[] =>
+  list.map((a) => (a.id === target.id ? { ...a, type } : a));
+
+/**
+ * Abre «Enterar», elige Pasivo (Retenciones por Pagar) y Banco (Banco Mercantil) tecleando su código:
+ * el envío queda habilitado (se comprueba). `refresh(lista)` = las cuentas se vuelven a cargar y la
+ * acción devuelve `lista` (ver el comentario de arriba sobre cómo se provoca).
+ */
+async function mountWithChosenAccounts() {
+  const utils = render(<RetentionList companyId={COMPANY_ID} retentions={[RETENTION]} />);
+  fireEvent.click(screen.getByRole("button", { name: "Enterar" }));
+  await waitFor(() => expect(getAccountsForEnteramientoAction).toHaveBeenCalledWith(COMPANY_ID));
+  await act(async () => {});
+  const { liability, bank } = comboboxes();
+  pickByCode(liability, "210101001");
+  pickByCode(bank, "110102001");
+  expect(liability.value).toBe(PASIVO_MOV);
+  expect(bank.value).toBe("1.1.01.02.001 — Banco Mercantil");
+  expect(submitButton().hasAttribute("disabled")).toBe(false); // precondición: así SÍ se podría enviar
+  // El efecto solo se repite si CAMBIA `companyId`: cada recarga alterna entre las dos empresas
+  // (la 1.ª usa OTHER_COMPANY_ID, la 2.ª vuelve a COMPANY_ID, y así).
+  let reloads = 0;
+  return {
+    liability,
+    bank,
+    refresh: async (accounts: PlanAccount[]) => {
+      const companyId = reloads++ % 2 === 0 ? OTHER_COMPANY_ID : COMPANY_ID;
+      getAccountsForEnteramientoAction.mockResolvedValue({ success: true, data: accounts });
+      utils.rerender(<RetentionList companyId={companyId} retentions={[RETENTION]} />);
+      await waitFor(() =>
+        expect(getAccountsForEnteramientoAction).toHaveBeenLastCalledWith(companyId)
+      );
+      await act(async () => {}); // deja que `setAccounts` aplique la lista nueva
+    },
+  };
+}
+
+const submitForm = () => fireEvent.submit(document.querySelector("form") as HTMLFormElement);
+
+const OBSOLETE_LIABILITY = [
+  {
+    when: "pasa a ser un TÍTULO",
+    // `withTitle` deja el Pasivo sin cuentas de movimiento: el campo queda deshabilitado, aun así el id
+    // viejo seguía en el estado.
+    list: () => withTitle(ENTERAMIENTO_ACCOUNTS, PASIVO_ACC),
+  },
+  { when: "YA NO ESTÁ en la lista", list: () => without(ENTERAMIENTO_ACCOUNTS, PASIVO_ACC) },
+  {
+    when: "deja de ser de PASIVO (ya no está en la lista del selector)",
+    list: () => withType(ENTERAMIENTO_ACCOUNTS, PASIVO_ACC, "EXPENSE"),
+  },
+];
+const OBSOLETE_BANK = [
+  { when: "pasa a ser un TÍTULO", list: () => withTitle(ENTERAMIENTO_ACCOUNTS, BANCO_ACC) },
+  { when: "YA NO ESTÁ en la lista", list: () => without(ENTERAMIENTO_ACCOUNTS, BANCO_ACC) },
+  {
+    when: "deja de ser de ACTIVO (ya no está en la lista del selector)",
+    list: () => withType(ENTERAMIENTO_ACCOUNTS, BANCO_ACC, "LIABILITY"),
+  },
+];
+
+describe.each(OBSOLETE_LIABILITY)(
+  "RetentionList · Enterar — L-2: la cuenta de Pasivo elegida $when tras recargar las cuentas",
+  ({ list }) => {
+    it("el combobox de Pasivo queda vacío e inválido y «Confirmar Enteramiento» queda DESHABILITADO", async () => {
+      const { liability, bank, refresh } = await mountWithChosenAccounts();
+      await refresh(list());
+      expect(liability.value).toBe("");
+      expect(liability.getAttribute("aria-invalid")).toBe("true");
+      expect(bank.value).toBe("1.1.01.02.001 — Banco Mercantil"); // el Banco sigue vigente
+      expect(submitButton().hasAttribute("disabled")).toBe(true);
+    });
+
+    it("ni el clic ni el envío del formulario llaman a enterRetentionAction", async () => {
+      const { refresh } = await mountWithChosenAccounts();
+      await refresh(list());
+      fireEvent.click(submitButton());
+      submitForm(); // se salta el `disabled`: aísla la guarda de `handleSubmit`
+      await act(async () => {});
+      expect(enterRetentionAction).not.toHaveBeenCalled();
+      expect(toastSuccess).not.toHaveBeenCalled();
+    });
+  }
+);
+
+describe.each(OBSOLETE_BANK)(
+  "RetentionList · Enterar — L-2: la cuenta de Banco/Caja elegida $when tras recargar las cuentas",
+  ({ list }) => {
+    it("el combobox de Banco/Caja queda vacío e inválido y «Confirmar Enteramiento» queda DESHABILITADO", async () => {
+      const { liability, bank, refresh } = await mountWithChosenAccounts();
+      await refresh(list());
+      expect(bank.value).toBe("");
+      expect(bank.getAttribute("aria-invalid")).toBe("true");
+      expect(liability.value).toBe(PASIVO_MOV); // el Pasivo sigue vigente
+      expect(submitButton().hasAttribute("disabled")).toBe(true);
+    });
+
+    it("ni el clic ni el envío del formulario llaman a enterRetentionAction", async () => {
+      const { refresh } = await mountWithChosenAccounts();
+      await refresh(list());
+      fireEvent.click(submitButton());
+      submitForm();
+      await act(async () => {});
+      expect(enterRetentionAction).not.toHaveBeenCalled();
+      expect(toastSuccess).not.toHaveBeenCalled();
+    });
+  }
+);
+
+describe("RetentionList · Enterar — L-2: lo que NO debe cambiar (guardas verdes que matan mutantes)", () => {
+  it("recargar las cuentas sin tocar las elegidas (objetos y arreglo nuevos): el envío sigue habilitado y lleva los mismos ids", async () => {
+    const { refresh } = await mountWithChosenAccounts();
+    await refresh(ENTERAMIENTO_ACCOUNTS.map((a) => ({ ...a })));
+    expect(submitButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(enterRetentionAction).toHaveBeenCalledTimes(1));
+    expect(enterRetentionAction.mock.calls[0][0]).toMatchObject({
+      companyId: OTHER_COMPANY_ID,
+      liabilityAccountId: PASIVO_ID,
+      bankAccountId: BANCO_ID,
+    });
+  });
+
+  it("OTRAS cuentas que pasan a título o desaparecen NO invalidan las elegidas", async () => {
+    const { liability, bank, refresh } = await mountWithChosenAccounts();
+    await refresh(without(withTitle(ENTERAMIENTO_ACCOUNTS, CAJA_P_ACC), CAJA_C_ACC));
+    expect(liability.value).toBe(PASIVO_MOV);
+    expect(bank.value).toBe("1.1.01.02.001 — Banco Mercantil");
+    expect(submitButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(enterRetentionAction).toHaveBeenCalledTimes(1));
+    expect(enterRetentionAction.mock.calls[0][0]).toMatchObject({
+      liabilityAccountId: PASIVO_ID,
+      bankAccountId: BANCO_ID,
+    });
+  });
+});
+
+describe("RetentionList · Enterar — L-2: recuperación tras recargar con una cuenta obsoleta", () => {
+  it("si la cuenta vuelve a ser elegible en la siguiente recarga, el envío se rehabilita solo", async () => {
+    const { refresh } = await mountWithChosenAccounts();
+    await refresh(withTitle(ENTERAMIENTO_ACCOUNTS, BANCO_ACC));
+    expect(submitButton().hasAttribute("disabled")).toBe(true);
+    await refresh(ENTERAMIENTO_ACCOUNTS);
+    expect(submitButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(enterRetentionAction).toHaveBeenCalledTimes(1));
+    expect(enterRetentionAction.mock.calls[0][0]).toMatchObject({
+      liabilityAccountId: PASIVO_ID,
+      bankAccountId: BANCO_ID,
+    });
+  });
+
+  it("elegir OTRA cuenta de Banco/Caja vigente rehabilita el envío y envía la nueva, nunca la vieja", async () => {
+    const { bank, refresh } = await mountWithChosenAccounts();
+    await refresh(withTitle(ENTERAMIENTO_ACCOUNTS, BANCO_ACC));
+    expect(submitButton().hasAttribute("disabled")).toBe(true);
+    pickByCode(bank, "110101001");
+    expect(bank.value).toBe("1.1.01.01.001 — Caja Principal");
+    expect(submitButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(enterRetentionAction).toHaveBeenCalledTimes(1));
+    expect(enterRetentionAction.mock.calls[0][0]).toMatchObject({
+      bankAccountId: CAJA_P_ACC.id,
+      liabilityAccountId: PASIVO_ID,
+    });
+  });
+});

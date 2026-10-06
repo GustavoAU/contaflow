@@ -1,6 +1,5 @@
 // src/app/(dashboard)/company/[companyId]/bank-reconciliation/page.tsx
-import { currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { requireCompanyPage } from "@/lib/company-page-guard";
 import Link from "next/link";
 import { ChevronLeftIcon, LandmarkIcon } from "lucide-react";
 import { BankAccountService } from "@/modules/bank-reconciliation/services/BankAccountService";
@@ -24,8 +23,9 @@ export default async function BankReconciliationPage({ params, searchParams }: P
   const { companyId } = await params;
   const { accountId } = await searchParams;
 
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
+  // Membresía PROPIA de la página (no depender solo del redirect del layout): las lecturas de abajo
+  // usan el companyId de la URL, así que un no-miembro no debe llegar a ejecutarlas.
+  const { userId } = await requireCompanyPage(companyId, { id: true });
 
   const [accounts, chartAccounts] = await Promise.all([
     BankAccountService.list(companyId),
@@ -71,7 +71,7 @@ export default async function BankReconciliationPage({ params, searchParams }: P
         accounts={accounts}
         chartAccounts={chartAccounts}
         companyId={companyId}
-        userId={user.id}
+        userId={userId}
       />
 
       {/* Statement section for selected account */}

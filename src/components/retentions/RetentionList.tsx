@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { isSelectableAccountId } from "@/lib/account-search";
 import {
   enterRetentionAction,
   exportRetentionVoucherPDFAction,
@@ -65,7 +66,8 @@ function EnterRetentionModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!liabilityAccountId || !bankAccountId) return;
+    // L-2: se revalida contra las listas VIGENTES (la cuenta pudo dejar de ser elegible).
+    if (!canSubmit) return;
 
     startTransition(async () => {
       const result = await enterRetentionAction({
@@ -87,6 +89,9 @@ function EnterRetentionModal({
 
   const liabilityAccounts = accounts.filter((a) => a.type === "LIABILITY");
   const bankAccounts = accounts.filter((a) => a.type === "ASSET");
+  const canSubmit =
+    isSelectableAccountId(liabilityAccounts, liabilityAccountId) &&
+    isSelectableAccountId(bankAccounts, bankAccountId);
 
   return (
     <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
@@ -139,7 +144,7 @@ function EnterRetentionModal({
         <div className="flex gap-2">
           <Button
             type="submit"
-            disabled={isPending || !liabilityAccountId || !bankAccountId}
+            disabled={isPending || !canSubmit}
             className="flex-1 bg-indigo-600 hover:bg-indigo-700"
             aria-busy={isPending}
           >

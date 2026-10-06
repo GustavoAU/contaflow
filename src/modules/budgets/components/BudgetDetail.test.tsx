@@ -351,3 +351,152 @@ describe("BudgetDetail — RN-19: «Agregar cuenta» cuenta SOLO cuentas de movi
     await waitFor(() => expect(addButton().hasAttribute("disabled")).toBe(true));
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// L-2 (revisión de seguridad de la Entrega B1) — TDD SPEC, modo RED: la cuenta elegida se REVALIDA con
+// la lista vigente.
+//
+// Hoy «Guardar» solo mira `!addAccountId`. Si tras un refresco de `accounts` la cuenta elegida deja de
+// ser elegible (otro usuario la convirtió en título, es decir `isPostable: false`, o ya no está en la
+// lista) el combobox se ve vacío e inválido pero «Guardar» sigue activo y envía el id viejo.
+// Contrato: la guarda del envío Y el `disabled` del botón usan `isSelectableAccountId(accounts, id)`
+// (de `@/lib/account-search`): con la cuenta ya no elegible el botón queda DESHABILITADO y NO se llama
+// a `upsertBudgetLineAction`.
+//
+// El refresco se simula con `rerender` sobre la MISMA instancia (así el estado `addAccountId` sobrevive)
+// y con el MISMO objeto `budget` (otro objeto reiniciaría las líneas por el efecto de `budget.lines`).
+// Un botón deshabilitado no dispara `onClick` en React: por eso «no se llama a la acción» y «deshabilitado»
+// se afirman por separado pero la guarda dentro del manejador no se puede aislar del `disabled` aquí.
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+const BANCO = PLAN.find((a) => a.code === "1.1.01.02.001")!;
+const asTitle = (a: PlanAccount): PlanAccount => ({ ...a, isPostable: false });
+/** La lista con `target` convertida en título (`isPostable: false`). */
+const withTitle = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.map((a) => (a.id === target.id ? asTitle(a) : a));
+/** La lista sin `target`. */
+const without = (list: readonly PlanAccount[], target: PlanAccount): PlanAccount[] =>
+  list.filter((a) => a.id !== target.id);
+
+/**
+ * Monta el detalle, abre «Agregar cuenta», elige BANCO tecleando su código y completa el importe:
+ * «Guardar» queda habilitado (se comprueba). `refresh(lista)` = el padre entrega una lista nueva.
+ */
+function mountWithChosenAccount() {
+  const budget = budgetWith();
+  const onBudgetUpdate = vi.fn();
+  const element = (accounts: PlanAccount[]) => (
+    <BudgetDetail
+      companyId={COMPANY_ID}
+      budget={budget}
+      canWrite
+      accounts={accounts}
+      onBudgetUpdate={onBudgetUpdate}
+    />
+  );
+  const utils = render(element([...PLAN]));
+  fireEvent.click(addButton());
+  const [account] = expectAccountComboboxes(1, "Nueva línea de presupuesto");
+  pickByCode(account, "110102001");
+  expect(account.value).toBe(labelOf(BANCO));
+  fireEvent.change(amountInput(), { target: { value: "1500,50" } });
+  expect(saveButton().hasAttribute("disabled")).toBe(false); // precondición: así SÍ se podría guardar
+  return {
+    account,
+    refresh: (accounts: PlanAccount[]) => utils.rerender(element(accounts)),
+  };
+}
+
+const OBSOLETE_LISTS = [
+  { when: "pasa a ser un TÍTULO", list: () => withTitle(PLAN, BANCO) },
+  { when: "YA NO ESTÁ en la lista", list: () => without(PLAN, BANCO) },
+];
+
+describe.each(OBSOLETE_LISTS)(
+  "BudgetDetail — L-2: la cuenta elegida $when tras refrescar la lista",
+  ({ list }) => {
+    it("el combobox queda vacío e inválido y «Guardar» queda DESHABILITADO", () => {
+      const { account, refresh } = mountWithChosenAccount();
+      refresh(list());
+      expect(account.value).toBe("");
+      expect(account.getAttribute("aria-invalid")).toBe("true");
+      expect(saveButton().hasAttribute("disabled")).toBe(true);
+    });
+
+    it("hacer clic en «Guardar» NO llama a upsertBudgetLineAction ni avisa de éxito", async () => {
+      const { refresh } = mountWithChosenAccount();
+      refresh(list());
+      fireEvent.click(saveButton());
+      await act(async () => {});
+      expect(upsertBudgetLineAction).not.toHaveBeenCalled();
+      expect(toastSuccess).not.toHaveBeenCalled();
+    });
+  }
+);
+
+describe("BudgetDetail — L-2: la lista se queda sin NINGUNA cuenta de movimiento", () => {
+  it("con solo títulos «Guardar» queda deshabilitado (el campo también) y no se llama a la acción", async () => {
+    const { account, refresh } = mountWithChosenAccount();
+    refresh([...TITLES]);
+    expect(account.disabled).toBe(true);
+    expect(saveButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(saveButton());
+    await act(async () => {});
+    expect(upsertBudgetLineAction).not.toHaveBeenCalled();
+  });
+
+  it("con la lista vacía «Guardar» queda deshabilitado y no se llama a la acción", async () => {
+    const { refresh } = mountWithChosenAccount();
+    refresh([]);
+    expect(saveButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(saveButton());
+    await act(async () => {});
+    expect(upsertBudgetLineAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("BudgetDetail — L-2: lo que NO debe cambiar (guardas verdes que matan mutantes)", () => {
+  it("un refresco que deja la cuenta elegida igual (objetos y arreglo nuevos): «Guardar» sigue habilitado y envía su id", async () => {
+    const { refresh } = mountWithChosenAccount();
+    refresh(PLAN.map((a) => ({ ...a })));
+    expect(saveButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(upsertBudgetLineAction).toHaveBeenCalledTimes(1));
+    expect(upsertBudgetLineAction.mock.calls[0][2].accountId).toBe(BANCO.id);
+  });
+
+  it("OTRA cuenta que pasa a título o desaparece NO invalida la elegida: «Guardar» sigue habilitado", async () => {
+    const { account, refresh } = mountWithChosenAccount();
+    refresh(without(withTitle(PLAN, CAJA_C), CAJA_P));
+    expect(account.value).toBe(labelOf(BANCO));
+    expect(account.getAttribute("aria-invalid")).not.toBe("true");
+    expect(saveButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(upsertBudgetLineAction).toHaveBeenCalledTimes(1));
+    expect(upsertBudgetLineAction.mock.calls[0][2].accountId).toBe(BANCO.id);
+  });
+});
+
+describe("BudgetDetail — L-2: recuperación tras un refresco que dejó la cuenta obsoleta", () => {
+  it("si la cuenta vuelve a ser elegible en el siguiente refresco, «Guardar» se rehabilita solo", async () => {
+    const { refresh } = mountWithChosenAccount();
+    refresh(withTitle(PLAN, BANCO));
+    expect(saveButton().hasAttribute("disabled")).toBe(true);
+    refresh([...PLAN]);
+    expect(saveButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(upsertBudgetLineAction).toHaveBeenCalledTimes(1));
+    expect(upsertBudgetLineAction.mock.calls[0][2].accountId).toBe(BANCO.id);
+  });
+
+  it("elegir OTRA cuenta vigente rehabilita «Guardar» y envía la nueva, nunca la vieja", async () => {
+    const { account, refresh } = mountWithChosenAccount();
+    refresh(withTitle(PLAN, BANCO));
+    expect(saveButton().hasAttribute("disabled")).toBe(true);
+    pickByCode(account, "110101001");
+    expect(account.value).toBe(labelOf(CAJA_P));
+    expect(saveButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(upsertBudgetLineAction).toHaveBeenCalledTimes(1));
+    expect(upsertBudgetLineAction.mock.calls[0][2].accountId).toBe(CAJA_P.id);
+  });
+});

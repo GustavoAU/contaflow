@@ -7,7 +7,7 @@ import { PlusIcon, Trash2Icon, BarChart2Icon, ListIcon } from "lucide-react";
 import { toast } from "sonner";
 import { MoneyInput } from "@/components/ui/money-input";
 import { AccountCombobox } from "@/components/accounting/AccountCombobox";
-import { selectableAccounts } from "@/lib/account-search";
+import { isSelectableAccountId, selectableAccounts } from "@/lib/account-search";
 import type { BudgetRow, BudgetLineRow, BudgetVsActualLine } from "../services/BudgetService";
 import {
   upsertBudgetLineAction,
@@ -79,7 +79,8 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
   }
 
   function handleAddLine() {
-    if (!addAccountId || !addAmount.trim()) return;
+    // L-2: la cuenta se revalida contra la lista vigente (pudo dejar de ser elegible).
+    if (!canAddLine || !addAmount.trim()) return;
     startTransition(async () => {
       const r = await upsertBudgetLineAction(companyId, budget.id, {
         accountId: addAccountId,
@@ -126,6 +127,7 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
   const availableAccounts = accounts.filter((a) => !usedAccountIds.has(a.id));
   // RN-19: los títulos solo se muestran; si no queda ninguna cuenta de movimiento no hay nada que agregar.
   const hasSelectableAccount = selectableAccounts(availableAccounts).length > 0;
+  const canAddLine = isSelectableAccountId(availableAccounts, addAccountId);
 
   const totalBudgeted = lines.reduce((s, l) => s + parseFloat(l.amount), 0);
 
@@ -205,7 +207,7 @@ export function BudgetDetail({ companyId, budget, canWrite, accounts, onBudgetUp
                   <div className="flex gap-2">
                     <button
                       onClick={handleAddLine}
-                      disabled={!addAccountId || !addAmount.trim() || isPending}
+                      disabled={!canAddLine || !addAmount.trim() || isPending}
                       className="rounded bg-indigo-600 px-3 py-1 text-xs text-white disabled:opacity-50"
                     >
                       {isPending ? "Guardando…" : "Guardar"}
