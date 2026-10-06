@@ -1,7 +1,7 @@
 ---
 id: SPEC-007
 titulo: Toda entrada de inventario lleva contrapartida (nunca un asiento de una sola línea)
-estado: HECHA   # cerrada 2026-10-04; rama lista, pendiente de merge (requiere confirmación del usuario)
+estado: HECHA   # cerrada 2026-10-04; mergeada a main el 2026-10-05 (PR #63, merge 4fe3b609)
 fecha: 2026-10-04
 rama: feat/spec-007-entrada-inventario-contrapartida
 arbol: "[3]"

@@ -1,7 +1,7 @@
 ---
 id: SPEC-013
 titulo: La cuota de préstamo a empleado no se resta dos veces en el asiento de nómina
-estado: HECHA   # código, tests y ajuste de datos en producción hechos (2026-10-05); pendiente de merge (requiere confirmación del usuario)
+estado: HECHA   # código, tests y ajuste de datos en producción hechos (2026-10-05); mergeada a main el 2026-10-05 (PR #64, merge f845e7da)
 fecha: 2026-10-04
 rama: fix/nomina-prestamo-doble-descuento
 arbol: "[9]"
