@@ -18,11 +18,17 @@
 //           Cr Ret.IVA p.p. = Σ ivaRetention          (obligación por enterar al SENIAT)
 //
 // Invariante: Σ entries = 0 (totalAmountVes = Σ base + Σ iva por diseño de InvoiceService)
+//
+// SPEC-001 / ADR-058: las líneas se cuantizan al céntimo y se verifica el cuadre EXACTO antes de
+// persistir. Sin esto, un total con más de 2 decimales (p. ej. conversión de moneda) podía guardarse
+// con Σ ≠ 0 y el trigger de cuadre de la BD rechazaría el COMMIT. El residuo cae en la línea de base
+// (ingresos / inventario) y nunca en CxC/CxP, IVA, IGTF ni retención.
 
 import { Decimal } from "decimal.js";
 import type { Prisma } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { resolvePartyIdByLinkOrRif } from "@/lib/party-resolver";
+import { assertBalancedGLEntries, quantizeGLEntries } from "@/lib/gl-assertions";
 
 export interface InvoiceGLConfig {
   arAccountId: string | null;
@@ -158,6 +164,7 @@ export class InvoiceGLPostingService {
       description: string;
       customerId?: string;
       vendorId?: string;
+      noAbsorb?: boolean;
     }>;
 
     // ADR-054: tercero de la línea CxC/CxP — resuelto una sola vez, antes de armar entries.
@@ -189,6 +196,7 @@ export class InvoiceGLPostingService {
           amount: arAmount,
           description: `${desc} — CxC`,
           customerId: partyId,
+          noAbsorb: true, // línea de tercero (auxiliar CxC)
         },
         {
           accountId: config.salesAccountId!,
@@ -201,6 +209,7 @@ export class InvoiceGLPostingService {
           accountId: config.ivaDFAccountId!,
           amount: ivaTotal.negated(),
           description: `${desc} — IVA débito fiscal`,
+          noAbsorb: true, // obligación fiscal
         });
       }
       // H-6: Cr IGTF Percibido por Enterar si configurado; si no → IGTF_GL_SKIPPED
@@ -210,6 +219,7 @@ export class InvoiceGLPostingService {
             accountId: config.igtfPayableAccountId,
             amount: igtfAmount.negated(),
             description: `${desc} — IGTF percibido por enterar`,
+            noAbsorb: true, // obligación fiscal
           });
         } else {
           // Consistente con PaymentGLService: omitir silenciosamente + audit
@@ -267,6 +277,7 @@ export class InvoiceGLPostingService {
           amount: apAmount.negated(),
           description: `${desc} — CxP`,
           vendorId: partyId,
+          noAbsorb: true, // línea de tercero (auxiliar CxP)
         },
       ];
       if (ivaTotal.greaterThan(0)) {
@@ -274,6 +285,7 @@ export class InvoiceGLPostingService {
           accountId: config.ivaCFAccountId!,
           amount: ivaTotal,
           description: `${desc} — IVA crédito fiscal`,
+          noAbsorb: true, // derecho fiscal
         });
       }
       // GAP-03: Cr separado para Retenciones IVA por Pagar (2110)
@@ -282,6 +294,7 @@ export class InvoiceGLPostingService {
           accountId: config.ivaRetentionPayableAccountId,
           amount: ivaRetentionTotal.negated(),
           description: `${desc} — retención IVA por pagar`,
+          noAbsorb: true, // obligación fiscal
         });
       }
     }
@@ -297,6 +310,14 @@ export class InvoiceGLPostingService {
     if (isReversal) {
       entries = entries.map((e) => ({ ...e, amount: e.amount.negated() }));
     }
+
+    // SPEC-001 / ADR-058: cuantizar al céntimo ANTES de verificar y de persistir, y exigir Σ = 0 exacta.
+    const {
+      entries: glEntries,
+      residual: glResidual,
+      absorbedIndex: glAbsorbedIndex,
+    } = quantizeGLEntries(entries);
+    assertBalancedGLEntries(glEntries);
 
     const docType = invoice.docType ?? "";
     const prefix =
@@ -318,7 +339,7 @@ export class InvoiceGLPostingService {
         periodId: invoice.periodId ?? undefined,
         type: "DIARIO",
         entries: {
-          create: entries.map((e) => ({
+          create: glEntries.map((e) => ({
             accountId: e.accountId,
             amount: e.amount,
             description: e.description,
@@ -333,6 +354,29 @@ export class InvoiceGLPostingService {
       where: { id: invoice.id },
       data: { transactionId: glTx.id },
     });
+
+    // ADR-058 D-8: el residuo de redondeo (solo si ≠ 0) queda trazado. El AuditLog de la factura lo
+    // escribe el llamador con IP/UA; este se vincula por entidad y asiento (aquí no hay IP/UA a mano).
+    if (!glResidual.isZero()) {
+      await db.auditLog.create({
+        data: {
+          companyId,
+          entityId: invoice.id,
+          entityName: "Invoice",
+          action: "GL_ROUNDING",
+          userId,
+          newValue: {
+            transactionId: glTx.id,
+            invoiceNumber: invoice.invoiceNumber,
+            glRounding: {
+              residual: glResidual.toString(),
+              absorbedIndex: glAbsorbedIndex,
+              scale: 2,
+            },
+          },
+        },
+      });
+    }
 
     return glTx.id;
   }
