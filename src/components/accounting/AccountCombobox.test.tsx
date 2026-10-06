@@ -25,7 +25,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { AccountCombobox } from "./AccountCombobox";
-import * as comboboxModule from "./AccountCombobox";
+import { isAccountComboboxOpen } from "./AccountCombobox";
 
 // ─── Contrato (SPEC §7) ──────────────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,8 @@ type AccountComboboxProps = {
   className?: string;
   /** B1 · D2: botón «Quitar la cuenta» que llama onChange("") (campos opcionales). */
   clearable?: boolean;
+  /** B1: las cuentas aún se están cargando (acción cliente): campo deshabilitado «Cargando cuentas…». */
+  loading?: boolean;
 };
 
 async function loadCombobox(): Promise<ComponentType<AccountComboboxProps>> {
@@ -1146,12 +1148,9 @@ describe("AccountCombobox — foco y varias instancias (grilla de asientos)", ()
 
 type B1ComboboxModule = { isAccountComboboxOpen(target: EventTarget | null): boolean };
 
+// GREEN (paso 2): import estático normal — `tsc` verifica que la firma real cumple B1ComboboxModule.
 function isOpenFn(): B1ComboboxModule["isAccountComboboxOpen"] {
-  const mod = comboboxModule as unknown as Partial<B1ComboboxModule>;
-  if (typeof mod.isAccountComboboxOpen !== "function") {
-    throw new Error("isAccountComboboxOpen no es una función exportada por ./AccountCombobox");
-  }
-  return mod.isAccountComboboxOpen;
+  return isAccountComboboxOpen;
 }
 
 const TITLE_CAJAS_ID = "t:1.1.01.01";
@@ -1556,5 +1555,62 @@ describe("AccountCombobox B1 · D3 — isAccountComboboxOpen: ¿el evento viene 
     fireEvent.focus(b);
     expect(isOpen(a)).toBe(false);
     expect(isOpen(b)).toBe(true);
+  });
+});
+
+describe("AccountCombobox — cargando las cuentas (loading)", () => {
+  it("con `loading` el campo está deshabilitado, ocupado y dice «Cargando cuentas…» (no «No hay cuentas disponibles»)", async () => {
+    const { input } = await renderControlled({ loading: true, accounts: [] });
+    expect(input.disabled).toBe(true);
+    expect(input.getAttribute("aria-busy")).toBe("true");
+    expect(input.placeholder).toBe("Cargando cuentas…");
+    expect(screen.queryByText(NO_ACCOUNTS)).toBeNull();
+  });
+
+  it("con `loading` no abre la lista aunque ya haya cuentas (se está revalidando)", async () => {
+    const { input } = await renderControlled({ loading: true });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "caja" } });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("sin `loading` no hay aria-busy y, con cuentas, el campo está habilitado", async () => {
+    const { input } = await renderControlled();
+    expect(input.disabled).toBe(false);
+    expect(input.getAttribute("aria-busy")).toBeNull();
+    expect(input.placeholder).toBe(PLACEHOLDER);
+  });
+
+  it("al terminar la carga (loading pasa a false) con cuentas el campo se habilita", async () => {
+    const Combobox = await loadCombobox();
+    const ui = (loading: boolean) => (
+      <Combobox
+        aria-label="Cuenta"
+        accounts={PLAN}
+        value=""
+        onChange={() => {}}
+        loading={loading}
+      />
+    );
+    const { rerender } = render(ui(true));
+    const input = screen.getByRole("combobox") as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+    rerender(ui(false));
+    expect(input.disabled).toBe(false);
+    expect(input.getAttribute("aria-busy")).toBeNull();
+  });
+
+  it("al terminar la carga SIN cuentas de movimiento vuelve «No hay cuentas disponibles»", async () => {
+    const Combobox = await loadCombobox();
+    const ui = (loading: boolean) => (
+      <Combobox aria-label="Cuenta" accounts={[]} value="" onChange={() => {}} loading={loading} />
+    );
+    const { rerender } = render(ui(true));
+    const input = screen.getByRole("combobox") as HTMLInputElement;
+    expect(input.placeholder).toBe("Cargando cuentas…");
+    rerender(ui(false));
+    expect(input.disabled).toBe(true);
+    expect(input.placeholder).toBe(NO_ACCOUNTS);
   });
 });

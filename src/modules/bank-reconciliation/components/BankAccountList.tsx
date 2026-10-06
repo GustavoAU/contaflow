@@ -5,6 +5,8 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { PlusIcon, BuildingIcon, ChevronRightIcon, XIcon, Loader2Icon } from "lucide-react";
 import { createBankAccountAction } from "../actions/banking.actions";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { isSelectableAccountId } from "@/lib/account-search";
 import { fmtVen } from "@/lib/fmt-ven";
 import { VENEZUELA_BANKS } from "../../payments/constants/venezuela-banks";
 
@@ -19,11 +21,16 @@ type BankAccountListItem = {
   lastStatementDate: Date | null;
 };
 
+// SPEC-012: entrega títulos Y cuentas de movimiento; el combobox solo deja elegir las de movimiento.
 type ChartAccount = {
   id: string;
   code: string;
   name: string;
+  isPostable: boolean;
 };
+
+const ACCOUNT_REQUIRED_MESSAGE =
+  "Selecciona la cuenta contable de movimiento donde se registrará esta cuenta bancaria.";
 
 type Props = {
   accounts: BankAccountListItem[];
@@ -51,6 +58,7 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
   const [name, setName] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [accountMissing, setAccountMissing] = useState(false);
   const [currency, setCurrency] = useState<"VES" | "USD" | "EUR">("VES");
 
   function handleOpenForm() {
@@ -58,9 +66,16 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
     setError(null);
   }
 
+  function handleAccountChange(nextId: string) {
+    setAccountId(nextId);
+    setAccountMissing(false);
+    setError((current) => (current === ACCOUNT_REQUIRED_MESSAGE ? null : current));
+  }
+
   function handleCancel() {
     setShowForm(false);
     setError(null);
+    setAccountMissing(false);
     setName("");
     setBankName("");
     setAccountId("");
@@ -70,6 +85,12 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    // El combobox es un <input type=text>: ya no existe el `required` nativo del <select>.
+    if (!isSelectableAccountId(chartAccounts, accountId)) {
+      setAccountMissing(true);
+      setError(ACCOUNT_REQUIRED_MESSAGE);
+      return;
+    }
     startTransition(async () => {
       const result = await createBankAccountAction({
         companyId,
@@ -162,20 +183,14 @@ export function BankAccountList({ accounts, chartAccounts, companyId, userId }: 
               <label htmlFor="ba-account" className="mb-1 block text-sm font-medium text-zinc-700">
                 Cuenta contable
               </label>
-              <select
+              <AccountCombobox
                 id="ba-account"
+                accounts={chartAccounts}
                 value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                required
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="">Selecciona una cuenta contable...</option>
-                {chartAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
+                onChange={handleAccountChange}
+                aria-invalid={accountMissing ? true : undefined}
+                className="bg-white"
+              />
             </div>
             <div>
               <label htmlFor="ba-currency" className="mb-1 block text-sm font-medium text-zinc-700">

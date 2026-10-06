@@ -1,5 +1,6 @@
 // src/app/(dashboard)/company/[companyId]/inflation/page.tsx
 import prisma from "@/lib/prisma";
+import { selectableAccounts } from "@/lib/account-search";
 import { requireCompanyPage } from "@/lib/company-page-guard";
 import { INPCService } from "@/modules/inflation/services/INPCService";
 import { INPCRateForm } from "@/modules/inflation/components/INPCRateForm";
@@ -23,15 +24,17 @@ export default async function InflationPage({ params }: Props) {
       inflationBaseMonth: true,
     }),
     INPCService.getRates(companyId, prisma),
+    // SPEC-012: ambas consultas entregan títulos Y cuentas de movimiento (sin filtrar `isPostable`);
+    // el selector muestra los títulos como encabezados y solo deja elegir las de movimiento.
     prisma.account.findMany({
-      where: { companyId, type: "EQUITY", deletedAt: null, isPostable: true },
-      select: { id: true, code: true, name: true },
+      where: { companyId, type: "EQUITY", deletedAt: null },
+      select: { id: true, code: true, name: true, isPostable: true },
       orderBy: { code: "asc" },
     }),
     // Cuentas de Ingreso/Gasto para registrar el REPOMO (VEN-NIF 3 §36.4)
     prisma.account.findMany({
-      where: { companyId, type: { in: ["REVENUE", "EXPENSE"] }, deletedAt: null, isPostable: true },
-      select: { id: true, code: true, name: true },
+      where: { companyId, type: { in: ["REVENUE", "EXPENSE"] }, deletedAt: null },
+      select: { id: true, code: true, name: true, isPostable: true },
       orderBy: { code: "asc" },
     }),
   ]);
@@ -84,7 +87,8 @@ export default async function InflationPage({ params }: Props) {
             Genera un asiento contable (tipo AJUSTE) que reexpresa todos los saldos de cuentas al
             poder adquisitivo del período seleccionado.
           </p>
-          {equityAccounts.length === 0 ? (
+          {/* RN-19: los títulos no cuentan; sin ninguna cuenta de movimiento no hay qué elegir. */}
+          {selectableAccounts(equityAccounts).length === 0 ? (
             <p className="rounded border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-700">
               No hay cuentas de Patrimonio (EQUITY) disponibles como cuenta actualizadora. Cree una
               primero.

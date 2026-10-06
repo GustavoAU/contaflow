@@ -29,10 +29,12 @@ export default async function BankReconciliationPage({ params, searchParams }: P
 
   const [accounts, chartAccounts] = await Promise.all([
     BankAccountService.list(companyId),
+    // SPEC-012: entrega títulos Y cuentas de movimiento; el selector muestra los títulos como
+    // encabezados y solo deja elegir las de movimiento (`isPostable`).
     prisma.account.findMany({
-      where: { companyId, deletedAt: null, isPostable: true },
+      where: { companyId, deletedAt: null },
       orderBy: { code: "asc" },
-      select: { id: true, code: true, name: true },
+      select: { id: true, code: true, name: true, isPostable: true },
     }),
   ]);
 

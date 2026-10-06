@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createDepositAction } from "../actions/cajachica.actions";
 import { todayLocalISO } from "@/lib/today";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import {
+  isSelectableAccountId,
+  selectableAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 
-type Account = { id: string; code: string; name: string; type: string };
+// SPEC-012: títulos Y cuentas de movimiento; el combobox solo deja elegir las de movimiento.
+type Account = AccountWithType;
 
 type Props = {
   companyId: string;
@@ -31,7 +38,9 @@ export function CajaCajaDepositForm({
   onCancel,
 }: Props) {
   const [date, setDate] = useState(todayLocalISO());
+  const uid = useId();
   const [sourceAccountId, setSourceAccountId] = useState("");
+  const [sourceMissing, setSourceMissing] = useState(false);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [supportingDocumentId, setSupportingDocumentId] = useState("");
@@ -40,11 +49,24 @@ export function CajaCajaDepositForm({
 
   // HAL-001: la cuenta origen debe ser de tipo ASSET (banco/caja general) y distinta
   // de la cuenta de la caja. El servidor también lo valida (assertAccountOfType ASSET).
+  // `sourceOptions` incluye los títulos (encabezados no elegibles); el combobox decide por isPostable.
   const sourceOptions = accounts.filter((a) => a.type === "ASSET" && a.id !== cajaAccountId);
+  // RN-19: el campo solo tiene sentido si queda alguna cuenta de movimiento que elegir.
+  const hasSource = selectableAccounts(sourceOptions).length > 0;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // El combobox es un <input type=text>: ya no existe el `required` nativo del <select>.
+    if (!isSelectableAccountId(sourceOptions, sourceAccountId)) {
+      setSourceMissing(true);
+      setError(
+        hasSource
+          ? "Selecciona la cuenta origen (Banco/Caja general) del depósito."
+          : "No hay una cuenta de Activo disponible como origen. Crea una en el Plan de Cuentas."
+      );
+      return;
+    }
 
     startTransition(async () => {
       const result = await createDepositAction({
@@ -89,21 +111,20 @@ export function CajaCajaDepositForm({
           />
         </div>
         <div className="col-span-2 space-y-1.5">
-          <Label className="text-xs">Cuenta origen (Banco/Caja general) *</Label>
-          <select
+          <Label htmlFor={`${uid}-source`} className="text-xs">
+            Cuenta origen (Banco/Caja general) *
+          </Label>
+          <AccountCombobox
+            id={`${uid}-source`}
+            accounts={sourceOptions}
             value={sourceAccountId}
-            onChange={(e) => setSourceAccountId(e.target.value)}
-            className="border-input bg-background h-9 w-full rounded-md border px-3 py-1 text-sm"
-            required
+            onChange={(next) => {
+              setSourceAccountId(next);
+              setSourceMissing(false);
+            }}
+            aria-invalid={sourceMissing ? true : undefined}
             disabled={isPending}
-          >
-            <option value="">Seleccionar cuenta...</option>
-            {sourceOptions.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
+          />
           <p className="text-xs text-zinc-500">
             De dónde sale el efectivo que reposa la caja. Asiento: Dr Caja Chica / Cr esta cuenta.
           </p>

@@ -1,7 +1,7 @@
 // src/components/retentions/RetentionList.tsx
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import {
   Loader2Icon,
   ClockIcon,
@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
 import {
   enterRetentionAction,
   exportRetentionVoucherPDFAction,
@@ -47,15 +48,19 @@ function EnterRetentionModal({
   onCancel: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const uid = useId();
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [liabilityAccountId, setLiabilityAccountId] = useState("");
   const [bankAccountId, setBankAccountId] = useState("");
   const [enterDate, setEnterDate] = useState(todayLocalISO());
 
   useEffect(() => {
-    getAccountsForEnteramientoAction(companyId).then((r) => {
-      if (r.success) setAccounts(r.data);
-    });
+    getAccountsForEnteramientoAction(companyId)
+      .then((r) => {
+        if (r.success) setAccounts(r.data);
+      })
+      .finally(() => setAccountsLoading(false));
   }, [companyId]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -91,40 +96,33 @@ function EnterRetentionModal({
       </p>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">
+          <label
+            htmlFor={`${uid}-liability`}
+            className="mb-1 block text-xs font-medium text-zinc-600"
+          >
             Cuenta Retenciones por Pagar (Pasivo)
           </label>
-          <select
+          <AccountCombobox
+            id={`${uid}-liability`}
+            accounts={liabilityAccounts}
             value={liabilityAccountId}
-            onChange={(e) => setLiabilityAccountId(e.target.value)}
-            required
-            className="w-full rounded-md border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-          >
-            <option value="">-- Seleccionar cuenta pasivo --</option>
-            {liabilityAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
+            onChange={setLiabilityAccountId}
+            loading={accountsLoading}
+            className="bg-white"
+          />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">
+          <label htmlFor={`${uid}-bank`} className="mb-1 block text-xs font-medium text-zinc-600">
             Cuenta Banco / Caja (Activo)
           </label>
-          <select
+          <AccountCombobox
+            id={`${uid}-bank`}
+            accounts={bankAccounts}
             value={bankAccountId}
-            onChange={(e) => setBankAccountId(e.target.value)}
-            required
-            className="w-full rounded-md border bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-          >
-            <option value="">-- Seleccionar cuenta banco/caja --</option>
-            {bankAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} — {a.name}
-              </option>
-            ))}
-          </select>
+            onChange={setBankAccountId}
+            loading={accountsLoading}
+            className="bg-white"
+          />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-zinc-600">

@@ -24,6 +24,7 @@
 import { describe, it, expect } from "vitest";
 
 import * as accountSearch from "./account-search";
+import { isSelectableAccountId, selectableAccounts } from "./account-search";
 
 type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
 type AccountRow = { option: AccountOption; selectable: boolean; depth: number };
@@ -1165,23 +1166,9 @@ type B1Module = {
   ): boolean;
 };
 
+// GREEN (paso 2): import estático normal — `tsc` verifica que las firmas reales cumplen B1Module.
 function loadB1(): B1Module {
-  // Cada función se resuelve por separado: que falte una no debe hacer fallar los casos de la otra.
-  const mod = accountSearch as unknown as Partial<B1Module>;
-  return {
-    selectableAccounts: ((accounts) => {
-      if (typeof mod.selectableAccounts !== "function") {
-        throw new Error("selectableAccounts no es una función exportada por ./account-search");
-      }
-      return mod.selectableAccounts(accounts);
-    }) as B1Module["selectableAccounts"],
-    isSelectableAccountId: (accounts, id) => {
-      if (typeof mod.isSelectableAccountId !== "function") {
-        throw new Error("isSelectableAccountId no es una función exportada por ./account-search");
-      }
-      return mod.isSelectableAccountId(accounts, id);
-    },
-  };
+  return { selectableAccounts, isSelectableAccountId };
 }
 
 type Typed = AccountOption & { type: string };

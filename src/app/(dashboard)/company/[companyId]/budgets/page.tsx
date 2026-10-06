@@ -30,10 +30,11 @@ export default async function BudgetsPage({ params }: Props) {
   const [budgets, cashFlow, accounts] = await Promise.all([
     BudgetService.list(companyId),
     CashFlowProjectionService.project(companyId),
+    // SPEC-012: títulos Y cuentas de movimiento; el selector solo deja elegir las de movimiento.
     prisma.account.findMany({
-      where: { companyId, deletedAt: null, isPostable: true },
+      where: { companyId, deletedAt: null },
       orderBy: [{ code: "asc" }],
-      select: { id: true, code: true, name: true, type: true },
+      select: { id: true, code: true, name: true, type: true, isPostable: true },
     }),
   ]);
 

@@ -426,3 +426,46 @@ describe("RetentionList · Enterar — filtrar y navegar (el selector es el busc
     expect(headerEl("CAJAS")).toBeNull();
   });
 });
+
+describe("RetentionList · Enterar — mientras se cargan las cuentas (loading)", () => {
+  it("los dos campos salen deshabilitados con «Cargando cuentas…» y se habilitan al llegar las cuentas", async () => {
+    let resolve!: (value: unknown) => void;
+    const pending = new Promise((r) => {
+      resolve = r;
+    });
+    getAccountsForEnteramientoAction.mockReturnValue(pending);
+    render(<RetentionList companyId={COMPANY_ID} retentions={[RETENTION]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Enterar" }));
+    await waitFor(() => expect(getAccountsForEnteramientoAction).toHaveBeenCalledWith(COMPANY_ID));
+
+    const { liability, bank } = comboboxes();
+    for (const field of [liability, bank]) {
+      expect(field.disabled).toBe(true);
+      expect(field.getAttribute("aria-busy")).toBe("true");
+      expect(field.placeholder).toBe("Cargando cuentas…");
+    }
+    expect(screen.queryByText("No hay cuentas disponibles")).toBeNull();
+
+    await act(async () => {
+      resolve({ success: true, data: ENTERAMIENTO_ACCOUNTS });
+    });
+    for (const field of [comboboxes().liability, comboboxes().bank]) {
+      expect(field.disabled).toBe(false);
+      expect(field.getAttribute("aria-busy")).toBeNull();
+    }
+  });
+
+  it("si la carga falla, termina el «Cargando…» y los campos quedan sin cuentas (no se quedan cargando para siempre)", async () => {
+    getAccountsForEnteramientoAction.mockResolvedValue({ success: false, error: "Sin permiso" });
+    render(<RetentionList companyId={COMPANY_ID} retentions={[RETENTION]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Enterar" }));
+    await waitFor(() => expect(getAccountsForEnteramientoAction).toHaveBeenCalledWith(COMPANY_ID));
+    await act(async () => {});
+
+    const { liability, bank } = comboboxes();
+    for (const field of [liability, bank]) {
+      expect(field.getAttribute("aria-busy")).toBeNull();
+      expect(field.placeholder).not.toBe("Cargando cuentas…");
+    }
+  });
+});
