@@ -210,3 +210,14 @@
 - **Fix applied**: el gasto es el bruto completo; una nómina con cuotas de préstamo exige la cuenta de préstamos al personal; el test se rehízo con valores esperados calculados aparte, a partir del recibo, y se añadió una prueba de invariante (Nómina por pagar = neto del recibo + retenciones sin cuenta propia) sobre 14 combinaciones.
 - **Golden rule**: el valor esperado de un test se calcula de una fuente independiente del código que prueba (aquí, el neto del recibo), nunca copiando lo que el código devuelve. Un asiento que cuadra no está por eso bien: hay que comparar sus líneas contra el documento de origen. Un comentario que describe un total debe poder comprobarse contra la definición real de ese total.
 - **Regression test**: `src/modules/payroll/__tests__/PayrollRunService.test.ts` (describe "PayrollRunService.approve — cuota de préstamo (SPEC-013)")
+
+---
+
+## LL-020 — Un guard definido por "quien llama X" no ve a quien debió llamar X (2026-10-05)
+
+- **Phase detected**: SPEC-001, al preparar el trigger de cuadre exacto (T = 0) en la BD
+- **Context**: `gl-quantize-coverage.test.ts` (SPEC-004) exigía que todo archivo que llama `assertBalancedGLEntries(` cuantizara antes; `InvoiceGLPostingService`
+- **Error**: el guard de arquitectura de SPEC-004 solo miraba a los archivos que YA llamaban `assertBalancedGLEntries(`. La causación de facturas creaba asientos sin llamarlo y sin cuantizar, así que quedó fuera de la migración de 21 servicios y del guard, aunque era el generador más usado. Con el trigger de cuadre exacto, un total con más de 2 decimales (conversión de moneda) habría hecho fallar el COMMIT de una factura en producción.
+- **Fix applied**: `InvoiceGLPostingService` cuantiza y verifica (residuo en la línea de base); el guard nuevo `gl-entry-creators-quantize.test.ts` parte de lo que se CREA (`entries: { create` / `journalEntry.create`) y exige `quantizeGLEntries(` en cada archivo; se comprobó con un mutante que falla si se quita la llamada.
+- **Golden rule**: un guard de cobertura se define por el efecto que se quiere impedir ("nadie crea asientos sin cuantizar"), no por quien ya cumple parte del patrón ("quien llama a assert cuantiza"). Al añadir una restricción nueva en la BD, el barrido previo es sobre TODOS los escritores de esa tabla, no sobre los que ya pasan por la función central.
+- **Regression test**: `src/__tests__/architecture/gl-entry-creators-quantize.test.ts` y `src/modules/invoices/__tests__/InvoiceGLPostingService.quantize.test.ts`

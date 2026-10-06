@@ -1,7 +1,7 @@
 ---
 id: SPEC-001
 titulo: Cuadre de partida doble garantizado en la base de datos
-estado: APROBADA   # reaprobada 2026-10-03 (T = 0). SPEC-004 HECHA. Pendiente: SPEC-007 (entrada de inventario con contrapartida) antes de activar el trigger
+estado: HECHA   # mergeada (PR #65, b2c7bd7f) y APLICADA EN PRODUCCIÓN el 2026-10-06, con autorización del dueño y tras el despliegue de main
 fecha: 2026-10-01
 rama: feat/spec-001-cuadre-bd
 arbol: "[7]"
@@ -67,18 +67,24 @@ Sin cambios. El mensaje llega por el canal de errores existente.
 
 ## 9. Criterios de aceptación
 - [x] CA-1: La consulta de auditoría lista los asientos descuadrados existentes y se entrega al usuario **antes** de aplicar el trigger. Hecho 2026-10-03: 1 asiento con residuo 0,0001 de 117 (ver sección 11, P-1). Consulta: agrupar `SUM("JournalEntry".amount)` por `"Transaction".id` y clasificar `= 0`, `<= 0.01`, `> 0.01` y sin líneas.
-- [ ] CA-2: Insertar un asiento cuadrado en varias sentencias dentro de un `$transaction` hace commit sin error.
-- [ ] CA-3: Insertar un asiento descuadrado hace rollback completo; no queda ni la cabecera ni ninguna línea.
-- [ ] CA-4: Modificar el monto de una línea existente de forma que descuadre falla al hacer commit.
-- [ ] CA-5: Borrar una línea de un asiento cuadrado falla al hacer commit.
-- [ ] CA-6: La action correspondiente devuelve el mensaje de negocio de la sección 7, no el error crudo.
-- [ ] CA-7: La suite completa existente (`vitest run`) sigue en verde.
-- [ ] CA-8: Los flujos que generan asientos automáticos (factura, pago, nómina, COGS, cierre de ejercicio, diferencial cambiario) pasan sus tests de integración con el trigger activo.
+- [x] CA-2: Insertar un asiento cuadrado en varias sentencias dentro de un `$transaction` hace commit sin error. **`gl-balance-trigger.test.ts` (corre en el job `integration` contra Neon con todas las migraciones desde cero: CI verde) y 17 escenarios previos con PGlite.**
+- [x] CA-3: Insertar un asiento descuadrado hace rollback completo; no queda ni la cabecera ni ninguna línea. **Test CA-3 y T = 0 exacto (0,0001 también se rechaza): rollback completo, ni cabecera ni líneas.**
+- [x] CA-4: Modificar el monto de una línea existente de forma que descuadre falla al hacer commit. **Test CA-4: el monto original queda intacto tras el rechazo.**
+- [x] CA-5: Borrar una línea de un asiento cuadrado falla al hacer commit. **Test CA-5: la línea sigue existiendo tras el rechazo.**
+- [x] CA-6: La action correspondiente devuelve el mensaje de negocio de la sección 7, no el error crudo. **`isUnbalancedEntryError` + `mapPrismaError`; el mensaje de negocio llega con `$transaction` explícito y con sentencias sueltas (forma real medida). Verificado también en producción con el adaptador de Neon. Límite documentado en el ADR-060: una escritura anidada suelta fuera de un `$transaction` se rechaza igual pero Prisma oculta el error tras un P2028.**
+- [x] CA-7: La suite completa existente (`vitest run`) sigue en verde. **Suite completa 6361 tests, 0 fallos.**
+- [ ] CA-8: Los flujos que generan asientos automáticos (factura, pago, nómina, COGS, cierre de ejercicio, diferencial cambiario) pasan sus tests de integración con el trigger activo. **PARCIAL (honesto): no hay un test de integración con Postgres real por cada flujo. Cobertura indirecta: el guard de arquitectura `gl-entry-creators-quantize.test.ts` obliga a que TODO generador de asientos cuantice, `InvoiceGLPostingService` (el único que no lo hacía) ya cuantiza y verifica, y todos los servicios con tests unitarios pasan. Queda como seguimiento vigilar en Sentry el mensaje "El asiento no cuadra" / `CF001` y añadir tests de integración por flujo.**
 
 ## 10. Plan de agentes
 
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
+| 1 | (yo) | Barrido de generadores de asientos: de los 24 archivos que crean líneas, solo `InvoiceGLPostingService` no cuantizaba ni verificaba el cuadre (el resto ya pasa por `quantizeGLEntries`, SPEC-004). Con T = 0, un total con más de 2 decimales habría hecho fallar el COMMIT de una factura en producción. | Sí: `InvoiceGLPostingService.quantize.test.ts` en RED |
+| 2 | (yo) | RED y GREEN de `isUnbalancedEntryError` + mensaje de negocio en `mapPrismaError` (CA-6). | Sí: `prisma-errors.unbalanced.test.ts` |
+| 3 | (yo) | Migración `20261005_trigger_cuadre_partida_doble` (función + `CONSTRAINT TRIGGER` diferido, SQLSTATE `CF001`, T = 0), verificada localmente con Postgres real (PGlite, 17 escenarios, aplicada dos veces). | Sí: `gl-balance-trigger.test.ts` (integración, CI) |
+| 4 | (yo) | Adaptar `gl-quantize-balance.test.ts` (i-a: el defecto ahora está bloqueado); guard de arquitectura `gl-entry-creators-quantize.test.ts`; ADR-060; README de integración. | Sí |
+| 5 | (yo) | Gates (`tsc`, `vitest`, lint, `format:check`) y PR; el job `integration` corre CA-2..CA-6 contra Neon. `security-agent` no hace falta: no hay action, ruta, modelo ni input nuevo. | n/a |
+| 6 | (yo, SOLO con confirmación del usuario) | Aplicar la migración en producción tras el merge (`scripts/apply-migration-http.mjs`) y prueba de humo con una transacción descuadrada que se revierte sola. | n/a |
 
 ## 11. Riesgos y preguntas abiertas
 - **P-1 (RESUELTA 2026-10-03):** la auditoría de solo lectura de PRODUCCIÓN (proyecto `royal-voice-77113362`) dio: 117 asientos en 2 empresas, todos POSTED; **116 cuadran exactamente; 1 con residuo de 0,0001 Bs.** (`NOM-2026-08-16-83jgfm`, id `cmtkl766x0000sslwig0uyju5`, empresa demo "Tecnología y Suministros Andina, C.A." de Gustavo, período OPEN, causación de nómina en USD). 0 asientos con descuadre mayor a 0,01, 0 sin líneas, 0 anulados. Usuario: "corrígelos todos"; la empresa es su cuenta DEMO, sin riesgo. La corrección solo es necesaria si `T = 0`.
@@ -92,7 +98,8 @@ Sin cambios. El mensaje llega por el canal de errores existente.
 - **PRERREQUISITO (decidido 2026-10-04): SPEC-007.** La ENTRADA de inventario "standalone" (`InventoryAccountingService`, `expectBalanced: false`) crea hoy un asiento de UNA sola línea (Dr Inventario sin contrapartida) y el trigger lo rechazaría. La contadora resolvió que **toda entrada de inventario lleva contrapartida**: Banco o Caja (compra), Cuentas por pagar (a crédito), o Capital solo cuando es aporte de socios al constituir la empresa. Por eso la SPEC-007 (exigir contrapartida) va ANTES que el trigger. Producción no tiene ningún asiento de una línea (auditoría 2026-10-03), así que no hay datos que migrar.
 
 ## 12. Cierre
-- Commits:
-- Tests: antes N → después N
-- ADR creado o actualizado:
-- Lección aprendida (LL-XXX):
+- **PR:** #65, mergeado el 2026-10-06 (`b2c7bd7f`). Commits: `69d4dc56` detector del error, `81ffe3ed` causación de facturas cuantizada, `52929eee` migración, `39ab38f5` ADR-060 y plan, `ea7935c9` tests de integración con `$transaction` explícito.
+- **Tests:** 6361, 0 fallos (+25 de esta spec); `tsc`, `format:check` y lint limpios. Integración en Neon: 10 tests del trigger y 3 de cuadre en verde. La primera corrida del CI falló (los tests asumían una forma de error que Prisma oculta en escrituras anidadas sueltas): se reprodujo en local con Prisma + Postgres real y se corrigió.
+- **Producción (aplicada el 2026-10-06, con autorización explícita del dueño, DESPUÉS del despliegue de `main` en Vercel):** comprobaciones previas de solo lectura (118 asientos, 288 líneas, **0 descuadrados**, única migración pendiente, trigger inexistente); aplicada con `scripts/apply-migration-http.mjs` (4 sentencias idempotentes + `_prisma_migrations`, checksum del contenido LF `199b48a8…`, idéntico al de git). Verificado después: trigger `trg_journalentry_balance` activo, `DEFERRABLE INITIALLY DEFERRED`, 170/170 migraciones aplicadas, 0 pendientes, 0 descuadrados. **Prueba de humo:** un asiento descuadrado dentro de `$transaction` con el adaptador de Neon (el de producción) falla con `DriverAdapterError` (cause `CF001`), `isUnbalancedEntryError` lo reconoce y `mapPrismaError` devuelve el mensaje de negocio; por HTTP también falla con `CF001`; no persistió nada (asientos, líneas y correlativo del libro diario intactos).
+- **ADR creado:** ADR-060. **Lección aprendida:** LL-020.
+- **Seguimiento:** (1) CA-8 parcial: vigilar Sentry por "El asiento no cuadra" / `CF001` y añadir tests de integración por flujo; (2) correr los scripts de `prisma/` (`seed-*`, `fix-*`) contra un branch de pruebas antes de usarlos con el trigger activo; (3) si algún día un asiento de miles de líneas lo notara, pasar a una comprobación única por asiento.

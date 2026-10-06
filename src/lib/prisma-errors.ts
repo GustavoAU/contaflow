@@ -103,6 +103,49 @@ export function isExclusionViolation(error: unknown, constraintName: string): bo
   return texto.includes(constraintName);
 }
 
+/** SQLSTATE propio del trigger de cuadre de la BD (migración `trigger_cuadre_partida_doble`, ADR-060). */
+const UNBALANCED_ENTRY_SQLSTATE = "CF001";
+
+/** Mensaje de negocio cuando la BD rechaza un asiento descuadrado (SPEC-001, RN-4). */
+export const UNBALANCED_ENTRY_MESSAGE =
+  "El asiento no cuadra: débitos y créditos deben ser iguales. No se guardó ningún cambio.";
+
+/**
+ * ¿La BD rechazó la transacción porque un asiento no cuadra? (SPEC-001, trigger de cuadre).
+ *
+ * El trigger se dispara al COMMIT (constraint trigger diferido) y lanza SQLSTATE `CF001`, un código
+ * propio que Prisma no conoce: no llega como un error conocido ni con una forma estable. Con adapter-pg
+ * el código de Postgres viene en `code`/`cause`; con el adaptador de Neon (producción) viene anidado en
+ * `meta.driverAdapterError.cause` (misma lección que LL-014 con el P2002). Por eso se recorre el error
+ * —sus propiedades, `meta` y `cause`, hasta 5 niveles y con protección contra ciclos— buscando el
+ * marcador `CF001`, que el trigger pone TAMBIÉN al inicio de su mensaje: es lo único fiable.
+ *
+ * Sin esto, el usuario recibiría el error crudo del motor o el mensaje genérico de base de datos.
+ */
+export function isUnbalancedEntryError(error: unknown): boolean {
+  const visited = new Set<object>();
+  const walk = (value: unknown, depth: number): boolean => {
+    // Un string suelto solo cuenta si ES el marcador (empieza por "CF001:"): el código de una cuenta
+    // contable "CF001" dentro de un mensaje de negocio no debe confundirse con el error del trigger.
+    if (typeof value === "string") return value.startsWith(`${UNBALANCED_ENTRY_SQLSTATE}:`);
+    if (!value || typeof value !== "object" || depth > 5 || visited.has(value)) return false;
+    visited.add(value);
+    const record = value as Record<string, unknown>;
+    // `message` y `cause` de un Error no son propiedades enumerables: se leen a mano.
+    const codes = [record.code, record.originalCode, record.sqlState];
+    if (codes.some((v) => v === UNBALANCED_ENTRY_SQLSTATE)) return true;
+    const messages = [record.message, record.originalMessage, record.detail];
+    if (
+      messages.some((v) => typeof v === "string" && v.includes(`${UNBALANCED_ENTRY_SQLSTATE}:`))
+    ) {
+      return true;
+    }
+    const children = [record.cause, record.meta, ...Object.values(record)];
+    return children.some((child) => child !== value && walk(child, depth + 1));
+  };
+  return walk(error, 0);
+}
+
 export function p2002TargetIncludes(error: unknown, column: string): boolean {
   if (!isPrismaError(error, "P2002")) return false;
   const meta = error.meta as Record<string, unknown> | undefined;
@@ -136,6 +179,10 @@ export function p2002TargetIncludes(error: unknown, column: string): boolean {
 }
 
 export function mapPrismaError(error: unknown): string {
+  // SPEC-001: el trigger de cuadre rechaza al COMMIT un asiento descuadrado. Se mira ANTES que el
+  // resto: llega como P2010 o como Error plano según el driver, y ambos caerían al mensaje genérico
+  // o crudo. Tiene su propio texto de negocio (RN-4): nunca el error del motor.
+  if (isUnbalancedEntryError(error)) return UNBALANCED_ENTRY_MESSAGE;
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") return "Ya existe un registro con esos datos";
     if (error.code === "P2003") return "Datos de referencia inválidos";
