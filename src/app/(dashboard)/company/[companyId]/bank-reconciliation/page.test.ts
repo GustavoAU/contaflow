@@ -147,14 +147,18 @@ describe("BankReconciliationPage — títulos y cuentas para el selector buscabl
     expect(props.companyId).toBe(COMPANY_ID);
     expect(props.userId).toBe("user-1");
   });
-
 });
 
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 // M-1 — la página comprueba la membresía por su cuenta (requireCompanyPage), antes de leer nada.
 // ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-const BANK_ACCOUNT = { id: "ba-1", name: "Mercantil Operativa", bankName: "Mercantil", currency: "VES" };
+const BANK_ACCOUNT = {
+  id: "ba-1",
+  name: "Mercantil Operativa",
+  bankName: "Mercantil",
+  currency: "VES",
+};
 
 /** Resuelve la guarda cuando el test quiere: permite comprobar que la página la ESPERA. */
 function deferredGuard() {
@@ -186,9 +190,7 @@ describe("BankReconciliationPage — M-1: la guarda de membresía va PRIMERO", (
     expect(BankAccountService.list).toHaveBeenCalledTimes(1);
     const guardOrder = vi.mocked(requireCompanyPage).mock.invocationCallOrder[0];
     expect(guardOrder).toBeLessThan(findMany.mock.invocationCallOrder[0]);
-    expect(guardOrder).toBeLessThan(
-      vi.mocked(BankAccountService.list).mock.invocationCallOrder[0]
-    );
+    expect(guardOrder).toBeLessThan(vi.mocked(BankAccountService.list).mock.invocationCallOrder[0]);
   });
 
   it("la guarda se invoca también ANTES de listar los extractos de la cuenta elegida", async () => {
