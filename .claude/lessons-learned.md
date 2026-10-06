@@ -188,3 +188,25 @@
   debe coincidir con lo que ejecuta; todo estado `loading` que se activa antes de un `await` se desactiva en `finally`.
 - **Regression test**: `account.actions.test.ts` "[M-1] la edición pasa por el limiter fiscal…" y
   `AccountsTable.parent.test.tsx` "[L-1] si la llamada a la action se rechaza…"
+
+---
+
+## LL-018 — Un id del cliente decidía el tratamiento contable sin validarse contra su fuente (2026-10-04)
+
+- **Phase detected**: revisión de seguridad de la SPEC-007 (contrapartida de inventario)
+- **Context**: `InventoryAccountingService.postMovement`, rama de una ENTRADA ligada a factura; `createMovementAction`; `prisma-tercero-required-gate` (ADR-054)
+- **Error**: (1) `invoiceId` llegaba del cliente (el formulario nunca lo envía) y bastaba que esa factura existiera y tuviera `transactionId` para enlazar el movimiento a SU asiento: una ENTRADA colgada del asiento de una venta subía el stock y el CPP sin débito a Inventario. (2) El borrador aceptaba una contrapartida que luego el gate de terceros rechazaba al contabilizar (Cuentas por pagar exige tercero y el movimiento no lo registra): un borrador imposible de contabilizar, sin salida para el contador. (3) La anulación armaba el contra-asiento con las cuentas que HOY tenía el ítem, no con las del asiento original, y no conservaba los terceros.
+- **Fix applied**: la rama con factura exige factura de COMPRA de la empresa, línea vigente de esa factura y asiento de la empresa y POSTED, todo antes de escribir; la action descarta `invoiceId` del cliente; una sola guarda (`inventory-guards.ts`) valida la contrapartida al crear el borrador y otra vez al contabilizar; la anulación niega las LÍNEAS GUARDADAS, terceros incluidos.
+- **Golden rule**: un id que decide el tratamiento contable se valida contra su fuente (tipo, relación, empresa, vigencia) en el momento de usarlo, y los campos que ningún formulario envía no se aceptan del cliente. Todo borrador que se acepta debe poder contabilizarse: la misma guarda corre en los dos pasos. Lo derivado de lo ya guardado (anulaciones) se calcula de las filas guardadas, no de la configuración de hoy. Y un `@unique` 1:1 sobre un asiento que comparten N movimientos es un bug latente que los mocks de Prisma no ven (PA-5, seguimiento).
+- **Regression test**: `src/modules/inventory/__tests__/InventoryAccountingService.test.ts` (H-1, M-1, M-2, L-A), `inventory-guards.test.ts`, `inventory-operations.actions.test.ts` y `src/__tests__/architecture/inventory-no-single-line-entries.test.ts`
+
+---
+
+## LL-019 — Un test copió el valor que producía el código y blindó el error durante semanas (2026-10-05)
+
+- **Phase detected**: SPEC-013, al corregir el asiento de causación de nómina con cuota de préstamo
+- **Context**: `PayrollRunService.approve` y el test de ADR-058 del caso USD con préstamo (`PayrollRunService.test.ts`)
+- **Error**: el gasto de sueldos se calculaba como `totalEarnings − cuota`, pero `totalEarnings` solo suma líneas EARNING y la cuota es una DEDUCTION, así que se restaba dos veces (el asiento cuadraba, por eso nada lo detectó). El test que cubría ese caso se había escrito con el valor que producía el código (gasto 899,61 = 1.043,32 − 143,71) y no con uno derivado del recibo: en vez de detectar el error, lo fijó. Además el comentario del código describía un `totalEarnings` que no existe.
+- **Fix applied**: el gasto es el bruto completo; una nómina con cuotas de préstamo exige la cuenta de préstamos al personal; el test se rehízo con valores esperados calculados aparte, a partir del recibo, y se añadió una prueba de invariante (Nómina por pagar = neto del recibo + retenciones sin cuenta propia) sobre 14 combinaciones.
+- **Golden rule**: el valor esperado de un test se calcula de una fuente independiente del código que prueba (aquí, el neto del recibo), nunca copiando lo que el código devuelve. Un asiento que cuadra no está por eso bien: hay que comparar sus líneas contra el documento de origen. Un comentario que describe un total debe poder comprobarse contra la definición real de ese total.
+- **Regression test**: `src/modules/payroll/__tests__/PayrollRunService.test.ts` (describe "PayrollRunService.approve — cuota de préstamo (SPEC-013)")

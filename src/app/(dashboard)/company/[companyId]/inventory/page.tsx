@@ -88,12 +88,24 @@ export default async function InventoryPage({ params, searchParams }: Props) {
             companyId,
             deletedAt: null,
             isPostable: true,
-            type: { in: ["ASSET", "EXPENSE", "LIABILITY"] },
+            // EQUITY solo para la contrapartida de MovementForm (Capital / aporte de
+            // socios, SPEC-007). Las cuentas de producto se filtran más abajo.
+            type: { in: ["ASSET", "EXPENSE", "LIABILITY", "EQUITY"] },
           },
-          select: { id: true, code: true, name: true, type: true },
+          // requiresThirdParty (ADR-054): MovementForm no ofrece como contrapartida las cuentas que
+          // exigen tercero, porque el movimiento de inventario no lo registra.
+          select: { id: true, code: true, name: true, type: true, requiresThirdParty: true },
           orderBy: [{ code: "asc" }],
         })
-      : Promise.resolve([] as { id: string; code: string; name: string; type: string }[]),
+      : Promise.resolve(
+          [] as {
+            id: string;
+            code: string;
+            name: string;
+            type: string;
+            requiresThirdParty: boolean;
+          }[]
+        ),
   ]);
 
   const [rawPending, usdRateMovimientos] =
@@ -146,6 +158,7 @@ export default async function InventoryPage({ params, searchParams }: Props) {
     stockQuantity: i.stockQuantity,
     averageCost: i.averageCost,
     itemType: i.itemType,
+    accountId: i.accountId, // cuenta de inventario: se excluye de la contrapartida (SPEC-007)
   }));
 
   const serializedPending: PendingMovement[] = rawPending.map((mov) => ({
@@ -171,12 +184,18 @@ export default async function InventoryPage({ params, searchParams }: Props) {
     },
   }));
 
-  const accountOptions = accounts.map((a) => ({
+  // Contrapartida del movimiento (MovementForm): incluye EQUITY (SPEC-007).
+  const counterpartOptions = accounts.map((a) => ({
     id: a.id,
     code: a.code,
     name: a.name,
     type: a.type,
+    requiresThirdParty: a.requiresThirdParty,
   }));
+
+  // Cuentas de producto (InventoryItemForm / InventoryItemList): SIN EQUITY — un
+  // producto no puede usar una cuenta de Patrimonio como inventario ni como costo.
+  const accountOptions = counterpartOptions.filter((a) => a.type !== "EQUITY");
 
   const currentBcvRate = (usdRateMovimientos ?? usdRateValoracion)?.rate?.toString();
 
@@ -258,7 +277,7 @@ export default async function InventoryPage({ params, searchParams }: Props) {
                 <MovementForm
                   companyId={companyId}
                   items={itemsForMovement}
-                  counterpartAccounts={accountOptions}
+                  counterpartAccounts={counterpartOptions}
                   currentBcvRate={currentBcvRate}
                 />
               )}

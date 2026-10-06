@@ -1319,13 +1319,15 @@ export const PayrollRunService = {
 
           // ── Asiento de causación (ADR-013 Decisión 4) ─────────────────────
           // Convención JournalEntry: amount positivo = Débito, negativo = Crédito
-          // DÉBITO: Gastos de Personal (totalEarnings — solo componentes salariales, sin cuotas de préstamo)
-          // CRÉDITO: Sueldos por Pagar (neto sin préstamos) + retenciones separadas + recuperación préstamos
+          // DÉBITO: Gastos de Personal = totalEarnings (la suma de las líneas EARNING, el bruto devengado)
+          // CRÉDITO: Sueldos por Pagar (neto del recibo) + retenciones separadas + recuperación préstamos
           //
           // Invariante de cuadre: Σ entries = 0 independientemente de cuántas cuentas estén configuradas.
-          // Las cuotas de préstamo (PRESTAMO_EMP) NO son un gasto de nómina — son recuperación de un activo
-          // (Préstamos a Empleados). Por eso se excluyen de totalEarnings y se creditean contra la cuenta
-          // del activo si está configurada, o se incluyen en "Sueldos por Pagar" si no lo está.
+          // Las cuotas de préstamo (PRESTAMO_EMP) son líneas DEDUCTION: NO están dentro de totalEarnings
+          // ni son un gasto de nómina, sino la recuperación de un activo (Préstamos a Empleados). Por
+          // eso el gasto es el bruto completo y la cuota se acredita contra la cuenta del activo; el
+          // empleado cobra bruto − retenciones − cuota (SPEC-013: antes la cuota se restaba también del
+          // gasto y el gasto y Nómina por pagar quedaban menores en la cuota).
           const expenseAccountId = config.expenseAccountId!;
           const payableAccountId = config.payableAccountId!;
           const nomPeriod = `${run.periodStart.toISOString().split("T")[0]}/${run.periodEnd.toISOString().split("T")[0]}`;
@@ -1335,17 +1337,29 @@ export const PayrollRunService = {
             .filter((l) => l.conceptCode === "PRESTAMO_EMP" && l.conceptType === "DEDUCTION")
             .reduce((s, l) => s.plus(new Decimal(l.amount.toString())), new Decimal(0));
 
-          // Gasto salarial real = bruto total − cuotas de préstamo (estas no son gasto, son recuperación de activo)
-          const salaryExpense = new Decimal(run.totalEarnings.toString()).minus(loanTotal);
+          // SPEC-013 RN-8 / P-1 (contadora, opción A): una cuota de préstamo se recupera contra la
+          // cuenta de préstamos al personal. Sin ella la cuota quedaría dentro de Nómina por pagar y
+          // el activo no bajaría en el libro aunque sí baje el saldo del préstamo. Se rechaza antes
+          // de crear el asiento y de tocar saldos (el $transaction revierte también la marca de
+          // aprobación de arriba). Sin cuotas, la falta de esa cuenta no bloquea nada.
+          if (loanTotal.greaterThan(0) && !config.loanReceivableAccountId) {
+            throw new Error(
+              "Configure la cuenta de préstamos al personal (Préstamos a Empleados) en la configuración de nómina antes de aprobar una nómina con cuotas de préstamo."
+            );
+          }
 
-          // Deducciones que SÍ tienen cuenta separada configurada (retenciones)
+          // Gasto salarial = bruto devengado completo. La cuota de préstamo NO se resta aquí: no está
+          // dentro de totalEarnings (es una deducción) y ya reduce el neto por la vía de abajo.
+          const salaryExpense = new Decimal(run.totalEarnings.toString());
+
+          // Deducciones que SÍ tienen cuenta separada configurada (retenciones y recuperación de préstamos)
           const configuredDeductions = [
             config.ivssPayableAccountId ? ivssTotal : new Decimal(0),
             config.faovPayableAccountId ? faovTotal : new Decimal(0),
             config.incesPayableAccountId ? incesTotal : new Decimal(0),
             config.rpePayableAccountId ? rpeTotal : new Decimal(0),
-            // Loan recovery: solo si está configurada la cuenta del activo
-            config.loanReceivableAccountId ? loanTotal : new Decimal(0),
+            // Recuperación de préstamos: siempre contra su cuenta (RN-8 garantiza que está configurada)
+            loanTotal,
           ].reduce((s, v) => s.plus(v), new Decimal(0));
 
           // Crédito consolidado a "Sueldos por Pagar" = gasto salarial − retenciones con cuenta propia

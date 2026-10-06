@@ -48,7 +48,8 @@ const HALF_CENT = new Decimal("0.005");
  *    (anulaciones, cierre de ejercicio, liquidación de caja): negar un asiento histórico a 4
  *    decimales debe ser su espejo exacto (ADR-005).
  *  - expectBalanced:false: redondea y descarta ceros pero no absorbe ni exige Σ = 0 (asientos
- *    incompletos a propósito; hoy solo la ENTRADA de inventario sin contrapartida).
+ *    incompletos a propósito). SIN llamadores en producción desde la SPEC-007: ya no existe ningún
+ *    asiento incompleto (toda ENTRADA de inventario lleva contrapartida). Solo la usan los tests.
  *
  * Nunca muta la entrada. Es idempotente sobre montos ya cuantizados.
  */
