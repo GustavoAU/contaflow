@@ -229,15 +229,23 @@ La spec se entrega en **dos PR** (Q3). Este plan es el de la **Entrega A**; la E
 
 ### Decisiones del dueño tras el inventario de la Entrega B (2026-10-05, actualizadas con las respuestas de la contadora)
 Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 52 selectores, riesgos y decisiones D1-D9).
-1. **La Entrega B se divide** (antes: un solo PR) porque el inventario muestra ~25 archivos y riesgo alto en nómina y activos fijos:
+1. **La Entrega B se divide** (antes: un solo PR) porque el inventario muestra ~25 archivos y riesgo alto en nómina y activos fijos.
+   **Regla de reparto (comprobada el 2026-10-05):** una **página y todos los formularios que ella alimenta migran en la misma
+   entrega**. Si no, al quitar `isPostable: true` de su consulta los formularios sin migrar recibirían títulos en un `<select>`
+   nativo y se podrían elegir. Páginas compartidas: `cajachica/page.tsx` (crear caja, depósito, movimiento y cierre de caja),
+   `fixed-assets/page.tsx` (alta de activo, baja y panel INPC), `settings/page.tsx` (cierre fiscal y cuentas contables) e
+   `inventory/page.tsx` (ítems y movimientos).
    - **B1** (esta rama): paso 0 = extender `AccountCombobox` (valor huérfano o título → texto vacío + `aria-invalid`; prop
-     `clearable`; `data-state` y ayuda para `Esc` dentro de AlertDialog) + formularios simples: `RetentionList`,
-     `BankAccountList`, `BudgetDetail`, `CajaCajaPageClient`, `CajaCajaDepositForm`, `CajaCajaMovementForm`, panel INPC de
-     `FixedAssetList`, `FiscalConfigForm`, `InflationAdjustmentPanel`, con sus páginas.
-   - **B2**: `CloseCajaDialog` (`CajaCajaList`), `DisposeAssetModal`, `InventoryItemForm`, `GLAccountsForm`, `FixedAssetForm`,
-     `PayrollWizard` (los opcionales y los complejos) + retiro de `onlyPostable` de `getAccountsAction`.
-   - **B3 (al final)**: `MovementForm` (inventario) y `inventory/page.tsx`, **después** de que SPEC-007 se fusione (esa rama
-     reescribe el mismo selector y la misma consulta; migrarlo antes garantiza conflicto).
+     `clearable`; `data-state` y ayuda `isAccountComboboxOpen` para `Esc` dentro de AlertDialog) + las páginas **completas**:
+     `RetentionList` (acción `getAccountsForEnteramientoAction`), `BankAccountList` (`bank-reconciliation/page`),
+     `BudgetDetail` (`budgets/page`), `InflationAdjustmentPanel` (`inflation/page`) y **caja chica completa**
+     (`CajaCajaPageClient`/crear caja, `CajaCajaDepositForm`, `CajaCajaMovementForm` y `CloseCajaDialog` de `CajaCajaList`).
+   - **B2**: **activos fijos** (`FixedAssetForm`, `DisposeAssetModal`, panel INPC de `FixedAssetList` y su página),
+     **ajustes** (`FiscalConfigForm`, `GLAccountsForm` y `settings/page`) y **nómina** (`PayrollWizard` y
+     `payroll/config/edit/page`) + alerta que bloquea el guardado (Q4) + retiro de `onlyPostable` de `getAccountsAction`.
+   - **B3 (al final)**: **inventario completo** (`InventoryItemForm`, `MovementForm` e `inventory/page.tsx`), **después** de
+     que SPEC-007 se fusione (esa rama reescribe el selector de `MovementForm` y la misma consulta de la página; y los dos
+     formularios comparten página).
    - **Fuera de SPEC-012:** `IncomeDistributionForm`. Tiene un fallo de diseño previo (las cuentas por línea se validan contra
      la empresa **receptora** pero el formulario ofrece las de la empresa actual); el dueño decidió arreglarlo con una **spec
      propia**, y migrar su selector antes de eso sería rehacerlo dos veces.
