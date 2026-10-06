@@ -221,3 +221,25 @@
 - **Fix applied**: `InvoiceGLPostingService` cuantiza y verifica (residuo en la línea de base); el guard nuevo `gl-entry-creators-quantize.test.ts` parte de lo que se CREA (`entries: { create` / `journalEntry.create`) y exige `quantizeGLEntries(` en cada archivo; se comprobó con un mutante que falla si se quita la llamada.
 - **Golden rule**: un guard de cobertura se define por el efecto que se quiere impedir ("nadie crea asientos sin cuantizar"), no por quien ya cumple parte del patrón ("quien llama a assert cuantiza"). Al añadir una restricción nueva en la BD, el barrido previo es sobre TODOS los escritores de esa tabla, no sobre los que ya pasan por la función central.
 - **Regression test**: `src/__tests__/architecture/gl-entry-creators-quantize.test.ts` y `src/modules/invoices/__tests__/InvoiceGLPostingService.quantize.test.ts`
+
+---
+
+## LL-021 — Un guard de página que vive solo en `layout.tsx` no protege a la página (2026-10-06)
+
+- **Phase detected**: revisión de seguridad de SPEC-012 Entrega B1
+- **Context**: `src/app/(dashboard)/company/[companyId]/bank-reconciliation/page.tsx`; `requireCompanyPage` (`src/lib/company-page-guard.ts`)
+- **Error**: la página leía `prisma.account.findMany` y `BankAccountService.list` con el `companyId` crudo de la URL y solo hacía `currentUser()`; la única barrera era el `redirect` del layout padre, que vive en otro archivo. El test de arquitectura `company-page-scope.test.ts` solo vigila `prisma.company.find*`, así que no lo veía. Un barrido preliminar encontró unas 21 páginas más sin guard propio.
+- **Fix applied**: la página llama `requireCompanyPage(companyId, { id: true })` ANTES de cualquier lectura y toma el `userId` del guard. El barrido de las demás queda como tarea.
+- **Golden rule**: toda página de `/company/[companyId]/…` autoriza ella misma, a través de la membresía, antes de leer datos con el `companyId` de la URL; el layout es una segunda barrera, nunca la única. Un guard de arquitectura se define por el efecto (qué datos se leen sin membresía), no por un solo modelo.
+- **Regression test**: `src/app/(dashboard)/company/[companyId]/bank-reconciliation/page.test.ts` (la guarda se llama antes de las lecturas y, si rechaza, no se lee nada)
+
+---
+
+## LL-022 — Migrar un selector a medias deja títulos elegibles en los formularios que no se migraron (2026-10-06)
+
+- **Phase detected**: planificación de SPEC-012 Entrega B (inventario de 17 formularios)
+- **Context**: una misma página (`cajachica/page.tsx`, `fixed-assets/page.tsx`, `settings/page.tsx`, `inventory/page.tsx`) alimenta con la MISMA lista de cuentas a formularios de olas distintas
+- **Error (evitado)**: el primer reparto por formulario habría quitado `isPostable: true` de la consulta de una página compartida mientras otros formularios seguían con un `<select>` nativo, que habría ofrecido los títulos como cuentas elegibles.
+- **Fix applied**: el reparto de B1/B2/B3 es por PÁGINA (la página y todos sus formularios migran en la misma entrega) y se añadió un ratchet de arquitectura con lista cerrada de los archivos pendientes.
+- **Golden rule**: al cambiar qué datos entrega una consulta, inventariar TODOS sus consumidores antes de repartir el trabajo; si una consulta cambia de contrato, todos sus consumidores cambian en la misma entrega o el cambio se filtra en el límite.
+- **Regression test**: `src/__tests__/architecture/account-selector-no-native-select.test.ts`

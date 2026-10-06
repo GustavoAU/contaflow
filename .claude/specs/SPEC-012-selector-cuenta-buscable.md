@@ -283,7 +283,26 @@ Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 
   5. Con consulta vacía se muestran todos los títulos aunque sus cuentas ya estén en el presupuesto (RN-6): se acepta.
   6. El `type` es opcional en el `select`/claves de bancos, presupuestos e inflación, y obligatorio en caja chica y en
      `getAccountsForEnteramientoAction`; siempre `id`, `code`, `name`, `isPostable` y nada más.
-- **Pasos 2-5 PENDIENTES:** ui-agent GREEN → cobertura → security ligero → cierre (sin merge).
+- **Pasos 2-5 HECHOS (2026-10-05/06):** paso 2 ui-agent GREEN (combobox con D1/D2/D3 + `loading`, 5 fuentes de datos y 9
+  componentes; acción de enteramiento con `deletedAt: null` e `isPostable`); paso 3 cobertura: los selectores y lo que cambió
+  están cubiertos (los archivos grandes como `CajaCajaList`/`BudgetList` conservan su cobertura previa); paso 4 security-agent
+  **GO** (0 CRITICAL/HIGH); paso 5 cierre.
+- **Entrega B1 HECHA (pendiente de merge):** rama `feat/spec-012b-selector-cuenta-resto-formularios`. **393 tests nuevos**
+  (323 del paso 1 + 5 de `loading` + 65 de L-2/M-1), 6768 en total con `main` integrado, 0 fallos; tsc 0 · eslint 0 errores ·
+  prettier OK. Añadidos tras la auditoría: estado `loading` del combobox («Cargando cuentas…», para `RetentionList`),
+  **L-2** (RetentionList, BudgetDetail, CloseCajaDialog e InflationAdjustmentPanel revalidan la cuenta con
+  `isSelectableAccountId` al enviar) y **M-1** (`bank-reconciliation/page.tsx` usa `requireCompanyPage` antes de leer).
+  Mutaciones verificadas en cada uno.
+- **Backlog de B1 (no bloquea):** (1) **L-1** — cuatro destinos de configuración (`BankAccountService.create`,
+  `BudgetService.upsertLine`, `createCajaCaja`, `createMovement`) no validan `isPostable`: `assertAccountsPostable` en
+  `src/lib/account-guard.ts` + cableado (arch-agent + ledger-agent), sube a MEDIUM en B2/B3; (2) **barrido M-1**: unas 21 páginas
+  de `/company/[companyId]/…` no llaman a un guard propio (`bank-reconciliation/[statementId]`, `fiscal-close`, `igtf`,
+  `iva-declaration`, `periods`, `reports/*`, `retentions`, `transactions`, `import`…); hay que leerlas una a una y ampliar
+  `company-page-scope.test.ts` a `prisma.account.*` y servicios; (3) `enterRetention` y `assertAccountsBelongToCompany` no
+  filtran `deletedAt`; (4) D4 (altura de la lista en `CloseCajaDialog` en 375×667) sin verificar en navegador; (5) el ratchet
+  solo detecta `<option>`/`SelectItem` con `x.code —`, no otras formas de mostrar la cuenta; (6) si `getAccountsForEnteramientoAction`
+  falla, el combobox queda sin cuentas sin avisar el error (UX).
+
 
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
