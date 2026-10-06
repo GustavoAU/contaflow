@@ -5,6 +5,11 @@
 // debe sumar exactamente 0. Sin cuantizar, el caso real de produccion se guarda con
 // Σ = -0.0001; cuantizado con quantizeGLEntries, Σ = 0 y cada monto es multiplo de 0.01.
 //
+// SPEC-001: desde el trigger de cuadre (trg_journalentry_balance, T = 0) un asiento que se guarde con
+// Σ ≠ 0 YA NO PUEDE llegar a la BD: el caso (i-a) pasó de "demuestra el defecto" a "el defecto está
+// bloqueado". Los casos cuantizados (i-b) y (ii) siguen siendo la prueba de que el camino correcto
+// guarda Σ = 0.
+//
 // Correr con:
 //   DATABASE_URL_TEST=postgresql://... npx vitest run --config vitest.integration.config.ts
 
@@ -13,6 +18,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Decimal } from "decimal.js";
 import { quantizeGLEntries } from "@/lib/gl-assertions";
+import { isUnbalancedEntryError } from "@/lib/prisma-errors";
 
 const DB_URL = process.env.DATABASE_URL_TEST;
 
@@ -100,12 +106,14 @@ describe.skipIf(!DB_URL)("@integration gl-quantize-balance", () => {
     await prisma.$disconnect();
   });
 
-  it("(i-a) el defecto: las 11 lineas reales SIN cuantizar se guardan con Σ = -0.0001", async () => {
+  it("(i-a) el defecto está BLOQUEADO: las 11 lineas reales SIN cuantizar (Σ = -0.0001) las rechaza el trigger de cuadre", async () => {
     const lines = REAL_CASE.map((v) => ({ amount: new Decimal(v) }));
-    const id = await persist(lines);
-    const total = await storedSum(id);
-    expect(total.isZero()).toBe(false);
-    expect(total.toString()).toBe("-0.0001");
+    const error = await persist(lines).then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).not.toBeNull();
+    expect(isUnbalancedEntryError(error)).toBe(true);
   });
 
   it("(i-b) las 11 lineas reales cuantizadas se guardan con Σ = 0 y montos multiplos de 0.01", async () => {
