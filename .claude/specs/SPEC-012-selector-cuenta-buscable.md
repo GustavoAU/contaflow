@@ -287,7 +287,7 @@ Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 
   componentes; acción de enteramiento con `deletedAt: null` e `isPostable`); paso 3 cobertura: los selectores y lo que cambió
   están cubiertos (los archivos grandes como `CajaCajaList`/`BudgetList` conservan su cobertura previa); paso 4 security-agent
   **GO** (0 CRITICAL/HIGH); paso 5 cierre.
-- **Entrega B1 HECHA (pendiente de merge):** rama `feat/spec-012b-selector-cuenta-resto-formularios`. **393 tests nuevos**
+- **Entrega B1 HECHA y MERGEADA (PR #66, `f0ae1eba`, 2026-10-06):** rama `feat/spec-012b-selector-cuenta-resto-formularios`. **393 tests nuevos**
   (323 del paso 1 + 5 de `loading` + 65 de L-2/M-1), 6768 en total con `main` integrado, 0 fallos; tsc 0 · eslint 0 errores ·
   prettier OK. Añadidos tras la auditoría: estado `loading` del combobox («Cargando cuentas…», para `RetentionList`),
   **L-2** (RetentionList, BudgetDetail, CloseCajaDialog e InflationAdjustmentPanel revalidan la cuenta con
