@@ -1,7 +1,7 @@
 ---
 id: SPEC-013
 titulo: La cuota de préstamo a empleado no se resta dos veces en el asiento de nómina
-estado: EN_CURSO   # 2026-10-05; código y tests listos y verificados; falta SOLO CA-8 (ajuste de la nómina demo en producción), que exige la autorización explícita del usuario (P-3)
+estado: HECHA   # código, tests y ajuste de datos en producción hechos (2026-10-05); pendiente de merge (requiere confirmación del usuario)
 fecha: 2026-10-04
 rama: fix/nomina-prestamo-doble-descuento
 arbol: "[9]"
@@ -98,7 +98,7 @@ Sin cambios.
 - [x] CA-5: Σ de las líneas es exactamente 0 y cada línea es múltiplo de 0,01; la línea de Préstamos a empleados no absorbe el residuo. **Tests CA-5 (dos casos USD con residuo +0,02 y −0,01). Límite conocido: quitar `noAbsorb` de la línea de préstamos no hace fallar ningún test porque el gasto, que es ≥ la cuota, siempre absorbe el residuo; lo que queda fijado es que la cuota termina en `round(cuota × tasa, 2)`.**
 - [x] CA-6: Los saldos de `EmployeeLoan` y la línea `PRESTAMO_EMP` del recibo no cambian. **Tres tests sobre `employeeLoan.update` (VES activo, última cuota → PAID, préstamo USD).**
 - [x] CA-7: Dada una nómina con cuota de préstamo y sin `loanReceivableAccountId` configurada, cuando se aprueba, entonces se rechaza con el mensaje de RN-8; no se crea asiento, no cambian los saldos de `EmployeeLoan` y la nómina sigue sin aprobar. Sin cuotas de préstamo, la falta de esa cuenta no bloquea nada. **Tests CA-7 (VES y USD: rechazo con el mensaje exacto, sin asiento, sin saldos, sin auditoría; sin cuota o con cuota en 0 no bloquea).**
-- [ ] CA-8: Tras el ajuste en producción (solo con autorización), el asiento de la nómina demo más el ajuste da Gasto = `totalEarnings` × tasa y Nómina por pagar = `totalNet` × tasa, ambos a 2 decimales, y no hay asientos descuadrados en la base.
+- [x] CA-8: Tras el ajuste en producción (solo con autorización), el asiento de la nómina demo más el ajuste da Gasto = `totalEarnings` × tasa y Nómina por pagar = `totalNet` × tasa, ambos a 2 decimales, y no hay asientos descuadrados en la base. **Aplicado el 2026-10-05 con autorización del usuario: asiento `AJU-NOM-2026-08-16-83jgfm` (id `cgldatafix83jgfm000001`, tipo AJUSTE, Dr Sueldos y Salarios / Cr Nómina por Pagar por Bs. 194.988,05, correlativo `2026-08-000003`) y AuditLog `GL_DATA_FIX`. Verificado después: gasto de sueldos 6.463.050,5068 (esperado 6.463.050,5067; la diferencia de 0,0001 viene del ajuste previo del 2026-10-04), Nómina por pagar 6.195.963,6754 (= neto × tasa, exacto), 0 asientos descuadrados en toda la base.**
 - [x] CA-tenant: un usuario de otra empresa no puede aprobar la nómina (los tests actuales de aislamiento siguen en verde). **El proceso se busca con `{ id, companyId }` (sin cambios; tests previos en verde).**
 - [x] CA-período: con período CLOSED la aprobación devuelve error de negocio (el test actual sigue en verde). **Test previo "RECHAZA si el periodo contable esta cerrado (R-3)" en verde.**
 
@@ -123,11 +123,11 @@ Lo completa `/implementar`. Dejar vacío al escribir la spec.
 - **R-5:** la SPEC-001 (trigger de cuadre) no se ve afectada: el asiento corregido sigue cuadrando.
 - **R-6 (menor, no bloquea):** la contadora llama a la cuenta "Cuentas por cobrar empleados" y la configuración de nómina la rotula "Préstamos a Empleados" (6 archivos de UI y `payroll-gl-accounts.ts`). Se deja el rótulo actual en esta spec; si se prefiere igualar el nombre, es un cambio de copy aparte. Los préstamos en mercancía o comida que menciona no existen en el modelo (`EmployeeLoan` es monetario): fuera de alcance.
 
-## 12. Cierre (parcial: falta CA-8)
-- **Rama:** `fix/nomina-prestamo-doble-descuento`. Sin merge a `main`: requiere confirmación del usuario.
-- **Commits:** `267261e5` plan, `f0ef9316` tests en RED (14), `af52bc23` corrección. El plan §10 paso 2 lo hice yo directamente (el cambio es de ~10 líneas) y lo verifiqué contra los 14 tests en rojo.
-- **Tests:** antes 5906 → después 5931 (+25), 0 fallos; `tsc` 0 errores; `format:check` limpio; lint 0 errores. `security-agent` no hizo falta: no hay action, ruta, modelo ni input nuevo.
+## 12. Cierre
+- **Rama:** `fix/nomina-prestamo-doble-descuento` (PR #64). Sin merge a `main`: requiere confirmación del usuario.
+- **Commits:** `267261e5` plan, `f0ef9316` tests en RED (14), `af52bc23` corrección, `968a20e4` cierre parcial, más el de este cierre. El paso 2 del plan lo hice yo directamente (el cambio es de ~10 líneas) y lo verifiqué contra los 14 tests en rojo.
+- **Tests:** antes 5906 → después 5931 (+25), 0 fallos; `tsc` 0 errores; `format:check` limpio; lint 0 errores. `security-agent` no hizo falta: no hay action, ruta, modelo ni input nuevo. CI del PR: todo en verde, incluido el job `integration` contra Neon.
 - **Barrido de la clase de bug:** `grep` de `.minus(loan` y `.minus(loanTotal` fuera de tests: sin resultados. `TerminationService`, `VacationService` y `ProfitSharingService` no manejan cuotas de préstamo.
-- **Pendiente:** CA-8, el asiento de ajuste de la nómina demo `cmtfuqio100019klw9983jgfm` (Bs. 194.988,05) en producción, solo con autorización explícita (P-3). Se hace después del merge del código.
+- **Ajuste en producción (CA-8):** hecho el 2026-10-05, con autorización explícita del usuario. Una transacción atómica por script (la conexión por el MCP de Neon no estaba disponible; se usó el driver serverless por HTTP 443), con comprobaciones previas de solo lectura (nómina APPROVED y sin cambios, asiento original suma 0, cuentas aptas y sin tercero obligatorio, período OPEN, sin ajuste previo) e idempotente (ids deterministas, `NOT EXISTS`). **Desviación frente a la redacción de §5:** el ajuste se fechó el 2026-08-31 y se asignó al período 2026-08 (OPEN), el mismo del asiento original, y no al mes actual: ADR-015 manda ajustar en el mes actual solo cuando el período original está CERRADO. Así los reportes de agosto quedan correctos. La fecha quedó guardada a las 04:00 UTC del 31 de agosto (el original está a las 00:00 UTC): misma fecha de negocio.
 - **ADR:** ninguno nuevo (aplican ADR-005, ADR-015, ADR-058).
 - **Lección aprendida:** pendiente (LL-019): el test de ADR-058 que cubría el caso USD con préstamo se escribió copiando el valor que producía el código (gasto 899,61) en vez de derivarlo del recibo, y blindó el error. Un valor esperado se calcula de una fuente independiente. Se añade tras el merge de la SPEC-007 para no colisionar con LL-018.
