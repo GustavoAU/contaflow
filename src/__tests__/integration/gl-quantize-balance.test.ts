@@ -46,20 +46,23 @@ describe.skipIf(!DB_URL)("@integration gl-quantize-balance", () => {
   /** Persiste las lineas tal cual (sin tocarlas) en una Transaction nueva y devuelve su id. */
   async function persist(lines: { amount: Decimal }[]): Promise<string> {
     txCounter++;
-    const tx = await prisma.transaction.create({
-      data: {
-        number: `GLQ-${txCounter}`,
-        description: "integration gl-quantize-balance",
-        companyId: COMPANY_ID,
-        userId: "integration-user",
-        entries: {
-          create: lines.map((l, i) => ({
-            amount: l.amount.toString(),
-            accountId: ACCOUNT_IDS[i % ACCOUNT_IDS.length]!,
-          })),
+    // $transaction EXPLICITO (como los servicios): solo asi el error del trigger llega con su forma real.
+    const tx = await prisma.$transaction(async (db) =>
+      db.transaction.create({
+        data: {
+          number: `GLQ-${txCounter}`,
+          description: "integration gl-quantize-balance",
+          companyId: COMPANY_ID,
+          userId: "integration-user",
+          entries: {
+            create: lines.map((l, i) => ({
+              amount: l.amount.toString(),
+              accountId: ACCOUNT_IDS[i % ACCOUNT_IDS.length]!,
+            })),
+          },
         },
-      },
-    });
+      })
+    );
     return tx.id;
   }
 

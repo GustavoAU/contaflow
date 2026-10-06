@@ -25,6 +25,15 @@ La contadora decidió el 2026-10-03 que el cuadre es **exacto** (T = 0). Eso obl
 - **Riesgo operativo:** un flujo que hoy guarde líneas sin cuantizar empezará a fallar con el mensaje de negocio en vez de guardar un asiento descuadrado. Es el comportamiento deseado; el test de arquitectura y la causación de facturas cuantizada cierran los conocidos. Los scripts de `prisma/` (`seed-*.ts`, `fix-*.ts`) deben correr contra un branch de pruebas antes de usarse (R-1 de la spec).
 - **Reversión:** `DROP TRIGGER "trg_journalentry_balance" ON "JournalEntry"; DROP FUNCTION fn_check_journal_balance();` (sin pérdida de datos).
 
+## Forma real del error (medida, no supuesta)
+Medida contra Postgres real con Prisma 7.8 + adapter-pg (la primera corrida del job de integración del CI la dejó en evidencia: los tests de mensaje fallaban):
+- **`prisma.$transaction(async tx => …)` explícito** —como escriben todos los servicios financieros— y **sentencias sueltas** (`update`/`delete`): el COMMIT diferido falla con `DriverAdapterError` y la información del motor viaja en `cause` (`code: "CF001"`, `originalCode`, `originalMessage`). `isUnbalancedEntryError` lo reconoce y el usuario ve el mensaje de negocio.
+- **Escritura anidada suelta fuera de un `$transaction`** (`prisma.transaction.create({ …, entries: { create } })`): Prisma usa una transacción implícita; si su COMMIT falla, Prisma lo oculta tras un `P2028` genérico ("Transaction already closed: A rollback cannot be executed on a committed transaction") y el error del trigger **ya no viaja** en el objeto. La escritura se rechaza igual y no deja nada (fail-closed), pero el mensaje específico no llega: cae al genérico de base de datos. No se mapea un `P2028` al mensaje de cuadre porque ese código puede tener otras causas. Consecuencia práctica: la regla del proyecto "`$transaction` obligatorio en toda mutación financiera" es también lo que garantiza el mensaje claro.
+- Con el adaptador de Neon (producción) la forma exacta puede diferir: el detector no depende de ella (recorre el error entero) y se comprueba en producción con una transacción descuadrada que se revierte sola.
+
+## Despliegue
+La migración se aplica en producción **después** de que el código de este PR esté desplegado: el trigger es estricto (T = 0) y el código anterior de `InvoiceGLPostingService` no cuantizaba; con el trigger activo y el código viejo, una factura con un total de más de 2 decimales fallaría al guardarse. Orden: merge → despliegue de `main` en Vercel → aplicar la migración → prueba de humo.
+
 ## Alternativas descartadas
 - **`CHECK` constraint:** no puede agregar entre filas.
 - **Trigger por sentencia (`FOR EACH STATEMENT`) no diferido:** valida en cada sentencia, no al COMMIT; rompe el insertado línea por línea.

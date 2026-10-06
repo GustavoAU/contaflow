@@ -33,6 +33,46 @@ describe("isUnbalancedEntryError", () => {
     expect(isUnbalancedEntryError(new Error(MARKER_MESSAGE))).toBe(true);
   });
 
+  // Forma MEDIDA contra Postgres real (Prisma 7.8 + adapter-pg, $transaction explícito y sentencia suelta):
+  // un DriverAdapterError sin meta, con la información del motor en `cause`. Es la forma que entrega el
+  // COMMIT diferido del trigger; si Prisma la cambia, este test debe romperse antes que producción.
+  it("detecta la forma real medida con Prisma 7.8: DriverAdapterError con cause { code, originalCode, kind }", () => {
+    class DriverAdapterError extends Error {
+      cause: unknown;
+      constructor(message: string, cause: unknown) {
+        super(message);
+        this.name = "DriverAdapterError";
+        this.cause = cause;
+      }
+    }
+    const err = new DriverAdapterError(MARKER_MESSAGE, {
+      originalCode: "CF001",
+      originalMessage: MARKER_MESSAGE,
+      kind: "postgres",
+      code: "CF001",
+      severity: "ERROR",
+      message: MARKER_MESSAGE,
+      detail: undefined,
+      column: undefined,
+      hint: undefined,
+    });
+    expect(isUnbalancedEntryError(err)).toBe(true);
+    expect(mapPrismaError(err)).toBe(BUSINESS_MESSAGE);
+  });
+
+  // Límite conocido (no es un bug del detector): una escritura anidada SUELTA, fuera de un $transaction,
+  // usa una transacción implícita cuyo COMMIT falla y Prisma lo oculta tras un P2028 genérico; el error
+  // del trigger ya no viaja en el objeto. Debe seguir cayendo al mensaje genérico (fail-closed), no al de
+  // asiento descuadrado, porque un P2028 puede tener otras causas.
+  it("un P2028 de Prisma (commit ya cerrado) NO se confunde con un asiento descuadrado", () => {
+    const p2028 = knownRequest(
+      "P2028",
+      { modelName: "Transaction" },
+      "Transaction API error: Transaction already closed: A rollback cannot be executed on a committed transaction."
+    );
+    expect(isUnbalancedEntryError(p2028)).toBe(false);
+  });
+
   it("detecta PrismaClientKnownRequestError P2010 con el texto de Postgres en meta.message", () => {
     expect(isUnbalancedEntryError(knownRequest("P2010", { message: MARKER_MESSAGE }))).toBe(true);
   });

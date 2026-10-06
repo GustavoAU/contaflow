@@ -10,6 +10,15 @@
 // negocio (nunca el error crudo del motor). La forma con el adaptador de Neon (producción) es otra:
 // el detector recorre el error entero (ver prisma-errors.unbalanced.test.ts).
 //
+// FORMA DEL ERROR (medida contra Postgres real, Prisma 7.8): el COMMIT diferido falla con
+// `DriverAdapterError` (cause: { code: "CF001", originalMessage: "CF001: …" }) cuando la escritura va
+// dentro de un `prisma.$transaction(async tx => …)` EXPLÍCITO —que es como escriben todos los
+// servicios financieros (regla del proyecto)— o es una sentencia suelta (update/delete). En cambio una
+// escritura anidada FUERA de un $transaction (`prisma.transaction.create({ entries: { create } })`) usa
+// una transacción implícita cuyo COMMIT falla y Prisma lo oculta tras un P2028 genérico ("Transaction
+// already closed"): se rechaza igual y no deja nada, pero el mensaje específico no llega. Por eso los
+// tests de mensaje usan `$transaction` explícito y uno aparte documenta el caso implícito.
+//
 // Correr con:
 //   DATABASE_URL_TEST=postgresql://... npx vitest run --config vitest.integration.config.ts
 
@@ -29,6 +38,8 @@ describe.skipIf(!DB_URL)("@integration gl-balance-trigger (SPEC-001)", () => {
   let counter = 0;
   const nextNumber = () => `GLBT-${++counter}`;
 
+  type Line = { accountId: string; amount: string };
+
   /** Rechazo esperado: devuelve el error para inspeccionarlo (falla el test si NO rechaza). */
   async function rejection(fn: () => Promise<unknown>): Promise<unknown> {
     try {
@@ -37,6 +48,21 @@ describe.skipIf(!DB_URL)("@integration gl-balance-trigger (SPEC-001)", () => {
       return e;
     }
     throw new Error("Se esperaba que el commit fuera rechazado por el trigger de cuadre");
+  }
+
+  /** Crea un asiento con sus líneas dentro de un $transaction EXPLÍCITO (el patrón de los servicios). */
+  function inTransaction(number: string, description: string, lines: Line[]) {
+    return prisma.$transaction(async (tx) =>
+      tx.transaction.create({
+        data: {
+          number,
+          description,
+          companyId: COMPANY_ID,
+          userId: "integration-user",
+          entries: { create: lines },
+        },
+      })
+    );
   }
 
   /** Crea un asiento cuadrado en una transacción aparte y devuelve el id y los de sus líneas. */
@@ -109,20 +135,10 @@ describe.skipIf(!DB_URL)("@integration gl-balance-trigger (SPEC-001)", () => {
   it("CA-3: un asiento descuadrado hace rollback completo (ni cabecera ni líneas)", async () => {
     const number = nextNumber();
     const error = await rejection(() =>
-      prisma.transaction.create({
-        data: {
-          number,
-          description: "ca-3",
-          companyId: COMPANY_ID,
-          userId: "integration-user",
-          entries: {
-            create: [
-              { accountId: ACCOUNT_A, amount: "100.0000" },
-              { accountId: ACCOUNT_B, amount: "-99.0000" },
-            ],
-          },
-        },
-      })
+      inTransaction(number, "ca-3", [
+        { accountId: ACCOUNT_A, amount: "100.0000" },
+        { accountId: ACCOUNT_B, amount: "-99.0000" },
+      ])
     );
     expect(isUnbalancedEntryError(error)).toBe(true);
     expect(await prisma.transaction.count({ where: { companyId: COMPANY_ID, number } })).toBe(0);
@@ -135,22 +151,36 @@ describe.skipIf(!DB_URL)("@integration gl-balance-trigger (SPEC-001)", () => {
 
   it("T = 0: un descuadre de 0,0001 también se rechaza", async () => {
     const error = await rejection(() =>
+      inTransaction(nextNumber(), "t-cero", [
+        { accountId: ACCOUNT_A, amount: "100.0000" },
+        { accountId: ACCOUNT_B, amount: "-99.9999" },
+      ])
+    );
+    expect(isUnbalancedEntryError(error)).toBe(true);
+  });
+
+  it("escritura anidada FUERA de un $transaction: también se rechaza y no deja nada (sin mensaje específico, ver cabecera)", async () => {
+    const number = nextNumber();
+    await rejection(() =>
       prisma.transaction.create({
         data: {
-          number: nextNumber(),
-          description: "t-cero",
+          number,
+          description: "implícita",
           companyId: COMPANY_ID,
           userId: "integration-user",
           entries: {
             create: [
               { accountId: ACCOUNT_A, amount: "100.0000" },
-              { accountId: ACCOUNT_B, amount: "-99.9999" },
+              { accountId: ACCOUNT_B, amount: "-99.0000" },
             ],
           },
         },
       })
     );
-    expect(isUnbalancedEntryError(error)).toBe(true);
+    expect(await prisma.transaction.count({ where: { companyId: COMPANY_ID, number } })).toBe(0);
+    expect(
+      await prisma.journalEntry.count({ where: { transaction: { companyId: COMPANY_ID, number } } })
+    ).toBe(0);
   });
 
   it("CA-4: modificar el monto de una línea de modo que descuadre falla al commit", async () => {
@@ -183,32 +213,17 @@ describe.skipIf(!DB_URL)("@integration gl-balance-trigger (SPEC-001)", () => {
     const { id, lines } = await balanced("80.00");
     // Reverso cuadrado
     await expect(
-      prisma.transaction.create({
-        data: {
-          number: nextNumber(),
-          description: `reverso de ${id}`,
-          companyId: COMPANY_ID,
-          userId: "integration-user",
-          entries: {
-            create: lines.map((l) => ({
-              accountId: l.accountId,
-              amount: l.amount.negated().toString(),
-            })),
-          },
-        },
-      })
+      inTransaction(
+        nextNumber(),
+        `reverso de ${id}`,
+        lines.map((l) => ({ accountId: l.accountId, amount: l.amount.negated().toString() }))
+      )
     ).resolves.toBeDefined();
     // Reverso a medias (solo una pierna): descuadra
     const error = await rejection(() =>
-      prisma.transaction.create({
-        data: {
-          number: nextNumber(),
-          description: "reverso a medias",
-          companyId: COMPANY_ID,
-          userId: "integration-user",
-          entries: { create: [{ accountId: lines[0]!.accountId, amount: "-80.0000" }] },
-        },
-      })
+      inTransaction(nextNumber(), "reverso a medias", [
+        { accountId: lines[0]!.accountId, amount: "-80.0000" },
+      ])
     );
     expect(isUnbalancedEntryError(error)).toBe(true);
   });
@@ -228,15 +243,7 @@ describe.skipIf(!DB_URL)("@integration gl-balance-trigger (SPEC-001)", () => {
 
   it("CA-6: el error real que entrega Prisma se traduce al mensaje de negocio (no al crudo del motor)", async () => {
     const error = await rejection(() =>
-      prisma.transaction.create({
-        data: {
-          number: nextNumber(),
-          description: "ca-6",
-          companyId: COMPANY_ID,
-          userId: "integration-user",
-          entries: { create: [{ accountId: ACCOUNT_A, amount: "5.0000" }] },
-        },
-      })
+      inTransaction(nextNumber(), "ca-6", [{ accountId: ACCOUNT_A, amount: "5.0000" }])
     );
     const result = toActionError(error);
     expect(result).toEqual({ success: false, error: UNBALANCED_ENTRY_MESSAGE });
