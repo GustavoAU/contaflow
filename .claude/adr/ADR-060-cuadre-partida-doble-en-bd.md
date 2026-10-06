@@ -1,6 +1,6 @@
 # ADR-060 — El cuadre de partida doble lo garantiza la base de datos (constraint trigger diferido)
 
-- **Estado:** Aceptado (2026-10-05)
+- **Estado:** Aceptado (2026-10-05). Aplicado en producción el 2026-10-06 (migración `20261005_trigger_cuadre_partida_doble`).
 - **Contexto:** SPEC-001 (cuadre de partida doble garantizado en la BD)
 - **Relacionados:** ADR-005 (anular, nunca borrar), ADR-057 (historial de migraciones repetible), ADR-058 (asientos al céntimo)
 
