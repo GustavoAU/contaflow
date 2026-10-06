@@ -304,6 +304,41 @@ Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 
   falla, el combobox queda sin cuentas sin avisar el error (UX).
 
 
+### Estado de ejecución — Entrega B2 (2026-10-06)
+Rama `feat/spec-012b2-selector-cuenta-activos-ajustes-nomina` (desde `main` con B1 fusionada, `e804fad2`).
+**Alcance (6 formularios + 3 páginas):** `FixedAssetForm`, `DisposeAssetModal` y panel INPC de `FixedAssetList` con
+`fixed-assets/page.tsx`; `FiscalConfigForm` y `GLAccountsForm` con `settings/page.tsx` (pestaña Contabilidad);
+`PayrollWizard` con `payroll/config/edit/page.tsx`. Siguen la regla de reparto por página y las decisiones D1-D9 y 1-6 de B1.
+
+**Corrección al plan (R-4, comprobada con grep el 2026-10-06): `onlyPostable` NO se retira en B2.** El anexo (§3) daba por
+hecho que quedaría sin consumidores, pero `income-distribution/page.tsx:23` lo sigue usando y `IncomeDistributionForm` está
+fuera de SPEC-012 (spec propia). B2 solo deja de usarlo en `settings/page.tsx:88`; el parámetro y su test
+(`account.actions.test.ts:661`) se conservan hasta que la spec de distribución de ingresos migre esa página.
+
+**Contrato de la alerta de Q4 (cuenta guardada que es título o no existe):**
+- Helper puro en `src/lib/account-search.ts`: `unselectableSavedAccounts(fields)` con
+  `fields: ReadonlyArray<{ key: string; label: string; value: string | null | undefined; accounts: readonly AccountOption[] }>`;
+  devuelve `{ key, label }[]` de los campos con valor no vacío cuyo `value` NO es elegible en SU lista (`isSelectableAccountId`),
+  en el orden recibido. Valor vacío/`null`/`undefined` = sin problema. Cada campo se evalúa contra la lista que ese campo ofrece
+  (p. ej. solo Patrimonio), no contra todo el plan.
+- Componente `src/components/accounting/SavedAccountsAlert.tsx`: `props { problems: ReadonlyArray<{ key: string; label: string }> }`;
+  sin problemas no renderiza nada; con problemas, `role="alert"` que explica que esas configuraciones apuntan a una cuenta de
+  título o que ya no existe, lista los rótulos y pide cambiarlas por una cuenta de movimiento para poder guardar.
+- Cada formulario calcula `problems` desde sus valores **actuales** (no solo los iniciales): el aviso se ve desde el primer
+  render, **deshabilita** el botón de guardar (con `aria-describedby` hacia el aviso) y además el `submit` retorna sin llamar a
+  la acción (defensa en profundidad, como L-2). Al reemplazar la cuenta, o quitarla en un campo opcional con `clearable`,
+  el aviso desaparece y se puede guardar. El combobox sigue mostrando el campo vacío con `aria-invalid` (D1).
+- **Server-side no entra en B2:** validar `isPostable` al guardar la configuración es L-1 (`assertAccountsPostable`), PR aparte
+  tras B3 con arch-agent + ledger-agent.
+
+**Activos fijos (respuesta de la contadora):** `fixed-assets/page.tsx` añade `LIABILITY` al filtro de tipos para que la cuenta
+de contrapartida de la adquisición pueda ser una CxP; las otras tres cuentas (`findBestMatch`) siguen sin cambio y ningún título
+puede ser elegido ni autoseleccionado (RN-19).
+
+**Ratchet:** salen de `PENDING_MIGRATION` los seis archivos de B2 (`FixedAssetForm`, `DisposeAssetModal`, `FixedAssetList`,
+`FiscalConfigForm`, `GLAccountsForm`, `PayrollWizard`); quedan `InventoryItemForm`, `MovementForm` (B3) e `IncomeDistributionForm`.
+
+
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
