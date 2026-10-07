@@ -11,8 +11,10 @@ import type { ComponentProps } from "react";
 
 import { InventoryItemForm } from "../components/InventoryItemForm";
 import {
+  describedByText,
   expectAccountComboboxes,
   expectNoSavedAccountsAlert,
+  fieldLabelOf,
   labelOf,
   newTextsSince,
   pickByCode,
@@ -67,6 +69,14 @@ function mountNewWithBoth() {
   pickByCode(inventory, A_INV_MERC.code);
   pickByCode(cogs, E_COSTO.code);
   return { inventory, cogs, refresh: (next: readonly PlanAccount[]) => utils.rerender(ui(next)) };
+}
+
+/** Alta con SKU y nombre rellenos y las DOS cuentas sin elegir: [inventario, costo]. */
+function mountBasics() {
+  render(ui(ITEM_ACCOUNTS));
+  fireEvent.change(field("sku"), { target: { value: "PROD-9" } });
+  fireEvent.change(field("name"), { target: { value: "Harina" } });
+  return expectAccountComboboxes(2, "InventoryItemForm (alta)");
 }
 
 beforeAll(stubJsdomForListbox);
@@ -134,13 +144,6 @@ describe("InventoryItemForm — el banner de error (role=alert, decisión 8) nom
   const LBL_INV = "Cuenta de inventario (Activo)";
   const LBL_COGS = "Cuenta de costo de ventas (Gasto)";
 
-  function mountBasics() {
-    render(ui(ITEM_ACCOUNTS));
-    fireEvent.change(field("sku"), { target: { value: "PROD-9" } });
-    fireEvent.change(field("name"), { target: { value: "Harina" } });
-    return expectAccountComboboxes(2, "InventoryItemForm (alta)");
-  }
-
   it("sin ninguna cuenta: UN role=alert que lista las dos etiquetas, en ese orden", async () => {
     mountBasics();
     fireEvent.submit(form());
@@ -176,5 +179,59 @@ describe("InventoryItemForm — el banner de error (role=alert, decisión 8) nom
     fireEvent.submit(form());
     await flush();
     expect(screen.getByRole("alert").textContent).toBe("Ya existe un producto con ese SKU.");
+  });
+});
+
+describe("InventoryItemForm — etiquetas y ayudas de los dos campos (decisión 2)", () => {
+  it("cada combobox se describe con su ayuda: «Solo cuentas de Activo» / «Solo cuentas de Gasto»", () => {
+    const [inventory, cogs] = mountBasics();
+    expect(describedByText(inventory)).toBe("Solo cuentas de Activo");
+    expect(describedByText(cogs)).toBe("Solo cuentas de Gasto");
+  });
+
+  it("las etiquetas visibles son «Cuenta de inventario (Activo)» y «Cuenta de costo de ventas (Gasto)»", () => {
+    const [inventory, cogs] = mountBasics();
+    expect(fieldLabelOf(inventory)).toBe("Cuenta de inventario (Activo)");
+    expect(fieldLabelOf(cogs)).toBe("Cuenta de costo de ventas (Gasto)");
+  });
+});
+
+describe("InventoryItemForm — cada campo se marca inválido solo tras un envío rechazado y se desmarca al arreglarlo", () => {
+  const FIELD_ERROR = "Selecciona una cuenta de movimiento.";
+  const invalid = (el: HTMLElement) => el.getAttribute("aria-invalid") === "true";
+  const fieldErrors = () => screen.queryAllByText(FIELD_ERROR);
+
+  it("el envío rechazado marca AMBOS campos, con su mensaje enlazado por aria-describedby", async () => {
+    const [inventory, cogs] = mountBasics();
+    expect(fieldErrors()).toHaveLength(0);
+    fireEvent.submit(form());
+    await flush();
+    expect(invalid(inventory)).toBe(true);
+    expect(invalid(cogs)).toBe(true);
+    const ids = fieldErrors().map((p) => p.id);
+    expect(ids).toHaveLength(2);
+    expect(inventory.getAttribute("aria-describedby")?.split(/\s+/)).toContain(ids[0]);
+    expect(cogs.getAttribute("aria-describedby")?.split(/\s+/)).toContain(ids[1]);
+  });
+
+  it("elegir cada cuenta desmarca SOLO ese campo; con las dos, desaparecen los mensajes y el alta se envía", async () => {
+    const [inventory, cogs] = mountBasics();
+    fireEvent.submit(form());
+    await flush();
+
+    pickByCode(cogs, E_COSTO.code);
+    expect(invalid(cogs)).toBe(false);
+    expect(invalid(inventory)).toBe(true);
+    expect(fieldErrors()).toHaveLength(1);
+
+    pickByCode(inventory, A_INV_MERC.code);
+    expect(invalid(inventory)).toBe(false);
+    expect(fieldErrors()).toHaveLength(0);
+    expect(inventory.getAttribute("aria-describedby")).not.toContain("-error");
+    expect(cogs.getAttribute("aria-describedby")).not.toContain("-error");
+
+    fireEvent.submit(form());
+    await flush();
+    expect(createInventoryItemAction).toHaveBeenCalledTimes(1);
   });
 });
