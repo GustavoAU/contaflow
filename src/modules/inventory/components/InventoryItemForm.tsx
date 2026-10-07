@@ -7,8 +7,14 @@
 //   R-01: cuentas obligatorias para productos físicos (GOODS/RAW_MATERIAL/FINISHED_GOOD)
 //   R-06: tipo de producto — SERVICE bloquea movimientos físicos
 //   R-10: minimumStock configurable al crear el producto
+// SPEC-012 B3: las dos cuentas (inventario / Activo y costo de ventas / Gasto) son `AccountCombobox` con
+//   ESTADO (antes `FormData` + `defaultValue`). `accounts` trae títulos Y cuentas de movimiento; los títulos
+//   solo se ven como encabezados no elegibles. Sin `required` nativo: el envío revalida cada cuenta con
+//   `isSelectableAccountId` contra las listas VIGENTES y nunca llama a la acción con un valor no elegible.
+//   Q4 (solo edición de un ítem físico): si una cuenta guardada es un título, ya no existe o no es de su tipo,
+//   `SavedAccountsAlert` la lista, el botón de guardar queda deshabilitado y el `submit` retorna.
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import {
   createInventoryItemAction,
   updateInventoryItemAction,
@@ -19,8 +25,16 @@ import {
   TAX_RATE_LABELS,
   TAX_RATE_OPTIONS,
 } from "../schemas/inventory-item.schema";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { SavedAccountsAlert } from "@/components/accounting/SavedAccountsAlert";
+import {
+  isSelectableAccountId,
+  unselectableSavedAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 
-type AccountOption = { id: string; code: string; name: string; type: string };
+// `isPostable` es OBLIGATORIO: sin él el combobox trataría todas las cuentas como títulos.
+type AccountOption = AccountWithType;
 
 type ExistingItem = {
   id: string;
@@ -36,7 +50,7 @@ type ExistingItem = {
 
 type Props = {
   companyId: string;
-  accounts: AccountOption[]; // todas las cuentas de la empresa
+  accounts: AccountOption[]; // títulos Y cuentas de movimiento de la empresa (cada campo filtra por su tipo)
   item?: ExistingItem;
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -61,7 +75,13 @@ const fieldClass =
   "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 const labelClass = "block text-sm font-medium text-gray-700 mb-1";
 
+// Las etiquetas visibles son también los rótulos con los que la alerta de Q4 y el error de envío nombran
+// a cada campo: el usuario los ve tal como los lee en el formulario.
+const INVENTORY_ACCOUNT_LABEL = "Cuenta de inventario (Activo)";
+const COGS_ACCOUNT_LABEL = "Cuenta de costo de ventas (Gasto)";
+
 export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCancel }: Props) {
+  const uid = useId();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [itemType, setItemType] = useState<ItemTypeValue>(
@@ -70,17 +90,67 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
   const [taxRate, setTaxRate] = useState<DefaultTaxRate>(
     (item?.defaultTaxRate as DefaultTaxRate | undefined) ?? "GENERAL"
   );
+  // D6: estado, no FormData. En edición arrancan con lo guardado (puede ser un título o una cuenta ausente).
+  const [accountId, setAccountId] = useState(item?.accountId ?? "");
+  const [cogsAccountId, setCogsAccountId] = useState(item?.cogsAccountId ?? "");
+  // Tras un envío rechazado por falta de cuenta, los campos inválidos se marcan (aria-invalid + mensaje).
+  const [accountsChecked, setAccountsChecked] = useState(false);
 
   const isEditing = !!item;
   const isPhysical = PHYSICAL_ITEM_TYPES.has(itemType);
 
-  // H-03: filtrar cuentas por naturaleza contable
+  // H-03: filtrar cuentas por naturaleza contable. Cada lista conserva sus títulos (encabezados del
+  // combobox); `isSelectableAccountId` decide qué se puede elegir.
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
+
+  const inventoryValid = isSelectableAccountId(assetAccounts, accountId);
+  const cogsValid = isSelectableAccountId(expenseAccounts, cogsAccountId);
+  const inventoryInvalid = accountsChecked && !inventoryValid;
+  const cogsInvalid = accountsChecked && !cogsValid;
+
+  // Q4: solo en edición de un ítem FÍSICO (un servicio no muestra selectores y envía null), con los valores
+  // ACTUALES y cada uno contra SU lista. Un campo vacío ("sin configurar") no es un problema aquí: lo
+  // atrapa la validación del envío.
+  const alertId = `${uid}-saved-accounts`;
+  const problems =
+    isEditing && isPhysical
+      ? unselectableSavedAccounts([
+          {
+            key: "accountId",
+            label: INVENTORY_ACCOUNT_LABEL,
+            value: accountId,
+            accounts: assetAccounts,
+          },
+          {
+            key: "cogsAccountId",
+            label: COGS_ACCOUNT_LABEL,
+            value: cogsAccountId,
+            accounts: expenseAccounts,
+          },
+        ])
+      : [];
+  const blocked = problems.length > 0;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    // Defensa en profundidad (Q4): el botón ya está deshabilitado, pero un `submit` (Enter) no debe guardar.
+    if (blocked) return;
+
+    // R-01 + L-2: cuentas obligatorias para productos físicos, revalidadas contra las listas VIGENTES.
+    // Ya no hay `required` nativo: un título, una cuenta ausente o un campo vacío no cuentan como elegidos.
+    if (isPhysical) {
+      const missing: string[] = [];
+      if (!inventoryValid) missing.push(INVENTORY_ACCOUNT_LABEL);
+      if (!cogsValid) missing.push(COGS_ACCOUNT_LABEL);
+      if (missing.length > 0) {
+        setAccountsChecked(true);
+        setError(`Selecciona una cuenta de movimiento para: ${missing.join(", ")}.`);
+        return;
+      }
+    }
+
     const fd = new FormData(e.currentTarget);
 
     const minimumStockRaw = fd.get("minimumStock") as string;
@@ -99,8 +169,8 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           itemType,
           defaultTaxRate: taxRate,
           minimumStock: minimumStockVal,
-          accountId: isPhysical ? (fd.get("accountId") as string) || null : null,
-          cogsAccountId: isPhysical ? (fd.get("cogsAccountId") as string) || null : null,
+          accountId: isPhysical ? accountId : null,
+          cogsAccountId: isPhysical ? cogsAccountId : null,
         });
       } else {
         result = await createInventoryItemAction({
@@ -111,8 +181,8 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           itemType,
           defaultTaxRate: taxRate,
           minimumStock: minimumStockVal,
-          accountId: isPhysical ? (fd.get("accountId") as string) || null : null,
-          cogsAccountId: isPhysical ? (fd.get("cogsAccountId") as string) || null : null,
+          accountId: isPhysical ? accountId : null,
+          cogsAccountId: isPhysical ? cogsAccountId : null,
         });
       }
 
@@ -127,7 +197,10 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div
+          role="alert"
+          className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700"
+        >
           {error}
         </div>
       )}
@@ -253,46 +326,60 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
           <p className="mt-1 mb-3 text-xs text-gray-500">
             Obligatorias para que el Contador pueda contabilizar los movimientos en el Libro Mayor.
           </p>
+          {/* Q4: cuentas guardadas que ya no se pueden usar; bloquean el guardado hasta corregirlas. */}
+          {blocked && (
+            <div className="mb-3">
+              <SavedAccountsAlert id={alertId} problems={problems} />
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>
-                Cuenta de inventario (ASSET) <span className="text-red-500">*</span>
+              <label htmlFor={`${uid}-inventory`} className={labelClass}>
+                {INVENTORY_ACCOUNT_LABEL}{" "}
+                <span aria-hidden="true" className="text-red-600">
+                  *
+                </span>
               </label>
-              <select
-                name="accountId"
-                required={isPhysical}
-                className={fieldClass}
-                defaultValue={item?.accountId ?? ""}
-              >
-                <option value="">— Seleccionar cuenta ACTIVO —</option>
-                {assetAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-400">Solo muestra cuentas de Activo (11xx)</p>
+              <AccountCombobox
+                id={`${uid}-inventory`}
+                accounts={assetAccounts}
+                value={accountId}
+                onChange={setAccountId}
+                aria-invalid={inventoryInvalid || undefined}
+                aria-describedby={`${uid}-inventory-hint${inventoryInvalid ? ` ${uid}-inventory-error` : ""}`}
+              />
+              <p id={`${uid}-inventory-hint`} className="mt-1 text-xs text-gray-600">
+                Solo cuentas de Activo
+              </p>
+              {inventoryInvalid && (
+                <p id={`${uid}-inventory-error`} className="mt-1 text-xs font-medium text-red-600">
+                  Selecciona una cuenta de movimiento.
+                </p>
+              )}
             </div>
             <div>
-              <label className={labelClass}>
-                Cuenta COGS (EXPENSE) <span className="text-red-500">*</span>
+              <label htmlFor={`${uid}-cogs`} className={labelClass}>
+                {COGS_ACCOUNT_LABEL}{" "}
+                <span aria-hidden="true" className="text-red-600">
+                  *
+                </span>
               </label>
-              <select
-                name="cogsAccountId"
-                required={isPhysical}
-                className={fieldClass}
-                defaultValue={item?.cogsAccountId ?? ""}
-              >
-                <option value="">— Seleccionar cuenta GASTO —</option>
-                {expenseAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-400">
-                Solo muestra cuentas de Gasto/Costo (51xx)
+              <AccountCombobox
+                id={`${uid}-cogs`}
+                accounts={expenseAccounts}
+                value={cogsAccountId}
+                onChange={setCogsAccountId}
+                aria-invalid={cogsInvalid || undefined}
+                aria-describedby={`${uid}-cogs-hint${cogsInvalid ? ` ${uid}-cogs-error` : ""}`}
+              />
+              <p id={`${uid}-cogs-hint`} className="mt-1 text-xs text-gray-600">
+                Solo cuentas de Gasto
               </p>
+              {cogsInvalid && (
+                <p id={`${uid}-cogs-error`} className="mt-1 text-xs font-medium text-red-600">
+                  Selecciona una cuenta de movimiento.
+                </p>
+              )}
             </div>
           </div>
         </fieldset>
@@ -310,8 +397,9 @@ export function InventoryItemForm({ companyId, accounts, item, onSuccess, onCanc
         )}
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || blocked}
           aria-busy={isPending}
+          aria-describedby={blocked ? alertId : undefined}
           className="rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {isPending ? (

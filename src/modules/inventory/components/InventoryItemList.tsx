@@ -21,6 +21,7 @@ import { InventoryItemForm } from "./InventoryItemForm";
 import { ItemMovementHistory, type MovementRow } from "./ItemMovementHistory";
 import { UomManager } from "./UomManager";
 import { EmptyState } from "@/components/ui/EmptyState";
+import type { AccountWithType } from "@/lib/account-search";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -46,7 +47,8 @@ export type InventoryItemRow = {
   accountName?: string | null;
 };
 
-type AccountOption = { id: string; code: string; name: string; type: string };
+// SPEC-012 B3: `isPostable` es OBLIGATORIO (la lista solo propaga las cuentas, títulos incluidos, al formulario).
+type AccountOption = AccountWithType;
 
 type Props = {
   items: InventoryItemRow[];
