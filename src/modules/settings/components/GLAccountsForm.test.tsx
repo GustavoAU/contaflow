@@ -26,6 +26,7 @@ import {
   accountComboboxes,
   clearButtonOf,
   clearField,
+  describedByText,
   expectAlertListing,
   expectBlockedByAlert,
   expectNoSavedAccountsAlert,
@@ -971,5 +972,27 @@ describe("GLAccountsForm — decisión 4: «Causar ahora» depende de la configu
     fireEvent.click(button);
     await waitFor(() => expect(postUnbookedInvoicesAction).toHaveBeenCalledWith(COMPANY_ID));
     expect(saveGLConfigAction).not.toHaveBeenCalled();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Mutantes B2 (test-agent, paso 4): el placeholder de los selectores y el `aria-describedby` hacia el texto de
+// ayuda de cada campo no estaban comprobados (los mutantes que los cambiaban sobrevivían).
+describe("GLAccountsForm — cada selector tiene su ayuda enlazada y el placeholder de «sin asignar» (mutantes B2)", () => {
+  it("los 11 campos: aria-describedby apunta a SU texto de ayuda (no vacío y distinto en cada uno) y el placeholder es el de «sin asignar»", () => {
+    mount({ ce: true });
+    const hints: string[] = [];
+    for (const def of FIELDS) {
+      const input = box(def.key);
+      const hint = document.getElementById(`${input.id}-hint`);
+      expect(hint, `falta el texto de ayuda de «${def.label}»`).not.toBeNull();
+      const hintText = (hint?.textContent ?? "").replace(/\s+/g, " ").trim();
+      expect(hintText, def.label).not.toBe("");
+      expect(input.getAttribute("aria-describedby"), def.label).toBe(`${input.id}-hint`);
+      expect(describedByText(input), def.label).toBe(hintText);
+      expect(input.getAttribute("placeholder"), def.label).toBe("Sin asignar — buscar cuenta…");
+      hints.push(hintText);
+    }
+    expect(new Set(hints).size).toBe(FIELDS.length);
   });
 });
