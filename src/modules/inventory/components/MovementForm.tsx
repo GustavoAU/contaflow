@@ -13,12 +13,26 @@
 //     inventario del propio producto. El servidor
 //     lo revalida (el cliente solo evita el viaje de ida y vuelta).
 //     AJUSTE no cambia: el servicio ignora esa cuenta (PA-4, decisión pendiente).
+// SPEC-012 B3: la contrapartida es un `AccountCombobox` con ESTADO (antes <select> con <optgroup> +
+//   `FormData`). `counterpartAccounts` trae títulos Y cuentas de movimiento; los títulos solo se ven como
+//   encabezados no elegibles. El filtro de «cuenta de inventario del producto» y el de «exige tercero» (solo
+//   ENTRADA) se aplican SOLO a cuentas de movimiento: un título se filtra únicamente por tipo, para no perder
+//   el encabezado de sus cuentas elegibles. Sin `required` nativo: el envío valida con `isSelectableAccountId`
+//   en ENTRADA y en AJUSTE. El id elegido se CONSERVA en el estado y su validez se calcula contra la lista
+//   vigente en cada render: si deja de ser elegible (otro tipo o producto) se ve vacío e inválido y no se
+//   envía, y si vuelve a serlo reaparece.
 
 import { useId, useState, useTransition, useEffect } from "react";
 import { createMovementAction } from "../actions/inventory-operations.actions";
 import { listUomsAction } from "../actions/inventory-uom.actions";
 import { todayLocalISO } from "@/lib/today";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import {
+  isSelectableAccountId,
+  selectableAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 
 type ItemOption = {
   id: string;
@@ -39,11 +53,8 @@ type UnitOption = {
   isBase: boolean;
 };
 
-type AccountOption = {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
+// `isPostable` es OBLIGATORIO: sin él el combobox trataría todas las cuentas como títulos.
+type AccountOption = AccountWithType & {
   /** ADR-054: la cuenta exige tercero en cada línea del asiento (p. ej. Cuentas por pagar a proveedores). */
   requiresThirdParty?: boolean;
 };
@@ -51,7 +62,7 @@ type AccountOption = {
 type Props = {
   companyId: string;
   items: ItemOption[];
-  counterpartAccounts: AccountOption[]; // R-04: cuentas para el otro lado del asiento
+  counterpartAccounts: AccountOption[]; // R-04: títulos Y cuentas para el otro lado del asiento
   currentBcvRate?: string; // R-02: tasa BCV actual para autocompletar
   onSuccess?: () => void;
 };
@@ -79,14 +90,18 @@ const COUNTERPART_REQUIRED_MESSAGE =
 const COUNTERPART_EMPTY_MESSAGE =
   "No hay cuentas disponibles para la contrapartida. Cree en el Plan de Cuentas una cuenta de movimiento de Banco, Caja o Capital.";
 
-// Tipos de cuenta que se ofrecen como contrapartida, agrupados (optgroup) para encontrar
-// Capital sin recorrer toda la lista. Patrimonio solo aplica a ENTRADA (aporte de socios).
-const COUNTERPART_GROUPS = [
-  { type: "ASSET", label: "Activo" },
-  { type: "LIABILITY", label: "Pasivo" },
-  { type: "EQUITY", label: "Patrimonio" },
-  { type: "EXPENSE", label: "Gasto" },
-] as const;
+// AJUSTE: el servicio ignora la cuenta (PA-4) pero el formulario la sigue exigiendo; la que se sugiere
+// crear es la de Mermas (gasto), como dice su ayuda.
+const AJUSTE_COUNTERPART_REQUIRED_MESSAGE = "Seleccione la cuenta de ajuste (contrapartida).";
+
+const AJUSTE_COUNTERPART_EMPTY_MESSAGE =
+  "No hay cuentas disponibles para la contrapartida. Cree en el Plan de Cuentas una cuenta de movimiento de Gasto (por ejemplo, Mermas).";
+
+// Tipos de cuenta que se ofrecen como contrapartida (con sus títulos como encabezados del combobox; la
+// búsqueda por código o nombre —p. ej. «Capital»— sustituye a los antiguos grupos). Patrimonio solo
+// aplica a ENTRADA (aporte de socios).
+const ENTRADA_COUNTERPART_TYPES: readonly string[] = ["ASSET", "LIABILITY", "EQUITY", "EXPENSE"];
+const AJUSTE_COUNTERPART_TYPES: readonly string[] = ["ASSET", "LIABILITY", "EXPENSE"];
 
 const fieldClass =
   "w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -109,10 +124,35 @@ export function MovementForm({
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [selectedUnitId, setSelectedUnitId] = useState<string>("");
   const [unitCost, setUnitCost] = useState("");
+  // D6: estado, no FormData. Se conserva aunque deje de ser elegible (su validez se calcula en cada render).
+  const [counterpartAccountId, setCounterpartAccountId] = useState("");
+  // Tras un envío rechazado por falta de contrapartida, el campo se marca como inválido (aria-invalid + mensaje).
+  const [counterpartChecked, setCounterpartChecked] = useState(false);
 
   const selectedItem = items.find((i) => i.id === selectedItemId);
   const selectedUnit = units.find((u) => u.id === selectedUnitId);
   const isService = selectedItem?.itemType === "SERVICE";
+
+  // Opciones de contrapartida. ENTRADA: Activo/Pasivo/Patrimonio/Gasto; las CUENTAS excluyen la de
+  // inventario del producto elegido y las que exigen tercero (el servidor las rechaza: el movimiento no
+  // registra tercero, ADR-054). AJUSTE: Activo/Pasivo/Gasto, sin Patrimonio y sin otros filtros, porque el
+  // servicio ignora esa cuenta (PA-4). Los TÍTULOS de esos tipos viajan siempre (solo se muestran como
+  // encabezados): nunca se les aplica el filtro por cuenta, para no perder el encabezado de las elegibles.
+  const isEntrada = movType === "ENTRADA";
+  const needsCounterpart = isEntrada || movType === "AJUSTE";
+  const inventoryAccountId = isEntrada ? selectedItem?.accountId : null;
+  const counterpartTypes = isEntrada ? ENTRADA_COUNTERPART_TYPES : AJUSTE_COUNTERPART_TYPES;
+  const counterpartOptions = counterpartAccounts.filter(
+    (a) =>
+      counterpartTypes.includes(a.type) &&
+      (!a.isPostable || (a.id !== inventoryAccountId && !(isEntrada && a.requiresThirdParty)))
+  );
+  // RN-19: el aviso «no hay cuentas» cuenta SOLO cuentas de movimiento elegibles.
+  const hasCounterpartOptions = selectableAccounts(counterpartOptions).length > 0;
+  // D1: la validez se calcula contra la lista VIGENTE; un título, una cuenta ausente o una que dejó de
+  // ofrecerse (otro tipo o producto) cuenta como «sin elegir».
+  const counterpartValid = isSelectableAccountId(counterpartOptions, counterpartAccountId);
+  const counterpartInvalid = counterpartChecked && !counterpartValid;
 
   // Cargar unidades cuando cambia el ítem seleccionado
   useEffect(() => {
@@ -156,11 +196,12 @@ export function MovementForm({
     const unitIsBase = units.find((u) => u.id === selectedUnitId)?.isBase ?? true;
     const unitId = selectedUnitId && !unitIsBase ? selectedUnitId : null;
 
-    const counterpartAccountId = (fd.get("counterpartAccountId") as string) || null;
-
-    // SPEC-007 RN-1: toda ENTRADA lleva contrapartida (el servidor también lo exige).
-    if (movType === "ENTRADA" && !counterpartAccountId) {
-      setError(COUNTERPART_REQUIRED_MESSAGE);
+    // SPEC-007 RN-1: toda ENTRADA lleva contrapartida (el servidor también lo exige). Ya no hay `required`
+    // nativo (el combobox no lo lleva): ENTRADA y AJUSTE validan aquí contra la lista VIGENTE, así que un
+    // título, una cuenta ausente o una que dejó de ofrecerse no se envían. SALIDA no usa contrapartida.
+    if (needsCounterpart && !counterpartValid) {
+      setCounterpartChecked(true);
+      setError(isEntrada ? COUNTERPART_REQUIRED_MESSAGE : AJUSTE_COUNTERPART_REQUIRED_MESSAGE);
       return;
     }
 
@@ -177,7 +218,8 @@ export function MovementForm({
       date: new Date(fd.get("date") as string).toISOString(),
       idempotencyKey: crypto.randomUUID(),
       unitId: unitId ?? undefined,
-      counterpartAccountId: counterpartAccountId ?? undefined,
+      // SALIDA nunca envía la contrapartida que pudo quedar en el estado de una ENTRADA anterior.
+      counterpartAccountId: needsCounterpart ? counterpartAccountId : undefined,
       exchangeRateVes: exchangeRateVes ?? undefined,
     };
 
@@ -191,6 +233,9 @@ export function MovementForm({
         setUnits([]);
         setSelectedUnitId("");
         setUnitCost("");
+        // D6: el combobox es controlado, `reset()` no lo vacía.
+        setCounterpartAccountId("");
+        setCounterpartChecked(false);
         onSuccess?.();
       } else {
         setError(r.error);
@@ -200,23 +245,6 @@ export function MovementForm({
 
   const today = todayLocalISO();
   const hasAltUnits = units.length > 1;
-  const needsCounterpart = movType === "ENTRADA" || movType === "AJUSTE";
-
-  // Opciones de contrapartida. ENTRADA: Activo/Pasivo/Patrimonio/Gasto, sin la cuenta de
-  // inventario del producto elegido ni las que exigen tercero (el servidor las rechaza: el
-  // movimiento no registra tercero, ADR-054). AJUSTE: igual que antes (sin Patrimonio y sin
-  // filtrar), porque el servicio ignora esa cuenta (PA-4).
-  const isEntrada = movType === "ENTRADA";
-  const inventoryAccountId = isEntrada ? selectedItem?.accountId : null;
-  const counterpartGroups = COUNTERPART_GROUPS.filter((g) => isEntrada || g.type !== "EQUITY")
-    .map((g) => ({
-      ...g,
-      accounts: counterpartAccounts.filter(
-        (a) =>
-          a.type === g.type && a.id !== inventoryAccountId && !(isEntrada && a.requiresThirdParty)
-      ),
-    }))
-    .filter((g) => g.accounts.length > 0);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -473,29 +501,26 @@ export function MovementForm({
                 *
               </span>
             </label>
-            <select
+            <AccountCombobox
               id={counterpartId}
-              name="counterpartAccountId"
-              required={needsCounterpart}
-              aria-describedby={`${counterpartId}-hint`}
-              className={fieldClass}
-            >
-              <option value="">— Seleccionar cuenta contrapartida —</option>
-              {counterpartGroups.map((g) => (
-                <optgroup key={g.type} label={g.label}>
-                  {g.accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} — {a.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              accounts={counterpartOptions}
+              value={counterpartAccountId}
+              onChange={setCounterpartAccountId}
+              aria-invalid={counterpartInvalid || undefined}
+              aria-describedby={`${counterpartId}-hint${counterpartInvalid ? ` ${counterpartId}-error` : ""}`}
+            />
             <p id={`${counterpartId}-hint`} className="mt-1 text-xs text-gray-600">
               {COUNTERPART_HINT[movType]}
             </p>
-            {isEntrada && counterpartGroups.length === 0 && (
-              <p className="mt-1 text-xs text-amber-800">{COUNTERPART_EMPTY_MESSAGE}</p>
+            {!hasCounterpartOptions && (
+              <p className="mt-1 text-xs text-amber-800">
+                {isEntrada ? COUNTERPART_EMPTY_MESSAGE : AJUSTE_COUNTERPART_EMPTY_MESSAGE}
+              </p>
+            )}
+            {counterpartInvalid && (
+              <p id={`${counterpartId}-error`} className="mt-1 text-xs font-medium text-red-600">
+                Selecciona una cuenta de movimiento.
+              </p>
             )}
           </div>
         )}
