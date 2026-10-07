@@ -25,14 +25,17 @@ export default async function FixedAssetsPage({ params }: Props) {
 
   const [assets, accounts, inpcRatesRaw, settings] = await Promise.all([
     FixedAssetService.getSummary(companyId),
+    // SPEC-012 B2: entrega también los títulos (isPostable = false) como encabezados de los selectores; solo
+    // las cuentas de movimiento se pueden elegir. LIABILITY: un activo comprado a crédito se contrapone a una
+    // Cuenta por Pagar (respuesta de la contadora); las otras tres cuentas del alta siguen siendo ASSET,
+    // EXPENSE y CONTRA_ASSET.
     prisma.account.findMany({
       where: {
         companyId,
         deletedAt: null,
-        isPostable: true,
-        type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE", "EQUITY"] },
+        type: { in: ["ASSET", "EXPENSE", "CONTRA_ASSET", "REVENUE", "EQUITY", "LIABILITY"] },
       },
-      select: { id: true, code: true, name: true, type: true },
+      select: { id: true, code: true, name: true, type: true, isPostable: true },
       orderBy: [{ type: "asc" }, { code: "asc" }],
     }),
     prisma.iNPCRate.findMany({
@@ -83,6 +86,15 @@ export default async function FixedAssetsPage({ params }: Props) {
     };
   });
 
+  // Sin `isPostable` el combobox trataría todo como título y no habría nada elegible.
+  const accountOptions = accounts.map((a) => ({
+    id: a.id,
+    code: a.code,
+    name: a.name,
+    type: a.type,
+    isPostable: a.isPostable,
+  }));
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6">
@@ -92,10 +104,7 @@ export default async function FixedAssetsPage({ params }: Props) {
         </p>
       </div>
 
-      <FixedAssetFormPanel
-        companyId={companyId}
-        accounts={accounts.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))}
-      />
+      <FixedAssetFormPanel companyId={companyId} accounts={accountOptions} />
 
       {/* Listado de activos */}
       <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -106,7 +115,7 @@ export default async function FixedAssetsPage({ params }: Props) {
         <FixedAssetList
           assets={serializedAssets as never}
           companyId={companyId}
-          accounts={accounts.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))}
+          accounts={accountOptions}
           inpcRates={inpcRates}
           ivaDFAccountId={settings?.ivaDFAccountId ?? null}
           ivaCFAccountId={settings?.ivaCFAccountId ?? null}

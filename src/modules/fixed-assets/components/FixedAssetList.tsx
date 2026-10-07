@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useId, useState, useTransition, useMemo } from "react";
 import { toast } from "sonner";
 import type { FixedAssetSummary } from "../services/FixedAssetService";
 import {
@@ -17,6 +17,8 @@ import type { InpcRateSimple } from "../services/FixedAssetINPCService";
 import { DepreciationScheduleModal } from "./DepreciationScheduleModal";
 import { DisposeAssetModal, type AccountOption } from "./DisposeAssetModal";
 import { formatAmount } from "@/lib/format";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { isSelectableAccountId } from "@/lib/account-search";
 
 const METHOD_LABELS: Record<string, string> = {
   LINEA_RECTA: "Línea Recta",
@@ -103,7 +105,11 @@ export function FixedAssetList({
   const [inpcHistoryLoading, setInpcHistoryLoading] = useState(false);
   const [, startInpcHistory] = useTransition();
 
+  // SPEC-012 B2: la lista de Patrimonio lleva también los títulos (encabezados del combobox); solo las de
+  // movimiento se pueden elegir. L-2: la cuenta se revalida contra la lista VIGENTE (pudo dejar de ser elegible).
+  const inpcUid = useId();
   const equityAccounts = accounts.filter((a) => a.type === "EQUITY");
+  const inpcAccountValid = isSelectableAccountId(equityAccounts, inpcPatrimonioAccId);
 
   // N5: detectar salto de período — la fecha más temprana "siguiente esperada" de activos activos
   const minGapPeriod = useMemo(() => {
@@ -255,7 +261,7 @@ export function FixedAssetList({
   }
 
   function handleINPCRestatement() {
-    if (!inpcPatrimonioAccId) {
+    if (!inpcAccountValid) {
       toast.error("Selecciona la cuenta de Actualización de Patrimonio.");
       return;
     }
@@ -453,26 +459,25 @@ export function FixedAssetList({
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">
+              <div className="w-full sm:w-72">
+                <label
+                  htmlFor={`${inpcUid}-patrimonio`}
+                  className="mb-1 block text-xs font-medium text-gray-600"
+                >
                   Cuenta Actualización de Patrimonio *
                 </label>
-                <select
+                <AccountCombobox
+                  id={`${inpcUid}-patrimonio`}
+                  accounts={equityAccounts}
                   value={inpcPatrimonioAccId}
-                  onChange={(e) => setInpcPatrimonioAccId(e.target.value)}
-                  className="min-w-48 rounded border border-gray-300 px-2 py-1 text-sm"
-                >
-                  <option value="">Seleccionar cuenta EQUITY…</option>
-                  {equityAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} — {a.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setInpcPatrimonioAccId}
+                  className="bg-white"
+                />
               </div>
               <button
                 onClick={handleINPCRestatement}
-                disabled={isPendingINPC || !inpcPatrimonioAccId}
+                disabled={isPendingINPC || !inpcAccountValid}
+                aria-busy={isPendingINPC}
                 className="rounded bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 {isPendingINPC ? (
