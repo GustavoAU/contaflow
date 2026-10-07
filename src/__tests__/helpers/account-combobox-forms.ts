@@ -9,7 +9,7 @@
 // una de esas holguras está declarada en el comentario de la función.
 
 import { fireEvent, screen, within } from "@testing-library/react";
-import { vi } from "vitest";
+import { expect, vi } from "vitest";
 import type { Mock } from "vitest";
 
 // ─── Plan de cuentas de los fixtures ─────────────────────────────────────────────────────────────
@@ -242,4 +242,106 @@ export function newTextsSince(before: readonly string[]): string[] {
 export function accountErrorShown(before: readonly string[], toastError?: Mock): boolean {
   const toasted = toastError?.mock.calls.some((call) => /cuenta/i.test(String(call[0]))) ?? false;
   return toasted || newTextsSince(before).some((text) => /cuenta/i.test(text));
+}
+
+// ─── SPEC-012 · B2 · Q4: la alerta de «cuenta guardada que no se puede usar» ──────────────────────
+//
+// Contrato (spec, sección «Entrega B2»): `SavedAccountsAlert` pinta un `role="alert"` que explica que
+// esas configuraciones apuntan a una cuenta de TÍTULO o que YA NO EXISTE, lista los rótulos y pide
+// cambiarlas por una cuenta de movimiento. El texto exacto NO está fijado: estos helpers reconocen la
+// alerta por `role="alert"` + la palabra «título», y los rótulos por la etiqueta VISIBLE del campo.
+
+const squash = (text: string | null | undefined) => (text ?? "").replace(/\s+/g, " ").trim();
+
+/** Regex que acepta una etiqueta con o sin el asterisco de «obligatorio» al final. */
+export const labelRegex = (text: string) =>
+  new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}\\s*\\*?$`);
+
+/**
+ * Etiqueta VISIBLE de un campo (el `<label for=id>`, o el `aria-label` si no hay), sin el asterisco
+ * de «obligatorio». Es el «rótulo» con el que la alerta nombra a ese campo.
+ */
+export function fieldLabelOf(input: HTMLElement): string {
+  const id = input.getAttribute("id");
+  const label = id
+    ? Array.from(document.querySelectorAll("label")).find((l) => l.htmlFor === id)
+    : undefined;
+  const raw = label?.textContent ?? input.getAttribute("aria-label") ?? "";
+  return squash(raw).replace(/\s*\*\s*$/, "");
+}
+
+/** Las alertas de «cuenta guardada» visibles: `role=alert` cuyo texto habla de título. */
+export function savedAccountsAlerts(): HTMLElement[] {
+  return screen.queryAllByRole("alert").filter((el) => /t[ií]tulo/i.test(el.textContent ?? ""));
+}
+
+/** La ÚNICA alerta de cuenta guardada (falla si no hay o hay más de una). */
+export function savedAccountsAlert(): HTMLElement {
+  const alerts = savedAccountsAlerts();
+  if (alerts.length !== 1) {
+    throw new Error(
+      `se esperaba UNA alerta de cuenta guardada (role=alert) y hay ${alerts.length}`
+    );
+  }
+  return alerts[0];
+}
+
+/** Texto de la descripción accesible (los elementos a los que apunta `aria-describedby`). */
+export function describedByText(el: HTMLElement): string {
+  const ids = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+  return squash(ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" "));
+}
+
+/**
+ * La alerta está y lista EXACTAMENTE estos rótulos (`present`) y ninguno de `absent`.
+ * Devuelve el elemento para seguir inspeccionándolo.
+ */
+export function expectAlertListing(present: readonly string[], absent: readonly string[] = []) {
+  const alert = savedAccountsAlert();
+  const text = squash(alert.textContent);
+  for (const label of present) expect(text, `la alerta no lista «${label}»`).toContain(label);
+  for (const label of absent) {
+    expect(text, `la alerta lista «${label}» sin que sea un problema`).not.toContain(label);
+  }
+  return alert;
+}
+
+/** El botón de guardar está bloqueado y su descripción accesible apunta a la alerta (nombra `label`). */
+export function expectBlockedByAlert(button: HTMLElement, label: string) {
+  expect(button.hasAttribute("disabled"), "el botón debe estar deshabilitado").toBe(true);
+  expect(describedByText(button), "aria-describedby debe apuntar a la alerta").toContain(label);
+}
+
+/** No hay alerta y el botón de guardar está libre. */
+export function expectNoSavedAccountsAlert(button?: HTMLElement) {
+  expect(savedAccountsAlerts()).toHaveLength(0);
+  if (button) expect(button.hasAttribute("disabled")).toBe(false);
+}
+
+/** El botón «Quitar la cuenta» del combobox `input` (campos opcionales), o `null`. */
+export function clearButtonOf(input: HTMLElement): HTMLButtonElement | null {
+  return (
+    input.parentElement?.querySelector<HTMLButtonElement>(
+      'button[aria-label="Quitar la cuenta"]'
+    ) ?? null
+  );
+}
+
+/** Pulsa «Quitar la cuenta» del combobox `input` (falla si no tiene el botón). */
+export function clearField(input: HTMLElement) {
+  const button = clearButtonOf(input);
+  if (!button)
+    throw new Error("el campo no tiene el botón «Quitar la cuenta» (¿falta `clearable`?)");
+  fireEvent.click(button);
+}
+
+/**
+ * Las props de React de un elemento del DOM (React 19 + jsdom). Permite invocar un manejador que el DOM no
+ * deja alcanzar —p. ej. el `onClick` de un botón `disabled`, que React nunca despacha— para probar la
+ * defensa en profundidad del propio manejador. Úsese dentro de `act(...)`.
+ */
+export function reactPropsOf(el: Element): Record<string, unknown> {
+  const key = Object.keys(el).find((k) => k.startsWith("__reactProps$"));
+  if (!key) throw new Error("el elemento no tiene props de React (¿no está montado por React?)");
+  return (el as unknown as Record<string, Record<string, unknown>>)[key];
 }

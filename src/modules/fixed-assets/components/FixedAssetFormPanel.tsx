@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PlusIcon, CheckCircle2Icon } from "lucide-react";
 import { FixedAssetForm } from "./FixedAssetForm";
+import type { AccountWithType } from "@/lib/account-search";
 
-type AccountOption = { id: string; code: string; name: string; type: string };
+// SPEC-012 B2: `isPostable` obligatorio (la página entrega también los títulos, como encabezados).
+type AccountOption = AccountWithType;
 
 type Props = {
   companyId: string;

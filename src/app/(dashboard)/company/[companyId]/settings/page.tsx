@@ -11,6 +11,7 @@ import { getLocaleAction } from "@/modules/settings/actions/locale.actions";
 import { getUserCompaniesAction } from "@/modules/auth/actions/user.actions";
 import { getFiscalConfigAction } from "@/modules/fiscal-close/actions/fiscal-close.actions";
 import { getAccountsAction } from "@/modules/accounting/actions/account.actions";
+import { selectableAccounts } from "@/lib/account-search";
 import { getGLConfigAction } from "@/modules/settings/actions/gl-config.actions";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
@@ -85,7 +86,8 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     currentTab === "contabilidad"
       ? await Promise.all([
           getFiscalConfigAction(companyId),
-          getAccountsAction(companyId, { onlyPostable: true }),
+          // SPEC-012 B2: SIN `onlyPostable` — los títulos llegan al cliente (encabezados no elegibles de los combobox).
+          getAccountsAction(companyId),
           getGLConfigAction(companyId),
           getStockControlLevelAction(companyId),
           getCajaChicaStepUpThresholdAction(companyId),
@@ -108,14 +110,24 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   // ── Serialización ────────────────────────────────────────────────────────────
 
   const fiscalConfig = fiscalConfigResult?.success ? fiscalConfigResult.data : null;
+  // `isPostable` viaja siempre: sin él el combobox trataría todas las cuentas como títulos (nada elegible).
   const equityAccounts = accountsResult?.success
     ? accountsResult.data
         .filter((a) => a.type === "EQUITY")
-        .map((a) => ({ id: a.id, code: a.code, name: a.name }))
+        .map((a) => ({ id: a.id, code: a.code, name: a.name, isPostable: a.isPostable }))
     : [];
   const allAccounts = accountsResult?.success
-    ? accountsResult.data.map((a) => ({ id: a.id, code: a.code, name: a.name, type: a.type }))
+    ? accountsResult.data.map((a) => ({
+        id: a.id,
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        isPostable: a.isPostable,
+      }))
     : [];
+  // RN-19: los avisos «No hay cuentas…» cuentan SOLO cuentas de movimiento (con puros títulos no hay qué elegir).
+  const hasEquityOptions = selectableAccounts(equityAccounts).length > 0;
+  const hasAnyOptions = selectableAccounts(allAccounts).length > 0;
   const glConfig = glConfigResult?.success ? glConfigResult.data : null;
   const stockControlLevel = stockLevelResult?.success ? stockLevelResult.data.level : "WARN";
   const cajaChicaStepUp = cajaChicaStepUpResult?.success ? cajaChicaStepUpResult.data : null;
@@ -213,7 +225,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                 (VEN-NIF). Ambas cuentas deben ser de tipo Patrimonio (EQUITY).
               </p>
             </div>
-            {equityAccounts.length === 0 ? (
+            {!hasEquityOptions ? (
               <p className="text-muted-foreground text-sm">
                 No hay cuentas de tipo Patrimonio (EQUITY) en tu plan de cuentas. Crea al menos dos
                 cuentas EQUITY antes de configurar el cierre.
@@ -246,7 +258,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                 esta configuración, cada nueva factura generará su asiento en el Libro Diario.
               </p>
             </div>
-            {allAccounts.length === 0 ? (
+            {!hasAnyOptions ? (
               <p className="text-muted-foreground text-sm">
                 No hay cuentas en el plan de cuentas. Crea cuentas contables antes de configurar la
                 integración.

@@ -7,11 +7,20 @@
 //     legales NO-controlados (serial/internalCode/serviceStartDate) se anulan al colapsar;
 //     totalUnits se limpia al cambiar de método.
 //   - N4: importar-desde-gasto pre-llena campos SIN pisar lo que el usuario ya tipeó.
-// Los labels no usan htmlFor → selección por placeholder/displayValue + querySelector
-// para inputs type="date" (patrón PaymentForm.component.test.tsx).
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// Selección por placeholder/displayValue + querySelector para inputs type="date" (patrón
+// PaymentForm.component.test.tsx).
+//
+// SPEC-012 B2: los cuatro selectores de cuenta son `AccountCombobox` (<input role="combobox">, no
+// <select>): su valor visible es «código — nombre» y las cuentas de los fixtures llevan `isPostable`.
+// El comportamiento de los selectores (títulos, validación, Q4, L-2) se prueba en
+// `FixedAssetForm.accounts.test.tsx`; aquí solo se mantiene la red de seguridad del refactor RHF.
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { FixedAssetForm } from "../components/FixedAssetForm";
+import {
+  expectAccountComboboxes,
+  stubJsdomForListbox,
+} from "@/__tests__/helpers/account-combobox-forms";
 import type { ExpenseForAssetImport } from "../actions/fixed-asset.actions";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -31,13 +40,37 @@ import {
 // Pools con ≥2 cuentas por tipo para ejercitar el scoring real de findBestMatch
 // (con 1 sola cuenta hay shortcut `pool[0].id` y el default no se probaría).
 const ACCOUNTS = [
-  { id: "acc-ppe", code: "1201", name: "Propiedad, Planta y Equipo", type: "ASSET" },
-  { id: "acc-terreno", code: "1202", name: "Terrenos", type: "ASSET" },
-  { id: "acc-dep-gasto", code: "6101", name: "Gasto Depreciación", type: "EXPENSE" },
-  { id: "acc-alquiler", code: "6102", name: "Gasto Alquiler", type: "EXPENSE" },
-  { id: "acc-dep-acum", code: "1301", name: "Depreciación Acumulada", type: "CONTRA_ASSET" },
-  { id: "acc-contra-2", code: "1302", name: "Provisión Otra", type: "CONTRA_ASSET" },
-  { id: "acc-banco", code: "1101", name: "Banco Mercantil", type: "ASSET" },
+  {
+    id: "acc-ppe",
+    code: "1201",
+    name: "Propiedad, Planta y Equipo",
+    type: "ASSET",
+    isPostable: true,
+  },
+  { id: "acc-terreno", code: "1202", name: "Terrenos", type: "ASSET", isPostable: true },
+  {
+    id: "acc-dep-gasto",
+    code: "6101",
+    name: "Gasto Depreciación",
+    type: "EXPENSE",
+    isPostable: true,
+  },
+  { id: "acc-alquiler", code: "6102", name: "Gasto Alquiler", type: "EXPENSE", isPostable: true },
+  {
+    id: "acc-dep-acum",
+    code: "1301",
+    name: "Depreciación Acumulada",
+    type: "CONTRA_ASSET",
+    isPostable: true,
+  },
+  {
+    id: "acc-contra-2",
+    code: "1302",
+    name: "Provisión Otra",
+    type: "CONTRA_ASSET",
+    isPostable: true,
+  },
+  { id: "acc-banco", code: "1101", name: "Banco Mercantil", type: "ASSET", isPostable: true },
 ];
 
 const BASE_PROPS = {
@@ -105,6 +138,8 @@ function fillLegalSeniat() {
   });
 }
 
+beforeAll(stubJsdomForListbox);
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(createFixedAssetAction).mockResolvedValue({ success: true, data: "asset-1" } as never);
@@ -128,27 +163,17 @@ describe("FixedAssetForm — smoke del refactor RHF (FC-03 + paridad FormData + 
     expect(currencySelect().value).toBe("VES");
     expect(methodSelect().value).toBe("LINEA_RECTA");
 
-    // findBestMatch pre-selecciona la mejor cuenta de cada pool (no la primera):
+    // findBestMatch pre-selecciona la mejor cuenta de cada pool (no la primera). Los cuatro selectores
+    // son AccountCombobox (<input role="combobox">): su valor visible es «código — nombre».
+    const [asset, expense, contra, counterpart] = expectAccountComboboxes(4, "FixedAssetForm");
     // ASSET: "Propiedad, Planta y Equipo" (3 keywords) le gana a Terrenos y Banco
-    expect(
-      (screen.getByDisplayValue("1201 — Propiedad, Planta y Equipo") as HTMLSelectElement).value
-    ).toBe("acc-ppe");
+    expect(asset.value).toBe("1201 — Propiedad, Planta y Equipo");
     // EXPENSE: "Gasto Depreciación" (keyword "depreci") le gana a Gasto Alquiler
-    expect((screen.getByDisplayValue("6101 — Gasto Depreciación") as HTMLSelectElement).value).toBe(
-      "acc-dep-gasto"
-    );
+    expect(expense.value).toBe("6101 — Gasto Depreciación");
     // CONTRA_ASSET: "Depreciación Acumulada" (acumul+depreci) le gana a Provisión Otra
-    expect(
-      (screen.getByDisplayValue("1301 — Depreciación Acumulada") as HTMLSelectElement).value
-    ).toBe("acc-dep-acum");
-    // Contrapartida GL: opcional, sin default
-    expect(
-      (
-        screen.getByDisplayValue(
-          "Sin asiento automático (registrar manualmente)"
-        ) as HTMLSelectElement
-      ).value
-    ).toBe("");
+    expect(contra.value).toBe("1301 — Depreciación Acumulada");
+    // Contrapartida GL: opcional, sin default (campo vacío)
+    expect(counterpart.value).toBe("");
 
     // Condicionales ocultos en el estado inicial
     expect(screen.queryByPlaceholderText("Ej: 36.50")).toBeNull(); // tasa BCV (VES)

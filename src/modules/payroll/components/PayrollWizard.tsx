@@ -3,26 +3,73 @@
 // Fase NOM-A: Wizard de 3 pasos para configuración de nómina
 // NOM-A-03: confirmación de desactivar organismos obligatorios (IVSS/INCES/Banavih)
 // Solo visible para ADMIN_ONLY — el server guard rechaza a otros roles en la action
+//
+// SPEC-012 B2: los 17 selectores de cuenta del paso 3 (todos opcionales) son `AccountCombobox` con `clearable`;
+// «sin asignar» es "" y viaja como `null`. `accounts` trae TODO el plan (títulos Y cuentas de movimiento): los
+// títulos solo se ven como encabezados. La sección de cuentas se muestra únicamente si hay alguna cuenta de
+// movimiento (RN-19). Q4: si un valor guardado ya no es elegible (título o cuenta que no existe),
+// `SavedAccountsAlert` lo lista en el paso 3 y el guardado queda bloqueado hasta reemplazarlo o quitarlo.
 
-import { detectAccountConflict } from "../utils/payroll-gl-accounts";
-import { useState, useTransition, useMemo } from "react";
+import { detectAccountConflict, type GlAccountKey } from "../utils/payroll-gl-accounts";
+import { useId, useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { savePayrollConfigAction } from "../actions/payroll-config.actions";
 import type { PayrollConfigRow } from "../services/PayrollConfigService";
 import { formatMoneyVE, parseMoneyInput } from "@/lib/money-input";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { SavedAccountsAlert } from "@/components/accounting/SavedAccountsAlert";
+import {
+  selectableAccounts,
+  unselectableSavedAccounts,
+  type AccountOption,
+} from "@/lib/account-search";
 
 type Step = 1 | 2 | 3;
 
-interface AccountOption {
-  id: string;
-  code: string;
-  name: string;
-}
+// Un campo de cuenta del paso 3: `label` es la etiqueta visible y también el rótulo de la alerta de Q4.
+type AccountFieldDef = { key: GlAccountKey; label: string; req?: boolean };
+
+// Sección 1: nómina principal — requeridas para aprobar procesos
+const PAYROLL_ACCOUNT_FIELDS: readonly AccountFieldDef[] = [
+  { key: "expenseAccountId", label: "Gasto Sueldos y Salarios", req: true },
+  { key: "payableAccountId", label: "Sueldos y Salarios por Pagar (neto)", req: true },
+  { key: "ivssPayableAccountId", label: "IVSS Obrero por Pagar" },
+  { key: "incesPayableAccountId", label: "INCES Obrero por Pagar" },
+  { key: "faovPayableAccountId", label: "FAOV / Banavih Obrero por Pagar" },
+];
+
+// Sección 2: aportes patronales
+const EMPLOYER_ACCOUNT_FIELDS: readonly AccountFieldDef[] = [
+  { key: "ivssPatronalAccountId", label: "IVSS Patronal por Pagar" },
+  { key: "incesPatronalAccountId", label: "INCES Patronal por Pagar" },
+  { key: "faovPatronalAccountId", label: "FAOV Patronal por Pagar" },
+  { key: "rpePatronalAccountId", label: "RPE Patronal por Pagar" },
+  { key: "pensionesPatronalAccountId", label: "Protección de Pensiones por Pagar" },
+];
+
+// Sección 3: beneficios legales (NOM-D)
+const BENEFIT_ACCOUNT_FIELDS: readonly AccountFieldDef[] = [
+  { key: "benefitsExpenseAccountId", label: "Gasto Prestaciones Sociales" },
+  { key: "benefitsPayableAccountId", label: "Prestaciones Sociales por Pagar" },
+  { key: "vacationPayableAccountId", label: "Vacaciones por Pagar" },
+  { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
+  { key: "rpePayableAccountId", label: "RPE Obrero por Pagar" },
+  { key: "loanReceivableAccountId", label: "Préstamos a Empleados (Activo 1315)" },
+  { key: "disbursementBankAccountId", label: "Banco de Desembolso (para préstamos)" },
+];
+
+// Los 17 en el orden de pantalla: es también el orden de la alerta de Q4.
+const ALL_ACCOUNT_FIELDS: readonly AccountFieldDef[] = [
+  ...PAYROLL_ACCOUNT_FIELDS,
+  ...EMPLOYER_ACCOUNT_FIELDS,
+  ...BENEFIT_ACCOUNT_FIELDS,
+];
 
 interface Props {
   companyId: string;
   initial?: PayrollConfigRow | null;
+  /** Todo el plan (títulos y cuentas de movimiento); `isPostable` es OBLIGATORIO en cada cuenta. */
   accounts?: AccountOption[];
   onSaved?: (cfg: PayrollConfigRow) => void;
 }
@@ -88,6 +135,7 @@ const IVSS_RISK_LABELS: Record<string, string> = {
 
 export default function PayrollWizard({ companyId, initial, accounts = [], onSaved }: Props) {
   const router = useRouter();
+  const uid = useId();
   const [step, setStep] = useState<Step>(1);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +190,22 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
   // el asistente, y así el submit y el aviso en tiempo real no pueden divergir.
   const accountConflict = useMemo(() => detectAccountConflict(form), [form]);
 
+  // RN-19: la sección de cuentas solo existe si hay alguna cuenta de MOVIMIENTO (los títulos no se pueden elegir).
+  const hasAccountOptions = selectableAccounts(accounts).length > 0;
+  // Q4: con los valores ACTUALES y contra el plan entregado. Sin sección de cuentas no hay nada que corregir.
+  const problems = hasAccountOptions
+    ? unselectableSavedAccounts(
+        ALL_ACCOUNT_FIELDS.map(({ key, label }) => ({
+          key,
+          label,
+          value: form[key],
+          accounts,
+        }))
+      )
+    : [];
+  const blocked = problems.length > 0;
+  const alertId = `${uid}-saved-accounts-alert`;
+
   // NOM-A-03: advertencia si el usuario intenta desactivar un organismo obligatorio
   function toggleOrganism(key: "ivssEnabled" | "incesEnabled" | "banavihEnabled" | "rpeEnabled") {
     const current = form[key];
@@ -182,6 +246,8 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
   }
 
   function handleSubmit() {
+    // Defensa en profundidad (Q4): el botón ya está deshabilitado.
+    if (blocked) return;
     setError(null);
     const conflict = validateAccountConflicts();
     if (conflict) {
@@ -218,6 +284,26 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
       onSaved?.(result.data);
       router.push(`/company/${companyId}/payroll`);
     });
+  }
+
+  function renderAccountField({ key, label, req }: AccountFieldDef) {
+    const id = `${uid}-${key}`;
+    return (
+      <div key={key}>
+        <label htmlFor={id} className="mb-1 block text-xs font-medium text-gray-600">
+          {label}
+          {req && <span className="ml-1 text-red-500">*</span>}
+        </label>
+        <AccountCombobox
+          id={id}
+          accounts={accounts}
+          value={form[key]}
+          onChange={(next) => set(key, next)}
+          clearable
+          placeholder="Sin asignar — buscar cuenta…"
+        />
+      </div>
+    );
   }
 
   return (
@@ -522,8 +608,11 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
           </div>
 
           {/* Cuentas contables — agrupadas en 3 secciones */}
-          {accounts.length > 0 && (
+          {hasAccountOptions && (
             <div className="space-y-6">
+              {/* Q4: cuentas guardadas que ya no se pueden usar; bloquean el guardado hasta corregirlas. */}
+              <SavedAccountsAlert id={alertId} problems={problems} />
+
               {/* Sección 1: Nómina principal — requeridas para aprobar procesos */}
               <div className="space-y-3">
                 <div>
@@ -535,42 +624,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                     Gastos de Personal y acredita los pasivos por pagar.
                   </p>
                 </div>
-                {(
-                  [
-                    { key: "expenseAccountId", label: "Gasto Sueldos y Salarios", req: true },
-                    {
-                      key: "payableAccountId",
-                      label: "Sueldos y Salarios por Pagar (neto)",
-                      req: true,
-                    },
-                    { key: "ivssPayableAccountId", label: "IVSS Obrero por Pagar", req: false },
-                    { key: "incesPayableAccountId", label: "INCES Obrero por Pagar", req: false },
-                    {
-                      key: "faovPayableAccountId",
-                      label: "FAOV / Banavih Obrero por Pagar",
-                      req: false,
-                    },
-                  ] as const
-                ).map(({ key, label, req }) => (
-                  <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">
-                      {label}
-                      {req && <span className="ml-1 text-red-500">*</span>}
-                    </label>
-                    <select
-                      value={form[key]}
-                      onChange={(e) => set(key, e.target.value)}
-                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                    >
-                      <option value="">— Sin asignar —</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} — {a.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                {PAYROLL_ACCOUNT_FIELDS.map(renderAccountField)}
               </div>
 
               {/* Sección 2: Aportes patronales */}
@@ -584,34 +638,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                     RPE 2%, Pensiones 9%).
                   </p>
                 </div>
-                {(
-                  [
-                    { key: "ivssPatronalAccountId", label: "IVSS Patronal por Pagar" },
-                    { key: "incesPatronalAccountId", label: "INCES Patronal por Pagar" },
-                    { key: "faovPatronalAccountId", label: "FAOV Patronal por Pagar" },
-                    { key: "rpePatronalAccountId", label: "RPE Patronal por Pagar" },
-                    {
-                      key: "pensionesPatronalAccountId",
-                      label: "Protección de Pensiones por Pagar",
-                    },
-                  ] as const
-                ).map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
-                    <select
-                      value={form[key]}
-                      onChange={(e) => set(key, e.target.value)}
-                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                    >
-                      <option value="">— Sin asignar —</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} — {a.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                {EMPLOYER_ACCOUNT_FIELDS.map(renderAccountField)}
               </div>
 
               {/* Sección 3: Beneficios legales (NOM-D) */}
@@ -625,39 +652,7 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
                     cuenta GL diferente.
                   </p>
                 </div>
-                {(
-                  [
-                    { key: "benefitsExpenseAccountId", label: "Gasto Prestaciones Sociales" },
-                    { key: "benefitsPayableAccountId", label: "Prestaciones Sociales por Pagar" },
-                    { key: "vacationPayableAccountId", label: "Vacaciones por Pagar" },
-                    { key: "profitSharingPayableAccountId", label: "Utilidades por Pagar" },
-                    { key: "rpePayableAccountId", label: "RPE Obrero por Pagar" },
-                    {
-                      key: "loanReceivableAccountId",
-                      label: "Préstamos a Empleados (Activo 1315)",
-                    },
-                    {
-                      key: "disbursementBankAccountId",
-                      label: "Banco de Desembolso (para préstamos)",
-                    },
-                  ] as const
-                ).map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
-                    <select
-                      value={form[key]}
-                      onChange={(e) => set(key, e.target.value)}
-                      className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                    >
-                      <option value="">— Sin asignar —</option>
-                      {accounts.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} — {a.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                {BENEFIT_ACCOUNT_FIELDS.map(renderAccountField)}
               </div>
 
               {/* Alerta en tiempo real si dos conceptos comparten la misma cuenta GL */}
@@ -733,10 +728,16 @@ export default function PayrollWizard({ companyId, initial, accounts = [], onSav
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isPending || !!accountConflict}
+              disabled={isPending || !!accountConflict || blocked}
+              aria-busy={isPending}
+              aria-describedby={blocked ? alertId : undefined}
               className="rounded bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               title={
-                accountConflict ? "Resuelve el conflicto de cuentas GL antes de guardar" : undefined
+                blocked
+                  ? "Corrige las cuentas guardadas que no se pueden usar antes de guardar"
+                  : accountConflict
+                    ? "Resuelve el conflicto de cuentas GL antes de guardar"
+                    : undefined
               }
             >
               {isPending ? "Guardando..." : "Guardar configuración"}

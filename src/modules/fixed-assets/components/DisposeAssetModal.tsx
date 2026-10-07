@@ -3,8 +3,14 @@
 // Modal para dar de baja un activo fijo con asiento GL cuadrado.
 // Captura: motivo, fecha, precio de venta, cuenta de cobro, cuenta ganancia/pérdida.
 // Muestra vista previa del asiento DEBE/HABER antes de confirmar.
+//
+// SPEC-012 B2: los tres selectores de cuenta (cobro, ganancia/pérdida y gasto del Art. 66) son
+// `AccountCombobox`. La página entrega títulos Y cuentas de movimiento; los títulos solo se ven como
+// encabezados y `validate()` revalida cada cuenta con `isSelectableAccountId` contra las listas VIGENTES
+// (L-2): una cuenta que dejó de ser elegible tras refrescar la lista NO se envía. Es un modal propio (sin
+// Radix ni teclado): el `Esc` del combobox solo cierra su lista.
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import type Decimal from "decimal.js";
 import { disposeFixedAssetAction } from "../actions/fixed-asset.actions";
@@ -20,11 +26,14 @@ import {
 import { formatAmount } from "@/lib/format";
 import { todayLocalISO } from "@/lib/today";
 import { MoneyInput } from "@/components/ui/money-input";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { isSelectableAccountId, type AccountWithType } from "@/lib/account-search";
 import { zMoneyAmount } from "@/lib/zod-helpers";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type AccountOption = { id: string; code: string; name: string; type: string };
+// `isPostable` es OBLIGATORIO: sin él el combobox trataría todas las cuentas como títulos.
+export type AccountOption = AccountWithType;
 
 /** Versión serializada de FixedAssetSummary (Decimal → string) */
 export type AssetInfo = {
@@ -83,10 +92,13 @@ export function DisposeAssetModal({
   const [art66ExpAccId, setArt66ExpAccId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [isPending, startT] = useTransition();
+  const uid = useId();
 
   // ── Filtros de cuentas ────────────────────────────────────────────────────
+  // Cada lista lleva los títulos de su tipo (encabezados del combobox); el combobox decide qué es elegible.
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const glAccounts = accounts.filter((a) => a.type === "EXPENSE" || a.type === "REVENUE");
+  const art66Accounts = glAccounts.filter((a) => a.type === "EXPENSE");
 
   // ── Cálculo en tiempo real ────────────────────────────────────────────────
   // R-5: Decimal.js — mismas fórmulas y redondeo que el server (disposal-preview.ts)
@@ -140,13 +152,18 @@ export function DisposeAssetModal({
       if (!zMoneyAmount.safeParse(raw).success)
         return "Importe de venta inválido: usa solo dígitos y hasta 2 decimales.";
     }
-    if (reason === "SALE" && procNum.greaterThan("0.001") && !proceedsAccId)
+    // L-2: se revalida contra las listas VIGENTES (la cuenta pudo dejar de ser elegible), no solo `!== ""`.
+    if (
+      reason === "SALE" &&
+      procNum.greaterThan("0.001") &&
+      !isSelectableAccountId(assetAccounts, proceedsAccId)
+    )
       return "Selecciona la cuenta bancaria o CxC donde se recibió el cobro.";
-    if (hasGainLoss && !glAccId)
+    if (hasGainLoss && !isSelectableAccountId(glAccounts, glAccId))
       return isGain
         ? "Selecciona la cuenta de ingreso por ganancia en venta."
         : "Selecciona la cuenta de pérdida en baja de activo.";
-    if (effectiveArt66 && !art66ExpAccId)
+    if (effectiveArt66 && !isSelectableAccountId(art66Accounts, art66ExpAccId))
       return "Selecciona la cuenta de gasto para el reintegro IVA Art. 66 LIVA.";
     return null;
   }
@@ -168,8 +185,11 @@ export function DisposeAssetModal({
         reason,
         disposalDate: new Date(disposalDate + "T12:00:00"),
         saleProceeds: procNum.toFixed(2),
-        proceedsAccountId: proceedsAccId || null,
-        gainLossAccountId: glAccId || null,
+        // Defensa en profundidad: un id que ya no es elegible (título o fuera de la lista) nunca viaja.
+        proceedsAccountId: isSelectableAccountId(assetAccounts, proceedsAccId)
+          ? proceedsAccId
+          : null,
+        gainLossAccountId: isSelectableAccountId(glAccounts, glAccId) ? glAccId : null,
         notes: notes || null,
         applyIva: effectiveIva,
         ivaDFAccountId: effectiveIva ? ivaDFAccountId : null,
@@ -352,22 +372,18 @@ export function DisposeAssetModal({
               </div>
               {effectiveArt66 && (
                 <div>
-                  <label className={`${lc} text-violet-700`}>Cuenta gasto IVA reintegrado *</label>
-                  <select
+                  <label htmlFor={`${uid}-art66`} className={`${lc} text-violet-700`}>
+                    Cuenta gasto IVA reintegrado *
+                  </label>
+                  <AccountCombobox
+                    id={`${uid}-art66`}
+                    accounts={art66Accounts}
                     value={art66ExpAccId}
-                    onChange={(e) => setArt66ExpAccId(e.target.value)}
-                    className={fc}
-                  >
-                    <option value="">Seleccionar cuenta EXPENSE…</option>
-                    {glAccounts
-                      .filter((a) => a.type === "EXPENSE")
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.code} — {a.name}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-11 mt-1 text-zinc-400">
+                    onChange={setArt66ExpAccId}
+                    aria-describedby={`${uid}-art66-hint`}
+                    className="bg-white"
+                  />
+                  <p id={`${uid}-art66-hint`} className="text-11 mt-1 text-gray-600">
                     Tipo EXPENSE — el monto reintegrado se cargará como gasto del período.
                   </p>
                 </div>
@@ -378,20 +394,17 @@ export function DisposeAssetModal({
           {/* Cuenta de cobro — solo si hay precio > 0 */}
           {reason === "SALE" && procNum.greaterThan("0.001") && (
             <div>
-              <label className={lc}>Cuenta de cobro (Banco / CxC) *</label>
-              <select
+              <label htmlFor={`${uid}-proceeds`} className={lc}>
+                Cuenta de cobro (Banco / CxC) *
+              </label>
+              <AccountCombobox
+                id={`${uid}-proceeds`}
+                accounts={assetAccounts}
                 value={proceedsAccId}
-                onChange={(e) => setProAcc(e.target.value)}
-                className={fc}
-              >
-                <option value="">Seleccionar cuenta ASSET…</option>
-                {assetAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-11 mt-1 text-zinc-400">
+                onChange={setProAcc}
+                aria-describedby={`${uid}-proceeds-hint`}
+              />
+              <p id={`${uid}-proceeds-hint`} className="text-11 mt-1 text-gray-600">
                 Cuenta donde se recibirá el dinero o se registra la CxC del comprador.
               </p>
             </div>
@@ -400,18 +413,17 @@ export function DisposeAssetModal({
           {/* Cuenta ganancia/pérdida */}
           {hasGainLoss && (
             <div>
-              <label className={lc}>
+              <label htmlFor={`${uid}-gainloss`} className={lc}>
                 {isGain ? "Cuenta de ganancia en venta *" : "Cuenta de pérdida en baja *"}
               </label>
-              <select value={glAccId} onChange={(e) => setGlAccId(e.target.value)} className={fc}>
-                <option value="">Seleccionar cuenta…</option>
-                {glAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name} ({a.type})
-                  </option>
-                ))}
-              </select>
-              <p className="text-11 mt-1 text-zinc-400">
+              <AccountCombobox
+                id={`${uid}-gainloss`}
+                accounts={glAccounts}
+                value={glAccId}
+                onChange={setGlAccId}
+                aria-describedby={`${uid}-gainloss-hint`}
+              />
+              <p id={`${uid}-gainloss-hint`} className="text-11 mt-1 text-gray-600">
                 {isGain
                   ? "Tipo REVENUE — ingreso por venta sobre el valor en libros."
                   : "Tipo EXPENSE — pérdida por baja o venta bajo valor en libros."}

@@ -27,9 +27,11 @@ export default async function PayrollConfigEditPage({ params }: Props) {
 
   const [config, accounts] = await Promise.all([
     PayrollConfigService.getConfig(companyId),
+    // SPEC-012 B2: todo el plan, títulos incluidos (encabezados no elegibles de los combobox del asistente);
+    // `isPostable` en el select: sin él el combobox trataría todas las cuentas como títulos.
     prisma.account.findMany({
-      where: { companyId, deletedAt: null, isPostable: true },
-      select: { id: true, code: true, name: true },
+      where: { companyId, deletedAt: null },
+      select: { id: true, code: true, name: true, isPostable: true },
       orderBy: { code: "asc" },
     }),
   ]);

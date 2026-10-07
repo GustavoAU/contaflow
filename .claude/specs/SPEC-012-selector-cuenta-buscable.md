@@ -304,6 +304,72 @@ Ver el anexo `.claude/specs/SPEC-012-anexo-inventario-entrega-b.md` (17 sitios, 
   falla, el combobox queda sin cuentas sin avisar el error (UX).
 
 
+### Estado de ejecución — Entrega B2 (2026-10-06)
+Rama `feat/spec-012b2-selector-cuenta-activos-ajustes-nomina` (desde `main` con B1 fusionada, `e804fad2`).
+**Alcance (6 formularios + 3 páginas):** `FixedAssetForm`, `DisposeAssetModal` y panel INPC de `FixedAssetList` con
+`fixed-assets/page.tsx`; `FiscalConfigForm` y `GLAccountsForm` con `settings/page.tsx` (pestaña Contabilidad);
+`PayrollWizard` con `payroll/config/edit/page.tsx`. Siguen la regla de reparto por página y las decisiones D1-D9 y 1-6 de B1.
+
+**Corrección al plan (R-4, comprobada con grep el 2026-10-06): `onlyPostable` NO se retira en B2.** El anexo (§3) daba por
+hecho que quedaría sin consumidores, pero `income-distribution/page.tsx:23` lo sigue usando y `IncomeDistributionForm` está
+fuera de SPEC-012 (spec propia). B2 solo deja de usarlo en `settings/page.tsx:88`; el parámetro y su test
+(`account.actions.test.ts:661`) se conservan hasta que la spec de distribución de ingresos migre esa página.
+
+**Contrato de la alerta de Q4 (cuenta guardada que es título o no existe):**
+- Helper puro en `src/lib/account-search.ts`: `unselectableSavedAccounts(fields)` con
+  `fields: ReadonlyArray<{ key: string; label: string; value: string | null | undefined; accounts: readonly AccountOption[] }>`;
+  devuelve `{ key, label }[]` de los campos con valor no vacío cuyo `value` NO es elegible en SU lista (`isSelectableAccountId`),
+  en el orden recibido. Valor vacío/`null`/`undefined` = sin problema. Cada campo se evalúa contra la lista que ese campo ofrece
+  (p. ej. solo Patrimonio), no contra todo el plan.
+- Componente `src/components/accounting/SavedAccountsAlert.tsx`: `props { problems: ReadonlyArray<{ key: string; label: string }> }`;
+  sin problemas no renderiza nada; con problemas, `role="alert"` que explica que esas configuraciones apuntan a una cuenta de
+  título o que ya no existe, lista los rótulos y pide cambiarlas por una cuenta de movimiento para poder guardar.
+- Cada formulario calcula `problems` desde sus valores **actuales** (no solo los iniciales): el aviso se ve desde el primer
+  render, **deshabilita** el botón de guardar (con `aria-describedby` hacia el aviso) y además el `submit` retorna sin llamar a
+  la acción (defensa en profundidad, como L-2). Al reemplazar la cuenta, o quitarla en un campo opcional con `clearable`,
+  el aviso desaparece y se puede guardar. El combobox sigue mostrando el campo vacío con `aria-invalid` (D1).
+- **Server-side no entra en B2:** validar `isPostable` al guardar la configuración es L-1 (`assertAccountsPostable`), PR aparte
+  tras B3 con arch-agent + ledger-agent.
+
+**Activos fijos (respuesta de la contadora):** `fixed-assets/page.tsx` añade `LIABILITY` al filtro de tipos para que la cuenta
+de contrapartida de la adquisición pueda ser una CxP; las otras tres cuentas (`findBestMatch`) siguen sin cambio y ningún título
+puede ser elegido ni autoseleccionado (RN-19).
+
+**Ratchet:** salen de `PENDING_MIGRATION` los seis archivos de B2 (`FixedAssetForm`, `DisposeAssetModal`, `FixedAssetList`,
+`FiscalConfigForm`, `GLAccountsForm`, `PayrollWizard`); quedan `InventoryItemForm`, `MovementForm` (B3) e `IncomeDistributionForm`.
+
+
+**B2 paso 1 HECHO (test-agent, RED; commits `52740d14`, `a8bb4cf7`, `1ae3bd67`, `e46bfcd8`):** 314 tests nuevos y 1 existente
+ajustado en 13 archivos; **253 en rojo** (251 nuevos + el primer test del ratchet y el `render` de `FixedAssetForm.component`),
+63 guardas verdes a propósito; tsc 0; solo tests y helpers tocados. Los 476 tests de esos 13 archivos pasan contra una referencia
+GREEN descartable (fuera del repo). **Los mutantes NO se probaron todavía** (0 de ~100 planeados): se ejecutarán en el paso 4
+contra la implementación REAL, no contra la referencia. Hechos del código comprobados por la sesión principal con grep: (a)
+`FixedAssetForm` no recibe valores iniciales; (b) `payroll/page.tsx` monta `PayrollWizard` con `initial={null}` y SIN `accounts`
+(solo la página de edición pasa `accounts`); (c) `GLAccountsForm` solo muestra `ivaRetentionReceivableAccountId` si
+`isSpecialContributor`; (d) `DisposeAssetModal` es un `div` propio sin teclado ni Radix.
+
+**Decisiones de la sesión principal sobre las ambigüedades del test-agent (el ui-agent las sigue en el paso 2):**
+1. `FixedAssetForm`: sin valores iniciales ⇒ sin alerta Q4. Obligatorias sin cuenta elegible (pool vacío o solo títulos) ⇒ se
+   bloquea con un aviso que menciona «cuenta». La contrapartida opcional que ya no sea elegible se envía como `null`. Las cuentas
+   se validan **antes** que la advertencia FC-03.
+2. `PayrollWizard`: la alerta Q4 solo en el paso 3 (el de cuentas). Rótulos = etiqueta visible del campo; NO reutilizar
+   `GL_ACCOUNT_FIELDS` (otros textos). Si `accounts` viene vacío o solo con títulos la sección no se muestra y por tanto no hay
+   alerta ni bloqueo (lo cubrirá L-1 en el servidor).
+3. `DisposeAssetModal`: no necesita D3 (modal propio sin teclado). **Backlog (hipótesis por lectura, sin ejecutar, fuera de B2):**
+   el payload envía `proceedsAccountId: proceedsAccId || null` aunque el motivo ya no sea `SALE`; el servicio
+   (`FixedAssetDepreciationService.ts:536`) contabiliza el cobro si `proceeds > 0` y hay cuenta — falta comprobar si el monto
+   también se anula al cambiar de motivo.
+4. `GLAccountsForm`: `ivaRetentionReceivableAccountId` se excluye de la alerta cuando el campo está oculto (no es contribuyente
+   especial) y, si su valor guardado no es elegible, se guarda como `null` (los valores válidos no se tocan). Las insignias
+   «Activo/Incompleto» y `saleConfigComplete`/`purchaseConfigComplete` se calculan con `isSelectableAccountId` (no con `!== NONE`);
+   lo que dependa de ese estado (p. ej. «Causar ahora») queda deshabilitado por consecuencia. El paso 4 añade los tests de 4.
+5. `SavedAccountsAlert` recibe un `id?: string` opcional; cada formulario lo pasa y enlaza el botón con `aria-describedby`.
+6. `settings/page`: los avisos «No hay cuentas de Patrimonio / en el plan» cuentan solo cuentas de movimiento; con solo títulos
+   no se muestra el formulario.
+7. Supuesto **NO comprobado con datos reales** (anexo §8): que los títulos hereden el `type` de sus hijas. Si no lo hacen, un
+   filtro por tipo puede perder encabezados ancestros (solo efecto visual, no de seguridad). Revisar al final con datos.
+
+
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|

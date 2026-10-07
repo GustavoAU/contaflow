@@ -3,22 +3,29 @@
 // ADR-026: Formulario de configuración de cuentas GL para causación automática de facturas.
 // Permite seleccionar las 6 cuentas contables requeridas y causar retroactivamente
 // las facturas que aún no tienen asiento en el Libro Mayor.
+//
+// SPEC-012 B2: los once selectores son `AccountCombobox` (`clearable`: todos son opcionales). «Sin asignar» es
+// "" en el estado y viaja como `null`. `allAccounts` trae títulos Y cuentas de movimiento; los títulos solo se
+// ven como encabezados. Q4: si un valor guardado ya no es elegible EN LA LISTA DE SU CAMPO (título, cuenta
+// eliminada o de otro tipo), `SavedAccountsAlert` lo lista desde el primer render y el guardado queda bloqueado
+// (botón deshabilitado + `submit` que retorna) hasta reemplazarlo o quitarlo.
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { BookOpenIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import { SavedAccountsAlert } from "@/components/accounting/SavedAccountsAlert";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  isSelectableAccountId,
+  unselectableSavedAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 import { saveGLConfigAction, postUnbookedInvoicesAction } from "../actions/gl-config.actions";
 
-type Account = { id: string; code: string; name: string; type: string };
+// `isPostable` es OBLIGATORIO: sin él el combobox trataría todas las cuentas como títulos.
+type Account = AccountWithType;
 
 type Props = {
   companyId: string;
@@ -41,9 +48,74 @@ type Props = {
   initialUnbookedCount: number;
 };
 
-const NONE = "__none__";
+// Los 11 campos de cuenta, en el orden en que aparecen en pantalla (es también el orden de la alerta de Q4).
+// `type` es el tipo de cuenta que ESE campo ofrece: cada valor se evalúa contra su propia lista, no contra el plan.
+const GL_FIELDS = {
+  arAccountId: {
+    label: "Cuentas por Cobrar (CxC)",
+    hint: "ACTIVO — Dr al emitir factura",
+    type: "ASSET",
+  },
+  salesAccountId: {
+    label: "Ingresos por Ventas",
+    hint: "INGRESO — Cr al emitir factura",
+    type: "REVENUE",
+  },
+  ivaDFAccountId: {
+    label: "IVA Débito Fiscal",
+    hint: "PASIVO — Cr IVA causado en ventas",
+    type: "LIABILITY",
+  },
+  inventoryAccountId: {
+    label: "Inventario de Mercancías",
+    hint: "ACTIVO — Dr al registrar compra (inventario perpetuo)",
+    type: "ASSET",
+  },
+  apAccountId: {
+    label: "Cuentas por Pagar (CxP)",
+    hint: "PASIVO — Cr al registrar compra (neto si hay retención)",
+    type: "LIABILITY",
+  },
+  ivaCFAccountId: {
+    label: "IVA Crédito Fiscal",
+    hint: "ACTIVO — Dr IVA soportado en compras",
+    type: "ASSET",
+  },
+  // GAP-03: cuenta de retenciones IVA por pagar (opcional)
+  ivaRetentionPayableAccountId: {
+    label: "Retenciones IVA por Pagar",
+    hint: "PASIVO — Cr retención IVA al registrar compra con agente de retención (opcional)",
+    type: "LIABILITY",
+  },
+  // Riesgo-6 / Prov. 0049: solo se muestra a Contribuyentes Especiales.
+  ivaRetentionReceivableAccountId: {
+    label: "IVA Retenido por Cobrar",
+    hint: "ACTIVO — Dr IVA retenido al cobrar de un cliente CE (Prov. 0049)",
+    type: "ASSET",
+  },
+  // ADR-030
+  igtfPayableAccountId: {
+    label: "IGTF por Pagar",
+    hint: "PASIVO — Cr IGTF 3% causado en cobros en divisas (opcional)",
+    type: "LIABILITY",
+  },
+  fxGainAccountId: {
+    label: "Ganancia Cambiaria",
+    hint: "INGRESO — Cr cuando la tasa sube en CxC (devaluación)",
+    type: "REVENUE",
+  },
+  fxLossAccountId: {
+    label: "Pérdida Cambiaria",
+    hint: "GASTO — Dr cuando la tasa sube en CxP (devaluación)",
+    type: "EXPENSE",
+  },
+} as const;
 
-function AccountSelect({
+type GLKey = keyof typeof GL_FIELDS;
+const GL_KEYS = Object.keys(GL_FIELDS) as GLKey[];
+
+/** Un selector de cuenta opcional: etiqueta asociada, ayuda enlazada y botón «Quitar la cuenta». */
+function GLAccountField({
   id,
   label,
   hint,
@@ -63,20 +135,18 @@ function AccountSelect({
       <Label htmlFor={id} className="text-sm font-medium">
         {label}
       </Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue placeholder="Sin asignar..." />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE}>— Sin asignar —</SelectItem>
-          {accounts.map((acc) => (
-            <SelectItem key={acc.id} value={acc.id}>
-              {acc.code} — {acc.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="text-muted-foreground text-xs">{hint}</p>
+      <AccountCombobox
+        id={id}
+        accounts={accounts}
+        value={value}
+        onChange={onChange}
+        clearable
+        placeholder="Sin asignar — buscar cuenta…"
+        aria-describedby={`${id}-hint`}
+      />
+      <p id={`${id}-hint`} className="text-muted-foreground text-xs">
+        {hint}
+      </p>
     </div>
   );
 }
@@ -88,61 +158,97 @@ export function GLAccountsForm({
   initialConfig,
   initialUnbookedCount,
 }: Props) {
-  const [arAccountId, setArAccountId] = useState(initialConfig.arAccountId ?? NONE);
-  const [apAccountId, setApAccountId] = useState(initialConfig.apAccountId ?? NONE);
-  const [salesAccountId, setSalesAccountId] = useState(initialConfig.salesAccountId ?? NONE);
-  const [inventoryAccountId, setInventoryAccountId] = useState(
-    initialConfig.inventoryAccountId ?? NONE
+  const alertId = useId();
+  // «Sin asignar» es "" (ya no hay centinela): las cuentas guardadas entran tal cual, `null` = "".
+  const [values, setValues] = useState<Record<GLKey, string>>(
+    () =>
+      Object.fromEntries(GL_KEYS.map((key) => [key, initialConfig[key] ?? ""])) as Record<
+        GLKey,
+        string
+      >
   );
-  const [ivaDFAccountId, setIvaDFAccountId] = useState(initialConfig.ivaDFAccountId ?? NONE);
-  const [ivaCFAccountId, setIvaCFAccountId] = useState(initialConfig.ivaCFAccountId ?? NONE);
-  const [ivaRetentionPayableAccountId, setIvaRetentionPayableAccountId] = useState(
-    initialConfig.ivaRetentionPayableAccountId ?? NONE
-  ); // GAP-03
-  const [fxGainAccountId, setFxGainAccountId] = useState(initialConfig.fxGainAccountId ?? NONE);
-  const [fxLossAccountId, setFxLossAccountId] = useState(initialConfig.fxLossAccountId ?? NONE);
-  const [igtfPayableAccountId, setIgtfPayableAccountId] = useState(
-    initialConfig.igtfPayableAccountId ?? NONE
-  ); // ADR-030
-  const [ivaRetentionReceivableAccountId, setIvaRetentionReceivableAccountId] = useState(
-    initialConfig.ivaRetentionReceivableAccountId ?? NONE
-  ); // Riesgo-6
   const [unbookedCount, setUnbookedCount] = useState(initialUnbookedCount);
 
   const [isSaving, startSave] = useTransition();
   const [isPosting, startPost] = useTransition();
 
-  const assetAccounts = allAccounts.filter((a) => a.type === "ASSET");
-  const liabilityAccounts = allAccounts.filter((a) => a.type === "LIABILITY");
-  const revenueAccounts = allAccounts.filter((a) => a.type === "REVENUE");
-  const expenseAccounts = allAccounts.filter((a) => a.type === "EXPENSE");
+  // Cada lista lleva los títulos de su tipo (encabezados del combobox); el combobox decide qué es elegible.
+  const pools: Record<(typeof GL_FIELDS)[GLKey]["type"], Account[]> = {
+    ASSET: allAccounts.filter((a) => a.type === "ASSET"),
+    LIABILITY: allAccounts.filter((a) => a.type === "LIABILITY"),
+    REVENUE: allAccounts.filter((a) => a.type === "REVENUE"),
+    EXPENSE: allAccounts.filter((a) => a.type === "EXPENSE"),
+  };
+  const poolOf = (key: GLKey) => pools[GL_FIELDS[key].type];
+  // D1 / Q4: un campo está «configurado» solo si su valor es una cuenta de MOVIMIENTO de SU lista; un título o
+  // una cuenta que ya no existe NO cuenta (antes bastaba con `!== NONE`).
+  const isSet = (key: GLKey) => isSelectableAccountId(poolOf(key), values[key]);
 
-  const toNull = (v: string) => (v === NONE ? null : v);
+  // «IVA Retenido por Cobrar» solo se muestra a Contribuyentes Especiales: oculto, no se puede corregir y
+  // por tanto no entra en la alerta; si su valor guardado no es elegible se guarda como null.
+  const visibleKeys = GL_KEYS.filter(
+    (key) => key !== "ivaRetentionReceivableAccountId" || isSpecialContributor
+  );
+  const problems = unselectableSavedAccounts(
+    visibleKeys.map((key) => ({
+      key,
+      label: GL_FIELDS[key].label,
+      value: values[key],
+      accounts: poolOf(key),
+    }))
+  );
+  const blocked = problems.length > 0;
+
+  const toNull = (key: GLKey) => {
+    const value = values[key];
+    if (value === "") return null;
+    // Oculto: el usuario no lo ve ni puede corregirlo, así que solo se anula lo INSERVIBLE (un título o un id
+    // que ya no existe en el plan). Una cuenta de movimiento válida se conserva aunque sea de otro tipo: anularla
+    // en silencio dejaría el IVA retenido abierto en el asiento de cobro (B2-S2). Los visibles, tal cual.
+    return visibleKeys.includes(key) || isSelectableAccountId(allAccounts, value) ? value : null;
+  };
 
   const saleConfigComplete =
-    arAccountId !== NONE && salesAccountId !== NONE && ivaDFAccountId !== NONE;
+    isSet("arAccountId") && isSet("salesAccountId") && isSet("ivaDFAccountId");
   // COMPRA usa inventoryAccountId (ASSET 1115) — método inventario perpetuo
   const purchaseConfigComplete =
-    apAccountId !== NONE && inventoryAccountId !== NONE && ivaCFAccountId !== NONE;
+    isSet("apAccountId") && isSet("inventoryAccountId") && isSet("ivaCFAccountId");
   const anyConfigComplete = saleConfigComplete || purchaseConfigComplete;
+
+  function renderField(key: GLKey) {
+    const { label, hint } = GL_FIELDS[key];
+    return (
+      <GLAccountField
+        key={key}
+        id={key}
+        label={label}
+        hint={hint}
+        value={values[key]}
+        onChange={(next) => setValues((prev) => ({ ...prev, [key]: next }))}
+        accounts={poolOf(key)}
+      />
+    );
+  }
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    // Defensa en profundidad (Q4): el botón ya está deshabilitado, pero un `submit` (Enter) no debe guardar.
+    if (blocked) return;
     startSave(async () => {
       const result = await saveGLConfigAction({
         companyId,
-        arAccountId: toNull(arAccountId),
-        apAccountId: toNull(apAccountId),
-        salesAccountId: toNull(salesAccountId),
+        arAccountId: toNull("arAccountId"),
+        apAccountId: toNull("apAccountId"),
+        salesAccountId: toNull("salesAccountId"),
         purchaseExpenseAccountId: null, // legacy periódico — no usado en causación perpetua
-        inventoryAccountId: toNull(inventoryAccountId),
-        ivaDFAccountId: toNull(ivaDFAccountId),
-        ivaCFAccountId: toNull(ivaCFAccountId),
-        ivaRetentionPayableAccountId: toNull(ivaRetentionPayableAccountId), // GAP-03
-        fxGainAccountId: toNull(fxGainAccountId),
-        fxLossAccountId: toNull(fxLossAccountId),
-        igtfPayableAccountId: toNull(igtfPayableAccountId), // ADR-030
-        ivaRetentionReceivableAccountId: toNull(ivaRetentionReceivableAccountId), // Riesgo-6
+        inventoryAccountId: toNull("inventoryAccountId"),
+        ivaDFAccountId: toNull("ivaDFAccountId"),
+        ivaCFAccountId: toNull("ivaCFAccountId"),
+        ivaRetentionPayableAccountId: toNull("ivaRetentionPayableAccountId"), // GAP-03
+        fxGainAccountId: toNull("fxGainAccountId"),
+        fxLossAccountId: toNull("fxLossAccountId"),
+        igtfPayableAccountId: toNull("igtfPayableAccountId"), // ADR-030
+        ivaRetentionReceivableAccountId: toNull("ivaRetentionReceivableAccountId"), // Riesgo-6
       });
       if (result.success) {
         toast.success("Configuración del Libro Mayor guardada.");
@@ -173,6 +279,9 @@ export function GLAccountsForm({
 
   return (
     <form onSubmit={handleSave} className="space-y-6">
+      {/* Q4: cuentas guardadas que ya no se pueden usar; bloquean el guardado hasta corregirlas. */}
+      <SavedAccountsAlert id={alertId} problems={problems} />
+
       {/* ── Facturas de Venta ──────────────────────────────────────────────── */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
@@ -188,30 +297,9 @@ export function GLAccountsForm({
           )}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <AccountSelect
-            id="arAccountId"
-            label="Cuentas por Cobrar (CxC)"
-            hint="ACTIVO — Dr al emitir factura"
-            value={arAccountId}
-            onChange={setArAccountId}
-            accounts={assetAccounts}
-          />
-          <AccountSelect
-            id="salesAccountId"
-            label="Ingresos por Ventas"
-            hint="INGRESO — Cr al emitir factura"
-            value={salesAccountId}
-            onChange={setSalesAccountId}
-            accounts={revenueAccounts}
-          />
-          <AccountSelect
-            id="ivaDFAccountId"
-            label="IVA Débito Fiscal"
-            hint="PASIVO — Cr IVA causado en ventas"
-            value={ivaDFAccountId}
-            onChange={setIvaDFAccountId}
-            accounts={liabilityAccounts}
-          />
+          {renderField("arAccountId")}
+          {renderField("salesAccountId")}
+          {renderField("ivaDFAccountId")}
         </div>
       </div>
 
@@ -230,41 +318,13 @@ export function GLAccountsForm({
           )}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <AccountSelect
-            id="inventoryAccountId"
-            label="Inventario de Mercancías"
-            hint="ACTIVO — Dr al registrar compra (inventario perpetuo)"
-            value={inventoryAccountId}
-            onChange={setInventoryAccountId}
-            accounts={assetAccounts}
-          />
-          <AccountSelect
-            id="apAccountId"
-            label="Cuentas por Pagar (CxP)"
-            hint="PASIVO — Cr al registrar compra (neto si hay retención)"
-            value={apAccountId}
-            onChange={setApAccountId}
-            accounts={liabilityAccounts}
-          />
-          <AccountSelect
-            id="ivaCFAccountId"
-            label="IVA Crédito Fiscal"
-            hint="ACTIVO — Dr IVA soportado en compras"
-            value={ivaCFAccountId}
-            onChange={setIvaCFAccountId}
-            accounts={assetAccounts}
-          />
+          {renderField("inventoryAccountId")}
+          {renderField("apAccountId")}
+          {renderField("ivaCFAccountId")}
         </div>
         {/* GAP-03: cuenta de retenciones IVA por pagar (opcional) */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <AccountSelect
-            id="ivaRetentionPayableAccountId"
-            label="Retenciones IVA por Pagar"
-            hint="PASIVO — Cr retención IVA al registrar compra con agente de retención (opcional)"
-            value={ivaRetentionPayableAccountId}
-            onChange={setIvaRetentionPayableAccountId}
-            accounts={liabilityAccounts}
-          />
+          {renderField("ivaRetentionPayableAccountId")}
         </div>
       </div>
 
@@ -274,7 +334,7 @@ export function GLAccountsForm({
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold">IVA Retenido en Cobros</h3>
             <span className="text-xs text-zinc-400">(Prov. 0049 — Agente de Retención CE)</span>
-            {ivaRetentionReceivableAccountId !== NONE ? (
+            {isSet("ivaRetentionReceivableAccountId") ? (
               <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
                 Activo
               </span>
@@ -294,14 +354,7 @@ export function GLAccountsForm({
             equivalente).
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <AccountSelect
-              id="ivaRetentionReceivableAccountId"
-              label="IVA Retenido por Cobrar"
-              hint="ACTIVO — Dr IVA retenido al cobrar de un cliente CE (Prov. 0049)"
-              value={ivaRetentionReceivableAccountId}
-              onChange={setIvaRetentionReceivableAccountId}
-              accounts={assetAccounts}
-            />
+            {renderField("ivaRetentionReceivableAccountId")}
           </div>
         </div>
       )}
@@ -311,7 +364,7 @@ export function GLAccountsForm({
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">Pagos en Divisas (IGTF)</h3>
           <span className="text-xs text-zinc-400">(ADR-030 · GL auto-posting)</span>
-          {igtfPayableAccountId !== NONE ? (
+          {isSet("igtfPayableAccountId") ? (
             <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
               Activo
             </span>
@@ -325,7 +378,7 @@ export function GLAccountsForm({
             </span>
           )}
         </div>
-        {isSpecialContributor && igtfPayableAccountId === NONE && (
+        {isSpecialContributor && !isSet("igtfPayableAccountId") && (
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             <strong>Atención:</strong> Esta empresa es Contribuyente Especial. Bajo la Ley IGTF
             (Art. 4 núm. 3) y la Providencia SNAT/2022/000013, debe actuar como agente de percepción
@@ -339,14 +392,7 @@ export function GLAccountsForm({
           debe ser de tipo <span className="font-medium">PASIVO</span> (cuenta 2115 o equivalente).
         </p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <AccountSelect
-            id="igtfPayableAccountId"
-            label="IGTF por Pagar"
-            hint="PASIVO — Cr IGTF 3% causado en cobros en divisas (opcional)"
-            value={igtfPayableAccountId}
-            onChange={setIgtfPayableAccountId}
-            accounts={liabilityAccounts}
-          />
+          {renderField("igtfPayableAccountId")}
         </div>
       </div>
 
@@ -355,7 +401,7 @@ export function GLAccountsForm({
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">Diferencial Cambiario</h3>
           <span className="text-xs text-zinc-400">(NIC 21 / VEN-NIF BA-5)</span>
-          {fxGainAccountId !== NONE && fxLossAccountId !== NONE ? (
+          {isSet("fxGainAccountId") && isSet("fxLossAccountId") ? (
             <span className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-600">
               Activo
             </span>
@@ -366,28 +412,19 @@ export function GLAccountsForm({
           )}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <AccountSelect
-            id="fxGainAccountId"
-            label="Ganancia Cambiaria"
-            hint="INGRESO — Cr cuando la tasa sube en CxC (devaluación)"
-            value={fxGainAccountId}
-            onChange={setFxGainAccountId}
-            accounts={revenueAccounts}
-          />
-          <AccountSelect
-            id="fxLossAccountId"
-            label="Pérdida Cambiaria"
-            hint="GASTO — Dr cuando la tasa sube en CxP (devaluación)"
-            value={fxLossAccountId}
-            onChange={setFxLossAccountId}
-            accounts={expenseAccounts}
-          />
+          {renderField("fxGainAccountId")}
+          {renderField("fxLossAccountId")}
         </div>
       </div>
 
       {/* ── Acciones ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <Button type="submit" disabled={isSaving || isPosting} aria-busy={isSaving}>
+        <Button
+          type="submit"
+          disabled={isSaving || isPosting || blocked}
+          aria-busy={isSaving}
+          aria-describedby={blocked ? alertId : undefined}
+        >
           {isSaving && <Loader2Icon className="animate-spin" />}
           <BookOpenIcon />
           {isSaving ? "Guardando..." : "Guardar configuración"}

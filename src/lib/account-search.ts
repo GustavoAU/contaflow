@@ -230,3 +230,37 @@ export function isSelectableAccountId(
   if (id === "") return false;
   return accounts.some((account) => account.id === id && account.isPostable);
 }
+
+// ─── Q4: configuración guardada que ya no se puede usar ──────────────────────────────────────────
+
+/** Un campo de configuración que guarda una cuenta, con SU lista de cuentas ofrecidas. */
+export type SavedAccountField = {
+  /** Identifica el campo (el nombre de la propiedad del formulario); no se muestra. */
+  key: string;
+  /** Rótulo visible del campo: es lo que la alerta le lista al usuario. */
+  label: string;
+  /** Id guardado (o elegido): vacío / `null` / `undefined` = «sin asignar», que no es un problema. */
+  value: string | null | undefined;
+  /** Las cuentas que ESE campo ofrece (p. ej. solo Patrimonio), nunca todo el plan. */
+  accounts: readonly Pick<AccountOption, "id" | "isPostable">[];
+};
+
+/**
+ * Q4 (SPEC-012 B2): los campos con un valor NO vacío que ya no es elegible en SU lista (`isSelectableAccountId`):
+ * una cuenta de título, una eliminada o de otra empresa, o una de un tipo que el campo no ofrece. Devuelve
+ * `{ key, label }` en el orden recibido; es lo que pinta `SavedAccountsAlert` y lo que bloquea el guardado del
+ * formulario. Cada formulario lo calcula con sus valores ACTUALES (no solo los iniciales).
+ */
+export function unselectableSavedAccounts(
+  fields: ReadonlyArray<SavedAccountField>
+): { key: string; label: string }[] {
+  return fields
+    .filter(
+      (field) =>
+        field.value !== null &&
+        field.value !== undefined &&
+        field.value !== "" &&
+        !isSelectableAccountId(field.accounts, field.value)
+    )
+    .map(({ key, label }) => ({ key, label }));
+}

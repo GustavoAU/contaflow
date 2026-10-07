@@ -25,9 +25,15 @@
 // FUERA de RHF (estado async/derivado/UI, no son campos de usuario):
 //   error, showLegal, pendingInput (FC-03: warning visible ⟺ pendingInput !== null),
 //   showExpenseImport/expenseList/expenseLoading/selectedExpenseId (N4 fetch).
+//
+// SPEC-012 B2: los cuatro selectores de cuenta son `AccountCombobox` dentro de un `Controller` de RHF.
+// La página entrega títulos Y cuentas de movimiento; los títulos solo se muestran como encabezados no
+// elegibles. La lógica propia (autoselección con `findBestMatch`, avisos «Sin cuentas tipo …», validación
+// al enviar) usa SOLO cuentas de movimiento (RN-19). Sin `required` nativo: el envío revalida cada cuenta
+// con `isSelectableAccountId` contra las listas VIGENTES (L-2).
 
-import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useId, useState, useTransition } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { Loader2Icon, ChevronDownIcon, ChevronRightIcon, PackageSearchIcon } from "lucide-react";
 import {
   createFixedAssetAction,
@@ -36,8 +42,15 @@ import {
 import type { ExpenseForAssetImport } from "../actions/fixed-asset.actions";
 import { formatAmount } from "@/lib/format";
 import { MoneyField } from "@/components/ui/money-field";
+import { AccountCombobox } from "@/components/accounting/AccountCombobox";
+import {
+  isSelectableAccountId,
+  selectableAccounts,
+  type AccountWithType,
+} from "@/lib/account-search";
 
-type AccountOption = { id: string; code: string; name: string; type: string };
+// `isPostable` es OBLIGATORIO: sin él el combobox trataría todas las cuentas como títulos.
+type AccountOption = AccountWithType;
 
 type Props = {
   companyId: string;
@@ -52,6 +65,8 @@ const METHOD_OPTIONS = [
   { value: "UNIDADES_PRODUCCION", label: "Unidades de Producción" },
 ] as const;
 
+// RN-19: `pool` debe traer SOLO cuentas de movimiento (el llamador pasa `selectableAccounts(...)`): un
+// título con más palabras clave que la cuenta real jamás debe autoseleccionarse.
 function findBestMatch(pool: AccountOption[], keywords: string[]): string {
   if (pool.length === 0) return "";
   if (pool.length === 1) return pool[0]!.id;
@@ -123,8 +138,11 @@ type FixedAssetFormValues = {
 };
 
 export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Props) {
+  const uid = useId();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Tras un envío rechazado por falta de cuenta, los campos inválidos se marcan (aria-invalid + mensaje).
+  const [accountsChecked, setAccountsChecked] = useState(false);
   const [showLegal, setShowLegal] = useState(false);
   // FC-03: warn if SENIAT deductibility fields are missing.
   // Warning visible ⟺ pendingInput !== null (antes eran 2 estados; los caminos de
@@ -136,9 +154,17 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
   const [expenseLoading, setExpenseLoading] = useState(false);
   const [selectedExpenseId, setSelectedExpenseId] = useState("");
 
+  // Listas por tipo CON títulos (encabezados del combobox) y, aparte, solo las de movimiento (RN-19):
+  // conteos, avisos y autoselección salen de estas últimas.
   const assetAccounts = accounts.filter((a) => a.type === "ASSET");
   const contraAssetAccounts = accounts.filter((a) => a.type === "CONTRA_ASSET");
   const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE");
+  const hasAssetOptions = selectableAccounts(assetAccounts).length > 0;
+  const hasExpenseOptions = selectableAccounts(expenseAccounts).length > 0;
+  const hasContraAssetOptions = selectableAccounts(contraAssetAccounts).length > 0;
+  // La contrapartida ofrece todo el plan que entrega la página (también Pasivo: compra a crédito → CxP)
+  // menos la cuenta del propio activo.
+  const counterpartPool = (assetId: string) => accounts.filter((a) => a.id !== assetId);
 
   const { register, control, handleSubmit, watch, setValue, getValues } =
     useForm<FixedAssetFormValues>({
@@ -157,7 +183,7 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
         usefulLifeMonths: "",
         depreciationMethod: "LINEA_RECTA",
         totalUnits: "",
-        assetAccountId: findBestMatch(assetAccounts, [
+        assetAccountId: findBestMatch(selectableAccounts(assetAccounts), [
           "propiedad",
           "planta",
           "equipo",
@@ -168,8 +194,11 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
           "mobiliario",
           "activo fijo",
         ]),
-        depreciationAccountId: findBestMatch(expenseAccounts, ["depreci", "amortiz"]),
-        accDepreciationAccountId: findBestMatch(contraAssetAccounts, [
+        depreciationAccountId: findBestMatch(selectableAccounts(expenseAccounts), [
+          "depreci",
+          "amortiz",
+        ]),
+        accDepreciationAccountId: findBestMatch(selectableAccounts(contraAssetAccounts), [
           "acumul",
           "depreci",
           "amortiz",
@@ -187,6 +216,20 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
   const method = watch("depreciationMethod");
   const acquisitionCurrency = watch("acquisitionCurrency");
   const assetAccountId = watch("assetAccountId");
+  const depreciationAccountId = watch("depreciationAccountId");
+  const accDepreciationAccountId = watch("accDepreciationAccountId");
+
+  // Un campo obligatorio está inválido si su cuenta ya no es elegible en SU lista (título, eliminada o vacía).
+  const assetInvalid =
+    accountsChecked && hasAssetOptions && !isSelectableAccountId(assetAccounts, assetAccountId);
+  const expenseInvalid =
+    accountsChecked &&
+    hasExpenseOptions &&
+    !isSelectableAccountId(expenseAccounts, depreciationAccountId);
+  const contraInvalid =
+    accountsChecked &&
+    hasContraAssetOptions &&
+    !isSelectableAccountId(contraAssetAccounts, accDepreciationAccountId);
 
   function doSubmit(input: AssetInput) {
     startTransition(async () => {
@@ -274,13 +317,42 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
       serviceStartDate:
         showLegal && values.serviceStartDate ? new Date(values.serviceStartDate) : null,
       internalCode: showLegal ? values.internalCode || null : null,
-      acquisitionCounterpartAccountId: values.acquisitionCounterpartAccountId || null,
+      // Opcional: si la cuenta elegida ya no es elegible (pasó a ser título o dejó de existir tras refrescar
+      // la lista) NO se envía su id: viaja `null` y el activo se registra sin asiento automático.
+      acquisitionCounterpartAccountId: isSelectableAccountId(
+        counterpartPool(values.assetAccountId),
+        values.acquisitionCounterpartAccountId
+      )
+        ? values.acquisitionCounterpartAccountId
+        : null,
     };
+  }
+
+  // Cuentas obligatorias sin una cuenta de MOVIMIENTO elegible en su lista (L-2: contra las listas vigentes).
+  function missingAccountLabels(values: FixedAssetFormValues): string[] {
+    const missing: string[] = [];
+    if (!isSelectableAccountId(assetAccounts, values.assetAccountId))
+      missing.push("Cuenta del activo");
+    if (!isSelectableAccountId(expenseAccounts, values.depreciationAccountId))
+      missing.push("Gasto depreciación");
+    if (!isSelectableAccountId(contraAssetAccounts, values.accDepreciationAccountId))
+      missing.push("Dep. acumulada");
+    return missing;
   }
 
   function onValid(values: FixedAssetFormValues) {
     setError(null);
     setPendingInput(null);
+
+    // Las cuentas se validan ANTES que la advertencia FC-03 (ya no hay `required` nativo en los selectores).
+    const missing = missingAccountLabels(values);
+    if (missing.length > 0) {
+      setAccountsChecked(true);
+      setError(
+        `Selecciona una cuenta de movimiento para: ${missing.join(", ")}. Los títulos del plan no se pueden elegir.`
+      );
+      return;
+    }
 
     const input = buildInput(values);
 
@@ -525,73 +597,127 @@ export function FixedAssetForm({ companyId, accounts, onSuccess, onCancel }: Pro
         <legend className="px-1 text-sm font-semibold text-gray-700">Cuentas contables</legend>
         <div className="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className={labelClass}>Cuenta del activo *</label>
-            {assetAccounts.length === 0 ? (
+            <label htmlFor={`${uid}-asset`} className={labelClass}>
+              Cuenta del activo *
+            </label>
+            {!hasAssetOptions ? (
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
                 Sin cuentas tipo Activo. Créalas en el Plan de Cuentas.
               </p>
             ) : (
-              <select required className={fieldClass} {...register("assetAccountId")}>
-                <option value="">Seleccionar cuenta ASSET…</option>
-                {assetAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={control}
+                name="assetAccountId"
+                render={({ field }) => (
+                  <AccountCombobox
+                    id={`${uid}-asset`}
+                    accounts={assetAccounts}
+                    value={field.value}
+                    onChange={field.onChange}
+                    aria-invalid={assetInvalid || undefined}
+                    aria-describedby={`${uid}-asset-hint${assetInvalid ? ` ${uid}-asset-error` : ""}`}
+                  />
+                )}
+              />
             )}
-            <p className="text-11 mt-1 text-zinc-400">Tipo ASSET — propiedad, planta y equipo</p>
+            <p id={`${uid}-asset-hint`} className="text-11 mt-1 text-gray-600">
+              Tipo ASSET — propiedad, planta y equipo
+            </p>
+            {assetInvalid && (
+              <p id={`${uid}-asset-error`} className="mt-1 text-xs font-medium text-red-600">
+                Selecciona una cuenta de movimiento.
+              </p>
+            )}
           </div>
           <div>
-            <label className={labelClass}>Gasto depreciación *</label>
-            {expenseAccounts.length === 0 ? (
+            <label htmlFor={`${uid}-expense`} className={labelClass}>
+              Gasto depreciación *
+            </label>
+            {!hasExpenseOptions ? (
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
                 Sin cuentas tipo Gasto. Créalas en el Plan de Cuentas.
               </p>
             ) : (
-              <select required className={fieldClass} {...register("depreciationAccountId")}>
-                <option value="">Seleccionar cuenta EXPENSE…</option>
-                {expenseAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={control}
+                name="depreciationAccountId"
+                render={({ field }) => (
+                  <AccountCombobox
+                    id={`${uid}-expense`}
+                    accounts={expenseAccounts}
+                    value={field.value}
+                    onChange={field.onChange}
+                    aria-invalid={expenseInvalid || undefined}
+                    aria-describedby={`${uid}-expense-hint${expenseInvalid ? ` ${uid}-expense-error` : ""}`}
+                  />
+                )}
+              />
             )}
-            <p className="text-11 mt-1 text-zinc-400">Tipo EXPENSE — gasto por depreciación</p>
+            <p id={`${uid}-expense-hint`} className="text-11 mt-1 text-gray-600">
+              Tipo EXPENSE — gasto por depreciación
+            </p>
+            {expenseInvalid && (
+              <p id={`${uid}-expense-error`} className="mt-1 text-xs font-medium text-red-600">
+                Selecciona una cuenta de movimiento.
+              </p>
+            )}
           </div>
           <div>
-            <label className={labelClass}>Dep. acumulada *</label>
-            {contraAssetAccounts.length === 0 ? (
+            <label htmlFor={`${uid}-contra`} className={labelClass}>
+              Dep. acumulada *
+            </label>
+            {!hasContraAssetOptions ? (
               <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 Sin cuentas tipo CONTRA_ASSET. Créalas en el Plan de Cuentas.
               </p>
             ) : (
-              <select required className={fieldClass} {...register("accDepreciationAccountId")}>
-                <option value="">Seleccionar cuenta CONTRA_ASSET…</option>
-                {contraAssetAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={control}
+                name="accDepreciationAccountId"
+                render={({ field }) => (
+                  <AccountCombobox
+                    id={`${uid}-contra`}
+                    accounts={contraAssetAccounts}
+                    value={field.value}
+                    onChange={field.onChange}
+                    aria-invalid={contraInvalid || undefined}
+                    aria-describedby={`${uid}-contra-hint${contraInvalid ? ` ${uid}-contra-error` : ""}`}
+                  />
+                )}
+              />
             )}
-            <p className="text-11 mt-1 text-zinc-400">Tipo CONTRA_ASSET — depreciación acumulada</p>
+            <p id={`${uid}-contra-hint`} className="text-11 mt-1 text-gray-600">
+              Tipo CONTRA_ASSET — depreciación acumulada
+            </p>
+            {contraInvalid && (
+              <p id={`${uid}-contra-error`} className="mt-1 text-xs font-medium text-red-600">
+                Selecciona una cuenta de movimiento.
+              </p>
+            )}
           </div>
           <div className="col-span-full">
-            <label className={labelClass}>Cuenta origen adquisición (GL)</label>
-            <select className={fieldClass} {...register("acquisitionCounterpartAccountId")}>
-              <option value="">Sin asiento automático (registrar manualmente)</option>
-              {accounts
-                .filter((a) => a.id !== assetAccountId)
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.code} — {a.name}
-                  </option>
-                ))}
-            </select>
-            <p className="text-11 mt-1 text-zinc-400">
-              Opcional — genera Dr Activos Fijos / Cr cuenta seleccionada al guardar (hallazgo #8)
+            <label htmlFor={`${uid}-counterpart`} className={labelClass}>
+              Cuenta origen adquisición (GL)
+            </label>
+            {/* Opcional (D2): `clearable` es la única forma de dejarla «sin asiento automático». */}
+            <Controller
+              control={control}
+              name="acquisitionCounterpartAccountId"
+              render={({ field }) => (
+                <AccountCombobox
+                  id={`${uid}-counterpart`}
+                  accounts={counterpartPool(assetAccountId)}
+                  value={field.value}
+                  onChange={field.onChange}
+                  clearable
+                  placeholder="Sin asiento automático (registrar manualmente)"
+                  aria-describedby={`${uid}-counterpart-hint`}
+                />
+              )}
+            />
+            <p id={`${uid}-counterpart-hint`} className="text-11 mt-1 text-gray-600">
+              Opcional — genera Dr Activos Fijos / Cr cuenta seleccionada al guardar (hallazgo #8).
+              Si compraste a crédito, elige la cuenta por pagar del proveedor.
             </p>
           </div>
         </div>

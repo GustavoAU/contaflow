@@ -1320,3 +1320,173 @@ describe("isSelectableAccountId — ¿este id es elegible en esta lista? (D1)", 
     expect(frozen).toHaveLength(PLAN.length);
   });
 });
+
+// <<B2-BLOCK-START>>
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SPEC-012 · ENTREGA B2 · PASO 1 (modo RED) — `unselectableSavedAccounts` (contrato de la alerta de Q4).
+//
+// TDD SPEC — contrato ejecutable para el ui-agent. FALLA hasta que `src/lib/account-search.ts` exporte
+// `unselectableSavedAccounts`. Se carga con el espacio de nombres del módulo y se tipa con el contrato de
+// la spec (sección «Estado de ejecución — Entrega B2»), para que `tsc` no falle mientras no exista y cada
+// caso falle por su propia razón («no es una función»).
+//
+//   unselectableSavedAccounts(fields: ReadonlyArray<{
+//     key: string; label: string; value: string | null | undefined; accounts: readonly AccountOption[];
+//   }>): { key: string; label: string }[]
+//
+//   → los campos con valor NO vacío cuyo `value` NO es elegible en SU lista (`isSelectableAccountId`),
+//     en el orden recibido. Vacío / null / undefined = sin problema. Cada campo se evalúa contra la lista
+//     que ESE campo ofrece (p. ej. solo Patrimonio), nunca contra todo el plan.
+
+type SavedAccountField = {
+  key: string;
+  label: string;
+  value: string | null | undefined;
+  accounts: readonly AccountOption[];
+};
+type SavedAccountsModule = {
+  unselectableSavedAccounts(
+    fields: ReadonlyArray<SavedAccountField>
+  ): { key: string; label: string }[];
+};
+
+function loadB2(): SavedAccountsModule {
+  const fn = (accountSearch as unknown as Partial<SavedAccountsModule>).unselectableSavedAccounts;
+  if (typeof fn !== "function") {
+    throw new Error("unselectableSavedAccounts no es una función exportada por ./account-search");
+  }
+  return { unselectableSavedAccounts: fn };
+}
+
+const CAJA = mov("1.1.01.01.001", "Caja Principal");
+const BANCO = mov("1.1.01.02.001", "Banco Mercantil");
+const CAJAS = title("1.1.01.01", "CAJAS");
+const CAPITAL = mov("3.1.01.01.001", "Capital Social");
+const CAPITALES = title("3.1.01", "APORTES");
+const ASSET_LIST: readonly AccountOption[] = [CAJAS, CAJA, BANCO];
+const EQUITY_LIST: readonly AccountOption[] = [CAPITALES, CAPITAL];
+
+const field = (
+  key: string,
+  value: string | null | undefined,
+  accounts: readonly AccountOption[] = ASSET_LIST,
+  label = `Rótulo ${key}`
+): SavedAccountField => ({ key, label, value, accounts });
+
+describe("unselectableSavedAccounts — qué configuraciones guardadas NO se pueden usar (Q4)", () => {
+  it("sin campos → sin problemas", () => {
+    expect(loadB2().unselectableSavedAccounts([])).toEqual([]);
+  });
+
+  it("un valor que es una cuenta de movimiento de SU lista no es un problema", () => {
+    expect(loadB2().unselectableSavedAccounts([field("a", CAJA.id)])).toEqual([]);
+  });
+
+  it("un valor que es un TÍTULO es un problema: devuelve exactamente { key, label }", () => {
+    const result = loadB2().unselectableSavedAccounts([field("a", CAJAS.id, ASSET_LIST, "Caja")]);
+    expect(result).toEqual([{ key: "a", label: "Caja" }]);
+    expect(Object.keys(result[0]).sort()).toEqual(["key", "label"]);
+  });
+
+  it("un valor que NO existe en la lista (cuenta eliminada o de otra empresa) es un problema", () => {
+    expect(loadB2().unselectableSavedAccounts([field("a", "m:9.9.99.99.999")])).toEqual([
+      { key: "a", label: "Rótulo a" },
+    ]);
+  });
+
+  it("valor vacío, null o undefined = sin problema, incluso si la lista del campo está vacía", () => {
+    const { unselectableSavedAccounts } = loadB2();
+    expect(
+      unselectableSavedAccounts([field("a", ""), field("b", null), field("c", undefined)])
+    ).toEqual([]);
+    expect(
+      unselectableSavedAccounts([field("a", ""), field("b", null), field("c", undefined, [])])
+    ).toEqual([]);
+  });
+
+  it("devuelve SOLO los campos con problema, en el orden RECIBIDO (no por clave ni por rótulo)", () => {
+    const result = loadB2().unselectableSavedAccounts([
+      field("z", CAJAS.id, ASSET_LIST, "Zeta"),
+      field("ok", CAJA.id, ASSET_LIST, "Bien"),
+      field("m", "no-existe", ASSET_LIST, "Eme"),
+      field("a", null, ASSET_LIST, "Alfa"),
+      field("b", CAJAS.id, ASSET_LIST, "Be"),
+    ]);
+    expect(result).toEqual([
+      { key: "z", label: "Zeta" },
+      { key: "m", label: "Eme" },
+      { key: "b", label: "Be" },
+    ]);
+  });
+
+  it("cada campo se evalúa contra SU lista: una cuenta de movimiento válida en el plan pero ausente de la lista del campo es un problema", () => {
+    // `CAJA` existe y es de movimiento, pero el campo solo ofrece Patrimonio.
+    expect(loadB2().unselectableSavedAccounts([field("eq", CAJA.id, EQUITY_LIST)])).toEqual([
+      { key: "eq", label: "Rótulo eq" },
+    ]);
+  });
+
+  it("el MISMO id puede ser válido en un campo y problema en otro (cada uno con su lista)", () => {
+    const result = loadB2().unselectableSavedAccounts([
+      field("activo", CAJA.id, ASSET_LIST, "Activo"),
+      field("patrimonio", CAJA.id, EQUITY_LIST, "Patrimonio"),
+    ]);
+    expect(result).toEqual([{ key: "patrimonio", label: "Patrimonio" }]);
+  });
+
+  it("el valor se compara por ID, no por código ni por nombre", () => {
+    const { unselectableSavedAccounts } = loadB2();
+    expect(unselectableSavedAccounts([field("a", CAJA.code)])).toHaveLength(1);
+    expect(unselectableSavedAccounts([field("a", CAJA.name)])).toHaveLength(1);
+  });
+
+  it("distingue mayúsculas y no recorta espacios (igual que isSelectableAccountId)", () => {
+    const { unselectableSavedAccounts } = loadB2();
+    expect(unselectableSavedAccounts([field("a", CAJA.id.toUpperCase())])).toHaveLength(1);
+    expect(unselectableSavedAccounts([field("a", ` ${CAJA.id}`)])).toHaveLength(1);
+  });
+
+  it("un campo con la lista vacía y un valor guardado es un problema (la cuenta ya no se ofrece)", () => {
+    expect(loadB2().unselectableSavedAccounts([field("a", CAJA.id, [])])).toEqual([
+      { key: "a", label: "Rótulo a" },
+    ]);
+  });
+
+  it("una lista de solo títulos tampoco acepta ningún valor", () => {
+    expect(loadB2().unselectableSavedAccounts([field("a", CAJAS.id, [CAJAS, CAPITALES])])).toEqual([
+      { key: "a", label: "Rótulo a" },
+    ]);
+  });
+
+  it("no muta la entrada (arreglos y objetos congelados) y devuelve un arreglo nuevo en cada llamada", () => {
+    const { unselectableSavedAccounts } = loadB2();
+    const fields = Object.freeze([
+      Object.freeze(field("a", CAJAS.id)),
+      Object.freeze(field("b", CAJA.id)),
+    ]);
+    const first = unselectableSavedAccounts(fields);
+    const second = unselectableSavedAccounts(fields);
+    expect(first).toEqual(second);
+    expect(first).not.toBe(second);
+    expect(fields).toHaveLength(2);
+  });
+
+  it("conserva key y label tal cual, también con tildes y símbolos", () => {
+    const label = "Retención IVA — (75%) «Ñandú»";
+    expect(
+      loadB2().unselectableSavedAccounts([
+        field("ivaRetentionPayableAccountId", CAJAS.id, ASSET_LIST, label),
+      ])
+    ).toEqual([{ key: "ivaRetentionPayableAccountId", label }]);
+  });
+
+  it("muchos campos: solo los que fallan, sin importar cuántos sean", () => {
+    const fields = Array.from({ length: 17 }, (_, i) =>
+      field(`f${i}`, i % 2 === 0 ? CAJAS.id : CAJA.id, ASSET_LIST, `F${i}`)
+    );
+    const result = loadB2().unselectableSavedAccounts(fields);
+    expect(result.map((p) => p.key)).toEqual(
+      fields.filter((_, i) => i % 2 === 0).map((f) => f.key)
+    );
+  });
+});
