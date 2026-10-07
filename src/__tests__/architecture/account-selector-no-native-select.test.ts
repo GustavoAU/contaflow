@@ -12,9 +12,10 @@
 // (otro test de arquitectura, `idempotency-key-tenant-scope`, da timeouts de 5 s por recorrer todo `src`).
 //
 // Listas (cerradas: un archivo nuevo con el patrón NO se agrega aquí, se migra al combobox):
-//  · PENDING_MIGRATION — siguen con <select>/Select (Entrega B3 de SPEC-012 y la spec propia de
-//    IncomeDistribution; los seis de la Entrega B2 ya salieron de la lista). El test falla si un archivo de esta lista YA NO contiene el patrón: al migrarlo
-//    hay que quitarlo de aquí (así la lista solo se encoge).
+//  · PENDING_MIGRATION — siguen con <select>/Select: SOLO `IncomeDistributionForm` (spec propia de
+//    distribución de ingresos; los de las Entregas B1, B2 y B3 de SPEC-012 ya salieron de la lista). El test
+//    falla si un archivo de esta lista YA NO contiene el patrón: al migrarlo hay que quitarlo de aquí (así la
+//    lista solo se encoge).
 //  · INTENTIONAL — casos que NO son «elegir una cuenta de movimiento»: «Cuenta padre» de AccountsTable
 //    elige TÍTULOS a propósito (SPEC-008). El `Select` de «Tipo» de JournalEntryForm no es de cuentas y
 //    no contiene `.code`, así que el detector ni lo ve (se comprueba abajo).
@@ -30,8 +31,6 @@ const TIMEOUT = 30_000;
 
 /** Siguen sin migrar: se quitan de aquí SOLO al migrarlos (el test lo exige). */
 const PENDING_MIGRATION: ReadonlySet<string> = new Set([
-  "src/modules/inventory/components/InventoryItemForm.tsx",
-  "src/modules/inventory/components/MovementForm.tsx",
   "src/modules/income-distribution/components/IncomeDistributionForm.tsx",
 ]);
 
@@ -217,12 +216,23 @@ describe("Arquitectura: ningún selector de cuenta es un <select>/Select de list
   );
 
   it(
-    "la lista de pendientes quedó EXACTAMENTE con lo que sigue sin migrar (B3 + IncomeDistribution)",
+    "los archivos de la Entrega B3 (inventario) ya no renderizan una cuenta como <option>/SelectItem",
+    () => {
+      const b3 = [
+        "src/modules/inventory/components/InventoryItemForm.tsx",
+        "src/modules/inventory/components/MovementForm.tsx",
+      ];
+      const still = b3.filter((rel) => scan().hits.has(rel));
+      expect(still, `siguen con <option>/SelectItem de cuentas:\n${still.join("\n")}`).toEqual([]);
+    },
+    TIMEOUT
+  );
+
+  it(
+    "la lista de pendientes quedó EXACTAMENTE con lo que sigue sin migrar (solo IncomeDistribution, spec propia)",
     () => {
       expect([...PENDING_MIGRATION].sort()).toEqual([
         "src/modules/income-distribution/components/IncomeDistributionForm.tsx",
-        "src/modules/inventory/components/InventoryItemForm.tsx",
-        "src/modules/inventory/components/MovementForm.tsx",
       ]);
     },
     TIMEOUT
