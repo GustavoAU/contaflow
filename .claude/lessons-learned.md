@@ -254,3 +254,14 @@
 - **Fix applied**: el test se rehízo primero (rojo: `expected null to be 'm:2.1.01.01.001'`) y `toNull` pasó a comparar contra todo el plan: solo se anula un título o un id que no existe.
 - **Golden rule**: «los tests pasan» solo prueba que el código cumple lo que el test dice. Cuando un mismo flujo de agentes escribe el test y la implementación a partir de una frase de producto ambigua, cada test se relee contra la INTENCIÓN, no contra el código. Y borrar o reemplazar un valor guardado que el usuario no ve exige el criterio más estrecho posible (lo inservible), nunca el de validación del formulario.
 - **Regression test**: `GLAccountsForm.test.tsx` «guardado con una cuenta de movimiento de OTRO tipo (Pasivo): se conserva, no se borra en silencio»; mutante G1 (anular por tipo) comprobado como muerto
+
+---
+
+## LL-024 — Un hallazgo diferido dos veces deja de ser un riesgo anunciado y pasa a ser deuda del siguiente cambio (2026-10-07)
+
+- **Phase detected**: revisión de seguridad de SPEC-012 Entrega B3
+- **Context**: L-1 (`assertAccountsPostable`), ADR-059 «Pendiente»; los destinos de guardado de B1, B2 y B3
+- **Error**: B1 anotó L-1 como backlog («sube a MEDIUM en B2/B3»); B2 lo confirmó MEDIUM (B2-S1) y lo difirió a un PR posterior; B3 volvió a encontrar la misma clase en inventario. Cada entrega por separado era aceptable (el combobox mejora la UI y el servidor no empeora), pero acumuladas dejaron casi todos los formularios de cuentas con la interfaz como única barrera de `isPostable`, y el peor caso (alta de un activo fijo con un título, irrecuperable desde la app) sigue abierto.
+- **Fix applied**: L-1 pasa a ser el siguiente PR, antes de migrar ningún otro formulario ni abrir otra spec de UI de cuentas (arch-agent + ledger-agent, validando solo los ids que cambian).
+- **Golden rule**: un cambio de contrato en la UI no cierra un hueco del servidor. Si un hallazgo MEDIUM se difiere una vez, se agenda con fecha y dueño; si se vuelve a diferir, el siguiente cambio de la misma clase espera a que se cierre.
+- **Regression test**: pendiente: los de L-1 (título, cuenta eliminada y tipo equivocado rechazados en cada destino de guardado)

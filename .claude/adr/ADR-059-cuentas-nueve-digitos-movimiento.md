@@ -74,6 +74,16 @@ como contrapartida (activo comprado a crédito). **`onlyPostable` NO se retiró:
 (su formulario tiene spec propia). **Hueco que B2 agrava:** el servidor sigue sin validar `isPostable` en la configuración (L-1);
 la auditoría lo clasifica MEDIUM, ver Pendiente.
 
+## SPEC-012 Entrega B3 (2026-10-07): selector buscable en inventario
+
+Mismo contrato que B1 y B2. `inventory/page.tsx` entrega también los títulos; `InventoryItemForm` (alta y edición, con la alerta Q4 al
+editar un ítem físico) y `MovementForm` (contrapartida) usan `AccountCombobox`. La agrupación por tipo (`optgroup`) desaparece: la
+jerarquía y la búsqueda por nombre (p. ej. «Capital») la sustituyen. El filtro de la cuenta de inventario del producto y el de
+`requiresThirdParty` (ADR-054, solo ENTRADA) se aplican únicamente a cuentas de movimiento; los títulos se filtran solo por tipo para
+no perder el encabezado de sus cuentas elegibles. Con B3 quedan migrados todos los selectores de cuenta salvo `IncomeDistributionForm`
+(spec propia). **El servidor sigue sin validar `isPostable` en la configuración (L-1): tres entregas seguidas dejaron la UI como única
+barrera, ver LL-024.**
+
 ## Pendiente (no bloqueante)
 
 - **Importador (M-2, R-6):** el AuditLog `IMPORT` guarda `ipAddress`/`userAgent` en null y los `create` no van en un
@@ -129,3 +139,21 @@ la auditoría lo clasifica MEDIUM, ver Pendiente.
 - (Calidad) supuesto sin comprobar con datos reales: que los títulos hereden el `type` de sus hijas (un filtro por tipo podría
   perder encabezados ancestros); alturas de la lista en `DisposeAssetModal` y en la 3.ª columna de `GLAccountsForm` sin verificar
   en navegador; los tests pesados de `PayrollWizard` rozan el timeout de 5 s bajo carga (valorar un `timeout` explícito).
+- (Auditoría de SPEC-012 B3, **B3-S1 MEDIUM, preexistente**) `createInventoryItem` y `updateInventoryItem`
+  (`InventoryOperationsService.ts:28-40` y `:102-114`) validan `accountId` y `cogsAccountId` solo con `findFirstOrThrow({ id, companyId })`:
+  sin `isPostable`, `deletedAt` ni tipo (ASSET para inventario, EXPENSE para COGS); `postMovement` las usa sin releerlas. Peor caso:
+  un título como cuenta del ítem hace fallar su contabilización en el gate con rollback (recuperable: se edita el ítem y el formulario
+  nuevo avisa); un tipo equivocado o una cuenta eliminada se contabilizan en silencio y se corrigen con un asiento manual. Los ids de
+  títulos ya eran obtenibles con `getAccountsAction` (MEMBER_ANY). Plan: `assertAccountsPostable` con `types` en `createInventoryItem` y
+  `updateInventoryItem` (solo los ids que cambian) y releer ambas cuentas en `postMovement` antes de la primera escritura. ENTRADA ya
+  está bien cubierta (`assertEntradaCounterpart`, al crear el borrador y al contabilizar).
+- (B3-S2, LOW) en SALIDA, AJUSTE y ENTRADA con factura, `counterpartAccountId` solo pasa `assertAccountsBelongToCompany` y se persiste; en AJUSTE
+  `postMovement` la ignora (PA-4). Cuando PA-4 la use, esos borradores la heredarían sin validar: no persistirla fuera de ENTRADA o validarla.
+- (B3-S3, LOW) el AuditLog de ítems guarda solo `sku` y `name`: reencaminar las cuentas de un producto no deja traza (misma clase que B2-S3).
+- (B3-S4, LOW) los `update` de ítems van por `where: { id }` con una comprobación previa de empresa (no explotable): usar `{ id, companyId }`.
+- (B3-S5, B3-S6, B3-S7, INFO) la pestaña Catálogo entrega las cuentas a todos los roles (VIEWER y SENIAT incluidos) aunque no puedan editar;
+  `account.findMany` sin `take` (D-2); `idempotencyKey` de `MovementForm` se genera por envío, no por formulario.
+- (Hallazgo extra, comprobado en parte) `deleteAccountAction` solo cuenta asientos (`journalEntry.count`, `account.actions.ts:456`); no
+  comprueba referencias de ítems de inventario ni de configuración, así que una cuenta sin asientos referenciada por un ítem o por la
+  configuración puede eliminarse. Falta confirmar si hay otro control más abajo.
+- (Decisión de prioridad) L-1 es el siguiente PR, antes de migrar ningún otro formulario o abrir otra spec de UI de cuentas (LL-024).

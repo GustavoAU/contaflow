@@ -1,7 +1,7 @@
 ---
 id: SPEC-012
 titulo: El selector de cuenta busca por código o por nombre y muestra los títulos (sin poder elegirlos)
-estado: EN_CURSO   # Entrega A FUSIONADA (PR #62); Entrega B dividida en B1/B2/B3 (ver §10); Q4 resuelta (alerta y bloquear)
+estado: HECHA   # A (#62), B1 (#66) y B2 (#67) mergeadas; B3 implementada en la rama feat/spec-012b3-selector-cuenta-inventario, pendiente de merge (lo decide el dueño); IncomeDistributionForm queda fuera (spec propia)
 fecha: 2026-10-05
 rama: feat/spec-012-selector-cuenta-buscable
 arbol: "[10]"      # UI / componente React / formulario
@@ -444,6 +444,22 @@ mutantes se ejecutarán en el paso 4 contra el código real. Medido por el test-
    edición y solo si el ítem es físico; en el alta no hay alerta, el campo se ve vacío y no se envía.
 8. El banner de error de `InventoryItemForm` pasa a `role="alert"` (como el de `MovementForm`).
 9. **Fuera de B3:** que `InventoryItemForm` no se limpie tras un alta correcta es preexistente (solo llama a `onSuccess`).
+
+
+**B3 pasos 2-6 HECHOS (2026-10-07). B3 HECHA, pendiente de merge** (rama `feat/spec-012b3-selector-cuenta-inventario`, apilada sobre la del PR #68).
+- **Paso 2 (ui-agent, GREEN):** 4 archivos de producción (`inventory/page.tsx`, `InventoryItemForm`, `InventoryItemList` y `MovementForm`);
+  los 107 rojos pasan a verde y no se editó ningún test. La alerta Q4 va dentro del grupo de cuentas del formulario de ítems; su
+  error de envío es «Selecciona una cuenta de movimiento para: …» (sin la palabra «título» a propósito, para no confundirlo con la
+  alerta). El submit bloqueado por Q4 retorna en silencio (un test lo fija).
+- **Corrección a la decisión 3 de arriba (redacción mía ambigua):** en ENTRADA un valor vacío u obsoleto usa `COUNTERPART_REQUIRED_MESSAGE`;
+  «Seleccione la cuenta de ajuste (contrapartida).» es solo de AJUSTE.
+- **Paso 5 (security-agent): GO** (0 CRITICAL, 0 HIGH). B3-S1 MEDIUM preexistente = L-1 en inventario (ver ADR-059 «Pendiente»); B3-S2, B3-S3,
+  B3-S4 LOW; B3-S5, B3-S6, B3-S7 INFO. El agente recomienda que L-1 vaya antes de migrar ningún otro formulario (LL-024).
+- **Pasos 3-4 (test-agent):** **71 mutantes contra el código real, 71 muertos** (17 sobrevivían a los tests originales y se mataron con
+  27 tests nuevos en 3 archivos), 0 equivalentes, 0 bugs de producción, 0 contradicciones con la spec. Cobertura: `InventoryItemForm`
+  100 % de líneas y 98,9 % de ramas, `MovementForm` 100 % y 97,2 %, `inventory/page` 96,9 % y 85,1 %. Pruebas de B3: 146 tests
+  nuevos (119 del paso 1 y 27 de mutantes) y 15 existentes ampliados o adaptados. Suite completa medida: **7349 tests, 0 fallos**.
+- **Con B3 quedan migrados todos los selectores de cuenta de SPEC-012**; solo `IncomeDistributionForm` sigue con `<select>` (spec propia, ratchet con 1 entrada).
 
 
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
