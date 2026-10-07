@@ -716,8 +716,8 @@ describe("PayrollWizard · paso 3 — el `title` del botón de guardar explica e
   });
 
   it("bloqueado SOLO por cuentas GL duplicadas: «Resuelve el conflicto…»", () => {
-    mount({ initial: VALID_CONFIG });
-    pickByCode(box("ivssPayableAccountId"), LABOR[2].code); // la misma que «INCES Obrero»
+    // IVSS Obrero con la misma cuenta que «INCES Obrero» (LABOR[2]): conflicto desde el primer render.
+    mount({ initial: { ...VALID_CONFIG, ivssPayableAccountId: LABOR[2].id } });
     expect(screen.getByText(/Cuenta GL duplicada/)).toBeTruthy();
     expectNoSavedAccountsAlert();
     expect(saveBtn().getAttribute("title")).toMatch(DUP);
@@ -731,9 +731,57 @@ describe("PayrollWizard · paso 3 — el `title` del botón de guardar explica e
   });
 
   it("sin bloqueo no hay `title` (y corregir el problema lo retira)", () => {
-    mount({ initial: withTitleSaved() });
+    const { refresh } = mount({ initial: withTitleSaved() });
     expect(saveBtn().hasAttribute("title")).toBe(true);
-    pickByCode(box("expenseAccountId"), E_SUELDOS.code);
+    // El título guardado pasa a ser cuenta de movimiento (se refresca el plan): el problema desaparece.
+    refresh({
+      accounts: PLAN.map((a) => (a.id === T_PERSONAL.id ? { ...a, isPostable: true } : a)),
+    });
     expect(saveBtn().hasAttribute("title")).toBe(false);
+    expect(saveBtn().hasAttribute("disabled")).toBe(false);
+  });
+});
+
+// X35/X37/X38 — el placeholder de «sin asignar», el asterisco de los dos campos requeridos para aprobar procesos
+// y el `aria-busy` del botón fiscal no estaban comprobados: los mutantes que los quitaban sobrevivían.
+describe("PayrollWizard · paso 3 — placeholder, asterisco de requeridos y aria-busy (mutantes B2)", () => {
+  it("los 17 campos vacíos muestran el placeholder «Sin asignar — buscar cuenta…»", () => {
+    mount({ initial: BASE_CONFIG });
+    const inputs = expectAccountComboboxes(17, "PayrollWizard paso 3");
+    for (const input of inputs) {
+      expect(input.getAttribute("placeholder")).toBe("Sin asignar — buscar cuenta…");
+    }
+  });
+
+  it("solo «Gasto Sueldos y Salarios» y «Sueldos y Salarios por Pagar (neto)» llevan el asterisco de requerido", () => {
+    mount({ initial: BASE_CONFIG });
+    // Los 17 comboboxes salen en el orden de FIELDS (lo fija el test «los campos aparecen en el orden de siempre»).
+    const marked = expectAccountComboboxes(17, "PayrollWizard paso 3")
+      .map((input, i) => ({
+        key: FIELDS[i].key,
+        star: (input.labels?.[0]?.textContent ?? "").includes("*"),
+      }))
+      .filter((entry) => entry.star)
+      .map((entry) => entry.key);
+    expect(marked).toEqual(["expenseAccountId", "payableAccountId"]);
+  });
+
+  it("«Guardar configuración»: aria-busy=false en reposo; true y deshabilitado mientras guarda; navega al terminar", async () => {
+    let finish!: (value: unknown) => void;
+    savePayrollConfigAction.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    mount({ initial: VALID_CONFIG });
+    expect(saveBtn().getAttribute("aria-busy")).toBe("false");
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(saveBtn().getAttribute("aria-busy")).toBe("true"));
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+    expect(push).not.toHaveBeenCalled();
+    await act(async () => {
+      finish({ success: true, data: VALID_CONFIG });
+    });
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/company/${COMPANY_ID}/payroll`));
   });
 });
