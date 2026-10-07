@@ -2,7 +2,8 @@
 //
 // SPEC-012 (Entrega B2, Q4) — aviso de configuración guardada que ya no se puede usar. Cuando un
 // formulario de configuración (cierre fiscal, Libro Mayor, nómina) guarda una cuenta que ahora es un
-// TÍTULO o que ya no existe, el combobox la muestra vacía e inválida (D1) y este aviso lista los campos
+// TÍTULO, que ya no existe o que es de un tipo que el campo no ofrece, el combobox la muestra vacía e
+// inválida (D1) y este aviso lista los campos
 // afectados. El formulario es quien bloquea el guardado (botón deshabilitado + `submit` que retorna); este
 // componente solo informa: sin botones ni enlaces, el usuario corrige en el propio formulario.
 //
@@ -41,8 +42,8 @@ export function SavedAccountsAlert({ problems, id }: Props) {
         </p>
         <p>
           {single
-            ? "Esta configuración apunta a una cuenta de título (los títulos agrupan cuentas y no se usan para registrar) o a una cuenta que ya no existe. Cámbiala por una cuenta de movimiento para poder guardar:"
-            : "Estas configuraciones apuntan a una cuenta de título (los títulos agrupan cuentas y no se usan para registrar) o a una cuenta que ya no existe. Cámbialas por una cuenta de movimiento para poder guardar:"}
+            ? "Esta configuración apunta a una cuenta de título (los títulos agrupan cuentas y no se usan para registrar), a una cuenta que ya no existe o a una de un tipo que este campo no admite. Cámbiala por una cuenta de movimiento del tipo que pide el campo para poder guardar:"
+            : "Estas configuraciones apuntan a una cuenta de título (los títulos agrupan cuentas y no se usan para registrar), a una cuenta que ya no existe o a una de un tipo que el campo no admite. Cámbialas por una cuenta de movimiento del tipo que pide cada campo para poder guardar:"}
         </p>
         <ul className="list-disc space-y-0.5 pl-5">
           {problems.map((problem) => (

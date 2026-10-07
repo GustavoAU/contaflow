@@ -334,3 +334,14 @@ export function clearField(input: HTMLElement) {
     throw new Error("el campo no tiene el botón «Quitar la cuenta» (¿falta `clearable`?)");
   fireEvent.click(button);
 }
+
+/**
+ * Las props de React de un elemento del DOM (React 19 + jsdom). Permite invocar un manejador que el DOM no
+ * deja alcanzar —p. ej. el `onClick` de un botón `disabled`, que React nunca despacha— para probar la
+ * defensa en profundidad del propio manejador. Úsese dentro de `act(...)`.
+ */
+export function reactPropsOf(el: Element): Record<string, unknown> {
+  const key = Object.keys(el).find((k) => k.startsWith("__reactProps$"));
+  if (!key) throw new Error("el elemento no tiene props de React (¿no está montado por React?)");
+  return (el as unknown as Record<string, Record<string, unknown>>)[key];
+}

@@ -92,6 +92,16 @@ describe("SavedAccountsAlert — con problemas: un role=alert que lo explica", (
     expect(text(screen.getByRole("alert"))).toMatch(/ya no existe|no existe/i);
   });
 
+  // B2-S9: `unselectableSavedAccounts` también marca una cuenta de un TIPO que el campo no ofrece (p. ej. un Pasivo
+  // donde se pide un Activo). Sin mencionarlo, el usuario no sabría por qué su cuenta «válida» se rechaza.
+  it("explica que la cuenta puede ser de un TIPO que el campo no admite (uno y varios)", async () => {
+    for (const problems of [[P1], [P1, P2]]) {
+      const { unmount } = await renderAlert(problems);
+      expect(text(screen.getByRole("alert"))).toMatch(/tipo/i);
+      unmount();
+    }
+  });
+
   it("pide cambiarla por una cuenta de MOVIMIENTO para poder GUARDAR", async () => {
     await renderAlert([P1]);
     const message = text(screen.getByRole("alert"));

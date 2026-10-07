@@ -602,3 +602,132 @@ describe("DisposeAssetModal — Esc y cierre (es un modal propio, sin Radix)", (
     expect(confirmBtn().hasAttribute("disabled")).toBe(false);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SPEC-012 · B2 · paso 4 (cobertura): defensa en profundidad del payload. Una cuenta que ya no es elegible
+// (título o ausente de la lista VIGENTE) NUNCA viaja, ni siquiera cuando `validate()` no la exige: el payload
+// manda `null`. Se llega a ese estado cambiando de motivo/precio (el selector deja de ser obligatorio y se
+// desmonta) y refrescando después la lista de cuentas.
+describe("DisposeAssetModal — una cuenta obsoleta que `validate()` no exige viaja null (defensa en profundidad)", () => {
+  it.each([
+    { cuando: "pasa a ser un TÍTULO", lista: () => withTitle(ACCOUNTS, BANCO_M) },
+    { cuando: "YA NO ESTÁ en la lista", lista: () => without(ACCOUNTS, BANCO_M) },
+  ])(
+    "la cuenta de cobro elegida en la venta y luego obsoleta ($cuando), con el motivo ya cambiado a obsolescencia: proceedsAccountId viaja null",
+    async ({ lista }) => {
+      const { refresh } = mount();
+      setReason("SALE");
+      setProceeds("8000");
+      pickByCode(cobro(), BANCO_M.code);
+      pickByCode(gananciaOPerdida(), GANANCIA.code);
+      setReason("OBSOLETE"); // sin venta ya no se pide cuenta de cobro: el selector se desmonta
+      expect(queryCobro()).toBeNull();
+      refresh({ accounts: lista() });
+      const payload = await confirmOk();
+      expect(payload.proceedsAccountId).toBeNull();
+      expect(payload.saleProceeds).toBe("0.00");
+      expect(payload.gainLossAccountId).toBe(GANANCIA.id); // la otra cuenta sigue vigente y viaja
+    }
+  );
+
+  it.each([
+    { cuando: "pasa a ser un TÍTULO", lista: () => withTitle(ACCOUNTS, PERDIDA) },
+    { cuando: "YA NO ESTÁ en la lista", lista: () => without(ACCOUNTS, PERDIDA) },
+  ])(
+    "la cuenta de pérdida elegida y luego obsoleta ($cuando), con la venta ya al valor en libros (sin ganancia ni pérdida): gainLossAccountId viaja null",
+    async ({ lista }) => {
+      const { refresh } = mount();
+      pickByCode(gananciaOPerdida(), PERDIDA.code);
+      setReason("SALE");
+      setProceeds("6000"); // = valor en libros: ni ganancia ni pérdida, el selector se desmonta
+      pickByCode(cobro(), BANCO_M.code);
+      expect(screen.queryByLabelText(/Cuenta de (ganancia en venta|pérdida en baja)/)).toBeNull();
+      refresh({ accounts: lista() });
+      const payload = await confirmOk();
+      expect(payload.gainLossAccountId).toBeNull();
+      expect(payload.proceedsAccountId).toBe(BANCO_M.id); // la otra cuenta sigue vigente y viaja
+      expect(payload.saleProceeds).toBe("6000.00");
+    }
+  );
+
+  it("las dos a la vez: cobro y pérdida obsoletas, ninguna exigida ⇒ las dos viajan null y la baja se envía", async () => {
+    const { refresh } = mount();
+    setReason("SALE");
+    setProceeds("8000");
+    pickByCode(cobro(), BANCO_M.code);
+    pickByCode(gananciaOPerdida(), GANANCIA.code);
+    setProceeds("6000"); // sin ganancia: el selector de ganancia/pérdida se desmonta, el de cobro sigue
+    expect(cobro().value).toBe(labelOf(BANCO_M));
+    setReason("OBSOLETE");
+    // OBSOLETE con valor en libros 6000 ⇒ pérdida: el selector reaparece con la cuenta de ganancia ya elegida
+    refresh({ accounts: withTitle(withTitle(ACCOUNTS, BANCO_M), GANANCIA) });
+    expect(gananciaOPerdida().value).toBe(""); // la elegida ahora es un título: inválido
+    await confirmBlocked(ERR_PERDIDA); // aquí SÍ se exige (hay pérdida): no se envía
+    pickByCode(gananciaOPerdida(), PERDIDA.code);
+    const payload = await confirmOk();
+    expect(payload.proceedsAccountId).toBeNull();
+    expect(payload.gainLossAccountId).toBe(PERDIDA.id);
+  });
+
+  it("control: con las cuentas vigentes el cobro y la ganancia viajan con su id (no se anulan de más)", async () => {
+    mount();
+    setReason("SALE");
+    setProceeds("8000");
+    pickByCode(cobro(), BANCO_M.code);
+    pickByCode(gananciaOPerdida(), GANANCIA.code);
+    const payload = await confirmOk();
+    expect(payload.proceedsAccountId).toBe(BANCO_M.id);
+    expect(payload.gainLossAccountId).toBe(GANANCIA.id);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// A11y de las ayudas: cada selector se describe con SU texto de ayuda (`aria-describedby` → id del párrafo).
+describe("DisposeAssetModal — cada selector queda descrito por su texto de ayuda", () => {
+  const describedBy = (el: HTMLElement) =>
+    (el.getAttribute("aria-describedby") ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ")
+      .trim();
+
+  it("cuenta de cobro: «Cuenta donde se recibirá el dinero…»", () => {
+    mount();
+    setReason("SALE");
+    setProceeds("8000");
+    expect(describedBy(cobro())).toBe(
+      "Cuenta donde se recibirá el dinero o se registra la CxC del comprador."
+    );
+  });
+
+  it("ganancia: «Tipo REVENUE…»; pérdida: «Tipo EXPENSE…»", () => {
+    mount();
+    expect(describedBy(gananciaOPerdida())).toBe(
+      "Tipo EXPENSE — pérdida por baja o venta bajo valor en libros."
+    );
+    setReason("SALE");
+    setProceeds("8000");
+    expect(describedBy(gananciaOPerdida())).toBe(
+      "Tipo REVENUE — ingreso por venta sobre el valor en libros."
+    );
+  });
+
+  it("gasto del Art. 66: «Tipo EXPENSE — el monto reintegrado…»", () => {
+    mount({ asset: RECENT_ASSET, ivaCF: IVA_CF_ID });
+    expect(describedBy(art66())).toBe(
+      "Tipo EXPENSE — el monto reintegrado se cargará como gasto del período."
+    );
+  });
+
+  it("los tres ids de ayuda son distintos entre sí (no se pisan)", () => {
+    mount({ asset: RECENT_ASSET, ivaCF: IVA_CF_ID });
+    setReason("SALE");
+    setProceeds("8000");
+    const ids = [cobro(), gananciaOPerdida(), art66()].map((el) =>
+      el.getAttribute("aria-describedby")
+    );
+    expect(ids.every((id) => id && document.getElementById(id))).toBe(true);
+    expect(new Set(ids).size).toBe(3);
+  });
+});

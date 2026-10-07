@@ -202,8 +202,10 @@ export function GLAccountsForm({
   const toNull = (key: GLKey) => {
     const value = values[key];
     if (value === "") return null;
-    // Oculto y no elegible → null. Los valores válidos (también los del campo oculto) no se tocan.
-    return visibleKeys.includes(key) || isSet(key) ? value : null;
+    // Oculto: el usuario no lo ve ni puede corregirlo, así que solo se anula lo INSERVIBLE (un título o un id
+    // que ya no existe en el plan). Una cuenta de movimiento válida se conserva aunque sea de otro tipo: anularla
+    // en silencio dejaría el IVA retenido abierto en el asiento de cobro (B2-S2). Los visibles, tal cual.
+    return visibleKeys.includes(key) || isSelectableAccountId(allAccounts, value) ? value : null;
   };
 
   const saleConfigComplete =

@@ -697,3 +697,279 @@ describe("GLAccountsForm — Q4: alerta que BLOQUEA el guardado (valor guardado 
     expectAlertListing(["IVA Crédito Fiscal"], ["Cuentas por Cobrar (CxC)", "Ingresos por Ventas"]);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SPEC-012 · B2 · paso 4 (cobertura): decisión 4 de la sesión principal. «IVA Retenido por Cobrar» solo se
+// muestra a Contribuyentes Especiales: oculto no se puede corregir, no entra en la alerta y, si su valor
+// guardado no es elegible, se guarda como null (un valor válido, también oculto, no se toca). Las insignias
+// y las banderas de configuración completa usan `isSelectableAccountId` (un título NO cuenta).
+
+/** El texto de la insignia de una sección: el último elemento del contenedor del encabezado. */
+const sectionBadge = (heading: string) =>
+  screen.getByText(heading).parentElement?.lastElementChild?.textContent?.trim();
+const causarAhora = () => screen.queryByRole("button", { name: /Causar ahora/ });
+const IVA_RET_LABEL = "IVA Retenido por Cobrar";
+
+describe("GLAccountsForm — decisión 4: «IVA Retenido por Cobrar» OCULTO (no Contribuyente Especial)", () => {
+  it.each([
+    { caso: "una cuenta de TÍTULO", saved: T_COBRANZAS.id },
+    { caso: "un id que ya no existe", saved: "id-de-una-cuenta-eliminada" },
+  ])(
+    "guardado como $caso: sin alerta, el guardado NO se bloquea y viaja null",
+    async ({ saved }) => {
+      mount({ ce: false, config: { ...VALID_CONFIG, ivaRetentionReceivableAccountId: saved } });
+      expect(screen.queryByLabelText(labelRegex(IVA_RET_LABEL))).toBeNull();
+      expectNoSavedAccountsAlert(saveBtn());
+      const payload = await saveOk();
+      expect(payload).toEqual(
+        payloadOf({ ...VALID_CONFIG, ivaRetentionReceivableAccountId: null })
+      );
+    }
+  );
+
+  // B2-S2 (auditoría de seguridad): el campo está oculto, así que el usuario no puede ver ni corregir su valor. Una
+  // cuenta de MOVIMIENTO de otro tipo sí es utilizable (el gate solo mira `isPostable`): anularla en silencio
+  // dejaría el IVA retenido abierto en el asiento de cobro. Solo se anula lo inservible (título o inexistente).
+  it("guardado con una cuenta de movimiento de OTRO tipo (Pasivo): se conserva, no se borra en silencio", async () => {
+    mount({ ce: false, config: { ...VALID_CONFIG, ivaRetentionReceivableAccountId: L_CXP.id } });
+    expect(screen.queryByLabelText(labelRegex(IVA_RET_LABEL))).toBeNull();
+    expectNoSavedAccountsAlert(saveBtn());
+    const payload = await saveOk();
+    expect(payload.ivaRetentionReceivableAccountId).toBe(L_CXP.id);
+    expect(payload).toEqual(
+      payloadOf({ ...VALID_CONFIG, ivaRetentionReceivableAccountId: L_CXP.id })
+    );
+  });
+
+  it("guardado con una cuenta de movimiento VÁLIDA: se conserva sin tocar, aunque el campo no se vea", async () => {
+    mount({ ce: false, config: VALID_CONFIG });
+    expect(screen.queryByLabelText(labelRegex(IVA_RET_LABEL))).toBeNull();
+    expectNoSavedAccountsAlert(saveBtn());
+    const payload = await saveOk();
+    expect(payload.ivaRetentionReceivableAccountId).toBe(A_IVARET.id);
+    expect(payload).toEqual(payloadOf(VALID_CONFIG));
+  });
+
+  it("el campo oculto inválido NO figura en la alerta, pero los visibles con problema SÍ", () => {
+    mount({
+      ce: false,
+      config: {
+        ...VALID_CONFIG,
+        arAccountId: T_COBRANZAS.id,
+        ivaRetentionReceivableAccountId: T_COBRANZAS.id,
+      },
+    });
+    expectAlertListing(["Cuentas por Cobrar (CxC)"], [IVA_RET_LABEL]);
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+  });
+
+  it("un campo visible inválido bloquea aunque el oculto sea válido; arreglarlo envía el oculto intacto", async () => {
+    mount({ ce: false, config: { ...VALID_CONFIG, arAccountId: T_COBRANZAS.id } });
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+    pickByCode(box("arAccountId"), A_CXC.code);
+    const payload = await saveOk();
+    expect(payload).toEqual(payloadOf(VALID_CONFIG));
+  });
+
+  it("Contribuyente Especial con un TÍTULO guardado en ese campo: SÍ alerta, el botón se bloquea y el submit no llama a la acción", async () => {
+    mount({
+      ce: true,
+      config: { ...VALID_CONFIG, ivaRetentionReceivableAccountId: T_COBRANZAS.id },
+    });
+    expectAlertListing([IVA_RET_LABEL], ["Cuentas por Cobrar (CxC)", "IGTF por Pagar"]);
+    expect(box("ivaRetentionReceivableAccountId").value).toBe("");
+    expect(box("ivaRetentionReceivableAccountId").getAttribute("aria-invalid")).toBe("true");
+    expectBlockedByAlert(saveBtn(), IVA_RET_LABEL);
+    fireEvent.submit(form());
+    await flush();
+    expect(saveGLConfigAction).not.toHaveBeenCalled();
+  });
+
+  it("la misma configuración pasa de oculta a bloqueada al volverse Contribuyente Especial, y de vuelta", () => {
+    const { refresh } = mount({
+      ce: false,
+      config: { ...VALID_CONFIG, ivaRetentionReceivableAccountId: T_COBRANZAS.id },
+    });
+    expectNoSavedAccountsAlert(saveBtn());
+    refresh({ ce: true });
+    expectAlertListing([IVA_RET_LABEL]);
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+    refresh({ ce: false });
+    expectNoSavedAccountsAlert(saveBtn());
+  });
+
+  it("Contribuyente Especial: quitar la cuenta del título retira la alerta y se guarda null", async () => {
+    mount({
+      ce: true,
+      config: { ...VALID_CONFIG, ivaRetentionReceivableAccountId: T_COBRANZAS.id },
+    });
+    clearField(box("ivaRetentionReceivableAccountId"));
+    expectNoSavedAccountsAlert(saveBtn());
+    const payload = await saveOk();
+    expect(payload).toEqual(payloadOf({ ...VALID_CONFIG, ivaRetentionReceivableAccountId: null }));
+  });
+});
+
+describe("GLAccountsForm — decisión 4: las insignias «Activo» / «Incompleto» cuentan SOLO cuentas elegibles", () => {
+  const SALE = [
+    { key: "arAccountId", titulo: T_COBRANZAS, etiqueta: "Cuentas por Cobrar (CxC)" },
+    { key: "salesAccountId", titulo: T_INGRESOS, etiqueta: "Ingresos por Ventas" },
+    { key: "ivaDFAccountId", titulo: T_EXIGIBLE, etiqueta: "IVA Débito Fiscal" },
+  ] as const;
+  const PURCHASE = [
+    { key: "inventoryAccountId", titulo: T_ACTIVO, etiqueta: "Inventario de Mercancías" },
+    { key: "apAccountId", titulo: T_PASIVO, etiqueta: "Cuentas por Pagar (CxP)" },
+    { key: "ivaCFAccountId", titulo: T_CORRIENTE, etiqueta: "IVA Crédito Fiscal" },
+  ] as const;
+
+  it.each(SALE)(
+    "Venta: «$etiqueta» guardada como TÍTULO ⇒ «Facturas de Venta» Incompleto y «Compra» sigue Activo",
+    ({ key, titulo }) => {
+      mount({ config: { ...VALID_CONFIG, [key]: titulo.id } });
+      expect(sectionBadge("Facturas de Venta")).toBe("Incompleto");
+      expect(sectionBadge("Facturas de Compra")).toBe("Activo");
+    }
+  );
+
+  it.each(PURCHASE)(
+    "Compra: «$etiqueta» guardada como TÍTULO ⇒ «Facturas de Compra» Incompleto y «Venta» sigue Activo",
+    ({ key, titulo }) => {
+      mount({ config: { ...VALID_CONFIG, [key]: titulo.id } });
+      expect(sectionBadge("Facturas de Compra")).toBe("Incompleto");
+      expect(sectionBadge("Facturas de Venta")).toBe("Activo");
+    }
+  );
+
+  it.each(SALE)("Venta: sin «$etiqueta» (null) basta para que quede Incompleto", ({ key }) => {
+    mount({ config: { ...VALID_CONFIG, [key]: null } });
+    expect(sectionBadge("Facturas de Venta")).toBe("Incompleto");
+    expect(sectionBadge("Facturas de Compra")).toBe("Activo");
+  });
+
+  it.each(PURCHASE)("Compra: sin «$etiqueta» (null) basta para que quede Incompleto", ({ key }) => {
+    mount({ config: { ...VALID_CONFIG, [key]: null } });
+    expect(sectionBadge("Facturas de Compra")).toBe("Incompleto");
+    expect(sectionBadge("Facturas de Venta")).toBe("Activo");
+  });
+
+  it("una cuenta guardada que ya no existe tampoco cuenta; volver a elegirla de movimiento la devuelve a Activo", () => {
+    mount({ config: { ...VALID_CONFIG, arAccountId: "id-de-una-cuenta-eliminada" } });
+    expect(sectionBadge("Facturas de Venta")).toBe("Incompleto");
+    pickByCode(box("arAccountId"), A_CXC.code);
+    expect(sectionBadge("Facturas de Venta")).toBe("Activo");
+  });
+
+  it("una cuenta de movimiento de OTRO tipo guardada en un campo no cuenta como configurada", () => {
+    mount({ config: { ...VALID_CONFIG, ivaDFAccountId: A_CXC.id } });
+    expect(sectionBadge("Facturas de Venta")).toBe("Incompleto");
+  });
+
+  it("«IVA Retenido en Cobros»: válida ⇒ Activo; null, título o inexistente ⇒ «Recomendado»", () => {
+    mount({ ce: true, config: VALID_CONFIG });
+    expect(sectionBadge("IVA Retenido en Cobros")).toBe("Activo");
+    cleanup();
+    for (const saved of [null, T_COBRANZAS.id, "id-eliminado"]) {
+      mount({ ce: true, config: { ...VALID_CONFIG, ivaRetentionReceivableAccountId: saved } });
+      expect(sectionBadge("IVA Retenido en Cobros")).toMatch(
+        /Recomendado — Contribuyente Especial/
+      );
+      cleanup();
+    }
+  });
+
+  it("IGTF — Contribuyente Especial: válida ⇒ Activo y sin «Atención»; null o título ⇒ «Requerido» con la advertencia", () => {
+    mount({ ce: true, config: VALID_CONFIG });
+    expect(sectionBadge("Pagos en Divisas (IGTF)")).toBe("Activo");
+    expect(screen.queryByText("Atención:")).toBeNull();
+    cleanup();
+    for (const saved of [null, T_EXIGIBLE.id, "id-eliminado"]) {
+      mount({ ce: true, config: { ...VALID_CONFIG, igtfPayableAccountId: saved } });
+      expect(sectionBadge("Pagos en Divisas (IGTF)")).toMatch(/Requerido — Contribuyente Especial/);
+      expect(screen.getByText("Atención:")).toBeTruthy();
+      cleanup();
+    }
+  });
+
+  it("IGTF — NO Contribuyente Especial: válida ⇒ Activo; null o título ⇒ «Opcional» y nunca la advertencia", () => {
+    mount({ ce: false, config: VALID_CONFIG });
+    expect(sectionBadge("Pagos en Divisas (IGTF)")).toBe("Activo");
+    cleanup();
+    for (const saved of [null, T_EXIGIBLE.id]) {
+      mount({ ce: false, config: { ...VALID_CONFIG, igtfPayableAccountId: saved } });
+      expect(sectionBadge("Pagos en Divisas (IGTF)")).toBe("Opcional");
+      expect(screen.queryByText("Atención:")).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("Diferencial Cambiario: Activo solo con LAS DOS cuentas elegibles; una sola, un título o ninguna ⇒ Opcional", () => {
+    mount({ config: VALID_CONFIG });
+    expect(sectionBadge("Diferencial Cambiario")).toBe("Activo");
+    cleanup();
+    const casos = [
+      { fxGainAccountId: null },
+      { fxLossAccountId: null },
+      { fxGainAccountId: T_INGRESOS.id },
+      { fxLossAccountId: T_EGRESOS.id },
+      { fxGainAccountId: null, fxLossAccountId: null },
+    ];
+    for (const caso of casos) {
+      mount({ config: { ...VALID_CONFIG, ...caso } });
+      expect(sectionBadge("Diferencial Cambiario")).toBe("Opcional");
+      cleanup();
+    }
+  });
+});
+
+describe("GLAccountsForm — decisión 4: «Causar ahora» depende de la configuración ELEGIBLE (se oculta, no se deshabilita)", () => {
+  it("con venta y compra completas se ofrece", () => {
+    mount({ config: VALID_CONFIG, unbooked: 3 });
+    expect(causarAhora()).toBeTruthy();
+    expect(screen.getByText("3 facturas sin asiento contable")).toBeTruthy();
+  });
+
+  it("basta UNA de las dos configuraciones completas: venta completa y compra con un título ⇒ se ofrece", () => {
+    mount({ config: { ...VALID_CONFIG, apAccountId: T_PASIVO.id }, unbooked: 3 });
+    expect(sectionBadge("Facturas de Compra")).toBe("Incompleto");
+    expect(causarAhora()).toBeTruthy();
+  });
+
+  it("basta UNA de las dos: compra completa y venta vacía ⇒ se ofrece", () => {
+    mount({ config: { ...VALID_CONFIG, arAccountId: null }, unbooked: 3 });
+    expect(causarAhora()).toBeTruthy();
+  });
+
+  it("las DOS incompletas por culpa de TÍTULOS (aunque tengan id guardado) ⇒ no se ofrece", () => {
+    mount({
+      config: { ...VALID_CONFIG, arAccountId: T_COBRANZAS.id, apAccountId: T_PASIVO.id },
+      unbooked: 3,
+    });
+    expect(sectionBadge("Facturas de Venta")).toBe("Incompleto");
+    expect(sectionBadge("Facturas de Compra")).toBe("Incompleto");
+    expect(causarAhora()).toBeNull();
+    expect(screen.queryByText(/sin asiento contable/)).toBeNull();
+  });
+
+  it("sin facturas sin asiento no se ofrece aunque todo esté completo", () => {
+    mount({ config: VALID_CONFIG, unbooked: 0 });
+    expect(causarAhora()).toBeNull();
+  });
+
+  it("con UNA factura sin asiento el texto va en singular", () => {
+    mount({ config: VALID_CONFIG, unbooked: 1 });
+    expect(screen.getByText("1 factura sin asiento contable")).toBeTruthy();
+  });
+
+  // Comportamiento ACTUAL, fijado a propósito: «Causar ahora» causa con la configuración GUARDADA en el servidor
+  // (`postUnbookedInvoicesAction(companyId)` no recibe el estado del formulario), así que la alerta de Q4, que
+  // solo bloquea «Guardar configuración», no lo deshabilita.
+  it("mientras la alerta de Q4 bloquea «Guardar», «Causar ahora» sigue habilitado y llama a la acción con la empresa", async () => {
+    mount({ config: { ...VALID_CONFIG, fxGainAccountId: T_INGRESOS.id }, unbooked: 2 });
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+    const button = causarAhora() as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    await waitFor(() => expect(postUnbookedInvoicesAction).toHaveBeenCalledWith(COMPANY_ID));
+    expect(saveGLConfigAction).not.toHaveBeenCalled();
+  });
+});

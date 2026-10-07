@@ -30,6 +30,7 @@ import {
   accountErrorShown,
   clearButtonOf,
   clearField,
+  describedByText,
   expectAccountComboboxes,
   headerEl,
   labelOf,
@@ -657,5 +658,260 @@ describe("FixedAssetForm — lo que NO cambia", () => {
     openList(counterpart);
     expect(headerEl("PASIVO")).not.toBeNull();
     expect(listedOptionLabels()).toContain(labelOf(L_CXP));
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// SPEC-012 · B2 · paso 4 (cobertura): el mensaje EN LÍNEA bajo el campo inválido («Selecciona una cuenta de
+// movimiento.»), `aria-invalid` + `aria-describedby` hacia ese mensaje, el texto del banner y el `null` de la
+// contrapartida obsoleta. El mensaje solo aparece TRAS un envío rechazado, solo en los campos obligatorios que
+// siguen sin una cuenta elegible y solo si el campo existe (con SOLO títulos se ve el aviso rojo, no el mensaje).
+const A_CAJA = moveAcc("1.1.01.01.001", "Caja Principal", "ASSET");
+const E_OTRO = moveAcc("5.1.01.01.002", "Gasto Papeleria", "EXPENSE");
+const C_DISTINTA = moveAcc("1.3.01.01.003", "Provision Distinta", "CONTRA_ASSET");
+/** Ningún nombre trae palabras clave de `findBestMatch`: los tres obligatorios nacen VACÍOS aun habiendo cuentas elegibles. */
+const NO_DEFAULTS: PlanAccount[] = [
+  T_ACTIVO,
+  A_BANCO,
+  A_CAJA,
+  T_GASTOS,
+  E_ALQUILER,
+  E_OTRO,
+  T_CONTRA,
+  C_OTRA,
+  C_DISTINTA,
+  T_PASIVO,
+  L_CXP,
+];
+const INLINE_ERROR = "Selecciona una cuenta de movimiento.";
+const inlineErrors = () => screen.queryAllByText(INLINE_ERROR);
+const HINT_ASSET = "Tipo ASSET — propiedad, planta y equipo";
+const HINT_EXPENSE = "Tipo EXPENSE — gasto por depreciación";
+const HINT_CONTRA = "Tipo CONTRA_ASSET — depreciación acumulada";
+const bannerText = (labels: string) =>
+  `Selecciona una cuenta de movimiento para: ${labels}. Los títulos del plan no se pueden elegir.`;
+
+async function submitRejected() {
+  fillBase();
+  fillLegalSeniat();
+  fireEvent.click(submitBtn());
+  await flush();
+  expect(createFixedAssetAction).not.toHaveBeenCalled();
+}
+
+describe("FixedAssetForm — el mensaje en línea y el aria-invalid de un obligatorio sin cuenta (paso 4)", () => {
+  it("los tres nacen vacíos (ningún nombre puntúa) y ANTES de enviar no hay mensaje ni aria-invalid; cada uno se describe con su ayuda", () => {
+    const { asset, expense, contra } = mount(NO_DEFAULTS);
+    for (const input of [asset, expense, contra]) {
+      expect(input.value).toBe("");
+      expect(input.getAttribute("aria-invalid")).not.toBe("true");
+    }
+    expect(inlineErrors()).toHaveLength(0);
+    expect(describedByText(asset)).toBe(HINT_ASSET);
+    expect(describedByText(expense)).toBe(HINT_EXPENSE);
+    expect(describedByText(contra)).toBe(HINT_CONTRA);
+  });
+
+  it("un envío rechazado marca los tres: mensaje en línea, aria-invalid y aria-describedby hacia el mensaje; el banner los nombra", async () => {
+    const { asset, expense, contra, counterpart } = mount(NO_DEFAULTS);
+    await submitRejected();
+    expect(inlineErrors()).toHaveLength(3);
+    for (const [input, hint] of [
+      [asset, HINT_ASSET],
+      [expense, HINT_EXPENSE],
+      [contra, HINT_CONTRA],
+    ] as const) {
+      expect(input.getAttribute("aria-invalid")).toBe("true");
+      expect(describedByText(input)).toBe(`${hint} ${INLINE_ERROR}`);
+    }
+    // la contrapartida es opcional: nunca se marca
+    expect(counterpart.getAttribute("aria-invalid")).not.toBe("true");
+    expect(describedByText(counterpart)).not.toContain(INLINE_ERROR);
+    expect(
+      screen.getByText(bannerText("Cuenta del activo, Gasto depreciación, Dep. acumulada"))
+    ).toBeTruthy();
+  });
+
+  it("elegir una cuenta retira SU mensaje y SU aria-invalid, y deja los de los demás campos", async () => {
+    const { asset, expense, contra } = mount(NO_DEFAULTS);
+    await submitRejected();
+    pickByCode(asset, A_BANCO.code);
+    expect(inlineErrors()).toHaveLength(2);
+    expect(asset.getAttribute("aria-invalid")).not.toBe("true");
+    expect(describedByText(asset)).toBe(HINT_ASSET);
+    expect(expense.getAttribute("aria-invalid")).toBe("true");
+    expect(contra.getAttribute("aria-invalid")).toBe("true");
+    // un segundo envío solo nombra lo que falta
+    fireEvent.click(submitBtn());
+    await flush();
+    expect(screen.getByText(bannerText("Gasto depreciación, Dep. acumulada"))).toBeTruthy();
+  });
+
+  it("elegidas las tres, el envío llega a la acción y ya no queda ningún mensaje", async () => {
+    const { asset, expense, contra } = mount(NO_DEFAULTS);
+    await submitRejected();
+    pickByCode(asset, A_BANCO.code);
+    pickByCode(expense, E_ALQUILER.code);
+    pickByCode(contra, C_OTRA.code);
+    expect(inlineErrors()).toHaveLength(0);
+    fireEvent.click(submitBtn());
+    await waitFor(() => expect(createFixedAssetAction).toHaveBeenCalledTimes(1));
+    const payload = vi.mocked(createFixedAssetAction).mock.calls[0][0] as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(payload).toMatchObject({
+      assetAccountId: A_BANCO.id,
+      depreciationAccountId: E_ALQUILER.id,
+      accDepreciationAccountId: C_OTRA.id,
+    });
+  });
+
+  it.each([
+    {
+      vacio: "Cuenta del activo",
+      lista: () => [A_BANCO, A_CAJA, T_ACTIVO, ...EXPENSE_POOL, ...CONTRA_POOL],
+      campo: (c: ReturnType<typeof fourComboboxes>) => c.asset,
+      hint: HINT_ASSET,
+    },
+    {
+      vacio: "Gasto depreciación",
+      lista: () => [...ASSET_POOL, T_GASTOS, E_ALQUILER, E_OTRO, ...CONTRA_POOL],
+      campo: (c: ReturnType<typeof fourComboboxes>) => c.expense,
+      hint: HINT_EXPENSE,
+    },
+    {
+      vacio: "Dep. acumulada",
+      lista: () => [...ASSET_POOL, ...EXPENSE_POOL, T_CONTRA, C_OTRA, C_DISTINTA],
+      campo: (c: ReturnType<typeof fourComboboxes>) => c.contra,
+      hint: HINT_CONTRA,
+    },
+  ])(
+    "solo «$vacio» sin cuenta: ÚNICAMENTE ese campo se marca y el banner nombra solo ese",
+    async ({ vacio, lista, campo, hint }) => {
+      const mounted = mount(lista());
+      expect(campo(mounted).value).toBe("");
+      await submitRejected();
+      expect(inlineErrors()).toHaveLength(1);
+      expect(campo(mounted).getAttribute("aria-invalid")).toBe("true");
+      expect(describedByText(campo(mounted))).toBe(`${hint} ${INLINE_ERROR}`);
+      for (const other of [mounted.asset, mounted.expense, mounted.contra, mounted.counterpart]) {
+        if (other === campo(mounted)) continue;
+        expect(other.getAttribute("aria-invalid")).not.toBe("true");
+        expect(describedByText(other)).not.toContain(INLINE_ERROR);
+      }
+      expect(screen.getByText(bannerText(vacio))).toBeTruthy();
+    }
+  );
+
+  it.each([
+    {
+      campo: "Cuenta del activo",
+      lista: () => [...without(ACCOUNTS, ...ASSET_POOL), T_ACTIVO, T_PPE],
+    },
+    {
+      campo: "Gasto depreciación",
+      lista: () => [...without(ACCOUNTS, ...EXPENSE_POOL), T_GASTOS, T_GASTOS_DEP],
+    },
+    { campo: "Dep. acumulada", lista: () => without(ACCOUNTS, ...CONTRA_POOL) },
+  ])(
+    "«$campo» sin NINGUNA cuenta de movimiento: se ve el aviso del campo, NO el mensaje en línea, y el banner lo nombra",
+    async ({ campo, lista }) => {
+      render(formElement(lista()));
+      fillBase();
+      fillLegalSeniat();
+      fireEvent.click(submitBtn());
+      await flush();
+      expect(createFixedAssetAction).not.toHaveBeenCalled();
+      expect(screen.getByText(/Sin cuentas tipo/)).toBeTruthy();
+      expect(inlineErrors()).toHaveLength(0);
+      expect(screen.getByText(new RegExp(`para: .*${campo.replace(".", "\\.")}`))).toBeTruthy();
+    }
+  );
+
+  it.each([
+    { cuando: "pasa a ser un TÍTULO", lista: () => withTitle(ACCOUNTS, A_COMPUTO) },
+    { cuando: "YA NO ESTÁ en la lista", lista: () => without(ACCOUNTS, A_COMPUTO) },
+  ])(
+    "la cuenta del activo por defecto $cuando tras refrescar: el envío rechazado la marca con el mensaje en línea",
+    async ({ lista }) => {
+      const { asset, expense, refresh } = mount();
+      refresh(lista());
+      await submitRejected();
+      expect(inlineErrors()).toHaveLength(1);
+      expect(describedByText(asset)).toBe(`${HINT_ASSET} ${INLINE_ERROR}`);
+      expect(describedByText(expense)).toBe(HINT_EXPENSE);
+    }
+  );
+
+  it.each([
+    {
+      campo: "Gasto depreciación",
+      lista: () => withTitle(ACCOUNTS, E_DEPRECIACION),
+      el: (c: ReturnType<typeof fourComboboxes>) => c.expense,
+      hint: HINT_EXPENSE,
+    },
+    {
+      campo: "Dep. acumulada",
+      lista: () => without(ACCOUNTS, C_ACUMULADA),
+      el: (c: ReturnType<typeof fourComboboxes>) => c.contra,
+      hint: HINT_CONTRA,
+    },
+  ])(
+    "«$campo» elegida por defecto y luego obsoleta: el envío rechazado la marca con el mensaje en línea",
+    async ({ lista, el, hint }) => {
+      const mounted = mount();
+      mounted.refresh(lista());
+      await submitRejected();
+      expect(inlineErrors()).toHaveLength(1);
+      expect(describedByText(el(mounted))).toBe(`${hint} ${INLINE_ERROR}`);
+    }
+  );
+});
+
+describe("FixedAssetForm — la contrapartida obsoleta viaja null, no su id (paso 4)", () => {
+  it.each([
+    { cuando: "pasa a ser un TÍTULO", lista: () => withTitle(ACCOUNTS, L_CXP) },
+    { cuando: "YA NO ESTÁ en la lista", lista: () => without(ACCOUNTS, L_CXP) },
+  ])(
+    "la contrapartida elegida que $cuando: el activo SE REGISTRA y acquisitionCounterpartAccountId es null",
+    async ({ lista }) => {
+      const { counterpart, refresh } = mount();
+      pickByCode(counterpart, L_CXP.code);
+      refresh(lista());
+      expect(counterpart.value).toBe("");
+      const payload = await submitValid();
+      expect(createFixedAssetAction).toHaveBeenCalledTimes(1);
+      expect(payload.acquisitionCounterpartAccountId).toBeNull();
+      expect(payload.assetAccountId).toBe(A_COMPUTO.id);
+    }
+  );
+
+  it("la contrapartida que coincide con la cuenta del activo recién elegida sale de la lista, se ve vacía y viaja null (lo que se ve es lo que se envía)", async () => {
+    const { asset, counterpart } = mount();
+    pickByCode(counterpart, A_VEHICULO.code);
+    expect(counterpart.value).toBe(labelOf(A_VEHICULO));
+    pickByCode(asset, A_VEHICULO.code);
+    expect(counterpart.value).toBe("");
+    const payload = await submitValid();
+    expect(payload.assetAccountId).toBe(A_VEHICULO.id);
+    expect(payload.acquisitionCounterpartAccountId).toBeNull();
+  });
+
+  it("una contrapartida vigente que NO es la del activo viaja con su id", async () => {
+    const { asset, counterpart } = mount();
+    pickByCode(counterpart, A_BANCO.code);
+    pickByCode(asset, A_VEHICULO.code);
+    expect(counterpart.value).toBe(labelOf(A_BANCO));
+    const payload = await submitValid();
+    expect(payload.acquisitionCounterpartAccountId).toBe(A_BANCO.id);
+  });
+
+  it("la contrapartida usa el placeholder «Sin asiento automático…» y se describe con su ayuda", () => {
+    const { counterpart } = mount();
+    expect(counterpart.getAttribute("placeholder")).toBe(
+      "Sin asiento automático (registrar manualmente)"
+    );
+    expect(describedByText(counterpart)).toMatch(/^Opcional — genera Dr Activos Fijos/);
   });
 });
