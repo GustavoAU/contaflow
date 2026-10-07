@@ -14,7 +14,7 @@ Flujo:
 
 | # | Spec | Qué resuelve | Depende de | Pausas para ti |
 |---|---|---|---|---|
-| 1 | SPEC-014 | Gates de CI que fallan de verdad: Serializable (con detector correcto), `verify:*`, `next build` sin secretos, `migrate diff`, `max-warnings` | SPEC-002 (HECHA, job `integration`) | Sembrar o no el branch para `verify:rls:runtime`; aceptar el reparto de gates entre jobs |
+| 1 | SPEC-014 | Gates de CI que fallan de verdad: Serializable (con detector correcto), `verify:*`, `next build` sin secretos, `migrate diff`, `max-warnings` | SPEC-002 (HECHA, job `integration`) | — (**APROBADA** 2026-10-07: se siembra el branch para `verify:rls:runtime`; reparto de gates aceptado) |
 | 2 | SPEC-019 | Hooks de Claude Code (Bash **y** PowerShell), pre-commit, worktree por sesión, protección de `main` | — | Ruleset de `main` en GitHub |
 | 3 | SPEC-015 | `migrate dev` funcionando y migraciones a producción desde CI con aprobación | SPEC-014 (`db-url.mjs`, acción compuesta, `concurrency`) | Branch shadow en Neon, environment `production-db`, `PRODUCTION_DB_HOST`, salida de `migrate status` de prod |
 | 4 | SPEC-016 | D-3b (anotar `unscoped`), tests en `enforce`, SQL crudo con allowlist, paso a `enforce` | SPEC-002 (usa el job `integration`) | Inventario de Sentry; decisión fail-closed del mapa vacío; decisión sobre fila única; activar `enforce` en Vercel |
@@ -51,7 +51,7 @@ Ninguna spec aplica nada a producción. Estos pasos son tuyos, y cada spec se de
 - [ ] **Local:** `PRODUCTION_DB_HOST` en tu `.env.local` (el guard de scripts operativos falla cerrado sin él). — SPEC-015
 - [ ] **Producción:** correr `prisma migrate status` contra prod y pegar la salida en la spec. — SPEC-015
 - [ ] **Sentry:** eventos `tenant_assert_violation` de los últimos 30 días (puedes pedírselo a Claude con el MCP de Sentry). — SPEC-016
-- [ ] **Decisión:** si un mapa de scope vacío debe tumbar el arranque en `enforce` (recomendado) o seguir degradando en silencio. — SPEC-016
+- [x] **Decisión (por defecto, revertible):** un mapa de scope vacío tumba el arranque solo en `enforce`; en `report` sigue degradando con aviso. — SPEC-016
 - [ ] **Vercel:** `TENANT_ASSERT_MODE=enforce` en Preview y, una semana después, en Production (una variable nueva exige redeploy). — SPEC-016
 - [ ] **Decisiones:** tabla de ADRs, header de versión, versionar o no; crear y empujar el tag si eliges versionar. — SPEC-021
 

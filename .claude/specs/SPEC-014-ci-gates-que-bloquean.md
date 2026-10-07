@@ -1,7 +1,7 @@
 ---
 id: SPEC-014
 titulo: Gates de CI que bloquean de verdad
-estado: BORRADOR
+estado: APROBADA   # aprobada por Gustavo el 2026-10-07 (P-1: sembrar el branch; P-2: reparto de gates aceptado)
 fecha: 2026-10-07
 rama: chore/spec-014-ci-gates-bloqueantes
 arbol: "[11]"
@@ -129,9 +129,9 @@ No aplica.
 - Confirmado con documentación: en Prisma 7 `--from-url`, `--to-url`, `--from-schema-datasource` y `--shadow-database-url` fueron eliminados; se usa `--from-config-datasource` / `--to-config-datasource`. `--exit-code`: 0 = sin diferencias, 1 = error, 2 = hay diferencias (Prisma upgrade guide v7 y blog de `migrate diff`, vía Context7 `/prisma/web`). Los flags `--from-config-datasource`, `--to-schema` y `--from-migrations` aparecen en `prisma migrate diff --help` de 7.8.0.
 - No comprobado: el valor de N de ESLint y si `eslint` linta carpetas con punto; el diff real de `migrate diff` sobre un branch migrado (puede no ser vacío); el pico de memoria de `next build` en el runner.
 
-**Preguntas abiertas para ti:**
-- P-1: `verify:rls:runtime` en CI exige sembrar datos en el branch efímero. ¿Sembramos (recomendado, es la única prueba conductual de la RLS) o lo dejamos manual?
-- P-2: Estos gates nuevos viven en `integration`, que espera tu aprobación del environment `neon-ci` en cada push y se omite en Dependabot, forks y `push`. Por eso `build` y el test de Serializable van en jobs sin environment. ¿Aceptas ese reparto?
+**Preguntas abiertas para ti (ambas RESUELTAS 2026-10-07 al aprobar la spec):**
+- P-1 (RESUELTA: sembrar): `verify:rls:runtime` en CI exige sembrar datos en el branch efímero. El script **sigue saliendo con 1 si no puede verificar nada**: eso es correcto y no se relaja. Un branch recién migrado está vacío por construcción, así que sin siembra el gate estaría siempre en rojo (o habría que omitirlo, que es peor: un gate omitido da un verde falso). La siembra le da algo que verificar sin tocar su lógica.
+- P-2 (RESUELTA: aceptado): Estos gates nuevos viven en `integration`, que espera tu aprobación del environment `neon-ci` en cada push y se omite en Dependabot, forks y `push`. Por eso `build` y el test de Serializable van en jobs sin environment.
 
 **Riesgos:**
 - R-1: `verify:rls:runtime` requiere el rol `authenticated`; la migración `20260406110000` lo crea con `IF NOT EXISTS`, así que en un branch nuevo debería existir. Si no, se reporta y no se fuerza.
