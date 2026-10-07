@@ -387,6 +387,37 @@ el commit fusionado (`30f720d6`) ya tenía el CI en verde (suite completa e Inte
   B2-S6 MEDIUM preexistente = las acciones de activos fijos no capturan IP/UA (R-6) · B2-S3, B2-S4, B2-S5 LOW · B2-S7, B2-S10 INFO.
 
 
+### Estado de ejecución — Entrega B3 (2026-10-07)
+Rama `feat/spec-012b3-selector-cuenta-inventario` (apilada sobre `test/spec-012-b2-mutantes-y-cierre`, PR #68, para no chocar en
+los documentos; SPEC-007 ya está en `main`). **Alcance (2 formularios + 1 página):** `InventoryItemForm` (alta y edición en línea
+desde `InventoryItemList`), `MovementForm` e `inventory/page.tsx`. Hechos comprobados con grep el 2026-10-07: `InventoryItemList`
+solo propaga `accounts` al formulario (no tiene otro selector); la página alimenta a los tres consumidores con las mismas
+consultas; no existen tests de `InventoryItemForm` ni de la página; el test de `MovementForm` es
+`src/modules/inventory/__tests__/MovementForm.test.tsx` (consulta `<select>`/`optgroup`).
+
+**Decisiones de la sesión principal (siguen vigentes las de B1 y B2):**
+1. **Página:** quita `isPostable: true` del `where`; añade `isPostable` al `select` y a los DOS mapeos (`counterpartOptions` y
+   `accountOptions`); conserva `companyId`, `deletedAt: null`, el filtro de tipo (ASSET, EXPENSE, LIABILITY, EQUITY) y
+   `requiresThirdParty` (SPEC-007/ADR-054); `accountOptions` sigue sin Patrimonio. `InventoryItemList` solo cambia el tipo de la prop
+   (`isPostable: boolean` obligatorio).
+2. **`InventoryItemForm`:** los dos selectores (Activo `accountId`, Gasto `cogsAccountId`) pasan a `AccountCombobox` con estado
+   (D6: hoy es `FormData` + `defaultValue`), obligatorios si el ítem es físico, con validación al enviar por `isSelectableAccountId`
+   y sin `required` nativo. En edición, si un valor guardado es un título o ya no existe: alerta Q4 (`SavedAccountsAlert`, rótulos
+   «Cuenta de inventario (Activo)» y «Cuenta de costo de ventas (Gasto)»), botón de guardar deshabilitado y submit que retorna;
+   solo cuando el ítem es físico (los servicios envían `null` y no muestran selectores).
+3. **`MovementForm`:** la contrapartida pasa a `AccountCombobox` con estado (D6: se limpia tras `reset()` y tras un guardado
+   correcto). La lista = las cuentas de los tipos que se ofrecen hoy (ENTRADA: Activo, Pasivo, Patrimonio y Gasto, sin la cuenta de
+   inventario del producto elegido y sin las que exigen tercero; AJUSTE: Activo, Pasivo y Gasto, sin otros filtros) **más los
+   títulos** de esos tipos. Los grupos por tipo (`optgroup`) desaparecen: la jerarquía y la búsqueda por nombre (p. ej. «Capital») los
+   sustituyen. Sin `required` nativo: se valida al enviar con `isSelectableAccountId` tanto en ENTRADA como en AJUSTE (hoy el
+   `required` nativo cubría el AJUSTE). Un valor que deja de ser elegible al cambiar de producto o de tipo (p. ej. Patrimonio al
+   pasar a AJUSTE, o la cuenta de inventario del producto recién elegido) se muestra vacío e inválido (D1) y no se envía. Se
+   conservan los mensajes `COUNTERPART_REQUIRED_MESSAGE` y `COUNTERPART_EMPTY_MESSAGE`; el aviso «no hay cuentas» (RN-19) cuenta
+   solo cuentas de movimiento.
+4. **Ratchet:** salen de `PENDING_MIGRATION` `InventoryItemForm` y `MovementForm`; queda solo `IncomeDistributionForm`.
+5. **Fuera de B3:** validar `isPostable` en el servidor para ítems y movimientos (L-1, PR aparte), y el cableado de `captureNet`.
+
+
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
