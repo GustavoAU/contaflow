@@ -915,3 +915,48 @@ describe("FixedAssetForm — la contrapartida obsoleta viaja null, no su id (pas
     expect(describedByText(counterpart)).toMatch(/^Opcional — genera Dr Activos Fijos/);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Mutantes B2 (test-agent, paso 4). Decisión 1 de la sesión principal: «las cuentas se validan ANTES que la
+// advertencia FC-03». Ningún test fijaba el orden: el mutante que valida las cuentas DESPUÉS de FC-03 sobrevivía.
+describe("FixedAssetForm — las cuentas se validan ANTES que la advertencia FC-03 (mutantes B2)", () => {
+  const FC03 = /Datos SENIAT incompletos/;
+  const ACCOUNT_ERROR = /Selecciona una cuenta de movimiento para: Dep\. acumulada/;
+
+  it("sin cuenta elegible y sin datos SENIAT: sale el error de la cuenta, NO la advertencia FC-03, y la sección legal no se expande", async () => {
+    render(formElement(without(ACCOUNTS, ...CONTRA_POOL)));
+    fillBase(); // sin `fillLegalSeniat`: FC-03 se dispararía si las cuentas no se validaran primero
+    fireEvent.click(submitBtn());
+    await flush();
+    expect(screen.getByText(ACCOUNT_ERROR)).toBeTruthy();
+    expect(screen.queryByText(FC03)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByPlaceholderText("Ej: 00-000123")).toBeNull();
+    expect(createFixedAssetAction).not.toHaveBeenCalled();
+  });
+
+  it("con las tres cuentas elegibles y sin datos SENIAT SÍ sale la advertencia FC-03, y no hay error de cuentas ni se llama a la acción", async () => {
+    mount();
+    fillBase();
+    fireEvent.click(submitBtn());
+    await flush();
+    expect(screen.getByText(FC03)).toBeTruthy();
+    expect(screen.queryByText(/Selecciona una cuenta de movimiento para/)).toBeNull();
+    expect(screen.getByPlaceholderText("Ej: 00-000123")).toBeTruthy();
+    expect(createFixedAssetAction).not.toHaveBeenCalled();
+  });
+
+  it("corregida la cuenta, un nuevo envío sin datos SENIAT pasa por fin a la advertencia FC-03 (el error de cuentas desaparece)", async () => {
+    const utils = render(formElement(without(ACCOUNTS, ...CONTRA_POOL)));
+    fillBase();
+    fireEvent.click(submitBtn());
+    await flush();
+    expect(screen.getByText(ACCOUNT_ERROR)).toBeTruthy();
+    utils.rerender(formElement(ACCOUNTS));
+    pickByCode(screen.getByLabelText(/Dep\. acumulada/) as HTMLInputElement, C_ACUMULADA.code);
+    fireEvent.click(submitBtn());
+    await flush();
+    expect(screen.queryByText(/Selecciona una cuenta de movimiento para/)).toBeNull();
+    expect(screen.getByText(FC03)).toBeTruthy();
+  });
+});
