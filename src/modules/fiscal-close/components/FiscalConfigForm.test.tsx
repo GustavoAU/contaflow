@@ -498,3 +498,38 @@ describe("FiscalConfigForm — Q4: alerta que BLOQUEA el guardado (valor guardad
     expectNoSavedAccountsAlert(saveBtn());
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Mutantes B2 (test-agent, paso 4). El retorno temprano `if (blocked) return;` del submit sobrevivía: la
+// revalidación L-2 que viene después (`isSelectableAccountId`) también impide llamar a la acción, así que
+// «no se llama a la acción» no distingue las dos barreras. Lo que SÍ las distingue es el aviso: con el
+// retorno temprano el submit bloqueado es SILENCIOSO (la alerta de Q4 ya explica el problema); sin él saldría
+// además el toast engañoso «Selecciona ambas cuentas antes de guardar.».
+describe("FiscalConfigForm — el `submit` bloqueado por Q4 retorna EN SILENCIO (mutantes B2)", () => {
+  it.each([
+    {
+      caso: "una cuenta de título guardada",
+      current: { result: T_CAPITAL.id, retained: Q_RETENIDAS.id },
+    },
+    {
+      caso: "una cuenta que ya no existe",
+      current: { result: Q_RESULTADO.id, retained: "no-existe" },
+    },
+    { caso: "las dos con problema", current: { result: T_CAPITAL.id, retained: T_UTILIDADES.id } },
+  ])("$caso: ni acción, ni toast de error, ni toast de éxito", async ({ current }) => {
+    mount(current);
+    fireEvent.submit(form());
+    await flush();
+    expect(updateFiscalConfigAction).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("control: sin problema de Q4 pero con campos vacíos, el submit SÍ avisa con el toast (es otra barrera)", async () => {
+    mount(NONE);
+    fireEvent.submit(form());
+    await flush();
+    expect(updateFiscalConfigAction).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(TOAST_BOTH);
+  });
+});
