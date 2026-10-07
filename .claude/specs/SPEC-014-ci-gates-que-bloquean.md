@@ -1,7 +1,7 @@
 ---
 id: SPEC-014
 titulo: Gates de CI que bloquean de verdad
-estado: APROBADA   # aprobada por Gustavo el 2026-10-07 (P-1: sembrar el branch; P-2: reparto de gates aceptado)
+estado: EN_CURSO   # aprobada por Gustavo el 2026-10-07 (P-1: sembrar el branch; P-2: reparto de gates aceptado)
 fecha: 2026-10-07
 rama: chore/spec-014-ci-gates-bloqueantes
 arbol: "[11]"
@@ -118,6 +118,18 @@ No aplica.
 - [ ] CA-10: `dependabot.yml` ya no ignora majors de `actions/*` ni `softprops`; `ci.yml` ya no contiene el paso inline de coverage.
 
 ## 10. Plan de agentes
+
+Línea base (2026-10-07, `main` 892c5db6): `tsc --noEmit` exit 0 · vitest 7146 tests / 313 archivos, 0 fallos (6 shards: 916, 1209, 1215, 763, 1362, 1681). Plan armado por la sesión principal (`orchestrator-agent` no está disponible como subagente, igual que en SPEC-002). Local: Node 24.16 (CI usa 22), pnpm 11.1.1; la suite se corre en 6 shards por la RAM de la máquina.
+
+| Paso | Agente | Subtarea | TDD |
+|---|---|---|---|
+| 1 | sesión principal | Mediciones sin cambios de código: N de warnings de ESLint en este worktree limpio y si `eslint` linta carpetas con punto (G); confirmar los 5 archivos de correlativos y los 3 falsos positivos del `grep` (B) | no |
+| 2 | test-agent | Tests en RED: `correlativo-serializable.test.ts` (fixtures: llamada dentro de `$transaction` Serializable, dentro de `withSerializableRetry`, fuera, `// ADR-001-EXCEPTION`, y centinela de los 5 archivos reales más los generadores de `RetentionSequence`/`ControlNumberSequence`) y `scripts/__tests__/db-url.test.ts` (los 4 orígenes, ninguno disponible, y con `CI=true` no cae a `DATABASE_URL` ni a `.env.local`) | sí |
+| 3 | sesión principal | GREEN: detector de Serializable (reutiliza `scanSource`), `scripts/lib/db-url.mjs` + `db-url.d.mts`, y los 4 `verify-*.mjs` pasan a usarlo | — |
+| 4 | sesión principal | Workflow, en el orden de la spec: A (triggers, `concurrency` sin cancelar `main`, `permissions`, acción compuesta con `ignore-scripts`), B (borrar el `grep`), E (typography en `architecture`), F (job `build` sin secretos), G (`lint:ci` con el N medido), H (quitar coverage inline), I (dependabot y `version-and-release`), J (`ci-result`). C y D (`migrate diff`, `verify:*` y siembra `scripts/ci/seed-rls-probe.sql`) entran en `integration` primero en modo **informativo** | no |
+| 5 | security-agent | Revisar `ci.yml`, la acción compuesta y `db-url.mjs`: key de Neon solo en los pasos que la usan, `--ignore-scripts` preservado, `build` sin secretos, RN-2 (CI nunca cae a `DATABASE_URL`), `concurrency` sin cancelar `main` | no |
+| 6 | sesión principal | **PAUSA — requiere al usuario:** cada push al PR espera su aprobación del environment `neon-ci`. Primera corrida real de `integration`: leer la salida de `migrate diff` y de `verify:*`; si hace falta, fijar `migrate-diff-baseline.sql`; después endurecer los pasos a bloqueantes | no |
+| 7 | sesión principal | PRs de prueba descartables para CA-1, CA-2, CA-6 y CA-7; gates finales (`tsc`, `vitest`, `lint`, `format:check`, `verify:typography`); sección 12; `estado: HECHA` | no |
 
 ## 11. Riesgos y preguntas abiertas
 **Verificación fase 1 (2026-10-07, contra `origin/main` faca04a6):**
