@@ -22,6 +22,7 @@ import {
   accessibleNames,
   accountComboboxes,
   clearButtonOf,
+  describedByText,
   expectAccountComboboxes,
   expectAlertListing,
   expectBlockedByAlert,
@@ -531,5 +532,41 @@ describe("FiscalConfigForm — el `submit` bloqueado por Q4 retorna EN SILENCIO 
     await flush();
     expect(updateFiscalConfigAction).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalledWith(TOAST_BOTH);
+  });
+});
+
+// El `aria-describedby` hacia el texto de ayuda de cada campo y el `aria-busy` del botón fiscal (guard
+// doble-submit) no estaban comprobados: los mutantes que los quitaban sobrevivían.
+describe("FiscalConfigForm — ayuda enlazada y aria-busy del botón (mutantes B2)", () => {
+  it("cada combobox queda descrito por SU texto de ayuda (distintos entre sí)", () => {
+    mount();
+    const { result, retained } = fields();
+    expect(result.getAttribute("aria-describedby")).toBe("resultAccount-hint");
+    expect(retained.getAttribute("aria-describedby")).toBe("retainedEarningsAccount-hint");
+    expect(describedByText(result)).toMatch(/^Cuenta de Patrimonio donde se acumula el resultado/);
+    expect(describedByText(retained)).toMatch(
+      /^Cuenta de Patrimonio donde se transfiere el resultado/
+    );
+  });
+
+  it("«Guardar configuración»: aria-busy=false en reposo; true y deshabilitado mientras guarda; vuelve a false", async () => {
+    let finish!: (value: unknown) => void;
+    updateFiscalConfigAction.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    mount(VALID);
+    expect(saveBtn().getAttribute("aria-busy")).toBe("false");
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(saveBtn().getAttribute("aria-busy")).toBe("true"));
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+    expect(updateFiscalConfigAction).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish({ success: true, data: undefined });
+    });
+    await waitFor(() => expect(saveBtn().getAttribute("aria-busy")).toBe("false"));
+    expect(saveBtn().hasAttribute("disabled")).toBe(false);
+    expect(toastSuccess).toHaveBeenCalledWith("Configuración contable guardada.");
   });
 });
