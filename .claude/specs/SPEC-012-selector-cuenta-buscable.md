@@ -370,6 +370,23 @@ contra la implementación REAL, no contra la referencia. Hechos del código comp
    filtro por tipo puede perder encabezados ancestros (solo efecto visual, no de seguridad). Revisar al final con datos.
 
 
+**B2 pasos 2-6 HECHOS (2026-10-07). B2 HECHA y MERGEADA (PR #67, merge `faca04a6`).** El merge lo dio el dueño sin querer, pero
+el commit fusionado (`30f720d6`) ya tenía el CI en verde (suite completa e Integration) y la auditoría de seguridad en GO.
+- **Paso 2 (ui-agent, GREEN):** 12 archivos de producción (helper `unselectableSavedAccounts`, `SavedAccountsAlert`, los 6
+  formularios, `FixedAssetFormPanel` y las 3 páginas); los 253 tests en rojo pasan a verde y no se editó ningún test.
+- **Paso 5 (security-agent): GO** (0 CRITICAL, 0 HIGH). Corregidos en B2: **B2-S2** (el campo oculto «IVA Retenido por Cobrar»
+  se anulaba por tipo y borraba en silencio una cuenta de movimiento válida de otro tipo; el test que lo fijaba como correcto se
+  rehízo primero, ver LL-023) y **B2-S9** (el texto de la alerta no mencionaba el tipo).
+- **Pasos 3-4 (test-agent):** **162 mutantes contra el código REAL**: 137 muertos por los tests existentes, 25 sobrevivientes
+  iniciales muertos con 42 tests nuevos, 4 equivalentes justificados (`toNull` con `visibleKeys.includes`, `if (blocked)` del
+  asistente, `if (!inpcAccountValid)` del panel INPC y el `aria-hidden` del icono); 0 bugs de producción. Cobertura de las
+  líneas nuevas de B2: 99,1 % de sentencias y 98,6 % de ramas (helper y alerta 100 %). Esos tests viajan en el PR de seguimiento
+  `test/spec-012-b2-mutantes-y-cierre`. Suite completa medida: **7188 tests, 0 fallos**.
+- **Backlog de B2 (de la auditoría; detalle en ADR-059 «Pendiente»):** B2-S1 MEDIUM = L-1 sube de prioridad (el servidor no valida
+  `isPostable` en la configuración; peor caso: un activo fijo dado de alta con un título no se puede corregir desde la app) ·
+  B2-S6 MEDIUM preexistente = las acciones de activos fijos no capturan IP/UA (R-6) · B2-S3, B2-S4, B2-S5 LOW · B2-S7, B2-S10 INFO.
+
+
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|

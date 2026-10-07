@@ -243,3 +243,14 @@
 - **Fix applied**: el reparto de B1/B2/B3 es por PÁGINA (la página y todos sus formularios migran en la misma entrega) y se añadió un ratchet de arquitectura con lista cerrada de los archivos pendientes.
 - **Golden rule**: al cambiar qué datos entrega una consulta, inventariar TODOS sus consumidores antes de repartir el trabajo; si una consulta cambia de contrato, todos sus consumidores cambian en la misma entrega o el cambio se filtra en el límite.
 - **Regression test**: `src/__tests__/architecture/account-selector-no-native-select.test.ts`
+
+---
+
+## LL-023 — Un test escrito por un agente puede fijar un defecto como si fuera la regla (2026-10-07)
+
+- **Phase detected**: revisión de seguridad de SPEC-012 Entrega B2
+- **Context**: `src/modules/settings/components/GLAccountsForm.tsx` (`toNull`) y su test; campo oculto «IVA Retenido por Cobrar»
+- **Error**: la decisión de producto decía «si el valor guardado no es elegible se guarda como null». El test-agent la tradujo a «no es elegible en la lista de su TIPO» y escribió un caso que exigía `null` para una cuenta de movimiento válida de otro tipo; el ui-agent lo implementó tal cual y los 476 tests pasaron. Nadie lo vio hasta que seguridad leyó el código contra el efecto real: la cuenta se borraba en silencio y el IVA retenido quedaba abierto en el asiento de cobro.
+- **Fix applied**: el test se rehízo primero (rojo: `expected null to be 'm:2.1.01.01.001'`) y `toNull` pasó a comparar contra todo el plan: solo se anula un título o un id que no existe.
+- **Golden rule**: «los tests pasan» solo prueba que el código cumple lo que el test dice. Cuando un mismo flujo de agentes escribe el test y la implementación a partir de una frase de producto ambigua, cada test se relee contra la INTENCIÓN, no contra el código. Y borrar o reemplazar un valor guardado que el usuario no ve exige el criterio más estrecho posible (lo inservible), nunca el de validación del formulario.
+- **Regression test**: `GLAccountsForm.test.tsx` «guardado con una cuenta de movimiento de OTRO tipo (Pasivo): se conserva, no se borra en silencio»; mutante G1 (anular por tipo) comprobado como muerto
