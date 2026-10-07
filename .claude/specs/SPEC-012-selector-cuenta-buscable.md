@@ -418,6 +418,34 @@ consultas; no existen tests de `InventoryItemForm` ni de la página; el test de 
 5. **Fuera de B3:** validar `isPostable` en el servidor para ítems y movimientos (L-1, PR aparte), y el cableado de `captureNet`.
 
 
+**B3 paso 1 HECHO (test-agent, RED; commits `c17c2210`, `46b6d029`, `9ef8bade`):** 119 tests nuevos y 15 existentes ampliados o
+adaptados en 6 archivos; **107 en rojo** (95 nuevos, 10 originales de `MovementForm` adaptados al combobox y 2 del ratchet); tsc 0;
+solo tests y helpers tocados. Los 145 tests de los formularios y la página pasan contra una referencia GREEN descartable. Los
+mutantes se ejecutarán en el paso 4 contra el código real. Medido por el test-agent con la suite completa: 7322 tests, 107 fallan,
+7215 pasan (línea base 7188 pasan).
+
+**Decisiones de la sesión principal sobre las ambigüedades del test-agent (corrigen y completan las anteriores):**
+1. **Corrección a la decisión 1:** la página tiene UN solo mapeo (`accountOptions` se deriva de `counterpartOptions` con
+   `.filter(type !== "EQUITY")`). Basta añadir `isPostable` al `select` y a `counterpartOptions`; `accountOptions` lo hereda.
+2. **Etiquetas de `InventoryItemForm`:** la etiqueta visible pasa a «Cuenta de inventario (Activo)» y «Cuenta de costo de ventas
+   (Gasto)» (iguales a los rótulos de la alerta, como en B2). Las ayudas «(11xx)» y «(51xx)» ya no corresponden al plan de nueve
+   dígitos: pasan a «Solo cuentas de Activo» y «Solo cuentas de Gasto». Se conservan los atributos `name` y que el único `<select>`
+   nativo restante sea el de la alícuota de IVA (`InventoryItemForm`) y los de producto y unidad (`MovementForm`).
+3. **Mensaje de AJUSTE:** `COUNTERPART_REQUIRED_MESSAGE` (Banco, Caja o Capital) queda solo para ENTRADA; AJUSTE y el valor que dejó
+   de ser elegible usan «Seleccione la cuenta de ajuste (contrapartida).».
+4. **Valor que deja de ser elegible:** el id se conserva en el estado y la validez se calcula contra la lista vigente en cada
+   render; si el usuario vuelve a un tipo o producto donde sí es elegible, reaparece (no se limpia).
+5. **Filtros sobre títulos:** el filtro «cuenta de inventario del producto elegido» y el de `requiresThirdParty` se aplican SOLO a
+   cuentas de movimiento; los títulos se filtran únicamente por tipo, para no perder el encabezado de sus cuentas elegibles.
+   (Sin test todavía: el paso 4 lo cubre con mutantes.)
+6. **AJUSTE con la lista vacía:** también muestra un aviso, con texto propio: «No hay cuentas disponibles para la contrapartida. Cree
+   en el Plan de Cuentas una cuenta de movimiento de Gasto (por ejemplo, Mermas).». (Sin test todavía: paso 4.)
+7. **Alerta Q4 de `InventoryItemForm`:** se calcula con los valores ACTUALES (aparece o desaparece si la lista se refresca), solo en
+   edición y solo si el ítem es físico; en el alta no hay alerta, el campo se ve vacío y no se envía.
+8. El banner de error de `InventoryItemForm` pasa a `role="alert"` (como el de `MovementForm`).
+9. **Fuera de B3:** que `InventoryItemForm` no se limpie tras un alta correcta es preexistente (solo llama a `onSuccess`).
+
+
 ### Entrega B — resto de formularios (ver la división B1/B2/B3 arriba)
 | Paso | Agente | Subtarea | TDD |
 |---|---|---|---|
