@@ -87,14 +87,23 @@ export default async function InventoryPage({ params, searchParams }: Props) {
           where: {
             companyId,
             deletedAt: null,
-            isPostable: true,
+            // SPEC-012 B3: sin `isPostable: true` — los formularios reciben también los TÍTULOS para
+            // mostrarlos como encabezados no elegibles en el AccountCombobox.
             // EQUITY solo para la contrapartida de MovementForm (Capital / aporte de
             // socios, SPEC-007). Las cuentas de producto se filtran más abajo.
             type: { in: ["ASSET", "EXPENSE", "LIABILITY", "EQUITY"] },
           },
           // requiresThirdParty (ADR-054): MovementForm no ofrece como contrapartida las cuentas que
           // exigen tercero, porque el movimiento de inventario no lo registra.
-          select: { id: true, code: true, name: true, type: true, requiresThirdParty: true },
+          // isPostable (SPEC-012): sin él el combobox trataría todas las cuentas como títulos.
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            type: true,
+            requiresThirdParty: true,
+            isPostable: true,
+          },
           orderBy: [{ code: "asc" }],
         })
       : Promise.resolve(
@@ -104,6 +113,7 @@ export default async function InventoryPage({ params, searchParams }: Props) {
             name: string;
             type: string;
             requiresThirdParty: boolean;
+            isPostable: boolean;
           }[]
         ),
   ]);
@@ -184,17 +194,20 @@ export default async function InventoryPage({ params, searchParams }: Props) {
     },
   }));
 
-  // Contrapartida del movimiento (MovementForm): incluye EQUITY (SPEC-007).
+  // Contrapartida del movimiento (MovementForm): incluye EQUITY (SPEC-007). Títulos Y cuentas de
+  // movimiento (SPEC-012 B3): el combobox decide qué es elegible por `isPostable`.
   const counterpartOptions = accounts.map((a) => ({
     id: a.id,
     code: a.code,
     name: a.name,
     type: a.type,
     requiresThirdParty: a.requiresThirdParty,
+    isPostable: a.isPostable,
   }));
 
   // Cuentas de producto (InventoryItemForm / InventoryItemList): SIN EQUITY — un
   // producto no puede usar una cuenta de Patrimonio como inventario ni como costo.
+  // Hereda `isPostable` de `counterpartOptions` (un único mapeo).
   const accountOptions = counterpartOptions.filter((a) => a.type !== "EQUITY");
 
   const currentBcvRate = (usdRateMovimientos ?? usdRateValoracion)?.rate?.toString();
