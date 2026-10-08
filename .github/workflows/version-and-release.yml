@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout (con historial completo)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -32,8 +32,11 @@ jobs:
 
       - name: Extraer notas de CHANGELOG.md
         id: changelog
+        # El nombre del tag va por variable de entorno, no interpolado en el script: lo elige
+        # quien empuja el tag y este job tiene `contents: write` (revisión de seguridad SPEC-014).
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION=${{ steps.version.outputs.version }}
           # Eliminar la 'v' del tag para buscar en CHANGELOG (v1.0.0 → 1.0.0)
           VERSION_NUM=${VERSION#v}
 

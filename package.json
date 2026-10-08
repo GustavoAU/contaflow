@@ -7,6 +7,7 @@
     "build": "prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=8192 next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "lint:ci": "eslint --max-warnings=49",
     "test": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest",
     "test:ui": "cross-env NODE_OPTIONS=--max-old-space-size=4096 vitest --ui",
     "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",

@@ -18,25 +18,22 @@ updates:
         dependency-type: "development"
         update-types: ["patch"]
     ignore:
-      # xlsx tiene vulnerabilidad sin fix upstream — migración a exceljs planificada
-      - dependency-name: "xlsx"
-        update-types: ["version-update:semver-patch"]
       # eslint-plugin-react no es compatible con ESLint 10 todavía
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # La acción compuesta local (.github/actions/setup) usa pnpm/action-setup y
+    # actions/setup-node: con `directory: "/"` Dependabot solo mira .github/workflows.
+    directories:
+      - "/"
+      - "/.github/actions/setup"
     schedule:
       interval: "weekly"
       day: "monday"
-    ignore:
-      # v6 no existe para estas actions — latest es v4
-      - dependency-name: "actions/checkout"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "actions/setup-node"
-        update-types: ["version-update:semver-major"]
-      # v3 no existe para softprops/action-gh-release — latest es v2
-      - dependency-name: "softprops/action-gh-release"
-        update-types: ["version-update:semver-major"]
+    # SPEC-014 I: se quitaron los `ignore` de actions/checkout, actions/setup-node y
+    # softprops/action-gh-release. Sus comentarios ("v6 no existe", "latest es v4", "v3 no
+    # existe") eran falsos: el 2026-10-07 las últimas versiones son checkout v7, setup-node
+    # v7 y action-gh-release v3, y ci.yml usa v5. xlsx tampoco es ya una dependencia.
+    # Los majors de actions llegan como PR y pasan por el job `build` y por ci-result.

@@ -1,0 +1,50 @@
+# Acción compuesta: pnpm + Node + dependencias con lockfile congelado (SPEC-014 A).
+#
+# Existe para no repetir el mismo bloque en cada job de ci.yml. Solo está disponible
+# DESPUÉS de `actions/checkout` (una acción local vive en el repo), así que el job
+# `integration` conserva su paso "Verificar secretos" antes del checkout, fuera de ella.
+#
+# RN-6 (SPEC-014): `ignore-scripts: "true"` es obligatorio en todo job que tenga secretos
+# de infraestructura (hoy `integration`, con la key de Neon; SPEC-002, revisión de
+# seguridad): el código de instalación de las dependencias no debe correr ahí.
+# Con scripts ignorados no corre el `postinstall` (`prisma generate`): el job lo llama aparte.
+name: Setup ContaFlow
+description: Instala pnpm, Node y las dependencias (pnpm install --frozen-lockfile)
+
+inputs:
+  node-version:
+    description: Versión de Node.js
+    required: false
+    default: "22"
+  ignore-scripts:
+    description: 'Usar --ignore-scripts en la instalación ("true" para jobs con secretos de infraestructura)'
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 11.1.1
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v5
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    - name: Instalar dependencias
+      shell: bash
+      # El input va por variable de entorno, no interpolado en el script.
+      env:
+        IGNORE_SCRIPTS: ${{ inputs.ignore-scripts }}
+      # Falla SEGURO (revisión de seguridad de SPEC-014, L-4): solo el valor exacto "false"
+      # instala CON scripts. Cualquier otro ("true", "True", "yes", un typo) instala sin ellos.
+      run: |
+        if [ "$IGNORE_SCRIPTS" = "false" ]; then
+          pnpm install --frozen-lockfile
+        else
+          pnpm install --frozen-lockfile --ignore-scripts
+        fi

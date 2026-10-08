@@ -9,19 +9,16 @@
 //
 // Exit 0 = cobertura completa; exit 1 = hay tablas sin RLS (las lista).
 import { neon } from "@neondatabase/serverless";
-import { readFileSync } from "node:fs";
+import { resolveDatabaseUrl } from "./lib/db-url.mjs";
 
 // Tablas SIN tenant, exentas por diseño (documentadas en ADR-007-addendum):
 //  - User: identidad global (Clerk), consultada por clerkId como owner.
 //  - _prisma_migrations: bookkeeping de Prisma.
 const EXEMPT = new Set(["User", "_prisma_migrations"]);
 
-const env = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
-const line = env.split(/\r?\n/).find((l) => l.startsWith("DATABASE_URL="));
-if (!line) throw new Error("DATABASE_URL no encontrada en .env.local");
-let url = line.slice("DATABASE_URL=".length).trim();
-if (url.startsWith('"') && url.endsWith('"')) url = url.slice(1, -1);
-const sql = neon(url);
+// SPEC-014 D: la URL sale de scripts/lib/db-url.mjs (en CI exige DATABASE_URL_TEST y no
+// cae a .env.local ni a DATABASE_URL).
+const sql = neon(resolveDatabaseUrl());
 
 const rows = await sql.query(`
   SELECT c.relname AS table,
