@@ -851,6 +851,8 @@ model IvaRetentionSequence {
   company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   lastNumber Int      @default(0)
   updatedAt  DateTime @updatedAt
+
+  @@index([lastNumber])
 }
 
 // ADR-051: correlativo del comprobante de retención de ISLR (Decreto 1808) —
