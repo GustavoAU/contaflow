@@ -9,6 +9,11 @@
 -- IDEMPOTENTE (IF [NOT] EXISTS) y sin tocar datos: se puede aplicar dos veces. En produccion los
 -- tres DROP de la seccion 4 son no-ops (los objetos no existen; verificado el 2026-10-08).
 
+-- Seguridad al aplicarla a mano en produccion: si otra transaccion tiene bloqueada una de estas
+-- tablas, esperar a lo sumo 5 s y FALLAR en voz alta en lugar de hacer cola detras de ella y
+-- bloquear a los demas. Reintentar es seguro (todo es idempotente). Aplicar en una hora tranquila.
+SET lock_timeout = '5s';
+
 -- 1. Indice que schema.prisma declara (Account.isPostable, ADR-053) y ninguna migracion creo.
 CREATE INDEX IF NOT EXISTS "Account_companyId_isPostable_idx" ON "Account" ("companyId", "isPostable");
 
