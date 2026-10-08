@@ -23,6 +23,8 @@ Flujo:
 | 7 | SPEC-020 | Specs validadas (`check:specs`), estado derivado con `pnpm estado` | — | — |
 | 8 | SPEC-021 | ADRs renumerados y normalizados, `docs/` archivado, una sola versión | SPEC-020 | Tabla de ADRs, header de versión, versionar sí/no |
 
+**Añadida durante la implementación:** SPEC-022 (reconciliar la deriva entre `schema.prisma` y las migraciones) nació del primer `migrate diff` real de SPEC-014 y descubrió que una base reconstruida difiere de producción por el orden de tres migraciones. Depende de SPEC-014 (HECHA); su verificación previa en producción es de solo lectura y la hace el usuario.
+
 Por qué este orden:
 - Primero los gates (014) y los guardarraíles (019), para que **todo lo demás** ya pase por ellos.
 - Después los dos riesgos de producción: migraciones (015) y aislamiento (016).
