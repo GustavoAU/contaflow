@@ -171,6 +171,24 @@ export function ciViolations(ci: string): string[] {
   // Nunca pull_request_target.
   if (/\bpull_request_target\b/.test(ci)) out.push("el workflow usa pull_request_target");
 
+  // Ningún paso en modo informativo (revisión de seguridad de SPEC-014, M-1): con
+  // `continue-on-error: true` un paso fallido deja el job en verde Y la API de GitHub lo muestra
+  // como "success"; en la primera corrida real `migrate diff` devolvió exit 2 y figuraba en
+  // verde. Un gate que no falla no existe (SPEC-014 RN-1).
+  const informative = ci
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l) && /continue-on-error:\s*true/.test(l));
+  if (informative.length > 0) {
+    out.push(
+      `hay ${informative.length} línea(s) con continue-on-error: true (los gates no pueden ser informativos)`
+    );
+  }
+
+  // El chequeo schema <-> migraciones compara contra la línea base versionada.
+  if (!ci.includes("scripts/ci/migrate-diff-baseline.sql")) {
+    out.push("el paso de migrate diff no compara contra scripts/ci/migrate-diff-baseline.sql");
+  }
+
   // concurrency: cancelar solo en PRs.
   if (!/cancel-in-progress:\s*\$\{\{\s*github\.event_name == 'pull_request'\s*\}\}/.test(ci)) {
     out.push("cancel-in-progress debe ser `${{ github.event_name == 'pull_request' }}`");
@@ -242,6 +260,19 @@ describe("Architecture: invariantes de seguridad del workflow de CI (ci.yml)", (
   it("la acción compuesta de setup falla seguro", () => {
     expect(actionViolations(read(SETUP_ACTION))).toEqual([]);
   });
+
+  it("la línea base de migrate diff existe y solo contiene sentencias de Prisma", () => {
+    const baseline = read(path.join(ROOT, "scripts", "ci", "migrate-diff-baseline.sql"));
+    // No vacía: si algún día la deriva se resuelve del todo, se borra el archivo Y esta
+    // comprobación junto con el paso (y el paso pasa a exigir un diff vacío).
+    expect(baseline.trim().length).toBeGreaterThan(0);
+    const statements = baseline.split("\n").filter((l) => l.trim() !== "" && !l.startsWith("-- "));
+    for (const s of statements) {
+      expect(s, "la línea base solo debe tener SQL de Prisma").toMatch(
+        /^(ALTER|DROP|CREATE|ADD)\b/
+      );
+    }
+  });
 });
 
 // ─── El guard puede FALLAR: mutaciones sobre el ci.yml real (en memoria) ──────
@@ -264,10 +295,10 @@ describe("Architecture: las invariantes detectan su violación (mutaciones sobre
 
   it("la key de Neon en un paso no permitido (migrate diff)", () => {
     const v = mutate(
-      '      - name: "Schema ↔ migraciones (prisma migrate diff)"\n',
-      '      - name: "Schema ↔ migraciones (prisma migrate diff)"\n        env:\n          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}\n'
+      '      - name: "Schema ↔ migraciones (prisma migrate diff contra la línea base)"\n',
+      '      - name: "Schema ↔ migraciones (prisma migrate diff contra la línea base)"\n        env:\n          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}\n'
     );
-    expect(v.join("\n")).toMatch(/migrate diff\)" de integration recibe secrets\.NEON_/);
+    expect(v.join("\n")).toMatch(/línea base\)" de integration recibe secrets\.NEON_/);
   });
 
   it("la key de Neon en otro job", () => {
@@ -310,6 +341,19 @@ describe("Architecture: las invariantes detectan su violación (mutaciones sobre
       "      NODE_ENV: test\n      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}\n"
     );
     expect(v.join("\n")).toMatch(/"test" pone secrets/);
+  });
+
+  it("un paso en modo informativo (continue-on-error: true)", () => {
+    const v = mutate(
+      '      - name: "verify:enum-drift"\n',
+      '      - name: "verify:enum-drift"\n        continue-on-error: true\n'
+    );
+    expect(v.join("\n")).toMatch(/continue-on-error: true/);
+  });
+
+  it("migrate diff sin comparar contra la línea base", () => {
+    const v = mutate(/scripts\/ci\/migrate-diff-baseline\.sql/g, "scripts/ci/otra-cosa.sql");
+    expect(v.join("\n")).toMatch(/migrate-diff-baseline\.sql/);
   });
 
   it("pull_request_target", () => {

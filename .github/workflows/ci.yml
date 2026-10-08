@@ -361,17 +361,21 @@ jobs:
 
       # SPEC-014 C: compara la BD que resulta de aplicar TODAS las migraciones con
       # schema.prisma. Reemplaza al antiguo chequeo "schema ↔ migraciones", que daba verde si
-      # cambiaba cualquier línea de cualquier migración. Código de salida: 0 = igual,
-      # 1 = error, 2 = hay diferencias. El datasource sale de prisma.config.ts
+      # cambiaba cualquier línea de cualquier migración. El datasource sale de prisma.config.ts
       # (DATABASE_URL_DIRECT, exportado por ci-neon-branch.mjs).
       #
-      # TEMPORAL (SPEC-014 paso 6): `continue-on-error` hasta la primera corrida real, que dice
-      # si Prisma ve diferencias por objetos que no modela (índices parciales, trigger de
-      # cuadre, RLS, CHECK). Después se quita y, si hace falta, se fija una línea base.
-      - name: "Schema ↔ migraciones (prisma migrate diff)"
+      # LÍNEA BASE: la primera corrida real (2026-10-08) mostró que el diff NO está vacío: hay
+      # deriva REAL, anterior a esta spec, entre schema.prisma y lo que dejan las migraciones
+      # (FKs, índices, una columna huérfana, un NOT NULL que el schema dice opcional…). Esa
+      # deriva está registrada en scripts/ci/migrate-diff-baseline.sql. El job falla ante CUALQUIER
+      # cambio respecto a esa línea base:
+      #   · diferencia NUEVA  -> se cambió schema.prisma sin migración (o al revés): crea la migración;
+      #   · diferencia que DESAPARECE -> se resolvió deriva: borra esas sentencias de la línea base.
+      # La línea base solo puede ENCOGERSE. No se acepta una diferencia nueva añadiéndola a ella.
+      - name: "Schema ↔ migraciones (prisma migrate diff contra la línea base)"
         if: steps.gate.outputs.enabled == 'true'
-        continue-on-error: true
         run: |
+          # exit del diff: 0 = vacío, 2 = hay diferencias, otro = error de Prisma.
           set +e
           pnpm prisma migrate diff \
             --from-config-datasource \
@@ -380,43 +384,41 @@ jobs:
             --script > "$RUNNER_TEMP/migrate-diff.sql"
           code=$?
           set -e
-          if [ "$code" -eq 0 ]; then
-            echo "OK: la BD migrada coincide con schema.prisma"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then
+            echo "::error::prisma migrate diff terminó con error (exit $code)"
+            exit "$code"
+          fi
+          touch "$RUNNER_TEMP/migrate-diff.sql"
+          if diff -u --strip-trailing-cr --ignore-blank-lines \
+               scripts/ci/migrate-diff-baseline.sql "$RUNNER_TEMP/migrate-diff.sql"; then
+            echo "OK: el diff entre las migraciones y schema.prisma coincide con la línea base"
             exit 0
           fi
-          echo "::group::SQL que llevaría la BD migrada a schema.prisma (exit $code)"
-          cat "$RUNNER_TEMP/migrate-diff.sql"
-          echo "::endgroup::"
-          echo "::error::migrate diff devolvió $code (2 = hay diferencias entre las migraciones y schema.prisma)"
-          exit "$code"
+          echo "::error::El diff entre las migraciones y schema.prisma cambió respecto a scripts/ci/migrate-diff-baseline.sql. Líneas con '+' = diferencia NUEVA (¿schema.prisma sin migración?). Líneas con '-' = deriva resuelta (borra esas sentencias de la línea base)."
+          exit 1
 
       # SPEC-014 D: siembra mínima SOLO en este branch efímero. verify:rls:runtime necesita
       # filas de 2+ empresas y sale con 1 si no puede verificar nada (ADR-044 D-8.3).
       - name: Sembrar sonda de RLS (branch efímero)
         if: steps.gate.outputs.enabled == 'true'
-        continue-on-error: true
         run: pnpm prisma db execute --file scripts/ci/seed-rls-probe.sql
 
       # SPEC-014 D: los 4 verify:* con BD contra el branch efímero. scripts/lib/db-url.mjs
       # exige DATABASE_URL_TEST en CI y nunca cae a DATABASE_URL ni a .env.local (RN-2).
       - name: "verify:rls (estructural)"
         if: steps.gate.outputs.enabled == 'true'
-        continue-on-error: true
         run: pnpm verify:rls
 
       - name: "verify:rls:runtime (conductual)"
         if: steps.gate.outputs.enabled == 'true'
-        continue-on-error: true
         run: pnpm verify:rls:runtime
 
       - name: "verify:drift (índices y constraints)"
         if: steps.gate.outputs.enabled == 'true'
-        continue-on-error: true
         run: pnpm verify:drift
 
       - name: "verify:enum-drift"
         if: steps.gate.outputs.enabled == 'true'
-        continue-on-error: true
         run: pnpm verify:enum-drift
 
       - name: Tests de integración
