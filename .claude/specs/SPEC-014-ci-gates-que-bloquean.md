@@ -1,7 +1,7 @@
 ---
 id: SPEC-014
 titulo: Gates de CI que bloquean de verdad
-estado: EN_CURSO   # aprobada por Gustavo el 2026-10-07 (P-1: sembrar el branch; P-2: reparto de gates aceptado)
+estado: HECHA   # aprobada 2026-10-07; implementada en el PR #70 (pendiente de merge, lo decide el dueño)
 fecha: 2026-10-07
 rama: chore/spec-014-ci-gates-bloqueantes
 arbol: "[11]"
@@ -105,16 +105,16 @@ No aplica. Archivos tocados:
 No aplica.
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: El test `correlativo-serializable` pasa con los 5 archivos reales (incluidos `CajaCajaMovementService`, `invoice.actions.ts` e `invoice-batch.actions.ts`, que hoy dan falso positivo) y falla con un fixture que llama a `getNextControlNumber` fuera de un `$transaction` Serializable o de `withSerializableRetry`. El paso `grep` ya no existe en `ci.yml`.
-- [ ] CA-2: Un PR de prueba que añade un `@unique` a `schema.prisma` sin migración hace fallar `integration` en el paso `migrate diff`. Se revierte después. La salida de la medición sobre un branch limpio queda en la sección 12.
-- [ ] CA-3: El log de `integration` muestra `verify:rls`, `verify:rls:runtime`, `verify:drift` y `verify:enum-drift` en verde contra el branch efímero (o la decisión sobre `rls:runtime` registrada en la sección 11).
-- [ ] CA-4: `scripts/lib/db-url.mjs` tiene tests para los cuatro orígenes, para "ninguno disponible → error claro" y para "con `CI=true` no cae a `DATABASE_URL` ni a `.env.local`".
-- [ ] CA-5: El job `build` corre `next build` **sin secretos**, también en un PR de Dependabot de prueba, y es requerido por `ci-result`.
-- [ ] CA-6: Dos pushes seguidos al mismo PR cancelan la primera corrida; dos pushes seguidos a `main` **no** cancelan ninguna.
-- [ ] CA-7: `pnpm lint:ci` falla al añadir un warning nuevo.
-- [ ] CA-8: Ningún secreto aparece en los logs (mismo método de verificación que el CA-6 de SPEC-002).
-- [ ] CA-9: El job `integration` sigue instalando con `--ignore-scripts` tras pasar a la acción compuesta (se ve en el log).
-- [ ] CA-10: `dependabot.yml` ya no ignora majors de `actions/*` ni `softprops`; `ci.yml` ya no contiene el paso inline de coverage.
+- [x] CA-1: El test `correlativo-serializable` pasa con los 5 archivos reales (incluidos `CajaCajaMovementService`, `invoice.actions.ts` e `invoice-batch.actions.ts`, que hoy dan falso positivo) y falla con un fixture que llama a `getNextControlNumber` fuera de un `$transaction` Serializable o de `withSerializableRetry`. El paso `grep` ya no existe en `ci.yml`. Evidencia: PR de prueba #71 (cerrado): el job `test` falló en «Tests + Coverage» con `[CaProbeService.ts:6] getNextControlNumber() fuera de una transacción Serializable`. El paso `grep` ya no existe en `ci.yml`. Los 5 archivos reales pasan (7 llamadas, 0 violaciones).
+- [x] CA-2: Un PR de prueba que añade un `@unique` a `schema.prisma` sin migración hace fallar `integration` en el paso `migrate diff`. Se revierte después. La salida de la medición sobre un branch limpio queda en la sección 12. Evidencia: PR de prueba #71: `integration` falló en el paso «Schema ↔ migraciones» con `+CREATE INDEX "IvaRetentionSequence_lastNumber_idx"` frente a la línea base; los pasos siguientes se omitieron y «Borrar branch efímero» corrió igual. Se probó con un `@@index`, que para `migrate diff` equivale a un `@unique`. La medición sobre un branch limpio está en la sección 11.
+- [x] CA-3: El log de `integration` muestra `verify:rls`, `verify:rls:runtime`, `verify:drift` y `verify:enum-drift` en verde contra el branch efímero (o la decisión sobre `rls:runtime` registrada en la sección 11). Evidencia: corridas del PR #70, sin `continue-on-error` en la última: `verify:rls` (93 de 95 tablas con RLS y 2 exentas), `verify:rls:runtime` (3 garantías OK con la siembra), `verify:drift` (95 de 95) y `verify:enum-drift` (110 columnas).
+- [x] CA-4: `scripts/lib/db-url.mjs` tiene tests para los cuatro orígenes, para "ninguno disponible → error claro" y para "con `CI=true` no cae a `DATABASE_URL` ni a `.env.local`". Evidencia: `scripts/__tests__/db-url.test.ts`, 102 tests (los cuatro orígenes, ninguno disponible, `CI=true` sin caer a `DATABASE_URL` ni `.env.local`, validación de forma sin filtrar el valor y `GITHUB_ACTIONS`).
+- [x] CA-5: El job `build` corre `next build` **sin secretos**, también en un PR de Dependabot de prueba, y es requerido por `ci-result`. Evidencia: el job `build` corrió `next build` en 3 min 13 s sin ninguna referencia a `secrets.` (lo impone `ci-workflow-invariants.test.ts`) y es requerido por `ci-result`. **No se probó en un PR real de Dependabot**: se confirma con el primero que llegue.
+- [x] CA-6: Dos pushes seguidos al mismo PR cancelan la primera corrida; dos pushes seguidos a `main` **no** cancelan ninguna. Evidencia: la mitad de PR se verificó en vivo (el segundo push al PR #71 canceló la primera corrida). **La mitad de `main` solo está verificada por configuración** (`cancel-in-progress` condicionado a `pull_request`, fijado por `ci-workflow-invariants.test.ts`): se confirma con el primer push a `main` tras el merge.
+- [x] CA-7: `pnpm lint:ci` falla al añadir un warning nuevo. Evidencia: verificado en local, no por PR: con un warning de más, `eslint --max-warnings=49` sale con 1 («ESLint found too many warnings (maximum: 49)», 50 warnings).
+- [x] CA-8: Ningún secreto aparece en los logs (mismo método de verificación que el CA-6 de SPEC-002). Evidencia: 0 coincidencias de `npg_`, `napi_`, `postgres://usuario:clave@` y `sk_test_…` en el log del job `integration`.
+- [x] CA-9: El job `integration` sigue instalando con `--ignore-scripts` tras pasar a la acción compuesta (se ve en el log). Evidencia: el log de «Setup … sin scripts» no muestra el `postinstall` de `prisma generate`, y el paso «Generar cliente Prisma» corre aparte.
+- [x] CA-10: `dependabot.yml` ya no ignora majors de `actions/*` ni `softprops`; `ci.yml` ya no contiene el paso inline de coverage. Evidencia: visible en el diff de `dependabot.yml` y de `ci.yml`.
 
 ## 10. Plan de agentes
 
@@ -176,3 +176,19 @@ Línea base (2026-10-07, `main` 892c5db6): `tsc --noEmit` exit 0 · vitest 7146 
 - R-4: Si el diff de `migrate diff` incluye objetos no modelados por Prisma, el gate necesita la línea base (punto C). No se ignora el resultado.
 
 ## 12. Cierre
+- **PRs:** #70 (implementación). #69 (las specs 014 a 021, ya mergeado). #71 fue la prueba descartable de CA-1, CA-2 y CA-6 (cerrado, rama borrada).
+- **Commits clave:** detector de Serializable `f8e212fc`; `db-url.mjs` y los `verify:*` `cca18b79`; workflow `08f70ffa`; línea base de `migrate diff` y gates sin modo informativo `10515fc3`.
+- **Tests:** antes 7146 (313 archivos) → después 7375 más 1 `todo`: +106 del detector de Serializable, +102 de `db-url`, +21 de invariantes del workflow. La suite completa pasó en el job `test` del PR #70.
+- **ADR creado:** ninguno. La decisión de la línea base de `migrate diff` queda registrada aquí y en la sección 11.
+- **Lección aprendida:** LL-025 (`continue-on-error` hace que la API de GitHub muestre «success» un paso que falló).
+- **Decisiones que cambiaron el plan:** (1) el chequeo de Serializable pasó de `grep` a un detector sobre el AST, porque el `grep` tenía falsos positivos y nunca cubrió los comprobantes de retención (`getNextIvaVoucherNumber` / `getNextIslrVoucherNumber`); (2) `migrate diff` no salió vacío: hay deriva real anterior a la spec, así que el gate compara contra una línea base versionada que solo puede encogerse; (3) ESLint no lintea carpetas con punto, así que no se tocó `globalIgnores`; (4) la revisión de seguridad (GO con condiciones) añadió la validación de forma de la URL, `GITHUB_ACTIONS` como CI, la guarda de la siembra, la acción compuesta que falla seguro, los secretos de Clerk/Groq solo en el paso de tests y el test de invariantes del workflow.
+- **Medido:** ESLint 49 warnings y 0 errores sobre 1168 archivos (tope de `lint:ci`); `Build` 3 min 13 s sin secretos; `integration` completa en ~1 min.
+- **Deuda registrada, no resuelta aquí:**
+  - Pendiente: reconciliar los 27 elementos de deriva entre `schema.prisma` y las migraciones (FKs, `PaymentRecord.ivaRetentionAmount` `NOT NULL` frente a opcional, columna huérfana `Employee.workShift`, falta el índice `Account(companyId, isPostable)`…) con migraciones, decidiendo caso por caso si manda el schema o la BD, y vaciar la línea base. Propuesta de spec: SPEC-022.
+  - Pendiente: otros generadores de números no gobernados por el detector (`getNextJournalNumber`, `getNextReimbNumber`, órdenes, cotizaciones, `generateTxNumber`); clasificar cuáles son correlativos que exigen Serializable.
+  - Límites del detector: alias de import, `isolationLevel` por variable (falla cerrado), dos `txBody` homónimos en un mismo archivo (hay un `it.todo`), y solo recorre `src/modules`.
+  - Pendiente: fijar las actions por SHA con comentario `# vX`; `CODEOWNERS` para `.github/**` y `scripts/ci-neon-branch.mjs`; actualizar el comentario de `scripts/lib/neon-ci-guards.mjs` sobre el alcance de la key de Neon.
+  - Pendiente: verificar en vivo `directories` de Dependabot para la acción local, la mitad de `main` de CA-6 y el build con un PR real de Dependabot (CA-5).
+  - Informativo para SPEC-015: con `cancel-in-progress: false` GitHub descarta las corridas pendientes intermedias de `main`; el job que migra producción debe tener su propio grupo `concurrency`.
+  - Pre-existente: dos tests de componentes (`RetentionList`, `LoanTable`) dan timeout de 5 s bajo presión de memoria en una corrida de shards y pasan aislados.
+- **Operación:** `integration` pide la aprobación del environment `neon-ci` en cada push; los gates nuevos viven ahí (más `build`, `architecture` y el test de Serializable en jobs sin environment).

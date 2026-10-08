@@ -243,3 +243,14 @@
 - **Fix applied**: el reparto de B1/B2/B3 es por PÁGINA (la página y todos sus formularios migran en la misma entrega) y se añadió un ratchet de arquitectura con lista cerrada de los archivos pendientes.
 - **Golden rule**: al cambiar qué datos entrega una consulta, inventariar TODOS sus consumidores antes de repartir el trabajo; si una consulta cambia de contrato, todos sus consumidores cambian en la misma entrega o el cambio se filtra en el límite.
 - **Regression test**: `src/__tests__/architecture/account-selector-no-native-select.test.ts`
+
+---
+
+## LL-025 — `continue-on-error` hace que la API de GitHub muestre "success" un paso que falló (2026-10-08)
+
+- **Phase detected**: SPEC-014, primera corrida real del job `integration`
+- **Context**: `.github/workflows/ci.yml`; el paso `prisma migrate diff` llevaba `continue-on-error: true` "temporal" hasta la primera corrida, para ver su resultado sin bloquear.
+- **Error**: `gh pr checks`, `gh run view --json jobs` y el resumen del job mostraban TODOS los pasos en `success`, incluido `migrate diff`, que había salido con exit 2 (27 sentencias de deriva real entre `schema.prisma` y las 170 migraciones, nunca detectada). Solo el log del paso lo reveló. Leer la conclusión de la API habría declarado "todo verde" y dado por buena una deriva.
+- **Fix applied**: se leyó el log de cada paso informativo; el diff real se versionó como línea base (`scripts/ci/migrate-diff-baseline.sql`) y se quitaron los `continue-on-error`. Un paso fallido sin `continue-on-error` sí se ve como `failure`.
+- **Golden rule**: la `conclusion` de un paso con `continue-on-error: true` no dice si pasó: hay que leer su log. Y un gate no se cierra en modo informativo (SPEC-014 RN-1): lo que se quiera "medir primero" se mide con un paso que imprime y NO usa `continue-on-error`, o se lee el log de la corrida.
+- **Regression test**: `src/__tests__/architecture/ci-workflow-invariants.test.ts` (prohíbe `continue-on-error: true` en `ci.yml`, con su mutación).
