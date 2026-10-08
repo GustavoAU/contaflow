@@ -513,7 +513,7 @@ model FiscalReport {
   blobUrl     String
   contentHash String
   generatedBy String
-  generatedAt DateTime @default(now())
+  generatedAt DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([companyId, year, month, reportType])
 }
@@ -588,9 +588,9 @@ model DocShareToken {
   docType   String // "INVOICE" | "RETENTION"
   docId     String
   createdBy String
-  expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
+  expiresAt DateTime  @db.Timestamptz(6)
+  revokedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
 
   @@index([companyId, createdAt(sort: Desc)])
   @@index([docId])
@@ -702,7 +702,7 @@ model Retencion {
   transaction           Transaction?    @relation("RetencionIssuanceTx", fields: [transactionId], references: [id], onDelete: Restrict)
   // Asiento GL del enteramiento (Dr Ret.X por Pagar / Cr Banco) — separado del asiento de emisión
   enteradoTransactionId String?
-  enteradoTransaction   Transaction?    @relation("RetencionEnteramientoTx", fields: [enteradoTransactionId], references: [id], onDelete: Restrict)
+  enteradoTransaction   Transaction?    @relation("RetencionEnteramientoTx", fields: [enteradoTransactionId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   invoiceId             String?
   invoice               Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   // ADR-051: número de comprobante de IVA (Prov. 0049) — continuo, nunca se reinicia.
@@ -916,7 +916,7 @@ model PaymentRecord {
   igtfAmount         Decimal?            @db.Decimal(19, 4)
   // Riesgo-6 auditoría: IVA retenido por el cliente CE (Prov. 0049 75%/100%)
   // amountVes = cash neto recibido; ivaRetentionAmount = IVA retenido → Dr. IVA Ret. x Cobrar
-  ivaRetentionAmount Decimal?            @default(0) @db.Decimal(19, 4)
+  ivaRetentionAmount Decimal             @default(0) @db.Decimal(19, 4)
   date               DateTime
   notes              String?
   // ADR-032 F1: true si este pago decrementó Invoice.pendingAmount al crearse.
@@ -1384,7 +1384,7 @@ model InventoryMovement {
   // R-04 auditoría SENIAT: cuenta contrapartida para completar el asiento (partida doble)
   // ENTRADA: CR = Proveedores/Caja/Banco. AJUSTE: CR = Merma/Pérdida o DR = Sobrante
   counterpartAccountId String?
-  counterpartAccount   Account?                  @relation("InventoryMovementCounterpart", fields: [counterpartAccountId], references: [id], onDelete: Restrict)
+  counterpartAccount   Account?                  @relation("InventoryMovementCounterpart", fields: [counterpartAccountId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   // R-02 auditoría SENIAT: tasa BCV histórica a la fecha del movimiento (Bs./$)
   exchangeRateVes      Decimal?                  @db.Decimal(10, 4)
   reference            String?
@@ -2135,7 +2135,7 @@ model Employee {
   initialVacationDays Decimal?          @db.Decimal(5, 2)
   // Timestamps
   createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  updatedAt           DateTime          @default(now()) @updatedAt
 
   company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
   salaryHistory        SalaryHistory[]
@@ -2215,7 +2215,7 @@ model PayrollConcept {
   // Los conceptos del sistema traen su naturaleza explicita desde seedDefaults.
   salaryNature          SalaryNature @default(NO_SALARIAL)
   createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  updatedAt             DateTime     @default(now()) @updatedAt
 
   company              Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   // Fase NOM-C
@@ -2255,7 +2255,7 @@ model AbsenceType {
   isSystem  Boolean         @default(false)
   isActive  Boolean         @default(true)
   createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  updatedAt DateTime        @default(now()) @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
@@ -2371,7 +2371,7 @@ model PayrollRun {
   // Previene doble submit desde UI (idempotencyKey único por request)
   idempotencyKey     String
   createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  updatedAt          DateTime               @default(now()) @updatedAt
 
   company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   transaction Transaction?     @relation(fields: [transactionId], references: [id], onDelete: Restrict)
@@ -2736,7 +2736,7 @@ model VacationRequest {
   reviewedAt       DateTime?
   createdByUserId  String
   createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  updatedAt        DateTime              @default(now()) @updatedAt
 
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
@@ -2865,7 +2865,7 @@ model VendorGroup {
   companyId String
   name      String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   company Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
   vendors Vendor[]
@@ -2913,7 +2913,7 @@ model CustomerGroup {
   companyId String
   name      String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   customers Customer[]
@@ -3159,11 +3159,11 @@ model CompanySettings {
   apAccount                     Account? @relation("SettingsAPAccount", fields: [apAccountId], references: [id], onDelete: Restrict)
   salesAccount                  Account? @relation("SettingsSalesAccount", fields: [salesAccountId], references: [id], onDelete: Restrict)
   purchaseExpenseAccount        Account? @relation("SettingsPurchaseExpenseAccount", fields: [purchaseExpenseAccountId], references: [id], onDelete: Restrict)
-  inventoryAccount              Account? @relation("SettingsInventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: Restrict)
+  inventoryAccount              Account? @relation("SettingsInventoryAccount", fields: [inventoryAccountId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   ivaDFAccount                  Account? @relation("SettingsIVADFAccount", fields: [ivaDFAccountId], references: [id], onDelete: Restrict)
   ivaCFAccount                  Account? @relation("SettingsIVACFAccount", fields: [ivaCFAccountId], references: [id], onDelete: Restrict)
   ivaRetentionPayableAccount    Account? @relation("SettingsIVARetentionPayableAccount", fields: [ivaRetentionPayableAccountId], references: [id], onDelete: Restrict)
-  islrRetentionPayableAccount   Account? @relation("SettingsISLRRetentionPayableAccount", fields: [islrRetentionPayableAccountId], references: [id], onDelete: Restrict)
+  islrRetentionPayableAccount   Account? @relation("SettingsISLRRetentionPayableAccount", fields: [islrRetentionPayableAccountId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   ivaRetentionReceivableAccount Account? @relation("SettingsIVARetentionReceivableAccount", fields: [ivaRetentionReceivableAccountId], references: [id], onDelete: Restrict)
   fxGainAccount                 Account? @relation("SettingsFxGainAccount", fields: [fxGainAccountId], references: [id], onDelete: Restrict)
   fxLossAccount                 Account? @relation("SettingsFxLossAccount", fields: [fxLossAccountId], references: [id], onDelete: Restrict)
@@ -3178,6 +3178,8 @@ model CompanySettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([ivaRetentionReceivableAccountId])
 }
 
 // ─── Fase 37B: Módulo Gastos — ADR-024 D-3 ───────────────────────────────────
@@ -3401,7 +3403,7 @@ model PlanChangeRequest {
   cancelReason      String?
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   payments SubscriptionPayment[]
 
@@ -3712,7 +3714,7 @@ model ManagedClient {
   deletedAt         DateTime?
   deletedBy         String?
   createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  updatedAt         DateTime            @default(now()) @updatedAt
 
   @@unique([despachoCompanyId, rif])
   @@index([despachoCompanyId, status])

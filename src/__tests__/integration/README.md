@@ -44,3 +44,4 @@ El job `integration` de `.github/workflows/ci.yml` corre solo en pull requests h
 | `control-number-sequence.test.ts` | Estructura lista — requiere `DATABASE_URL_TEST` |
 | `gl-quantize-balance.test.ts` | Corre en el job `integration` (SPEC-004); desde SPEC-001 el caso (i-a) comprueba que el trigger rechaza el asiento sin cuantizar |
 | `gl-balance-trigger.test.ts` | Corre en el job `integration` (SPEC-001 / ADR-060): CA-2..CA-6 del trigger de cuadre y la forma real del error de Prisma |
+| `migration-reconciliation.test.ts` | Corre en el job `integration` (SPEC-022): que una base reconstruida desde las migraciones no tenga los objetos huérfanos (`workShift`, `WorkShiftType`, índice parcial de `PayrollRun`), tenga los índices que el schema declara, permita dos nóminas del mismo período en distinta moneda y que la migración correctiva sea idempotente |

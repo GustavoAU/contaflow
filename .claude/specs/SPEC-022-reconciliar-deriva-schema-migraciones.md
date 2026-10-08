@@ -1,7 +1,7 @@
 ---
 id: SPEC-022
 titulo: Reconciliar la deriva entre schema.prisma y las migraciones (y que una base reconstruida sea igual a producción)
-estado: BORRADOR
+estado: EN_CURSO   # aprobada por Gustavo el 2026-10-08 (B.1: onUpdate: NoAction en el schema)
 fecha: 2026-10-08
 rama: fix/spec-022-deriva-schema-migraciones
 arbol: "[7]"
@@ -68,7 +68,7 @@ ALTER INDEX IF EXISTS "caja_caja_reimbursements_reimbursementNumber_key"
   RENAME TO "caja_caja_reimbursements_companyId_reimbursementNumber_key";
 ```
 
-   Ningún `DROP` toca datos: `workShift` solo contenía el `DEFAULT`, y `workSchedule` (el campo que sí se usa) no se toca. `CREATE INDEX` sin `CONCURRENTLY` porque la migración corre en una transacción; la tabla `Account` es pequeña y el bloqueo de escrituras dura un instante (se mide el tamaño en la verificación A).
+   Ningún `DROP` toca datos: `workShift` solo contenía el `DEFAULT`, y `workSchedule` (el campo que sí se usa) no se toca. `CREATE INDEX` sin `CONCURRENTLY` porque la migración corre en una transacción; la tabla `Account` tiene 714 filas (medido en la verificación A) y el bloqueo de escrituras dura un instante. El archivo empieza con `SET lock_timeout = '5s'`: si otra transacción tiene bloqueada una de las tablas, falla en voz alta en lugar de hacer cola detrás de ella; reintentar es seguro. Conviene aplicarla en una hora tranquila.
 
 D) **Vaciar la línea base y endurecer el gate.** Con la deriva resuelta: se borra `scripts/ci/migrate-diff-baseline.sql`, el paso de `ci.yml` pasa a exigir que `prisma migrate diff --exit-code` salga con **0**, y `ci-workflow-invariants.test.ts` deja de exigir la línea base (y exige, en su lugar, que el paso use `--exit-code` y no compare contra ningún archivo).
 
@@ -121,6 +121,18 @@ No aplica.
 
 ## 10. Plan de agentes
 
+Línea base (2026-10-08, `main` 723b240a): `tsc --noEmit` exit 0 · 7375 tests y 1 `todo` según el CI de `main` (corridas verdes en `d952e4fb` y `1cc68081`; desde entonces `main` solo recibió documentación). La suite completa se corre en 6 shards al cerrar. Plan armado por la sesión principal (`orchestrator-agent` no está disponible como subagente).
+
+| Paso | Agente | Subtarea | TDD |
+|---|---|---|---|
+| 1 | test-agent | Tests en RED: `migration-order.test.ts` (detector con fixtures; los 3 casos reales sin neutralizar lo ponen en rojo) y `migration-reconciliation.test.ts` de integración (CA-2: catálogo; CA-3: dos nóminas del mismo período con distinto segmento; CA-4: idempotencia; CA-5 como default de la columna) | sí |
+| 2 | sesión principal | **Primer push solo con los tests.** El job `integration` debe fallar en «Tests de integración» por la razón correcta: es la evidencia, en una base reconstruida de verdad, de que el bug existe. **PAUSA — requiere al usuario:** aprobar `neon-ci` | no |
+| 3 | sesión principal | GREEN: cambios de `schema.prisma` (B) con verificación sin BD (`migrate diff` de schema a schema debe invertir las sentencias de la línea base); migración correctiva (C); ripple de `ivaRetentionAmount` hasta `tsc` en 0 | — |
+| 4 | sesión principal | D: borrar la línea base, exigir `--exit-code` = 0 en `ci.yml` y actualizar `ci-workflow-invariants.test.ts` | — |
+| 5 | arch-agent | F: addendum de ADR-057 («repetible» no implicaba «equivalente a producción») | no |
+| 6 | security-agent | Revisar el diff: migración y su idempotencia, cambio de tipo de `PaymentRecord.ivaRetentionAmount` (Z-2), cambios de `ci.yml` y del test de invariantes | no |
+| 7 | sesión principal | Gates (`tsc`, `lint:ci`, `format:check`, `prisma format --check`, suite en shards); segundo push y **PAUSA** `neon-ci`: `migrate diff --exit-code` debe salir con 0 (CA-1); dejar al usuario el SQL y los comandos para producción (CA-9, solo él los aplica); sección 12 | no |
+
 ## 11. Riesgos y preguntas abiertas
 - **PAUSA — requiere al usuario:**
   1. ~~La verificación A~~ — **HECHA el 2026-10-08** (resultados abajo). Ya no bloquea la aprobación.
@@ -140,9 +152,12 @@ No aplica.
   Resultado esperado en producción: (a) 0 filas, (b) 0 filas, (c) default distinto de `PENDING`. Cualquier otro resultado es un hallazgo nuevo.
 - R-1 (RESUELTO): producción difiere de la base reconstruida **solo** en `Employee.workShift` y `WorkShiftType`, que no tiene (verificación A). El plan no cambia.
 - R-2: `PaymentRecord.ivaRetentionAmount` deja de ser opcional en los tipos generados. Es un cambio de tipo en una zona fiscal (Z-2) sin cambio de comportamiento; `security-agent`/`fiscal-agent` revisan que ningún camino dependa de `null`.
-- R-3: `@db.Timestamptz(6)` en `DocShareToken` y `FiscalReport` no cambia la BD; si el adaptador de Neon serializara las fechas distinto para ese tipo, lo verían los tests de integración existentes de documentos (se comprueba en CI).
+- R-3: `@db.Timestamptz(6)` en `DocShareToken` y `FiscalReport` no cambia la BD; si el adaptador de Neon serializara las fechas distinto para ese tipo, no existe ningún test de integración de documentos que lo cubra (corrección de la revisión de seguridad). El riesgo residual es mínimo: la expiración del enlace la fija el JWT (`document.actions.ts`) y la ruta solo comprueba `revokedAt !== null`. Se comprueba con una prueba manual de compartir y revocar un documento tras el despliegue.
 - R-4: Queda fuera de alcance lo que `migrate diff` no ve (índices parciales, exclusiones, triggers, CHECK, políticas RLS). **Propuesta SPEC-023:** una instantánea normalizada del catálogo de Postgres (`pg_indexes`, `pg_constraint`, `pg_trigger`, políticas, defaults) versionada y comparada en CI contra una base reconstruida, y ejecutable de solo lectura contra producción. Habría detectado el caso de `PayrollRun` sin depender de que alguien recuerde mirarlo.
 - R-5: `verify:drift` excluye los índices parciales a propósito (cabecera de `scripts/verify-schema-drift.mjs`); por eso el caso de `PayrollRun` pasó todos los gates hasta ahora.
+- R-6: límites conocidos de `migration-order.test.ts` (análisis de texto), además de `DO $$ … $$`: identificadores con esquema (`"public"."X"`), `RENAME TO` como forma de crear un objeto y `CONSTRAINT` en línea dentro de `CREATE TABLE`. El centinela (al menos 33 `DROP … IF EXISTS` y los 3 casos conocidos) evita que el detector quede ciego, pero no cubre esas formas.
+- R-7 (revisión de seguridad, cerrado): `migration-reconciliation.test.ts` siembra filas y ejecuta DDL real (CA-4), así que no debe correr contra una base que no sea el branch efímero. Guarda: al inicio de `beforeAll` y antes de escribir, aborta si existe alguna empresa cuyo id no empiece por `ci-rls-probe-`, `integration-` o `spec022-` (una base real tiene ids cuid). Tiene sus propios tests sin base de datos. Los otros tests de integración tienen una guarda más débil: queda como seguimiento.
+- R-8: no existe `.github/CODEOWNERS`; un PR puede editar el workflow y su test de invariantes a la vez. El control real es el environment `neon-ci` (revisor humano). Seguimiento opcional.
 
 **Verificación A — resultados en producción (2026-10-08, hecha por el usuario, solo lectura; rama `production` `br-rough-sound-ai9i4g7p`, endpoint directo `ep-summer-fog-ai2n0tde`):**
 - **`prisma migrate diff` contra producción**, comparado con la línea base: idéntico salvo dos bloques, `Employee.workShift` y `WorkShiftType`, que producción **no** tiene. Las otras 25 sentencias de deriva existen igual en producción: el plan de la spec se aplica a producción y no solo a bases nuevas.
@@ -153,6 +168,6 @@ No aplica.
 **Verificación fase 1 (2026-10-08, contra `origin/main` d952e4fb):**
 - Confirmado leyendo las migraciones: las 4 FKs se crearon con `ON DELETE RESTRICT` (`20260521_inventory_account_gl`, `20260521_inventory_movement_enhancements`, `20260609_retention_gl_posting`); `Account_companyId_isPostable_idx` está en el schema (línea 410) y ninguna migración lo crea; `BenefitAdvance_companyId_idx` (`20260422_nom_d_advance_bcv_ratetype_additional_days`) es prefijo de los otros dos índices del modelo; las 9 tablas con `updatedAt DEFAULT` salen de migraciones escritas a mano (32 tablas generadas por Prisma no lo tienen); `DocShareToken` y `FiscalReport` se crearon con `TIMESTAMPTZ` (`20260612_*`); `PaymentRecord.ivaRetentionAmount` es `NOT NULL DEFAULT 0` (`20260526_cobropago_ivaretention`) y ningún código escribe `null`; `EmployeeLoan.status` se creó `DEFAULT 'ACTIVE'` (`20260516_employee_loan`) y el servicio y el seed fijan el status explícito; el índice único de `caja_caja_reimbursements` cubre las mismas columnas que el schema (solo difiere el nombre) y el de `FixedAssetINPCRestatement` tiene el nombre truncado a 63 caracteres.
 - Confirmado por barrido (`DROP … IF EXISTS` que ordena antes de una creación posterior): 3 casos sobre 170 migraciones (`Employee.workShift`, `WorkShiftType`, `PayrollRun_companyId_period_active_key`).
-- No comprobado: el efecto de `@db.Timestamptz(6)` en el adaptador de Neon (lo dirá CI); `DO $ … $` en el barrido de texto; los índices parciales, triggers, CHECK y políticas RLS de producción frente a una base reconstruida (fuera del alcance de `migrate diff`: es la SPEC-023 propuesta).
+- No comprobado: el efecto de `@db.Timestamptz(6)` en el adaptador de Neon (lo dirá CI); `DO $$ … $$` en el barrido de texto; los índices parciales, triggers, CHECK y políticas RLS de producción frente a una base reconstruida (fuera del alcance de `migrate diff`: es la SPEC-023 propuesta).
 
 ## 12. Cierre

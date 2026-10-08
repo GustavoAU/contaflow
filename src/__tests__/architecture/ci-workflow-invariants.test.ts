@@ -184,10 +184,24 @@ export function ciViolations(ci: string): string[] {
     );
   }
 
-  // El chequeo schema <-> migraciones compara contra la línea base versionada.
-  if (!ci.includes("scripts/ci/migrate-diff-baseline.sql")) {
-    out.push("el paso de migrate diff no compara contra scripts/ci/migrate-diff-baseline.sql");
+  // SPEC-022: el chequeo schema <-> migraciones exige un diff VACÍO (--exit-code) y ya no tolera
+  // ninguna línea base: la deriva se resolvió y el archivo se borró.
+  const codeOnly = ci
+    .split("\n")
+    .filter((l) => !/^\s*#/.test(l))
+    .join("\n");
+  if (codeOnly.includes("migrate-diff-baseline")) {
+    out.push(
+      "el workflow vuelve a referenciar una línea base de migrate diff (SPEC-022 la eliminó)"
+    );
   }
+  const integrationJob = jobs.get("integration");
+  const migrateStep = integrationJob
+    ? parseSteps(integrationJob).find((st) => /migrate diff/.test(st.name))
+    : undefined;
+  if (!migrateStep) out.push("falta el paso de prisma migrate diff en integration");
+  else if (!migrateStep.text.includes("--exit-code"))
+    out.push("el paso de migrate diff no usa --exit-code");
 
   // concurrency: cancelar solo en PRs.
   if (!/cancel-in-progress:\s*\$\{\{\s*github\.event_name == 'pull_request'\s*\}\}/.test(ci)) {
@@ -261,17 +275,10 @@ describe("Architecture: invariantes de seguridad del workflow de CI (ci.yml)", (
     expect(actionViolations(read(SETUP_ACTION))).toEqual([]);
   });
 
-  it("la línea base de migrate diff existe y solo contiene sentencias de Prisma", () => {
-    const baseline = read(path.join(ROOT, "scripts", "ci", "migrate-diff-baseline.sql"));
-    // No vacía: si algún día la deriva se resuelve del todo, se borra el archivo Y esta
-    // comprobación junto con el paso (y el paso pasa a exigir un diff vacío).
-    expect(baseline.trim().length).toBeGreaterThan(0);
-    const statements = baseline.split("\n").filter((l) => l.trim() !== "" && !l.startsWith("-- "));
-    for (const s of statements) {
-      expect(s, "la línea base solo debe tener SQL de Prisma").toMatch(
-        /^(ALTER|DROP|CREATE|ADD)\b/
-      );
-    }
+  it("la línea base de migrate diff ya no existe (SPEC-022 resolvió la deriva)", () => {
+    expect(fs.existsSync(path.join(ROOT, "scripts", "ci", "migrate-diff-baseline.sql"))).toBe(
+      false
+    );
   });
 });
 
@@ -295,10 +302,10 @@ describe("Architecture: las invariantes detectan su violación (mutaciones sobre
 
   it("la key de Neon en un paso no permitido (migrate diff)", () => {
     const v = mutate(
-      '      - name: "Schema ↔ migraciones (prisma migrate diff contra la línea base)"\n',
-      '      - name: "Schema ↔ migraciones (prisma migrate diff contra la línea base)"\n        env:\n          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}\n'
+      '      - name: "Schema ↔ migraciones (prisma migrate diff)"\n',
+      '      - name: "Schema ↔ migraciones (prisma migrate diff)"\n        env:\n          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}\n'
     );
-    expect(v.join("\n")).toMatch(/línea base\)" de integration recibe secrets\.NEON_/);
+    expect(v.join("\n")).toMatch(/migrate diff\)" de integration recibe secrets\.NEON_/);
   });
 
   it("la key de Neon en otro job", () => {
@@ -351,9 +358,17 @@ describe("Architecture: las invariantes detectan su violación (mutaciones sobre
     expect(v.join("\n")).toMatch(/continue-on-error: true/);
   });
 
-  it("migrate diff sin comparar contra la línea base", () => {
-    const v = mutate(/scripts\/ci\/migrate-diff-baseline\.sql/g, "scripts/ci/otra-cosa.sql");
-    expect(v.join("\n")).toMatch(/migrate-diff-baseline\.sql/);
+  it("migrate diff que vuelve a tolerar una línea base", () => {
+    const v = mutate(
+      'echo "OK: la BD migrada coincide con schema.prisma"',
+      'echo "OK: ver scripts/ci/migrate-diff-baseline.sql"'
+    );
+    expect(v.join("\n")).toMatch(/vuelve a referenciar una línea base/);
+  });
+
+  it("migrate diff sin --exit-code", () => {
+    const v = mutate("--exit-code", "--quiet");
+    expect(v.join("\n")).toMatch(/no usa --exit-code/);
   });
 
   it("pull_request_target", () => {
