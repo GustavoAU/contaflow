@@ -1,7 +1,7 @@
 ---
 id: SPEC-022
 titulo: Reconciliar la deriva entre schema.prisma y las migraciones (y que una base reconstruida sea igual a producción)
-estado: BORRADOR
+estado: EN_CURSO   # aprobada por Gustavo el 2026-10-08 (B.1: onUpdate: NoAction en el schema)
 fecha: 2026-10-08
 rama: fix/spec-022-deriva-schema-migraciones
 arbol: "[7]"
@@ -120,6 +120,18 @@ No aplica.
 - [ ] CA-9 (la hace el usuario, PAUSA): tras aplicar la migración a producción, `migrate diff` contra producción (solo lectura) sale vacío.
 
 ## 10. Plan de agentes
+
+Línea base (2026-10-08, `main` 723b240a): `tsc --noEmit` exit 0 · 7375 tests y 1 `todo` según el CI de `main` (corridas verdes en `d952e4fb` y `1cc68081`; desde entonces `main` solo recibió documentación). La suite completa se corre en 6 shards al cerrar. Plan armado por la sesión principal (`orchestrator-agent` no está disponible como subagente).
+
+| Paso | Agente | Subtarea | TDD |
+|---|---|---|---|
+| 1 | test-agent | Tests en RED: `migration-order.test.ts` (detector con fixtures; los 3 casos reales sin neutralizar lo ponen en rojo) y `migration-reconciliation.test.ts` de integración (CA-2: catálogo; CA-3: dos nóminas del mismo período con distinto segmento; CA-4: idempotencia; CA-5 como default de la columna) | sí |
+| 2 | sesión principal | **Primer push solo con los tests.** El job `integration` debe fallar en «Tests de integración» por la razón correcta: es la evidencia, en una base reconstruida de verdad, de que el bug existe. **PAUSA — requiere al usuario:** aprobar `neon-ci` | no |
+| 3 | sesión principal | GREEN: cambios de `schema.prisma` (B) con verificación sin BD (`migrate diff` de schema a schema debe invertir las sentencias de la línea base); migración correctiva (C); ripple de `ivaRetentionAmount` hasta `tsc` en 0 | — |
+| 4 | sesión principal | D: borrar la línea base, exigir `--exit-code` = 0 en `ci.yml` y actualizar `ci-workflow-invariants.test.ts` | — |
+| 5 | arch-agent | F: addendum de ADR-057 («repetible» no implicaba «equivalente a producción») | no |
+| 6 | security-agent | Revisar el diff: migración y su idempotencia, cambio de tipo de `PaymentRecord.ivaRetentionAmount` (Z-2), cambios de `ci.yml` y del test de invariantes | no |
+| 7 | sesión principal | Gates (`tsc`, `lint:ci`, `format:check`, `prisma format --check`, suite en shards); segundo push y **PAUSA** `neon-ci`: `migrate diff --exit-code` debe salir con 0 (CA-1); dejar al usuario el SQL y los comandos para producción (CA-9, solo él los aplica); sección 12 | no |
 
 ## 11. Riesgos y preguntas abiertas
 - **PAUSA — requiere al usuario:**
