@@ -41,7 +41,7 @@ Ninguna — decisión de calidad de ingeniería. Indirecta: un correlativo dupli
   - Excepción documentada: `// ADR-001-EXCEPTION: <razón>`, igual que ADR-004.
   - Test con fixtures (llamada dentro, llamada fuera, excepción) y un centinela de que el detector encuentra los 5 archivos reales.
   - Se borra el paso `grep` de `ci.yml`.
-  - Barrido de la clase (CLAUDE.md, "bug = clase"): el correlativo de comprobantes de retención **no** se llama `getNextVoucherNumber` (esa función es local de `CajaCajaMovementService`); su cobertura por este detector es 0. Incluir en el test los generadores de `RetentionSequence` / `ControlNumberSequence` por su nombre real o declarar en la sección 11 por qué quedan fuera.
+  - Barrido de la clase (CLAUDE.md, "bug = clase"): los correlativos de comprobantes de retención **no** se llaman `getNextVoucherNumber` (esa función es local de `CajaCajaMovementService`) sino `getNextIvaVoucherNumber` y `getNextIslrVoucherNumber`, de modo que el `grep` anterior nunca los cubrió. Las funciones gobernadas son `getNextControlNumber`, `getNextVoucherNumber`, `getNextIvaVoucherNumber` y `getNextIslrVoucherNumber`. Otros generadores de números (`getNextJournalNumber`, `getNextReimbNumber`, los de órdenes y cotizaciones, `generateTxNumber`) no son correlativos fiscales de Z-1 y quedan fuera; se anotan en la sección 12 como candidatos a un barrido posterior.
 - C) Reemplazar el chequeo "schema ↔ migraciones" por `prisma migrate diff` con `--exit-code` dentro del job `integration`, después de `migrate deploy` sobre el branch efímero:
   `pnpm prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code` (exit 0 = igual, 1 = error, 2 = hay diferencias; el datasource sale de `prisma.config.ts`, que ya lee `DATABASE_URL_DIRECT` exportado por `ci-neon-branch.mjs`).
   - Flags confirmados con `prisma migrate diff --help` (7.8.0) y con la guía de upgrade a v7 (ver sección 11). `--from-url` y `--shadow-database-url` ya no existen.
@@ -52,14 +52,14 @@ Ninguna — decisión de calidad de ingeniería. Indirecta: un correlativo dupli
   3. si **no** hay `process.env.CI`: `process.env.DATABASE_URL`
   4. si **no** hay `process.env.CI`: `.env.local` (comportamiento actual)
 
-  En CI sin (1) ni (2) lanza un error claro: nunca cae a `.env.local` ni a `DATABASE_URL`. Los 4 scripts con BD lo usan (hoy leen `.env.local` a mano y lanzan si no existe).
+  En CI sin (1) ni (2) lanza un error claro: nunca cae a `.env.local` ni a `DATABASE_URL`. "CI" es `CI` no vacío y distinto de `false`/`0`, **o** `GITHUB_ACTIONS=true` (así `CI=false` no puede apagarlo dentro de Actions). El valor elegido se valida (`postgres://` o `postgresql://` con host) y, si no lo es, el error es fijo y no incluye el valor: `neon()` lo volcaría entero. Los 4 scripts con BD lo usan (hoy leen `.env.local` a mano y lanzan si no existe).
   Correr en el job `integration`, tras las migraciones: `verify:rls`, `verify:rls:runtime`, `verify:drift`, `verify:enum-drift`.
   - Ojo con `verify:rls:runtime`: descubre tablas tenant con filas de 2+ empresas y **sale 1 si no puede verificar nada** (ADR-044 D-8.3: "necesita una branch de Neon sembrada"). Un branch recién migrado está vacío. Decisión por defecto (revisable en la sección 11): sembrar en el propio branch efímero dos empresas con una fila en una tabla tenant (`scripts/ci/seed-rls-probe.sql`, solo para el branch del job). Alternativa: dejarlo fuera de CI y manual.
 - E) `verify:typography` en el job `architecture` (estático, no necesita BD; medido: pasa hoy con exit 0).
 - F) Job `build`: `pnpm build` con **valores ficticios y sin secretos** (`DATABASE_URL` simulada como en el job `test`; clave pública de Clerk ficticia con formato válido). Así corre igual en PRs de Dependabot y de forks, que es justo el hueco que cierra. Sin `SENTRY_AUTH_TOKEN` no se suben source maps. Entra en `needs` de `ci-result`. El script `build` fija `--max-old-space-size=8192`; el repo es público (runner de 16 GB), pero se mide el pico.
 - G) ESLint:
-  - Medir el número actual de warnings (`pnpm lint -f json`) **desde un checkout limpio o en CI**. Por comprobar: el flat config de ESLint no ignora carpetas con punto por defecto, así que `eslint` en el checkout principal podría lintar también `.claude/worktrees/**` y `.worktrees/**` e inflar N. Si se confirma, añadirlos a `globalIgnores` (también lo necesita SPEC-019 C).
-  - Fijar `--max-warnings=<N>` en un script `lint:ci` y documentar N en la sección 12.
+  - Medir el número actual de warnings (`eslint . --format json`) desde un checkout limpio. **Medido el 2026-10-08: 1168 archivos, 0 errores, 49 warnings** (15 `no-unused-vars`, 21 `react-hooks/set-state-in-effect`, 6 `react-hooks/incompatible-library`, 3 `react-hooks/purity`, 3 `react-hooks/exhaustive-deps`, 1 sin regla). También se midió que `eslint` **no** lintea carpetas con punto (sondas colocadas en `.claude/worktrees/` y `.worktrees/` no aparecieron en el resultado), así que no hace falta tocar `globalIgnores`.
+  - Fijar `--max-warnings=49` en un script `lint:ci` y documentar N en la sección 12.
   - Cada spec futura que toque lint solo puede bajarlo. **No** re-escalar reglas a `error` en esta spec.
 - H) Quitar el paso inline "Verificar coverage mínimo": `vitest.config.ts` ya impone los mismos `thresholds` y falla solo. Dejar un comentario en `ci.yml` que apunte a `vitest.config.ts` como única fuente.
 - I) `dependabot.yml`:
@@ -100,7 +100,6 @@ No aplica. Archivos tocados:
 - `scripts/ci/migrate-diff-baseline.sql` y `scripts/ci/seed-rls-probe.sql` (nuevos, solo si la medición los exige)
 - `src/__tests__/architecture/correlativo-serializable.test.ts` (nuevo)
 - `package.json` (script `lint:ci`)
-- `eslint.config.mjs` (solo si G confirma la inflación por worktrees)
 
 ## 8. UI
 No aplica.
@@ -139,11 +138,22 @@ Línea base (2026-10-07, `main` 892c5db6): `tsc --noEmit` exit 0 · vitest 7146 
 - Corregido: el job `integration` ya corre en PRs del mismo repo (SPEC-002, HECHA) con `needs` en `ci-result`, branch efímero en el proyecto `contaflow-ci` y `--ignore-scripts`. Esta spec se apoya en eso, no lo crea.
 - Confirmado: `ci.yml` dispara en `push: [main, feat/**]`; no hay `concurrency` ni `permissions` globales; no hay `next build`; `vercel.json` ignora `dependabot/`; `eslint` sin `--max-warnings`; el chequeo schema↔migraciones cuenta líneas `+` de cualquier migración; los `thresholds` de `vitest.config.ts` coinciden con el paso inline; `verify:typography` pasa hoy (exit 0).
 - Confirmado con documentación: en Prisma 7 `--from-url`, `--to-url`, `--from-schema-datasource` y `--shadow-database-url` fueron eliminados; se usa `--from-config-datasource` / `--to-config-datasource`. `--exit-code`: 0 = sin diferencias, 1 = error, 2 = hay diferencias (Prisma upgrade guide v7 y blog de `migrate diff`, vía Context7 `/prisma/web`). Los flags `--from-config-datasource`, `--to-schema` y `--from-migrations` aparecen en `prisma migrate diff --help` de 7.8.0.
-- No comprobado: el valor de N de ESLint y si `eslint` linta carpetas con punto; el diff real de `migrate diff` sobre un branch migrado (puede no ser vacío); el pico de memoria de `next build` en el runner.
+- Medido después (2026-10-08, paso 1 de la implementación): N de ESLint = 49 y `eslint` no linta carpetas con punto (ver punto G).
+- No comprobado: el diff real de `migrate diff` sobre un branch migrado (puede no ser vacío); el pico de memoria de `next build` en el runner.
 
 **Preguntas abiertas para ti (ambas RESUELTAS 2026-10-07 al aprobar la spec):**
 - P-1 (RESUELTA: sembrar): `verify:rls:runtime` en CI exige sembrar datos en el branch efímero. El script **sigue saliendo con 1 si no puede verificar nada**: eso es correcto y no se relaja. Un branch recién migrado está vacío por construcción, así que sin siembra el gate estaría siempre en rojo (o habría que omitirlo, que es peor: un gate omitido da un verde falso). La siembra le da algo que verificar sin tocar su lógica.
 - P-2 (RESUELTA: aceptado): Estos gates nuevos viven en `integration`, que espera tu aprobación del environment `neon-ci` en cada push y se omite en Dependabot, forks y `push`. Por eso `build` y el test de Serializable van en jobs sin environment.
+
+**Revisión de seguridad (security-agent, 2026-10-08): GO CON CONDICIONES** — 0 CRITICAL, 0 HIGH, 1 MEDIUM, 6 LOW, 3 INFO. Verificado leyendo el código: la key de Neon solo aparece en los pasos "Verificar secretos", "Crear branch efímero" y "Borrar branch efímero"; la acción compuesta conserva `--ignore-scripts` e `integration` lo pide; `build` no usa `secrets.`; no hay `pull_request_target`; `concurrency` no es inyectable ni cancela `main`. Cierre de los hallazgos:
+- M-1 (MEDIUM): `migrate diff`, la siembra y los `verify:*` llevan `continue-on-error` hasta la primera corrida real y, mientras lo lleven, **nada bloquea "cambió schema.prisma sin migración"** (se quitó el antiguo chequeo débil). Condición de cierre: esta spec no pasa a `HECHA` con ningún `continue-on-error` en `ci.yml`. Se hace cumplir con una aserción en `ci-workflow-invariants.test.ts`, que se añade en el mismo commit que quita los flags (paso 6).
+- L-1 (cerrado): `neon()` incluye el valor entero en su error cuando no es una URL (reproducido: `Connection string: <valor>`, con la contraseña). `db-url.mjs` valida la forma (`postgres://` o `postgresql://` con host) y lanza un mensaje fijo que nombra el origen, no el valor. Un origen presente pero inválido no cae al siguiente.
+- L-2 (cerrado): `GITHUB_ACTIONS=true` cuenta siempre como CI, aunque `CI=false`.
+- L-3 (cerrado): `seed-rls-probe.sql` aborta sin escribir si la base ya tiene empresas que no son de la sonda.
+- L-4 (cerrado): la acción compuesta falla seguro (solo el valor exacto `"false"` instala con scripts) y `ci-workflow-invariants.test.ts` fija como código las invariantes de seguridad del workflow, con mutaciones que prueban que pueden fallar.
+- L-5 (cerrado, **no verificado en vivo**): `dependabot.yml` incluye `/.github/actions/setup` en `directories`; se comprobará en la pestaña Dependabot del repositorio tras el merge.
+- L-6 (cerrado): los secretos de Clerk y Groq pasaron del env del job `test` al paso de tests; y en `version-and-release.yml` el nombre del tag va por variable de entorno (job con `contents: write`).
+- INFO, sin cambio y como seguimiento: fijar las actions por SHA con comentario `# vX` (hoy van por tag mayor; lo más expuesto es `softprops/action-gh-release`); el comentario de `scripts/lib/neon-ci-guards.mjs` aún dice que la key es personal y alcanza producción (pendiente del dueño: key de alcance de proyecto, SPEC-002 §11); no existe `CODEOWNERS` y quien aprueba `neon-ci` debería leer los diffs de `.github/**`, `scripts/ci-neon-branch.mjs`, `scripts/lib/*` y `prisma.config.ts`; `CLERK_SECRET_KEY` ficticio del job `build` tiene forma de secreto y podría tropezar con escáneres.
 
 **Riesgos:**
 - R-1: `verify:rls:runtime` requiere el rol `authenticated`; la migración `20260406110000` lo crea con `IF NOT EXISTS`, así que en un branch nuevo debería existir. Si no, se reporta y no se fuerza.
