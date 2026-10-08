@@ -662,3 +662,126 @@ describe("PayrollWizard · paso 3 — Q4: alerta que BLOQUEA el guardado (valor 
     expectNoSavedAccountsAlert(saveBtn());
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Mutantes B2 (test-agent, paso 4).
+//
+// P5 — decisión 2 de la sesión principal: «si `accounts` viene vacío o solo con títulos la sección no se
+// muestra y por tanto no hay alerta NI BLOQUEO». El mutante que calculaba `problems` aunque no hubiera sección
+// sobrevivía porque ningún test combinaba «sin cuentas de movimiento» con «cuentas ya guardadas»: el usuario
+// quedaba con «Guardar» deshabilitado, sin alerta que explicara por qué y sin campos con los que corregirlo.
+describe("PayrollWizard · paso 3 — sin cuentas de movimiento no hay nada que corregir ni que bloquear (mutantes B2)", () => {
+  it.each([
+    { caso: "con la lista vacía", accounts: [] as PlanAccount[] },
+    { caso: "con SOLO títulos", accounts: PLAN.filter((a) => !a.isPostable) },
+  ])(
+    "$caso y las 17 cuentas ya guardadas: sin sección, sin alerta, «Guardar» habilitado y se envía lo guardado",
+    async ({ accounts }) => {
+      mount({ initial: VALID_CONFIG, accounts });
+      expect(accountComboboxes()).toHaveLength(0);
+      expect(screen.queryAllByRole("alert")).toHaveLength(0);
+      expectNoSavedAccountsAlert(saveBtn());
+      expect(saveBtn().hasAttribute("aria-describedby")).toBe(false);
+      expect(saveBtn().hasAttribute("title")).toBe(false);
+      const payload = await saveOk();
+      expect(pick17(payload)).toEqual(accountsPayload({}, SAVED_ACCOUNTS));
+    }
+  );
+
+  it("sin la prop `accounts` y con cuentas guardadas tampoco se bloquea el guardado", async () => {
+    render(<PayrollWizard companyId={COMPANY_ID} initial={VALID_CONFIG} />);
+    goToStep3();
+    expect(accountComboboxes()).toHaveLength(0);
+    expect(saveBtn().hasAttribute("disabled")).toBe(false);
+    const payload = await saveOk();
+    expect(pick17(payload)).toEqual(accountsPayload({}, SAVED_ACCOUNTS));
+  });
+});
+
+// P17 — el `title` del botón explica POR QUÉ está bloqueado: cuentas guardadas inutilizables (Q4) tiene
+// prioridad sobre el conflicto de cuenta GL duplicada. El mutante que lo quitaba sobrevivía.
+describe("PayrollWizard · paso 3 — el `title` del botón de guardar explica el bloqueo (mutantes B2)", () => {
+  const QUITE = /Corrige las cuentas guardadas que no se pueden usar antes de guardar/;
+  const DUP = /Resuelve el conflicto de cuentas GL antes de guardar/;
+  const withTitleSaved = (changes: Partial<Record<GlKey, string>> = {}): PayrollConfigRow => ({
+    ...VALID_CONFIG,
+    expenseAccountId: T_PERSONAL.id,
+    ...changes,
+  });
+
+  it("bloqueado SOLO por una cuenta guardada inutilizable: «Corrige las cuentas guardadas…»", () => {
+    mount({ initial: withTitleSaved() });
+    expect(screen.queryByText(/Cuenta GL duplicada/)).toBeNull();
+    expect(saveBtn().getAttribute("title")).toMatch(QUITE);
+  });
+
+  it("bloqueado SOLO por cuentas GL duplicadas: «Resuelve el conflicto…»", () => {
+    // IVSS Obrero con la misma cuenta que «INCES Obrero» (LABOR[2]): conflicto desde el primer render.
+    mount({ initial: { ...VALID_CONFIG, ivssPayableAccountId: LABOR[2].id } });
+    expect(screen.getByText(/Cuenta GL duplicada/)).toBeTruthy();
+    expectNoSavedAccountsAlert();
+    expect(saveBtn().getAttribute("title")).toMatch(DUP);
+  });
+
+  it("bloqueado por las DOS cosas: gana la de cuentas guardadas", () => {
+    mount({ initial: withTitleSaved({ ivssPayableAccountId: LABOR[2].id }) });
+    expect(screen.getByText(/Cuenta GL duplicada/)).toBeTruthy();
+    expect(saveBtn().getAttribute("title")).toMatch(QUITE);
+    expect(saveBtn().getAttribute("title")).not.toMatch(DUP);
+  });
+
+  it("sin bloqueo no hay `title` (y corregir el problema lo retira)", () => {
+    const { refresh } = mount({ initial: withTitleSaved() });
+    expect(saveBtn().hasAttribute("title")).toBe(true);
+    // El título guardado pasa a ser cuenta de movimiento (se refresca el plan): el problema desaparece.
+    refresh({
+      accounts: PLAN.map((a) => (a.id === T_PERSONAL.id ? { ...a, isPostable: true } : a)),
+    });
+    expect(saveBtn().hasAttribute("title")).toBe(false);
+    expect(saveBtn().hasAttribute("disabled")).toBe(false);
+  });
+});
+
+// X35/X37/X38 — el placeholder de «sin asignar», el asterisco de los dos campos requeridos para aprobar procesos
+// y el `aria-busy` del botón fiscal no estaban comprobados: los mutantes que los quitaban sobrevivían.
+describe("PayrollWizard · paso 3 — placeholder, asterisco de requeridos y aria-busy (mutantes B2)", () => {
+  it("los 17 campos vacíos muestran el placeholder «Sin asignar — buscar cuenta…»", () => {
+    mount({ initial: BASE_CONFIG });
+    const inputs = expectAccountComboboxes(17, "PayrollWizard paso 3");
+    for (const input of inputs) {
+      expect(input.getAttribute("placeholder")).toBe("Sin asignar — buscar cuenta…");
+    }
+  });
+
+  it("solo «Gasto Sueldos y Salarios» y «Sueldos y Salarios por Pagar (neto)» llevan el asterisco de requerido", () => {
+    mount({ initial: BASE_CONFIG });
+    // Los 17 comboboxes salen en el orden de FIELDS (lo fija el test «los campos aparecen en el orden de siempre»).
+    const marked = expectAccountComboboxes(17, "PayrollWizard paso 3")
+      .map((input, i) => ({
+        key: FIELDS[i].key,
+        star: (input.labels?.[0]?.textContent ?? "").includes("*"),
+      }))
+      .filter((entry) => entry.star)
+      .map((entry) => entry.key);
+    expect(marked).toEqual(["expenseAccountId", "payableAccountId"]);
+  });
+
+  it("«Guardar configuración»: aria-busy=false en reposo; true y deshabilitado mientras guarda; navega al terminar", async () => {
+    let finish!: (value: unknown) => void;
+    savePayrollConfigAction.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    mount({ initial: VALID_CONFIG });
+    expect(saveBtn().getAttribute("aria-busy")).toBe("false");
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(saveBtn().getAttribute("aria-busy")).toBe("true"));
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+    expect(push).not.toHaveBeenCalled();
+    await act(async () => {
+      finish({ success: true, data: VALID_CONFIG });
+    });
+    await waitFor(() => expect(push).toHaveBeenCalledWith(`/company/${COMPANY_ID}/payroll`));
+  });
+});

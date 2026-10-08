@@ -24,7 +24,12 @@
 import { describe, it, expect } from "vitest";
 
 import * as accountSearch from "./account-search";
-import { isSelectableAccountId, selectableAccounts } from "./account-search";
+import {
+  filterAccounts as filterAccountsDirect,
+  findExactCodeMatch,
+  isSelectableAccountId,
+  selectableAccounts,
+} from "./account-search";
 
 type AccountOption = { id: string; code: string; name: string; isPostable: boolean };
 type AccountRow = { option: AccountOption; selectable: boolean; depth: number };
@@ -1488,5 +1493,63 @@ describe("unselectableSavedAccounts — qué configuraciones guardadas NO se pue
     expect(result.map((p) => p.key)).toEqual(
       fields.filter((_, i) => i % 2 === 0).map((f) => f.key)
     );
+  });
+});
+
+// ─── Cobertura de ramas (test-agent, paso 4 de B2) ───────────────────────────────────────────────
+// Ramas de la Entrega A que ningún test ejercitaba: comparación de segmentos con letras, desempate por id con el
+// mismo código, y `findExactCodeMatch` con una consulta que no es numérica (solo la usa AccountCombobox).
+
+describe("filterAccounts — segmentos con letras y códigos repetidos (cobertura de ramas)", () => {
+  it("los segmentos con letras se ordenan alfabéticamente y el prefijo va antes que sus descendientes, sin importar la entrada", () => {
+    const accounts = [
+      mov("B.1", "Tres"),
+      mov("A.2", "Dos"),
+      title("A", "RAIZ A"),
+      mov("A.1", "Uno"),
+    ];
+    const expected = ["A", "A.1", "A.2", "B.1"];
+    expect(codesOf(filterAccountsDirect(accounts, ""))).toEqual(expected);
+    expect(codesOf(filterAccountsDirect([...accounts].reverse(), ""))).toEqual(expected);
+  });
+
+  it("un segmento numérico va antes que uno con letras (comparación de texto: «1» < «A»)", () => {
+    const accounts = [mov("A.1", "Con letra"), mov("1.1", "Numerica")];
+    expect(codesOf(filterAccountsDirect(accounts, ""))).toEqual(["1.1", "A.1"]);
+    expect(codesOf(filterAccountsDirect([...accounts].reverse(), ""))).toEqual(["1.1", "A.1"]);
+  });
+
+  it("dos cuentas con el MISMO código (no debería ocurrir): el id desempata y el resultado no depende del orden de entrada", () => {
+    const a = { id: "a", code: "1.1.01", name: "Alfa", isPostable: true };
+    const b = { id: "b", code: "1.1.01", name: "Beta", isPostable: true };
+    expect(filterAccountsDirect([b, a], "").map((row) => row.option.id)).toEqual(["a", "b"]);
+    expect(filterAccountsDirect([a, b], "").map((row) => row.option.id)).toEqual(["a", "b"]);
+  });
+
+  it("la misma cuenta repetida (mismo id y mismo código) no se pierde ni rompe el orden", () => {
+    const a = { id: "a", code: "1.1.01", name: "Alfa", isPostable: true };
+    const rows = filterAccountsDirect([a, { ...a }], "");
+    expect(rows.map((row) => row.option.id)).toEqual(["a", "a"]);
+  });
+});
+
+describe("findExactCodeMatch — la cuenta de movimiento con ese código exacto (RN-13, cobertura de ramas)", () => {
+  const rows = filterAccountsDirect(PLAN, "");
+
+  it("una consulta numérica devuelve la cuenta de movimiento de ese código, con o sin puntos", () => {
+    expect(findExactCodeMatch(rows, "1.1.01.01.001")?.option.code).toBe("1.1.01.01.001");
+    expect(findExactCodeMatch(rows, "110101001")?.option.code).toBe("1.1.01.01.001");
+  });
+
+  it("una consulta con letras, vacía o solo espacios no tiene coincidencia exacta", () => {
+    expect(findExactCodeMatch(rows, "caja")).toBeUndefined();
+    expect(findExactCodeMatch(rows, "1.1.01.01.001 caja")).toBeUndefined();
+    expect(findExactCodeMatch(rows, "")).toBeUndefined();
+    expect(findExactCodeMatch(rows, "   ")).toBeUndefined();
+  });
+
+  it("un título nunca cuenta, aunque su código coincida exactamente; un código inexistente tampoco", () => {
+    expect(findExactCodeMatch(rows, "1.1.01.01")).toBeUndefined();
+    expect(findExactCodeMatch(rows, "999")).toBeUndefined();
   });
 });

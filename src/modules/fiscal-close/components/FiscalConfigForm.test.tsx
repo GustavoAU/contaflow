@@ -22,6 +22,7 @@ import {
   accessibleNames,
   accountComboboxes,
   clearButtonOf,
+  describedByText,
   expectAccountComboboxes,
   expectAlertListing,
   expectBlockedByAlert,
@@ -496,5 +497,76 @@ describe("FiscalConfigForm — Q4: alerta que BLOQUEA el guardado (valor guardad
     const { refresh } = mount(VALID);
     refresh(without(withTitle(EQUITY, Q_CAPITAL), Q_RESERVA));
     expectNoSavedAccountsAlert(saveBtn());
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Mutantes B2 (test-agent, paso 4). El retorno temprano `if (blocked) return;` del submit sobrevivía: la
+// revalidación L-2 que viene después (`isSelectableAccountId`) también impide llamar a la acción, así que
+// «no se llama a la acción» no distingue las dos barreras. Lo que SÍ las distingue es el aviso: con el
+// retorno temprano el submit bloqueado es SILENCIOSO (la alerta de Q4 ya explica el problema); sin él saldría
+// además el toast engañoso «Selecciona ambas cuentas antes de guardar.».
+describe("FiscalConfigForm — el `submit` bloqueado por Q4 retorna EN SILENCIO (mutantes B2)", () => {
+  it.each([
+    {
+      caso: "una cuenta de título guardada",
+      current: { result: T_CAPITAL.id, retained: Q_RETENIDAS.id },
+    },
+    {
+      caso: "una cuenta que ya no existe",
+      current: { result: Q_RESULTADO.id, retained: "no-existe" },
+    },
+    { caso: "las dos con problema", current: { result: T_CAPITAL.id, retained: T_UTILIDADES.id } },
+  ])("$caso: ni acción, ni toast de error, ni toast de éxito", async ({ current }) => {
+    mount(current);
+    fireEvent.submit(form());
+    await flush();
+    expect(updateFiscalConfigAction).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("control: sin problema de Q4 pero con campos vacíos, el submit SÍ avisa con el toast (es otra barrera)", async () => {
+    mount(NONE);
+    fireEvent.submit(form());
+    await flush();
+    expect(updateFiscalConfigAction).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(TOAST_BOTH);
+  });
+});
+
+// El `aria-describedby` hacia el texto de ayuda de cada campo y el `aria-busy` del botón fiscal (guard
+// doble-submit) no estaban comprobados: los mutantes que los quitaban sobrevivían.
+describe("FiscalConfigForm — ayuda enlazada y aria-busy del botón (mutantes B2)", () => {
+  it("cada combobox queda descrito por SU texto de ayuda (distintos entre sí)", () => {
+    mount();
+    const { result, retained } = fields();
+    expect(result.getAttribute("aria-describedby")).toBe("resultAccount-hint");
+    expect(retained.getAttribute("aria-describedby")).toBe("retainedEarningsAccount-hint");
+    expect(describedByText(result)).toMatch(/^Cuenta de Patrimonio donde se acumula el resultado/);
+    expect(describedByText(retained)).toMatch(
+      /^Cuenta de Patrimonio donde se transfiere el resultado/
+    );
+  });
+
+  it("«Guardar configuración»: aria-busy=false en reposo; true y deshabilitado mientras guarda; vuelve a false", async () => {
+    let finish!: (value: unknown) => void;
+    updateFiscalConfigAction.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    mount(VALID);
+    expect(saveBtn().getAttribute("aria-busy")).toBe("false");
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(saveBtn().getAttribute("aria-busy")).toBe("true"));
+    expect(saveBtn().hasAttribute("disabled")).toBe(true);
+    expect(updateFiscalConfigAction).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finish({ success: true, data: undefined });
+    });
+    await waitFor(() => expect(saveBtn().getAttribute("aria-busy")).toBe("false"));
+    expect(saveBtn().hasAttribute("disabled")).toBe(false);
+    expect(toastSuccess).toHaveBeenCalledWith("Configuración contable guardada.");
   });
 });

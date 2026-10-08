@@ -154,6 +154,13 @@ describe("FixedAssetsPage — títulos y cuentas para los formularios de activos
     expect([...(args.where.type?.in ?? [])].sort()).toEqual([...TYPES_B2].sort());
   });
 
+  // Mutantes B2 (test-agent): el orden de la consulta no estaba fijado (como sí lo está en la página de nómina).
+  it("conserva el orden por tipo y luego por código", async () => {
+    await renderPage();
+    const args = findMany.mock.calls[0][0] as { orderBy?: unknown };
+    expect(args.orderBy).toEqual([{ type: "asc" }, { code: "asc" }]);
+  });
+
   it("el where tiene EXACTAMENTE tres claves: companyId, deletedAt y type", async () => {
     await renderPage();
     const args = findMany.mock.calls[0][0] as { where: Record<string, unknown> };

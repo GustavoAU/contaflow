@@ -27,7 +27,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { expectNoSeriousA11yViolations } from "@/__tests__/a11y";
 
 type Problem = { key: string; label: string };
-type SavedAccountsAlertProps = { problems: ReadonlyArray<Problem> };
+type SavedAccountsAlertProps = { problems: ReadonlyArray<Problem>; id?: string };
 
 const MODULE_PATH = "./SavedAccountsAlert";
 async function loadAlert(): Promise<ComponentType<SavedAccountsAlertProps>> {
@@ -46,12 +46,13 @@ const P1: Problem = { key: "resultAccountId", label: "Cuenta Resultado del Ejerc
 const P2: Problem = { key: "retainedEarningsAccountId", label: "Cuenta Utilidades Retenidas" };
 const P3: Problem = { key: "fxGainAccountId", label: "Ganancia Cambiaria" };
 
-async function renderAlert(problems: ReadonlyArray<Problem>) {
+async function renderAlert(problems: ReadonlyArray<Problem>, id?: string) {
   const Alert = await loadAlert();
-  const utils = render(<Alert problems={problems} />);
+  const utils = render(<Alert problems={problems} id={id} />);
   return {
     ...utils,
-    rerenderWith: (next: ReadonlyArray<Problem>) => utils.rerender(<Alert problems={next} />),
+    rerenderWith: (next: ReadonlyArray<Problem>) =>
+      utils.rerender(<Alert problems={next} id={id} />),
   };
 }
 
@@ -180,6 +181,88 @@ describe("SavedAccountsAlert — es solo informativa y segura", () => {
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});
+
+// ─── Mutantes B2 (test-agent, paso 4) ────────────────────────────────────────────────────────────
+// El contrato original no fijó el texto exacto ni la prop `id` (añadida después, decisión 5): los mutantes
+// «no propagar id», «plural sin la palabra movimiento/guardar», «nunca singular», «singular con 2» y
+// «conteo desfasado» SOBREVIVÍAN porque solo se probaba un problema y con expresiones tolerantes.
+
+describe("SavedAccountsAlert — la prop `id` (la usa el botón con aria-describedby)", () => {
+  it("el id llega al elemento role=alert (y solo a él)", async () => {
+    await renderAlert([P1], "alerta-cuentas");
+    const alert = screen.getByRole("alert");
+    expect(alert.id).toBe("alerta-cuentas");
+    expect(document.querySelectorAll("#alerta-cuentas")).toHaveLength(1);
+  });
+
+  it("sin id, el elemento no lleva atributo id", async () => {
+    await renderAlert([P1]);
+    expect(screen.getByRole("alert").hasAttribute("id")).toBe(false);
+  });
+
+  it("el id sigue el valor recibido al re-renderizar", async () => {
+    const { rerenderWith } = await renderAlert([P1], "alerta-1");
+    rerenderWith([P1, P2]);
+    expect(screen.getByRole("alert").id).toBe("alerta-1");
+  });
+});
+
+describe("SavedAccountsAlert — título en singular y en plural, con el conteo exacto", () => {
+  const heading = () => text(screen.getByRole("alert").querySelector("p") as Element);
+
+  it("UN problema: «Hay una cuenta guardada que no se puede usar» (sin número ni plural)", async () => {
+    await renderAlert([P1]);
+    expect(heading()).toBe("Hay una cuenta guardada que no se puede usar");
+  });
+
+  it.each([2, 3, 17])("%i problemas: título en plural con el conteo exacto", async (n) => {
+    const problems = Array.from({ length: n }, (_, i) => ({ key: `k${i}`, label: `Campo ${i}` }));
+    await renderAlert(problems);
+    expect(heading()).toBe(`Hay ${n} cuentas guardadas que no se pueden usar`);
+  });
+
+  it("pasar de 1 a 2 problemas cambia el título de singular a plural y viceversa", async () => {
+    const { rerenderWith } = await renderAlert([P1]);
+    expect(heading()).toBe("Hay una cuenta guardada que no se puede usar");
+    rerenderWith([P1, P2]);
+    expect(heading()).toBe("Hay 2 cuentas guardadas que no se pueden usar");
+    rerenderWith([P2]);
+    expect(heading()).toBe("Hay una cuenta guardada que no se puede usar");
+  });
+});
+
+describe("SavedAccountsAlert — el mensaje dice lo mismo con uno que con varios problemas", () => {
+  it.each([[[P1]], [[P1, P2]], [[P1, P2, P3]]])(
+    "con %j: título, ya no existe, tipo, movimiento y guardar",
+    async (problems) => {
+      await renderAlert(problems);
+      const message = text(screen.getByRole("alert"));
+      expect(message).toMatch(/t[ií]tulo/i);
+      expect(message).toMatch(/ya no existe/i);
+      expect(message).toMatch(/tipo/i);
+      expect(message).toMatch(/cuenta de movimiento/i);
+      expect(message).toMatch(/para poder guardar/i);
+    }
+  );
+
+  it("el singular habla de «esta configuración» y el plural de «estas configuraciones»", async () => {
+    const { rerenderWith } = await renderAlert([P1]);
+    expect(text(screen.getByRole("alert"))).toMatch(/Esta configuración apunta/);
+    expect(text(screen.getByRole("alert"))).toMatch(/Cámbiala por/);
+    rerenderWith([P1, P2]);
+    expect(text(screen.getByRole("alert"))).toMatch(/Estas configuraciones apuntan/);
+    expect(text(screen.getByRole("alert"))).toMatch(/Cámbialas por/);
+  });
+
+  // El icono es decorativo: no debe anunciarse. (lucide-react ya lo marca aria-hidden por defecto, así que
+  // el atributo explícito del componente es redundante: este test fija el COMPORTAMIENTO observable.)
+  it("el icono decorativo está oculto a los lectores de pantalla", async () => {
+    await renderAlert([P1]);
+    const icon = screen.getByRole("alert").querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute("aria-hidden")).toBe("true");
   });
 });
 

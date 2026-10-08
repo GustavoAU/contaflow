@@ -360,3 +360,32 @@ describe("FixedAssetList · panel INPC — lo que NO cambia (guardas verdes)", (
     expect(screen.getByText(/Último índice disponible: Agosto 2026/)).toBeTruthy();
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════════════════════════
+// Mutantes B2 (test-agent, paso 4): el botón fiscal debe declarar `aria-busy` (checklist pre-merge: guard
+// doble-submit con `disabled={isPending}` + `aria-busy`). El mutante que lo quitaba sobrevivía.
+describe("FixedAssetList · panel INPC — «Generar Reajuste INPC» declara aria-busy mientras corre (mutantes B2)", () => {
+  it("en reposo aria-busy=false; mientras la acción corre aria-busy=true y deshabilitado; al terminar vuelve a false", async () => {
+    let finish!: (value: unknown) => void;
+    actions.postFixedAssetINPCRestatementAction.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    mount();
+    pickByCode(patrimonio(), Q_ACTUALIZACION.code);
+    expect(generateBtn().getAttribute("aria-busy")).toBe("false");
+    expect(generateBtn().hasAttribute("disabled")).toBe(false);
+
+    fireEvent.click(generateBtn());
+    await waitFor(() => expect(generateBtn().getAttribute("aria-busy")).toBe("true"));
+    expect(generateBtn().hasAttribute("disabled")).toBe(true);
+    expect(actions.postFixedAssetINPCRestatementAction).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finish({ success: true, data: { processed: 0, skipped: 0, totalAdjustment: "0.00" } });
+    });
+    await waitFor(() => expect(generateBtn().getAttribute("aria-busy")).toBe("false"));
+    expect(generateBtn().hasAttribute("disabled")).toBe(false);
+  });
+});

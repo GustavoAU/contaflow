@@ -64,6 +64,16 @@ se revalida al enviar (`isSelectableAccountId`). **Regla de reparto:** una pági
 migran en la misma entrega. Hueco conocido que B1 no cierra: los destinos de configuración no validan `isPostable` en el
 servidor (L-1, ver Pendiente); el combobox es la única barrera de UI y el gate de asientos protege lo que genera asiento.
 
+## SPEC-012 Entrega B2 (2026-10-07): selector buscable en activos fijos, ajustes y nómina
+
+Mismo contrato que B1, más la **alerta Q4**: una configuración guardada que apunta a un título, a una cuenta que ya no existe o a un
+tipo que el campo no admite se avisa (`unselectableSavedAccounts` + `SavedAccountsAlert`) y bloquea el guardado en el cliente
+hasta corregirla. Un campo oculto (IVA Retenido por Cobrar sin Contribuyente Especial) solo se anula si es un título o no existe
+en el plan: una cuenta de movimiento válida se conserva aunque sea de otro tipo (B2-S2). `fixed-assets/page` admite `LIABILITY`
+como contrapartida (activo comprado a crédito). **`onlyPostable` NO se retiró:** `income-distribution/page.tsx` lo sigue usando
+(su formulario tiene spec propia). **Hueco que B2 agrava:** el servidor sigue sin validar `isPostable` en la configuración (L-1);
+la auditoría lo clasifica MEDIUM, ver Pendiente.
+
 ## Pendiente (no bloqueante)
 
 - **Importador (M-2, R-6):** el AuditLog `IMPORT` guarda `ipAddress`/`userAgent` en null y los `create` no van en un
@@ -91,3 +101,31 @@ servidor (L-1, ver Pendiente); el combobox es la única barrera de UI y el gate 
   `src/lib/account-guard.ts` y cablearlo; en B2/B3 (nómina, cierre fiscal, ajustes contables, activos fijos) la misma clase sube a
   MEDIUM porque el fallo aparecería recién al correr la nómina o el cierre.
 - (Auditoría de SPEC-012 B1) barrido de páginas sin guard propio (M-1): ver SPEC-012 §10, «Backlog de B1».
+- (Auditoría de SPEC-012 B2, **B2-S1 MEDIUM**) **L-1 sube de prioridad.** Los destinos de B2 validan solo que la cuenta sea de la
+  empresa (`assertAccountsBelongToCompany`, que tampoco filtra `deletedAt`), no `isPostable` ni, salvo la config fiscal, el tipo; el
+  gate `prisma-postable-account-gate` solo protege `Transaction`. Consecuencias, de peor a menos peor: (1) **alta de activo fijo**
+  (`FixedAssetService.create`): un título como cuenta se persiste y no se corrige desde la app (no hay acción de edición) y la
+  depreciación y la baja fallan en el gate; (2) **config GL** (`saveGLConfigAction`): un título en CxC, ventas, IVA, CxP o inventario
+  aborta CADA factura de venta o compra porque el asiento se postea en la misma transacción; (3) **config fiscal**
+  (`updateFiscalConfigAction`): falla al cerrar el ejercicio, con rollback Serializable; (4) **nómina**
+  (`PayrollConfigService.saveConfig`, 17 cuentas): falla al aprobar el proceso y en préstamos; (5) **baja e INPC**
+  (`dispose`, `postINPCRestatement`): `patrimonioAccountId` ni siquiera se valida como EQUITY. Plan: `assertAccountsPostable(db,
+  companyId, ids, { types? })` en `src/lib/account-guard.ts` (`where {id in, companyId, deletedAt: null, isPostable: true}`),
+  cableado en ese orden por ledger-agent, validando solo los ids que CAMBIAN (para no bloquear filas viejas; el asistente de nómina
+  sin cuentas de movimiento reenvía sus ids guardados sin poder corregirlos, B2-S8). PR aparte, arch-agent + ledger-agent.
+- (Auditoría de SPEC-012 B2, **B2-S6 MEDIUM, preexistente**) las acciones de alta, baja e INPC de activos fijos no usan
+  `captureNet: true`: sus AuditLog quedan sin `ipAddress`/`userAgent` (R-6). Comprobado en `fixed-asset.actions.ts` (ningún
+  `captureNet` ni IP/UA); falta confirmar que los servicios tampoco los capturan por otro camino.
+- (B2-S3, LOW) el AuditLog de `PayrollConfigService.saveConfig` omite las 17 `*AccountId` en `oldValue`/`newValue`; y
+  `saveGLConfigAction` no guarda `oldValue`: reencaminar una cuenta no deja traza reconstruible.
+- (B2-S4, LOW) la contrapartida LIABILITY de activos fijos puede ser una CxP con «Ter.» obligatorio (ADR-054): el gate de tercero
+  rechaza el asiento y la transacción hace rollback (falla cerrado, mala orientación al usuario). Decidir: admitir tercero en el
+  alta, excluir esas cuentas de la contrapartida o ajustar el texto. No se pudo comprobar si las CxP reales llevan «Ter. = SÍ».
+- (B2-S5, LOW) el servidor no cruza `reason` con `saleProceeds` ni con la cuenta de cobro en la baja (`DisposeFixedAssetSchema`,
+  `FixedAssetDepreciationService.ts:536`); desde la UI no se puede enviar un cobro con motivo distinto de venta, pero una petición
+  manipulada de un ADMIN sí contabilizaría `Dr Banco`. `superRefine` + condicionar a `reason === "SALE"`.
+- (B2-S7, B2-S10, INFO) `findMany` de cuentas sin `take` (D-2 abierto) y `safeParse` antes de `requireCompanyAction` en acciones de
+  activos fijos.
+- (Calidad) supuesto sin comprobar con datos reales: que los títulos hereden el `type` de sus hijas (un filtro por tipo podría
+  perder encabezados ancestros); alturas de la lista en `DisposeAssetModal` y en la 3.ª columna de `GLAccountsForm` sin verificar
+  en navegador; los tests pesados de `PayrollWizard` rozan el timeout de 5 s bajo carga (valorar un `timeout` explícito).
