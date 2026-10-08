@@ -1,7 +1,7 @@
 ---
 id: SPEC-022
 titulo: Reconciliar la deriva entre schema.prisma y las migraciones (y que una base reconstruida sea igual a producción)
-estado: EN_CURSO   # aprobada por Gustavo el 2026-10-08 (B.1: onUpdate: NoAction en el schema)
+estado: HECHA   # aprobada por Gustavo el 2026-10-08 (B.1: onUpdate: NoAction en el schema); mergeada a main el 2026-10-08 (PR #78, 9e06e509); falta aplicarla a produccion (CA-9, la hace el dueno)
 fecha: 2026-10-08
 rama: fix/spec-022-deriva-schema-migraciones
 arbol: "[7]"
@@ -109,15 +109,15 @@ No aplica; ningún servicio cambia de firma. Archivos:
 No aplica.
 
 ## 9. Criterios de aceptación
-- [ ] CA-1: En el job `integration`, `prisma migrate diff --exit-code` sale con 0 y `scripts/ci/migrate-diff-baseline.sql` ya no existe.
-- [ ] CA-2: Test de integración: sobre una base reconstruida, `Employee` no tiene la columna `workShift`, no existe el tipo `WorkShiftType` ni el índice `PayrollRun_companyId_period_active_key`; existe `Account_companyId_isPostable_idx`; no existe `BenefitAdvance_companyId_idx`.
-- [ ] CA-3: Test de integración: se pueden crear **dos** procesos de nómina vigentes del mismo período y empresa con `currencySegment` distinto (VES y USD), y el segundo con el mismo segmento es rechazado.
-- [ ] CA-4: La migración correctiva aplicada una segunda vez sobre la misma base no falla (idempotencia).
-- [ ] CA-5: `EmployeeLoan` insertado por SQL sin `status` queda `PENDING`; el servicio y el seed siguen fijando el suyo.
-- [ ] CA-6: `migration-order.test.ts` pasa sobre el repo y falla con un fixture que pone un `DROP … IF EXISTS` antes de la migración que crea el objeto.
-- [ ] CA-7: `tsc`, `vitest`, `pnpm verify:drift`, `pnpm verify:enum-drift` y `pnpm verify:schema-format` en verde tras el cambio de tipo de `ivaRetentionAmount`.
-- [ ] CA-8: `ci-workflow-invariants.test.ts` en verde con el paso de `migrate diff` sin línea base.
-- [ ] CA-9 (la hace el usuario, PAUSA): tras aplicar la migración a producción, `migrate diff` contra producción (solo lectura) sale vacío.
+- [x] CA-1: En el job `integration`, `prisma migrate diff --exit-code` sale con 0 y `scripts/ci/migrate-diff-baseline.sql` ya no existe. Evidencia: PR #78, corrida 37859698842: el paso de `migrate diff` imprime `OK: la BD migrada coincide con schema.prisma` (exit 0) y `scripts/ci/migrate-diff-baseline.sql` ya no existe.
+- [x] CA-2: Test de integración: sobre una base reconstruida, `Employee` no tiene la columna `workShift`, no existe el tipo `WorkShiftType` ni el índice `PayrollRun_companyId_period_active_key`; existe `Account_companyId_isPostable_idx`; no existe `BenefitAdvance_companyId_idx`. Evidencia: `migration-reconciliation.test.ts` (18 tests; los 5 archivos de integracion en verde en el CI). En una base reconstruida de verdad (rama temporal del sandbox) fallaban 13 de 15 sin la migracion y pasan los 15 con ella.
+- [x] CA-3: Test de integración: se pueden crear **dos** procesos de nómina vigentes del mismo período y empresa con `currencySegment` distinto (VES y USD), y el segundo con el mismo segmento es rechazado. Evidencia: sin la migracion, el segundo proceso (USD) fallaba con `P2002`; con ella se crean ambos y el segundo del mismo segmento se rechaza (en la base temporal y en el CI).
+- [x] CA-4: La migración correctiva aplicada una segunda vez sobre la misma base no falla (idempotencia). Evidencia: el test aplica el SQL de la migracion dos veces seguidas y vuelve a comprobar el catalogo (en la base temporal y en el CI).
+- [x] CA-5: `EmployeeLoan` insertado por SQL sin `status` queda `PENDING`; el servicio y el seed siguen fijando el suyo. Evidencia: comprobado como default de la columna (`information_schema.columns.column_default` contiene `PENDING`), no insertando un prestamo por SQL: es equivalente y no obliga a sembrar empresa y empleado. El servicio y el seed ya fijan el `status` explicito.
+- [x] CA-6: `migration-order.test.ts` pasa sobre el repo y falla con un fixture que pone un `DROP … IF EXISTS` antes de la migración que crea el objeto. Evidencia: `migration-order.test.ts`, 104 tests y 1 `todo`; falla con fixtures de `DROP … IF EXISTS` antes de la creacion y pasa sobre el repo (33 drops, 3 casos, los 3 neutralizados por la migracion correctiva).
+- [x] CA-7: `tsc`, `vitest`, `pnpm verify:drift`, `pnpm verify:enum-drift` y `pnpm verify:schema-format` en verde tras el cambio de tipo de `ivaRetentionAmount`. Evidencia: suite completa en 6 shards, 7480 tests y 2 `todo`, 0 fallos; el CI del PR (corrida 37859698842) paso entero, con `tsc`, `lint:ci`, formato, `prisma format --check` y los 4 `verify:*`.
+- [x] CA-8: `ci-workflow-invariants.test.ts` en verde con el paso de `migrate diff` sin línea base. Evidencia: `ci-workflow-invariants.test.ts` (22 tests): exige `--exit-code`, prohibe volver a referenciar una linea base y comprueba que el archivo no exista, con mutaciones.
+- [ ] CA-9 (la hace el usuario, PAUSA): tras aplicar la migración a producción, `migrate diff` contra producción (solo lectura) sale vacío. **PENDIENTE:** comandos exactos en la seccion 12.
 
 ## 10. Plan de agentes
 
@@ -171,3 +171,69 @@ Línea base (2026-10-08, `main` 723b240a): `tsc --noEmit` exit 0 · 7375 tests y
 - No comprobado: el efecto de `@db.Timestamptz(6)` en el adaptador de Neon (lo dirá CI); `DO $$ … $$` en el barrido de texto; los índices parciales, triggers, CHECK y políticas RLS de producción frente a una base reconstruida (fuera del alcance de `migrate diff`: es la SPEC-023 propuesta).
 
 ## 12. Cierre
+
+- **PR:** #78, mergeado a `main` el 2026-10-08 (`9e06e509`). CI del PR (corrida 37859698842) en verde. La verificación previa de solo lectura en producción la hizo el dueño (sección 11).
+- **Commits:** `156736fb` (spec en curso y línea base), `d4f6cfb9` (tests: detector de orden y test de integración), `56e39bbf` (schema y migración correctiva), `f33e2704` (CI: `migrate diff` exige diff vacío y se borra la línea base), `ffc2debf` (guarda de base de datos del test de integración), `4b75217d` (`lock_timeout`), `e04d9490` (addendum de ADR-057 y seguimientos de seguridad).
+- **Tests:** 7375 y 1 `todo` → 7480 y 2 `todo` (+105, de los cuales 104 son de `migration-order.test.ts`). Suite completa en 6 shards, 0 fallos. `migration-reconciliation.test.ts` (18 tests, 3 de ellos de la guarda, que no usan base de datos) corre en el job `integration`, que en esa corrida ejecutó 5 archivos de integración en verde.
+- **ADR:** addendum de ADR-057 («repetible» no implicaba «equivalente a producción»). Sin ADR nuevo.
+- **Lección aprendida:** LL-026.
+- **Decisiones que cambiaron el plan:**
+  1. Las 4 claves foráneas difieren solo en `ON UPDATE`, no en `ON DELETE`. Corregido también en SPEC-014.
+  2. Hubo 3 casos de orden de migraciones, no 2. El tercero (el índice parcial de `PayrollRun`) es invisible para `migrate diff` y para `verify:drift`.
+  3. La migración no es «casi todo no-op» en producción: solo lo son los 3 `DROP`. Los demás pasos sí cambian algo.
+  4. El paso 2 del plan (un primer push solo con tests para ver el rojo en el CI) **no se hizo**: el job `integration` corrió una sola vez, con la corrección incluida. El rojo se midió en una base reconstruida de verdad, una rama temporal del sandbox de CI usada por el driver serverless (puerto 443, porque la VPN bloquea el 5432): 13 de 15 tests fallaban sin la migración, por la razón correcta (el segundo proceso de nómina en USD fallaba con `P2002`), y pasaban los 15 con ella, incluida la idempotencia.
+  5. CA-5 se comprueba como default de la columna, no insertando un préstamo por SQL.
+  6. La revisión de seguridad añadió la guarda del test de integración (R-7), el `lock_timeout` y la corrección de R-3.
+- **Deuda registrada, no resuelta aquí:**
+  - **SPEC-023 (propuesta):** instantánea normalizada del catálogo de Postgres comparada en CI contra una base reconstruida (R-4). Habría detectado el caso de `PayrollRun` sin depender de que alguien lo mirara.
+  - La guarda de base de datos de los otros 3 tests de integración es más débil que la de este (R-7).
+  - `.github/CODEOWNERS` (R-8).
+  - Límites de `migration-order.test.ts` (R-6): `DO $$ … $$`, identificadores con esquema, `RENAME TO` como forma de crear y `CONSTRAINT` en línea.
+  - Prueba manual de compartir y revocar un documento tras el despliegue (R-3).
+- **CA-9 pendiente (la hace el dueño; ningún agente toca producción).** Lo que hay que saber antes:
+  - El aplicador `scripts/apply-migration-http.mjs` lee `DATABASE_URL` (la URL **pooled**) de `.env.local`, junto al propio script. Funciona con la VPN encendida porque usa HTTPS (443).
+  - La migración tiene 9 pasos (`SET lock_timeout` y 8 sentencias). Por HTTP cada paso viaja por separado, así que el `lock_timeout` no actúa; conviene una hora tranquila. Los pasos son instantáneos (`Account` 714 filas, `BenefitAdvance` 1) y es idempotente: si se repite, avisa «ya estaba aplicada».
+  - Salida esperada: `✓ [1/9] … ✓ [9/9]`, `✓ Registrada en _prisma_migrations (9 pasos)`.
+
+  Paso 1: aplicar (PowerShell, VPN encendida), desde este worktree actualizado a `main`:
+
+  ```powershell
+  cd D:\Documents\Projects\React\modern-cg1\.claude\worktrees\chore-spec-014-ci-gates
+  git fetch origin
+  git switch --detach origin/main
+  git log --oneline -1                      # debe ser 9e06e509 o posterior
+  Copy-Item D:\Documents\Projects\React\modern-cg1\.env.local .\.env.local      # copia TEMPORAL, .env* está en .gitignore
+  $l = Select-String -Path .\.env.local -Pattern '^DATABASE_URL=' | Select-Object -First 1
+  ([uri](($l.Line -replace '^DATABASE_URL=','').Trim().Trim('"').Trim("'"))).Host   # debe empezar por ep-summer-fog-ai2n0tde
+  node scripts\apply-migration-http.mjs 20261008_reconciliar_deriva_schema
+  ```
+
+  Paso 2: comprobar en el editor SQL de Neon (rama `production`). Esperado: a = 0, b = 0, c contiene `PENDING`, d = 1, e = 0, f lista los dos nombres nuevos, g = 0 y h muestra la migración registrada. Las filas a–g se validaron contra una base reconstruida; la h no.
+
+  ```sql
+  SELECT 'a_indice_PayrollRun_period_active_key' AS chequeo, count(*)::text AS valor FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'PayrollRun_companyId_period_active_key'
+  UNION ALL SELECT 'b_columna_Employee_workShift', count(*)::text FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Employee' AND column_name = 'workShift'
+  UNION ALL SELECT 'c_default_EmployeeLoan_status', coalesce(column_default::text, '(sin default)') FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'EmployeeLoan' AND column_name = 'status'
+  UNION ALL SELECT 'd_indice_Account_isPostable', count(*)::text FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'Account_companyId_isPostable_idx'
+  UNION ALL SELECT 'e_indice_BenefitAdvance_companyId_idx', count(*)::text FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'BenefitAdvance_companyId_idx'
+  UNION ALL SELECT 'f_indices_renombrados', coalesce(string_agg(indexname, ', ' ORDER BY indexname), '(ninguno)') FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('FixedAssetINPCRestatement_assetId_inpcPeriodYear_inpcPeriod_key', 'caja_caja_reimbursements_companyId_reimbursementNumber_key')
+  UNION ALL SELECT 'g_tipo_WorkShiftType', count(*)::text FROM pg_type WHERE typname = 'WorkShiftType'
+  UNION ALL SELECT 'h_migracion_registrada', migration_name || ' @ ' || to_char(finished_at, 'YYYY-MM-DD HH24:MI') FROM _prisma_migrations WHERE migration_name = '20261008_reconciliar_deriva_schema'
+  ORDER BY 1;
+  ```
+
+  Paso 3: cierre de CA-9. `migrate diff` contra producción debe salir **vacío**. Necesita la VPN apagada un momento (bloquea el puerto 5432) y se lanza desde la misma carpeta:
+
+  ```powershell
+  $l = Select-String -Path .\.env.local -Pattern '^DATABASE_URL_DIRECT=' | Select-Object -First 1
+  $env:DATABASE_URL_DIRECT = ($l.Line -replace '^DATABASE_URL_DIRECT=','').Trim().Trim('"').Trim("'")
+  $env:DATABASE_URL = ""
+  "Host: " + ([uri]$env:DATABASE_URL_DIRECT).Host          # ep-summer-fog-ai2n0tde... (sin -pooler)
+  & .\node_modules\.bin\prisma.cmd migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code --script
+  "exit: $LASTEXITCODE"                                    # 0 = vacío = CA-9 cumplido; 2 = quedan diferencias (pégalas)
+  Remove-Item Env:DATABASE_URL_DIRECT
+  ```
+
+  Paso 4 (opcional, solo lectura): `node scripts\verify-schema-drift.mjs`, `node scripts\verify-enum-drift.mjs` y `node scripts\verify-rls.mjs` desde la misma carpeta; si alguno falla con `P1001`, es la VPN y el puerto 5432. Al terminar, `Remove-Item .\.env.local`.
+
+  Cuando el paso 3 dé `exit: 0`, se marca CA-9 con la fecha.

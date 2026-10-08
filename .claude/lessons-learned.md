@@ -254,3 +254,14 @@
 - **Fix applied**: se leyó el log de cada paso informativo; el diff real se versionó como línea base (`scripts/ci/migrate-diff-baseline.sql`) y se quitaron los `continue-on-error`. Un paso fallido sin `continue-on-error` sí se ve como `failure`.
 - **Golden rule**: la `conclusion` de un paso con `continue-on-error: true` no dice si pasó: hay que leer su log. Y un gate no se cierra en modo informativo (SPEC-014 RN-1): lo que se quiera "medir primero" se mide con un paso que imprime y NO usa `continue-on-error`, o se lee el log de la corrida.
 - **Regression test**: `src/__tests__/architecture/ci-workflow-invariants.test.ts` (prohíbe `continue-on-error: true` en `ci.yml`, con su mutación).
+
+---
+
+## LL-026 — Prisma aplica las migraciones por orden alfabético: un `DROP … IF EXISTS` que ordena antes de la creación es un no-op silencioso (2026-10-08)
+
+- **Phase detected**: SPEC-022, verificación previa de solo lectura en producción
+- **Context**: `prisma/migrations/` (170 directorios); `overtime_entry_art183` frente a `drop_duplicate_workshift` (2026-08-29) y `period_partial_unique` frente a `currency_segment` (2026-08-30). ADR-057 declaraba el historial «repetible».
+- **Error**: las migraciones se aplicaron a mano a producción en orden cronológico, pero una base reconstruida (CI, local, recuperación ante desastre) las aplica por orden de nombre. Cuando el `DROP … IF EXISTS` ordenaba antes de la migración que crea el objeto, no hacía nada y el objeto sobrevivía: `Employee.workShift`, el tipo `WorkShiftType` y un índice único parcial en `PayrollRun` que habría rechazado la segunda nómina del período en otra moneda. Producción no los tiene. `prisma migrate diff` no ve los índices parciales y `verify:drift` los excluye a propósito, así que ningún gate lo detectó.
+- **Fix applied**: migración correctiva idempotente `20261008_reconciliar_deriva_schema` que lleva una base reconstruida al estado de producción, detector de orden (`findOrderHazards` en `migration-order.test.ts`) y test de integración sobre una base reconstruida de verdad. Addendum en ADR-057.
+- **Golden rule**: «repetible» no es «equivalente a producción». Toda migración con `DROP … IF EXISTS` debe ordenar DESPUÉS de la que crea el objeto, o llevar su propia protección; y si se aplica a mano fuera de orden, hay que reconstruir una base desde cero y comparar su catálogo con el de producción, no solo con `migrate diff`.
+- **Regression test**: `src/__tests__/architecture/migration-order.test.ts` y `src/__tests__/integration/migration-reconciliation.test.ts`.
