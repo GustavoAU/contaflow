@@ -359,23 +359,19 @@ jobs:
         if: steps.gate.outputs.enabled == 'true'
         run: pnpm prisma migrate deploy
 
-      # SPEC-014 C: compara la BD que resulta de aplicar TODAS las migraciones con
+      # SPEC-014 C + SPEC-022: la BD que resulta de aplicar TODAS las migraciones debe coincidir con
       # schema.prisma. Reemplaza al antiguo chequeo "schema ↔ migraciones", que daba verde si
       # cambiaba cualquier línea de cualquier migración. El datasource sale de prisma.config.ts
-      # (DATABASE_URL_DIRECT, exportado por ci-neon-branch.mjs).
+      # (DATABASE_URL_DIRECT, exportado por ci-neon-branch.mjs). Código de salida del diff:
+      # 0 = igual, 1 = error, 2 = hay diferencias.
       #
-      # LÍNEA BASE: la primera corrida real (2026-10-08) mostró que el diff NO está vacío: hay
-      # deriva REAL, anterior a esta spec, entre schema.prisma y lo que dejan las migraciones
-      # (FKs, índices, una columna huérfana, un NOT NULL que el schema dice opcional…). Esa
-      # deriva está registrada en scripts/ci/migrate-diff-baseline.sql. El job falla ante CUALQUIER
-      # cambio respecto a esa línea base:
-      #   · diferencia NUEVA  -> se cambió schema.prisma sin migración (o al revés): crea la migración;
-      #   · diferencia que DESAPARECE -> se resolvió deriva: borra esas sentencias de la línea base.
-      # La línea base solo puede ENCOGERSE. No se acepta una diferencia nueva añadiéndola a ella.
-      - name: "Schema ↔ migraciones (prisma migrate diff contra la línea base)"
+      # SIN línea base: la deriva que la primera corrida real destapó (27 sentencias) se resolvió
+      # en SPEC-022 y scripts/ci/migrate-diff-baseline.sql se borró. Cualquier diferencia nueva
+      # (schema.prisma sin migración, o una migración que deja la BD distinta del schema) rompe el job:
+      # se arregla con una migración o corrigiendo el schema, no tolerándola.
+      - name: "Schema ↔ migraciones (prisma migrate diff)"
         if: steps.gate.outputs.enabled == 'true'
         run: |
-          # exit del diff: 0 = vacío, 2 = hay diferencias, otro = error de Prisma.
           set +e
           pnpm prisma migrate diff \
             --from-config-datasource \
@@ -384,18 +380,15 @@ jobs:
             --script > "$RUNNER_TEMP/migrate-diff.sql"
           code=$?
           set -e
-          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then
-            echo "::error::prisma migrate diff terminó con error (exit $code)"
-            exit "$code"
-          fi
-          touch "$RUNNER_TEMP/migrate-diff.sql"
-          if diff -u --strip-trailing-cr --ignore-blank-lines \
-               scripts/ci/migrate-diff-baseline.sql "$RUNNER_TEMP/migrate-diff.sql"; then
-            echo "OK: el diff entre las migraciones y schema.prisma coincide con la línea base"
+          if [ "$code" -eq 0 ]; then
+            echo "OK: la BD migrada coincide con schema.prisma"
             exit 0
           fi
-          echo "::error::El diff entre las migraciones y schema.prisma cambió respecto a scripts/ci/migrate-diff-baseline.sql. Líneas con '+' = diferencia NUEVA (¿schema.prisma sin migración?). Líneas con '-' = deriva resuelta (borra esas sentencias de la línea base)."
-          exit 1
+          echo "::group::SQL que llevaría la BD migrada a schema.prisma (exit $code)"
+          cat "$RUNNER_TEMP/migrate-diff.sql"
+          echo "::endgroup::"
+          echo "::error::migrate diff devolvió $code (2 = hay diferencias entre las migraciones y schema.prisma)"
+          exit "$code"
 
       # SPEC-014 D: siembra mínima SOLO en este branch efímero. verify:rls:runtime necesita
       # filas de 2+ empresas y sale con 1 si no puede verificar nada (ADR-044 D-8.3).
