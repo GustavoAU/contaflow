@@ -1,10 +1,22 @@
 name: CI — ContaFlow (Extended)
 
+# SPEC-014: solo `main` dispara `push` (las ramas de trabajo corren por su PR; antes `feat/**`
+# duplicaba cada corrida) y los permisos por defecto son de solo lectura.
 on:
   push:
-    branches: [main, feat/**]
+    branches: [main]
   pull_request:
     branches: [main]
+
+# Un push nuevo a un PR cancela la corrida anterior de ese PR. NUNCA se cancela una corrida
+# sobre `main`: SPEC-015 añade ahí un job que migra producción y no puede interrumpirse
+# a media migración (SPEC-014 RN-5).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   NODE_VERSION: 22
@@ -19,9 +31,6 @@ jobs:
     env:
       DATABASE_URL: "postgresql://mock:mock@localhost:5432/mock"
       NODE_ENV: test
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
     steps:
       - name: Checkout
@@ -29,25 +38,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - name: Setup (pnpm + Node + dependencias)
+        uses: ./.github/actions/setup
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Instalar dependencias
-        run: pnpm install --frozen-lockfile
 
       - name: Generar cliente Prisma
         run: pnpm prisma generate
 
-      - name: Lint (ESLint)
-        run: pnpm lint
+      # RN-4 (SPEC-014): el tope de warnings solo puede BAJAR. Medido el 2026-10-08 con
+      # `eslint .`: 49 warnings, 0 errores. Ver el script `lint:ci` de package.json.
+      - name: Lint (ESLint, sin warnings nuevos)
+        run: pnpm lint:ci
 
       # Format check (Prettier). Activado el 2026-10-03 tras formatear src/ (SPEC-002 A).
       # Para corregir en local: pnpm format
@@ -57,38 +59,25 @@ jobs:
       - name: TypeScript type check
         run: pnpm tsc --noEmit
 
+      # Los umbrales de cobertura viven SOLO en vitest.config.ts (`coverage.thresholds`) y
+      # Vitest falla la corrida si no se cumplen. Antes había aquí un paso que repetía los
+      # mismos números a mano (SPEC-014 H).
+      # Los secretos de Clerk y Groq solo los recibe este paso (revisión de seguridad de
+      # SPEC-014, L-6): antes iban en el env del job y los veían la instalación de
+      # dependencias (con scripts), el lint y el type-check.
       - name: Tests + Coverage
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: pnpm vitest run --coverage
 
-      # Coverage thresholds en sync con vitest.config.ts
-      # Subir gradualmente: branches 50→65→80, functions 70→80→90
-      - name: Verificar coverage minimo
-        run: |
-          node -e "
-            const fs = require('fs');
-            const summary = JSON.parse(fs.readFileSync('./coverage/coverage-summary.json', 'utf8'));
-            const c = summary.total;
-            const thresholds = {
-              branches: 50,
-              functions: 70,
-              lines: 70,
-              statements: 67
-            };
-            const fail = Object.keys(thresholds)
-              .filter(k => c[k].pct < thresholds[k])
-              .map(k => k + ': ' + c[k].pct + '% (min ' + thresholds[k] + '%)');
-            console.log('Coverage summary:');
-            Object.keys(thresholds).forEach(k => console.log('  ' + k + ': ' + c[k].pct + '%'));
-            if (fail.length) {
-              console.error('Coverage insuficiente:');
-              fail.forEach(f => console.error('  ' + f));
-              process.exit(1);
-            }
-            console.log('Coverage OK');
-          "
-
   # ============================================================================
-  # ARCHITECTURE AUDIT (ADR-001, ADR-004, ADR-006 D-4, ADR-006 D-5)
+  # ARCHITECTURE AUDIT (ADR-004, ADR-006 D-4, ADR-006 D-5, tipografía)
+  #
+  # ADR-001 (Serializable en correlativos) ya no se audita aquí con un `grep`: lo hace el
+  # test de arquitectura `correlativo-serializable.test.ts`, que corre en el job `test`.
+  # El chequeo "schema ↔ migraciones" lo hace `prisma migrate diff` en el job `integration`.
   # ============================================================================
   architecture:
     name: Architecture audit (ADRs + schema + append-only)
@@ -96,42 +85,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - name: Setup (pnpm + Node + dependencias)
+        uses: ./.github/actions/setup
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Instalar dependencias
-        run: pnpm install --frozen-lockfile
-
-      # ========================================================================
-      # GAP 1: Migraciones en sync con schema.prisma (ADR-001)
-      # ========================================================================
-      - name: "ADR-001: Validar migraciones en sync"
-        run: |
-          echo "Validando que schema.prisma tiene migraciones correspondientes..."
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            SCHEMA_CHANGED=$(git diff origin/main...HEAD -- prisma/schema.prisma | grep -c "^+" || echo 0)
-            MIGRATIONS_CHANGED=$(git diff origin/main...HEAD -- prisma/migrations/ | grep -c "^+" || echo 0)
-
-            if [ "$SCHEMA_CHANGED" -gt 0 ] && [ "$MIGRATIONS_CHANGED" -eq 0 ]; then
-              echo "ERROR: schema.prisma fue modificado pero no hay nuevas migraciones"
-              echo "  Ejecuta: npx prisma migrate dev --name <nombre>"
-              exit 1
-            fi
-          fi
-
-          echo "OK: Migraciones y schema en sync"
 
       # ========================================================================
       # GAP 2: ADR-004 — companyId en queries (context-aware, sin falsos positivos)
@@ -260,34 +218,10 @@ jobs:
           echo "OK: Prisma schema formateado correctamente"
 
       # ========================================================================
-      # ADR-001: Serializable en correlativos
+      # Tipografía: sin escalas de texto solapadas nuevas (SPEC-014 E). Estático: no usa BD.
       # ========================================================================
-      - name: "ADR-001: Validar Serializable en getNextControlNumber/getNextVoucherNumber"
-        run: |
-          echo "Auditando que funciones de correlativo usan Serializable..."
-
-          FILES_WITH_CORRELATIVO=$(
-            grep -rl "getNextControlNumber\|getNextVoucherNumber" \
-              src/modules --include="*.ts" \
-              | grep -v "\.test\.ts" \
-              | grep -v "__tests__" \
-              || true
-          )
-
-          MISSING_SERIALIZABLE=()
-          for FILE in $FILES_WITH_CORRELATIVO; do
-            if ! grep -q "isolationLevel.*Serializable\|Serializable.*isolationLevel" "$FILE"; then
-              MISSING_SERIALIZABLE+=("$FILE")
-            fi
-          done
-
-          if [ ${#MISSING_SERIALIZABLE[@]} -gt 0 ]; then
-            echo "WARNING: Archivos con correlativos sin Serializable verificado:"
-            printf '%s\n' "${MISSING_SERIALIZABLE[@]}"
-            echo "(Revisar manualmente que esten dentro de un \$transaction Serializable)"
-          else
-            echo "OK: ADR-001 — funciones de correlativo verificadas"
-          fi
+      - name: "Tipografía: verify:typography"
+        run: pnpm verify:typography
 
   # ============================================================================
   # SECURITY AUDIT (npm audit)
@@ -298,16 +232,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.1
-
-      - uses: actions/setup-node@v5
+      - name: Setup (pnpm + Node + dependencias)
+        uses: ./.github/actions/setup
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
 
       # xlsx migrado a exceljs — podemos subir el umbral a HIGH
       #
@@ -322,6 +250,40 @@ jobs:
         run: pnpm audit --audit-level=high --ignore GHSA-qjx8-664m-686j
 
   # ============================================================================
+  # BUILD (SPEC-014 F) — `next build` en cada PR
+  #
+  # Hasta ahora ningún job compilaba la app, y `vercel.json` ignora los builds de ramas
+  # `dependabot/`: un PR de Dependabot podía mergearse sin haberse compilado nunca. Tampoco
+  # lo veía el phase gate (tsc + vitest): errores como un export síncrono en un módulo
+  # "use server" solo aparecen aquí.
+  #
+  # Sin SECRETOS a propósito: así corre igual en PRs de Dependabot y de forks (que no los
+  # reciben), y una compilación no necesita credenciales reales. Los valores son ficticios;
+  # la clave pública de Clerk tiene formato válido (pk_test_ + base64 de "clerk.example.com$").
+  # Sin SENTRY_AUTH_TOKEN no se suben source maps.
+  # ============================================================================
+  build:
+    name: Build (next build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: "postgresql://mock:mock@localhost:5432/mock"
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_Y2xlcmsuZXhhbXBsZS5jb20k"
+      CLERK_SECRET_KEY: "sk_test_ci_build_dummy_not_a_real_key"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup (pnpm + Node + dependencias)
+        uses: ./.github/actions/setup
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build
+        run: pnpm build
+
+  # ============================================================================
   # INTEGRATION (SPEC-002) — tests contra Postgres real en un branch efímero de Neon
   #
   # Lo que los mocks no ven: constraints, triggers, RLS, Serializable, P2002 con el
@@ -331,6 +293,9 @@ jobs:
   # scripts/ci-neon-branch.mjs solo borra branches ci-<run>-<intento>
   # (ver scripts/lib/neon-ci-guards.mjs). Está en `needs` de ci-result (corrió en verde
   # el 2026-10-03); un resultado `skipped` se acepta, `failure`/`cancelled` no.
+  #
+  # SPEC-014 C y D: sobre ese mismo branch ya migrado corren además `prisma migrate diff`
+  # (schema.prisma ↔ migraciones) y los verify:* que necesitan BD.
   # ============================================================================
   integration:
     name: Integration (Neon branch efímero)
@@ -369,24 +334,15 @@ jobs:
         if: steps.gate.outputs.enabled == 'true'
         uses: actions/checkout@v5
 
-      - name: Setup pnpm
+      # RN-6 (SPEC-014): --ignore-scripts. El código de instalación de las dependencias no
+      # corre en un job con acceso a Neon. El único postinstall del repo es `prisma generate`,
+      # que va aparte.
+      - name: Setup (pnpm + Node + dependencias, sin scripts)
         if: steps.gate.outputs.enabled == 'true'
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.1
-
-      - name: Setup Node.js
-        if: steps.gate.outputs.enabled == 'true'
-        uses: actions/setup-node@v5
+        uses: ./.github/actions/setup
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      # --ignore-scripts: el código de instalación de las dependencias no corre en un job
-      # con acceso a Neon. El único postinstall del repo es `prisma generate`, que va aparte.
-      - name: Instalar dependencias
-        if: steps.gate.outputs.enabled == 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts
+          ignore-scripts: "true"
 
       - name: Generar cliente Prisma
         if: steps.gate.outputs.enabled == 'true'
@@ -402,6 +358,66 @@ jobs:
       - name: Aplicar migraciones al branch efímero
         if: steps.gate.outputs.enabled == 'true'
         run: pnpm prisma migrate deploy
+
+      # SPEC-014 C: compara la BD que resulta de aplicar TODAS las migraciones con
+      # schema.prisma. Reemplaza al antiguo chequeo "schema ↔ migraciones", que daba verde si
+      # cambiaba cualquier línea de cualquier migración. Código de salida: 0 = igual,
+      # 1 = error, 2 = hay diferencias. El datasource sale de prisma.config.ts
+      # (DATABASE_URL_DIRECT, exportado por ci-neon-branch.mjs).
+      #
+      # TEMPORAL (SPEC-014 paso 6): `continue-on-error` hasta la primera corrida real, que dice
+      # si Prisma ve diferencias por objetos que no modela (índices parciales, trigger de
+      # cuadre, RLS, CHECK). Después se quita y, si hace falta, se fija una línea base.
+      - name: "Schema ↔ migraciones (prisma migrate diff)"
+        if: steps.gate.outputs.enabled == 'true'
+        continue-on-error: true
+        run: |
+          set +e
+          pnpm prisma migrate diff \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
+            --exit-code \
+            --script > "$RUNNER_TEMP/migrate-diff.sql"
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "OK: la BD migrada coincide con schema.prisma"
+            exit 0
+          fi
+          echo "::group::SQL que llevaría la BD migrada a schema.prisma (exit $code)"
+          cat "$RUNNER_TEMP/migrate-diff.sql"
+          echo "::endgroup::"
+          echo "::error::migrate diff devolvió $code (2 = hay diferencias entre las migraciones y schema.prisma)"
+          exit "$code"
+
+      # SPEC-014 D: siembra mínima SOLO en este branch efímero. verify:rls:runtime necesita
+      # filas de 2+ empresas y sale con 1 si no puede verificar nada (ADR-044 D-8.3).
+      - name: Sembrar sonda de RLS (branch efímero)
+        if: steps.gate.outputs.enabled == 'true'
+        continue-on-error: true
+        run: pnpm prisma db execute --file scripts/ci/seed-rls-probe.sql
+
+      # SPEC-014 D: los 4 verify:* con BD contra el branch efímero. scripts/lib/db-url.mjs
+      # exige DATABASE_URL_TEST en CI y nunca cae a DATABASE_URL ni a .env.local (RN-2).
+      - name: "verify:rls (estructural)"
+        if: steps.gate.outputs.enabled == 'true'
+        continue-on-error: true
+        run: pnpm verify:rls
+
+      - name: "verify:rls:runtime (conductual)"
+        if: steps.gate.outputs.enabled == 'true'
+        continue-on-error: true
+        run: pnpm verify:rls:runtime
+
+      - name: "verify:drift (índices y constraints)"
+        if: steps.gate.outputs.enabled == 'true'
+        continue-on-error: true
+        run: pnpm verify:drift
+
+      - name: "verify:enum-drift"
+        if: steps.gate.outputs.enabled == 'true'
+        continue-on-error: true
+        run: pnpm verify:enum-drift
 
       - name: Tests de integración
         if: steps.gate.outputs.enabled == 'true'
@@ -422,7 +438,7 @@ jobs:
   ci-result:
     name: CI Result (all checks passed)
     runs-on: ubuntu-latest
-    needs: [test, architecture, security, integration]
+    needs: [test, architecture, security, build, integration]
     if: always()
     steps:
       - name: Check results
@@ -437,6 +453,10 @@ jobs:
           fi
           if [ "${{ needs.security.result }}" != "success" ]; then
             echo "FAIL: security audit job failed"
+            exit 1
+          fi
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "FAIL: build job failed"
             exit 1
           fi
           # integration se OMITE (skipped) en push, forks, Dependabot o sin secretos: eso no es
