@@ -18,20 +18,13 @@
 // (onUpdate, @updatedAt, Timestamptz, ivaRetentionAmount) NO cambian la BD y por eso no se prueban
 // aquí: los vigilan `migrate diff --exit-code` y `tsc`.
 //
-// ESTADO: TDD, paso 1 de SPEC-022 (RED). Sobre una base reconstruida de HOY (sin la migración
-// correctiva) se espera:
-//   · RED  CA-2: workShift, WorkShiftType y PayrollRun_companyId_period_active_key EXISTEN;
-//          Account_companyId_isPostable_idx NO existe; BenefitAdvance_companyId_idx EXISTE; los dos
-//          índices a renombrar siguen con su nombre antiguo.
-//   · GREEN CA-2: CompanySettings_ivaRetentionReceivableAccountId_idx ya existe (guarda: el cambio de
-//          schema B.2 no requiere migración).
-//   · RED  CA-3 (el bug): el 2.º proceso vigente del mismo período con otra moneda (USD junto a VES) se
-//          rechaza por el índice único parcial PayrollRun_companyId_period_active_key (SQLSTATE 23505
-//          / P2002).
-//   · GREEN CA-3 (guarda): un 2.º proceso con el MISMO segmento y período se rechaza (por el único o por
-//          la exclusión PayrollRun_no_overlap_active, SQLSTATE 23P01) y no deja fila.
-//   · RED  CA-4: no existe prisma/migrations/<AAAAMMDD>_reconciliar_deriva_schema.
-//   · RED  CA-5: el default de EmployeeLoan.status es 'ACTIVE', no 'PENDING'.
+// ESTADO: SPEC-022 en verde. Validado contra una base reconstruida de verdad (rama temporal del sandbox
+// de CI): SIN la migración correctiva fallaban 13 de 15 —los objetos huérfanos existían, el índice de
+// Account no, el default de EmployeeLoan.status era 'ACTIVE' y el 2.º proceso de nómina vigente del período
+// (USD junto a VES) se rechazaba por el índice único parcial PayrollRun_companyId_period_active_key
+// (SQLSTATE 23505 / P2002), que es el bug de fondo— y CON ella pasan los 15. Las dos guardas que ya
+// pasaban antes son CompanySettings_ivaRetentionReceivableAccountId_idx (el cambio de schema B.2 no
+// requiere migración) y el rechazo de un 2.º proceso con el MISMO segmento y período.
 //
 // Solo lectura de catálogos (`$queryRaw` con plantillas etiquetadas, nunca interpolación de texto).
 // CA-3 siembra una empresa y sus procesos con ids `spec022-…` únicos por corrida y los borra en
@@ -52,6 +45,23 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Client } from "pg";
 
 const DB_URL = process.env.DATABASE_URL_TEST;
+
+// GUARDA (revisión de seguridad de SPEC-022): este test siembra filas y EJECUTA DDL real (CA-4). Solo
+// debe correr contra el branch efímero de CI. Si la base tiene alguna empresa cuyo id no sea de un test
+// (ni de la siembra de la sonda de RLS), aborta ANTES de escribir nada. Una base de producción tiene
+// empresas reales con ids cuid, así que la guarda dispara.
+export const SANDBOX_COMPANY_ID_PREFIXES = ["ci-rls-probe-", "integration-", "spec022-"] as const;
+export const SANDBOX_COMPANY_ID_RE = `^(${SANDBOX_COMPANY_ID_PREFIXES.join("|")})`;
+
+/** Lanza si hay empresas ajenas a los tests: la base NO es el branch efímero de CI. */
+export function assertSandboxDatabase(foreignCompanies: number): void {
+  if (foreignCompanies > 0) {
+    throw new Error(
+      `DATABASE_URL_TEST apunta a una base con ${foreignCompanies} empresa(s) que no son de los tests: ` +
+        "no parece el branch efímero de CI (¿producción?). Abortado antes de escribir nada."
+    );
+  }
+}
 const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "migrations");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,6 +206,9 @@ describe.skipIf(!DB_URL)("@integration migration-reconciliation (SPEC-022)", () 
     if (!DB_URL) return;
     prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: DB_URL }) });
     await prisma.$connect();
+    const [{ n }] = await prisma.$queryRaw<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM "Company" WHERE id !~ ${SANDBOX_COMPANY_ID_RE}`;
+    assertSandboxDatabase(n);
     // PayrollRun.companyId tiene FK a Company (onDelete: Restrict). Solo `id` y `name` son
     // obligatorios; CA-2, CA-4 y CA-5 no necesitan filas.
     await prisma.company.create({ data: { id: COMPANY_ID, name: "integration-spec022" } });
@@ -439,5 +452,35 @@ describe.skipIf(!DB_URL)("@integration migration-reconciliation (SPEC-022)", () 
       }
       expect(problems).toEqual([]);
     });
+  });
+});
+
+// ── La guarda misma (no necesita base de datos) ─────────────────────────────────────
+
+describe("guarda de base de datos del test de reconciliación", () => {
+  const re = new RegExp(SANDBOX_COMPANY_ID_RE);
+
+  it("reconoce los ids de los tests y de la siembra de la sonda de RLS", () => {
+    for (const id of [
+      "integration-test-1",
+      "integration-glbt-9",
+      "integration-glq-3",
+      "spec022-1700000000000",
+      "ci-rls-probe-a",
+    ]) {
+      expect(re.test(id), id).toBe(true);
+    }
+  });
+
+  it("trata como ajeno un id real (cuid) o cualquier otro prefijo", () => {
+    for (const id of ["cm1abc23d0000xyz", "clx9q2k4e0001abc", "demo-empresa", "x-integration-1"]) {
+      expect(re.test(id), id).toBe(false);
+    }
+  });
+
+  it("assertSandboxDatabase lanza si hay empresas ajenas y no lanza si no hay", () => {
+    expect(() => assertSandboxDatabase(0)).not.toThrow();
+    expect(() => assertSandboxDatabase(1)).toThrow(/no parece el branch efímero/);
+    expect(() => assertSandboxDatabase(714)).toThrow(/714 empresa/);
   });
 });
