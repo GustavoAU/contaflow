@@ -23,14 +23,12 @@
 // Exit 0 = sin deriva; exit 1 = hay columnas con el tipo equivocado.
 // Solo LECTURAS sobre catálogos de Postgres.
 import { neon } from "@neondatabase/serverless";
+import { resolveDatabaseUrl } from "./lib/db-url.mjs";
 import { readFileSync } from "node:fs";
 
-const env = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
-const line = env.split(/\r?\n/).find((l) => l.startsWith("DATABASE_URL="));
-if (!line) throw new Error("DATABASE_URL no encontrada en .env.local");
-let url = line.slice("DATABASE_URL=".length).trim();
-if (url.startsWith('"') && url.endsWith('"')) url = url.slice(1, -1);
-const sql = neon(url);
+// SPEC-014 D: la URL sale de scripts/lib/db-url.mjs (en CI exige DATABASE_URL_TEST y no
+// cae a .env.local ni a DATABASE_URL).
+const sql = neon(resolveDatabaseUrl());
 
 const schema = readFileSync(new URL("../prisma/schema.prisma", import.meta.url), "utf8")
   .replace(/\r\n/g, "\n");

@@ -19,14 +19,11 @@
 // Exit 0 = la RLS aísla de verdad; exit 1 = alguna garantía no se cumple.
 // Solo hace LECTURAS: no muta ninguna fila.
 import { neon } from "@neondatabase/serverless";
-import { readFileSync } from "node:fs";
+import { resolveDatabaseUrl } from "./lib/db-url.mjs";
 
-const env = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
-const line = env.split(/\r?\n/).find((l) => l.startsWith("DATABASE_URL="));
-if (!line) throw new Error("DATABASE_URL no encontrada en .env.local");
-let url = line.slice("DATABASE_URL=".length).trim();
-if (url.startsWith('"') && url.endsWith('"')) url = url.slice(1, -1);
-const sql = neon(url);
+// SPEC-014 D: la URL sale de scripts/lib/db-url.mjs (en CI exige DATABASE_URL_TEST y no
+// cae a .env.local ni a DATABASE_URL).
+const sql = neon(resolveDatabaseUrl());
 
 /** companyId que no pertenece a nadie — sirve de tenant ajeno sin tocar datos reales. */
 const FOREIGN_ID = "rls-probe-tenant-inexistente";
