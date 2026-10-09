@@ -1,6 +1,6 @@
 ---
 name: orchestrator-agent
-description: Coordinador central de ContaFlow. Usar para: planificar features completas de extremo a extremo, coordinar múltiples agentes en secuencia, resolver conflictos entre agentes, ejecutar siguiente-paso, y tomar decisiones de prioridad. Es el punto de entrada para cualquier tarea que involucre más de un agente o más de una capa. NO implementa código de producción ni escribe ADRs.
+description: Coordinador central de ContaFlow. Usar para planificar features completas de extremo a extremo, coordinar múltiples agentes en secuencia, resolver conflictos entre agentes, ejecutar siguiente-paso, y tomar decisiones de prioridad. Es el punto de entrada para cualquier tarea que involucre más de un agente o más de una capa. NO implementa código de producción ni escribe ADRs.
 tools: Read, Glob, Grep
 ---
 
